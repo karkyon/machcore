@@ -26,7 +26,25 @@ export class NcController {
     return this.nc.recent();
   }
 
-  /** NC-03: NC詳細 */
+  /** NC-09: 変更履歴一覧 ★ :nc_id より前に配置必須 */
+  @Get(':nc_id/change-history')
+  changeHistory(@Param('nc_id', ParseIntPipe) id: number) {
+    return this.nc.changeHistory(id);
+  }
+
+  /** NC-10: 印刷履歴一覧 ★ :nc_id より前に配置必須 */
+  @Get(':nc_id/setup-sheet-logs')
+  setupSheetLogs(@Param('nc_id', ParseIntPipe) id: number) {
+    return this.nc.setupSheetLogs(id);
+  }
+
+  /** WR-01: 作業記録一覧 ★ :nc_id より前に配置必須 */
+  @Get(':nc_id/work-records')
+  workRecords(@Param('nc_id', ParseIntPipe) id: number) {
+    return this.nc.workRecords(id);
+  }
+
+  /** NC-03: NC詳細 ★ サブパスの後に配置 */
   @Get(':nc_id')
   findOne(@Param('nc_id', ParseIntPipe) id: number) {
     return this.nc.findOne(id);
@@ -36,7 +54,6 @@ export class NcController {
   @UseGuards(AuthGuard('jwt'))
   @Post()
   create(@Body() body: any) {
-    // TODO: 実装
     return { message: 'TODO: NC-04 新規登録' };
   }
 
@@ -44,7 +61,6 @@ export class NcController {
   @UseGuards(AuthGuard('jwt'))
   @Put(':nc_id')
   update(@Param('nc_id', ParseIntPipe) id: number, @Body() body: any) {
-    // TODO: 実装
     return { message: `TODO: NC-05 更新 id=${id}` };
   }
 }
