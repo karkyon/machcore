@@ -1,0 +1,29 @@
+# Node
+node_modules/
+.pnpm-store/
+
+# 環境変数
+.env
+.env.local
+.env.*.local
+
+# Next.js
+.next/
+out/
+
+# NestJS
+dist/
+
+# Prisma
+*.db
+
+# ログ
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/settings.json
