@@ -128,4 +128,59 @@ export class NcService {
     if (!r) throw new NotFoundException(`NC_id ${id} が存在しません`);
     return r;
   }
+  
+  /** NC-09: 変更履歴一覧 */
+  async changeHistory(ncProgramId: number) {
+    const rows = await this.prisma.changeHistory.findMany({
+      where:   { ncProgramId },
+      orderBy: { changedAt: 'desc' },
+      include: { operator: { select: { id: true, name: true } } },
+    });
+    return rows.map(r => ({
+      id:            r.id,
+      changed_at:    r.changedAt,
+      change_type:   r.changeType,
+      change_detail: r.changeDetail,
+      ver_before:    r.verBefore,
+      ver_after:     r.verAfter,
+      operator_name: r.operator?.name ?? null,
+    }));
+  }
+
+  /** NC-10: 印刷履歴一覧 */
+  async setupSheetLogs(ncProgramId: number) {
+    const rows = await this.prisma.setupSheetLog.findMany({
+      where:   { ncProgramId },
+      orderBy: { printedAt: 'desc' },
+      include: { printer: { select: { id: true, name: true } } },
+    });
+    return rows.map(r => ({
+      id:           r.id,
+      printed_at:   r.printedAt,
+      version:      r.version,
+      printer_name: r.printer?.name ?? null,
+    }));
+  }
+
+  /** WR-01: 作業記録一覧 */
+  async workRecords(ncProgramId: number) {
+    const rows = await this.prisma.workRecord.findMany({
+      where:   { ncProgramId },
+      orderBy: { workDate: 'desc' },
+      include: {
+        operator: { select: { id: true, name: true } },
+        machine:  { select: { machineCode: true } },
+      },
+    });
+    return rows.map(r => ({
+      id:            r.id,
+      work_date:     r.workDate,
+      setup_time:    r.setupTime,
+      machining_time: r.machiningTime,
+      quantity:      r.quantity,
+      note:          r.note,
+      operator_name: r.operator?.name ?? null,
+      machine_code:  r.machine?.machineCode ?? null,
+    }));
+  }
 }
