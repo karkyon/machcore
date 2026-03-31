@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class NcService {
@@ -8,55 +8,92 @@ export class NcService {
   /** NC-01: 部品検索 */
   async search(key: string, q: string, limit = 50, offset = 0) {
     const where: any = {};
-    if (q) {
-      if (key === 'nc_id') {
-        where.id = parseInt(q) || 0;
-      } else if (key === 'part_id') {
-        where.part = { partId: q };
-      } else if (key === 'drawing_no') {
-        where.part = { drawingNo: { contains: q } };
-      } else if (key === 'name') {
-        where.part = { name: { contains: q } };
+
+    if (q && q.trim()) {
+      const trimQ = q.trim();
+      switch (key) {
+        case "nc_id":
+          const ncId = parseInt(trimQ);
+          if (!isNaN(ncId)) where.id = ncId;
+          break;
+        case "part_id":
+          const partId = parseInt(trimQ);
+          if (!isNaN(partId)) where.part = { partId: trimQ };
+          break;
+        case "drawing_no":
+          where.part = { drawingNo: { contains: trimQ, mode: "insensitive" } };
+          break;
+        case "name":
+          where.part = { name: { contains: trimQ, mode: "insensitive" } };
+          break;
+        default:
+          // 複合検索（図面番号 OR 部品名称）
+          where.OR = [
+            { part: { drawingNo: { contains: trimQ, mode: "insensitive" } } },
+            { part: { name:      { contains: trimQ, mode: "insensitive" } } },
+          ];
       }
     }
+
     const [total, data] = await Promise.all([
       this.prisma.ncProgram.count({ where }),
       this.prisma.ncProgram.findMany({
-        where, take: limit, skip: offset,
+        where,
+        take: limit,
+        skip: offset,
         select: {
-          id: true, processL: true, version: true, status: true,
-          part:    { select: { drawingNo: true, name: true } },
+          id:       true,
+          processL: true,
+          version:  true,
+          status:   true,
+          folderName: true,
+          fileName:   true,
+          machiningTime: true,
+          part:    { select: { id: true, partId: true, drawingNo: true, name: true, clientName: true } },
           machine: { select: { machineCode: true } },
         },
-        orderBy: [{ part: { drawingNo: 'asc' } }, { processL: 'asc' }],
+        orderBy: [
+          { part:    { drawingNo: "asc" } },
+          { processL: "asc" },
+        ],
       }),
     ]);
+
     return {
       total,
       data: data.map(r => ({
-        nc_id:        r.id,
-        drawing_no:   r.part.drawingNo,
-        part_name:    r.part.name,
-        process_l:    r.processL,
-        machine_code: r.machine?.machineCode ?? null,
-        status:       r.status,
-        version:      r.version,
+        nc_id:         r.id,
+        part_db_id:    r.part.id,
+        part_id:       r.part.partId,
+        drawing_no:    r.part.drawingNo,
+        part_name:     r.part.name,
+        client_name:   r.part.clientName,
+        process_l:     r.processL,
+        machine_code:  r.machine?.machineCode ?? null,
+        status:        r.status,
+        version:       r.version,
+        folder_name:   r.folderName,
+        file_name:     r.fileName,
+        machining_time: r.machiningTime,
       })),
     };
   }
 
-  /** NC-02: 最近のアクセス */
+  /** NC-02: 最近のアクセス5件 */
   async recent() {
     const logs = await this.prisma.operationLog.findMany({
       where:   { ncProgramId: { not: null } },
       take:    5,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       select: {
-        actionType: true, createdAt: true,
-        user:      { select: { name: true } },
+        actionType: true,
+        createdAt:  true,
+        user: { select: { name: true } },
         ncProgram: {
           select: {
-            id: true, processL: true,
+            id:       true,
+            processL: true,
+            version:  true,
             part:    { select: { drawingNo: true, name: true } },
             machine: { select: { machineCode: true } },
           },
@@ -69,13 +106,14 @@ export class NcService {
       part_name:     l.ncProgram?.part.name,
       process_l:     l.ncProgram?.processL,
       machine_code:  l.ncProgram?.machine?.machineCode,
+      version:       l.ncProgram?.version,
       action_type:   l.actionType,
       operator_name: l.user?.name,
       accessed_at:   l.createdAt,
     }));
   }
 
-  /** NC-03: NC詳細 */
+  /** NC-03: NC詳細（旋盤データ＋工具リスト） */
   async findOne(id: number) {
     const r = await this.prisma.ncProgram.findUnique({
       where: { id },
@@ -84,7 +122,7 @@ export class NcService {
         machine:   true,
         registrar: { select: { id: true, name: true } },
         approver:  { select: { id: true, name: true } },
-        tools:     { orderBy: { sortOrder: 'asc' } },
+        tools:     { orderBy: { sortOrder: "asc" } },
       },
     });
     if (!r) throw new NotFoundException(`NC_id ${id} が存在しません`);
