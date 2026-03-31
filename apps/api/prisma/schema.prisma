@@ -1,0 +1,303 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  VIEWER
+  OPERATOR
+  ADMIN
+  @@map("user_role")
+}
+
+enum NcProgramStatus {
+  NEW
+  PENDING_APPROVAL
+  APPROVED
+  CHANGING
+  @@map("nc_program_status")
+}
+
+enum ChangeType {
+  NEW_REGISTRATION
+  CHANGE
+  APPROVAL
+  MIGRATION
+  @@map("change_type")
+}
+
+enum FileType {
+  PHOTO
+  DRAWING
+  PROGRAM
+  OTHER
+  @@map("file_type")
+}
+
+enum SessionType {
+  EDIT
+  SETUP_PRINT
+  WORK_RECORD
+  USB_DOWNLOAD
+  @@map("session_type")
+}
+
+enum ActionType {
+  VIEW
+  SEARCH
+  EDIT_START
+  EDIT_SAVE
+  APPROVE
+  SETUP_PRINT
+  WORK_RECORD
+  USB_DOWNLOAD
+  FILE_UPLOAD
+  FILE_DELETE
+  LOGIN
+  LOGOUT
+  SESSION_START
+  SESSION_END
+  @@map("action_type")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  employeeCode String   @unique @db.VarChar(20) @map("employee_code")
+  name         String   @db.VarChar(50)
+  nameKana     String?  @db.VarChar(50)         @map("name_kana")
+  passwordHash String   @db.VarChar(255)        @map("password_hash")
+  role         UserRole @default(OPERATOR)
+  isActive     Boolean  @default(true)          @map("is_active")
+  avatarPath   String?  @db.VarChar(500)        @map("avatar_path")
+  createdAt    DateTime @default(now())         @map("created_at")
+  updatedAt    DateTime @updatedAt              @map("updated_at")
+  registeredPrograms NcProgram[]     @relation("RegisteredBy")
+  approvedPrograms   NcProgram[]     @relation("ApprovedBy")
+  changeHistories    ChangeHistory[]
+  workRecords        WorkRecord[]
+  setupSheetLogs     SetupSheetLog[]
+  operationLogs      OperationLog[]
+  workSessions       WorkSession[]
+  uploadedFiles      NcFile[]
+  @@map("users")
+}
+
+model Machine {
+  id          Int      @id @default(autoincrement())
+  machineCode String   @unique @db.VarChar(20) @map("machine_code")
+  machineName String   @db.VarChar(100)        @map("machine_name")
+  machineType String?  @db.VarChar(50)         @map("machine_type")
+  maker       String?  @db.VarChar(50)
+  sortOrder   Int      @default(0)             @map("sort_order")
+  isActive    Boolean  @default(true)          @map("is_active")
+  createdAt   DateTime @default(now())         @map("created_at")
+  updatedAt   DateTime @updatedAt              @map("updated_at")
+  ncPrograms  NcProgram[]
+  workRecords WorkRecord[]
+  @@map("machines")
+}
+
+model Part {
+  id         Int       @id @default(autoincrement())
+  partId     String    @unique @db.VarChar(50) @map("part_id")
+  drawingNo  String    @db.VarChar(50)         @map("drawing_no")
+  name       String    @db.VarChar(100)
+  clientId   Int?                              @map("client_id")
+  clientName String?   @db.VarChar(100)        @map("client_name")
+  isActive   Boolean   @default(true)          @map("is_active")
+  syncedAt   DateTime?                         @map("synced_at")
+  ncPrograms    NcProgram[]
+  specialSheets SpecialSheet[]
+  @@index([drawingNo])
+  @@index([name])
+  @@map("parts")
+}
+
+model CompanySetting {
+  id          Int      @id @default(1)
+  companyName String   @db.VarChar(100) @map("company_name")
+  logoPath    String?  @db.VarChar(500) @map("logo_path")
+  updatedAt   DateTime @updatedAt       @map("updated_at")
+  @@map("company_settings")
+}
+
+model NcProgram {
+  id            Int             @id @default(autoincrement())
+  partId        Int                                           @map("part_id")
+  processL      Int             @db.SmallInt                 @map("process_l")
+  machineId     Int?                                         @map("machine_id")
+  machiningTime Int?                                         @map("machining_time")
+  setupTimeRef  Int?                                         @map("setup_time_ref")
+  folderName    String          @db.VarChar(100)             @map("folder_name")
+  fileName      String          @db.VarChar(100)             @map("file_name")
+  oNumber       String?         @db.VarChar(20)              @map("o_number")
+  version       String          @default("A") @db.VarChar(10)
+  clampNote     String?         @db.Text                     @map("clamp_note")
+  drawingCount  Int             @default(0)                  @map("drawing_count")
+  photoCount    Int             @default(0)                  @map("photo_count")
+  status        NcProgramStatus @default(NEW)
+  processingId  String?         @db.VarChar(50)              @map("processing_id")
+  registeredBy  Int                                          @map("registered_by")
+  approvedBy    Int?                                         @map("approved_by")
+  registeredAt  DateTime        @default(now())              @map("registered_at")
+  approvedAt    DateTime?                                    @map("approved_at")
+  legacyVer     String?         @db.VarChar(20)              @map("legacy_ver")
+  legacyKid     Int?                                         @map("legacy_kid")
+  createdAt     DateTime        @default(now())              @map("created_at")
+  updatedAt     DateTime        @updatedAt                   @map("updated_at")
+  part           Part             @relation(fields: [partId],       references: [id])
+  machine        Machine?         @relation(fields: [machineId],    references: [id])
+  registrar      User             @relation("RegisteredBy", fields: [registeredBy], references: [id])
+  approver       User?            @relation("ApprovedBy",  fields: [approvedBy],   references: [id])
+  tools          NcTool[]
+  files          NcFile[]
+  changeHistory  ChangeHistory[]
+  workRecords    WorkRecord[]
+  setupSheetLogs SetupSheetLog[]
+  operationLogs  OperationLog[]
+  workSessions   WorkSession[]
+  @@unique([partId, processL], name: "unique_part_process")
+  @@index([status])
+  @@index([folderName])
+  @@index([fileName])
+  @@index([legacyKid])
+  @@map("nc_programs")
+}
+
+model NcTool {
+  id          Int      @id @default(autoincrement())
+  ncProgramId Int                        @map("nc_program_id")
+  sortOrder   Int      @db.SmallInt      @map("sort_order")
+  processType String?  @db.VarChar(50)  @map("process_type")
+  chipModel   String?  @db.VarChar(100) @map("chip_model")
+  holderModel String?  @db.VarChar(100) @map("holder_model")
+  noseR       String?  @db.VarChar(20)  @map("nose_r")
+  tNumber     String?  @db.VarChar(10)  @map("t_number")
+  note        String?  @db.Text
+  createdAt   DateTime @default(now())  @map("created_at")
+  updatedAt   DateTime @updatedAt       @map("updated_at")
+  ncProgram   NcProgram @relation(fields: [ncProgramId], references: [id], onDelete: Cascade)
+  @@index([ncProgramId, sortOrder])
+  @@map("nc_tools")
+}
+
+model NcFile {
+  id            Int      @id @default(autoincrement())
+  ncProgramId   Int                         @map("nc_program_id")
+  fileType      FileType @default(OTHER)    @map("file_type")
+  originalName  String   @db.VarChar(255)  @map("original_name")
+  storedName    String   @db.VarChar(255)  @map("stored_name")
+  mimeType      String   @db.VarChar(100)  @map("mime_type")
+  filePath      String   @db.VarChar(500)  @map("file_path")
+  thumbnailPath String?  @db.VarChar(500)  @map("thumbnail_path")
+  fileSize      Int                        @map("file_size")
+  uploadedBy    Int                        @map("uploaded_by")
+  uploadedAt    DateTime @default(now())   @map("uploaded_at")
+  ncProgram     NcProgram @relation(fields: [ncProgramId], references: [id], onDelete: Cascade)
+  uploader      User      @relation(fields: [uploadedBy],  references: [id])
+  @@index([ncProgramId, fileType])
+  @@map("nc_files")
+}
+
+model SpecialSheet {
+  id        Int      @id @default(autoincrement())
+  partId    Int?                       @map("part_id")
+  keyword   String?  @db.VarChar(100)
+  sheetName String   @db.VarChar(100) @map("sheet_name")
+  content   String   @db.Text
+  version   Int      @default(0)
+  createdAt DateTime @default(now())  @map("created_at")
+  updatedAt DateTime @updatedAt       @map("updated_at")
+  part      Part?    @relation(fields: [partId], references: [id])
+  @@index([partId])
+  @@map("special_sheets")
+}
+
+model ChangeHistory {
+  id            Int        @id @default(autoincrement())
+  ncProgramId   Int                        @map("nc_program_id")
+  changeType    ChangeType                 @map("change_type")
+  operatorId    Int                        @map("operator_id")
+  versionBefore String?    @db.VarChar(10) @map("version_before")
+  versionAfter  String?    @db.VarChar(10) @map("version_after")
+  content       String?    @db.Text
+  fieldChanges  Json?                      @map("field_changes")
+  changedAt     DateTime   @default(now()) @map("changed_at")
+  legacyHistId  Int?                       @map("legacy_hist_id")
+  ncProgram     NcProgram  @relation(fields: [ncProgramId], references: [id])
+  operator      User       @relation(fields: [operatorId],  references: [id])
+  @@index([ncProgramId, changedAt])
+  @@index([legacyHistId])
+  @@map("change_history")
+}
+
+model WorkRecord {
+  id               Int      @id @default(autoincrement())
+  ncProgramId      Int                       @map("nc_program_id")
+  operatorId       Int                       @map("operator_id")
+  machineId        Int?                      @map("machine_id")
+  workDate         DateTime @db.Date         @map("work_date")
+  setupTimeMin     Int?                      @map("setup_time_min")
+  machiningTimeMin Int?                      @map("machining_time_min")
+  quantity         Int?
+  note             String?  @db.Text
+  sessionId        String?  @db.VarChar(36)  @map("session_id")
+  createdAt        DateTime @default(now())  @map("created_at")
+  ncProgram        NcProgram @relation(fields: [ncProgramId], references: [id])
+  operator         User      @relation(fields: [operatorId],  references: [id])
+  machine          Machine?  @relation(fields: [machineId],   references: [id])
+  @@index([ncProgramId, workDate])
+  @@index([operatorId, workDate])
+  @@map("work_records")
+}
+
+model SetupSheetLog {
+  id          Int      @id @default(autoincrement())
+  ncProgramId Int                        @map("nc_program_id")
+  operatorId  Int                        @map("operator_id")
+  printedAt   DateTime @default(now())   @map("printed_at")
+  pdfPath     String?  @db.VarChar(500)  @map("pdf_path")
+  sessionId   String?  @db.VarChar(36)   @map("session_id")
+  ncProgram   NcProgram @relation(fields: [ncProgramId], references: [id])
+  operator    User      @relation(fields: [operatorId],  references: [id])
+  @@index([ncProgramId, printedAt])
+  @@map("setup_sheet_logs")
+}
+
+model OperationLog {
+  id          Int        @id @default(autoincrement())
+  userId      Int?                        @map("user_id")
+  ncProgramId Int?                        @map("nc_program_id")
+  actionType  ActionType                  @map("action_type")
+  sessionId   String?    @db.VarChar(36)  @map("session_id")
+  ipAddress   String?    @db.VarChar(45)  @map("ip_address")
+  userAgent   String?    @db.VarChar(500) @map("user_agent")
+  metadata    Json?
+  createdAt   DateTime   @default(now())  @map("created_at")
+  user        User?      @relation(fields: [userId],      references: [id])
+  ncProgram   NcProgram? @relation(fields: [ncProgramId], references: [id])
+  @@index([ncProgramId, createdAt])
+  @@index([userId, createdAt])
+  @@index([actionType, createdAt])
+  @@map("operation_logs")
+}
+
+model WorkSession {
+  id          String      @id @default(uuid())
+  userId      Int                         @map("user_id")
+  ncProgramId Int                         @map("nc_program_id")
+  sessionType SessionType                 @map("session_type")
+  startedAt   DateTime    @default(now()) @map("started_at")
+  endedAt     DateTime?                   @map("ended_at")
+  isActive    Boolean     @default(true)  @map("is_active")
+  expiresAt   DateTime                    @map("expires_at")
+  user        User        @relation(fields: [userId],      references: [id])
+  ncProgram   NcProgram   @relation(fields: [ncProgramId], references: [id])
+  @@index([ncProgramId, isActive])
+  @@index([userId, isActive])
+  @@map("work_sessions")
+}
