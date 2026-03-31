@@ -216,7 +216,7 @@ async function migrateNcPrograms(
     const regBy = userMap.byId.get(parseInt(r2['Reco_P'] || '0')) || 1;
     try {
       const prog = await prisma.ncProgram.upsert({
-        where: { uniquePartProcess: { partId: newPartId, processL: parseInt(r2['L'] || '1') } },
+        where: { unique_part_process: { partId: newPartId, processL: parseInt(r2['L'] || '1') } },
         update: {},
         create: {
           partId: newPartId, processL: parseInt(r2['L'] || '1'),

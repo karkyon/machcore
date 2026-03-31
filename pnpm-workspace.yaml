@@ -3,5 +3,7 @@ packages:
   - packages/*
 
 onlyBuiltDependencies:
+  - '@nestjs/core'
   - '@prisma/engines'
+  - bcrypt
   - prisma
