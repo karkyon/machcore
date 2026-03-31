@@ -46,7 +46,10 @@ async function readCsv(filename: string): Promise<Record<string, string>[]> {
     return [];
   }
   const buffer = fs.readFileSync(filepath);
-  const decoded = iconv.decode(buffer, 'shift_jis');
+  // 全CSVはUTF-8（BOM付き対応）
+  const decoded = buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF
+    ? buffer.slice(3).toString('utf-8')
+    : buffer.toString('utf-8');
   const lines = decoded.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return [];
   const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
@@ -158,8 +161,8 @@ async function migrateUsers(): Promise<{ byId: Map<number, number>; byName: Map<
 // =============================================================================
 async function migrateParts(): Promise<Map<number, number>> {
   console.log('\n📍 1-3: parts...');
-  const buhin = await readCsv('buhin_main.csv');
-  const client = await readCsv('noirresaki.csv');
+  const buhin = await readCsv('buhin.csv');
+  const client = await readCsv('nonyusaki.csv');
   const cMap = new Map<string, string>();
   for (const r of client) { const id = r['納入先ID'] || ''; if (id) cMap.set(id, r['会社名'] || ''); }
   const map = new Map<number, number>();
