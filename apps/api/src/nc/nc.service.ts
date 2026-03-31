@@ -140,9 +140,9 @@ export class NcService {
       id:            r.id,
       changed_at:    r.changedAt,
       change_type:   r.changeType,
-      change_detail: r.changeDetail,
-      ver_before:    r.verBefore,
-      ver_after:     r.verAfter,
+      change_detail: r.content,
+      ver_before:    r.versionBefore,
+      ver_after:     r.versionAfter,
       operator_name: r.operator?.name ?? null,
     }));
   }
@@ -152,13 +152,13 @@ export class NcService {
     const rows = await this.prisma.setupSheetLog.findMany({
       where:   { ncProgramId },
       orderBy: { printedAt: 'desc' },
-      include: { printer: { select: { id: true, name: true } } },
+      include: { operator: { select: { id: true, name: true } } },
     });
     return rows.map(r => ({
       id:           r.id,
       printed_at:   r.printedAt,
-      version:      r.version,
-      printer_name: r.printer?.name ?? null,
+      version:      null,
+      printer_name: r.operator?.name ?? null,
     }));
   }
 
@@ -173,14 +173,14 @@ export class NcService {
       },
     });
     return rows.map(r => ({
-      id:            r.id,
-      work_date:     r.workDate,
-      setup_time:    r.setupTime,
-      machining_time: r.machiningTime,
-      quantity:      r.quantity,
-      note:          r.note,
-      operator_name: r.operator?.name ?? null,
-      machine_code:  r.machine?.machineCode ?? null,
+      id:              r.id,
+      work_date:       r.workDate,
+      setup_time:      r.setupTimeMin,
+      machining_time:  r.machiningTimeMin,
+      quantity:        r.quantity,
+      note:            r.note,
+      operator_name:   r.operator?.name ?? null,
+      machine_code:    r.machine?.machineCode ?? null,
     }));
   }
 }
