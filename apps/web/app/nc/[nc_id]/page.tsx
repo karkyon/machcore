@@ -6,6 +6,8 @@ import {
 } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
+import { useAuth } from "@/contexts/AuthContext";
+import AuthModal from "@/components/auth/AuthModal";
 
 type MainTab = "lathe" | "tools" | "history" | "files";
 type HistorySubTab = "change" | "work" | "print";
@@ -32,6 +34,15 @@ export default function NcDetailPage() {
   const [works,      setWorks]      = useState<WorkRecord[]    | null>(null);
   const [prints,     setPrints]     = useState<SetupSheetLog[] | null>(null);
   const [histLoading, setHistLoading] = useState(false);
+
+  const { operator, isAuthenticated, logout } = useAuth();
+  const [authModalOpen, setAuthModalOpen]     = useState(false);
+  const [authSessionType, setAuthSessionType] = useState("edit");
+
+  const openAuth = (sessionType: string) => {
+    setAuthSessionType(sessionType);
+    setAuthModalOpen(true);
+  };
 
   // NC詳細ロード
   useEffect(() => {
@@ -83,6 +94,7 @@ export default function NcDetailPage() {
   const d = detail;
 
   return (
+    <>
     <div className="h-screen flex flex-col bg-slate-50">
 
       {/* ── ヘッダー ── */}
@@ -97,7 +109,27 @@ export default function NcDetailPage() {
         <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
         <span className="text-slate-400 text-xs">|</span>
         <span className="text-sm font-medium">NC 詳細</span>
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-2">
+          {isAuthenticated && operator ? (
+            <>
+              <span className="text-[11px] bg-red-600 text-white px-2 py-0.5 rounded font-bold animate-pulse">
+                作業中: {operator.name}
+              </span>
+              <button
+                onClick={logout}
+                className="text-[11px] text-slate-400 hover:text-white transition-colors"
+              >
+                終了
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => openAuth("edit")}
+              className="text-[11px] bg-sky-600 hover:bg-sky-700 text-white px-3 py-1 rounded font-bold transition-colors"
+            >
+              この作業を開始する
+            </button>
+          )}
           <button className="text-[11px] bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded font-bold transition-colors">
             PG → USB 書き出し
           </button>
@@ -352,6 +384,14 @@ export default function NcDetailPage() {
 
       </div>
     </div>
+
+    <AuthModal
+      isOpen={authModalOpen}
+      sessionType={authSessionType}
+      onSuccess={() => setAuthModalOpen(false)}
+      onCancel={() => setAuthModalOpen(false)}
+    />
+    </>
   );
 }
 
