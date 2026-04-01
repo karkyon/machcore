@@ -328,3 +328,24 @@ export const adminAuthApi = {
       password,
     }),
 };
+
+// ── NC-07: PGファイルダウンロード ──────────────────────────────
+export const downloadApi = {
+  pgFile: (ncId: number, token: string): Promise<void> => {
+    return fetch(`/api/nc/${ncId}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(async res => {
+      if (!res.ok) throw new Error('ダウンロード失敗');
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const match = disposition.match(/filename[^;=\n]*=(['"]*)(.*?)\1/);
+      const fileName = match ? decodeURIComponent(match[2]) : `nc_${ncId}.nc`;
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  },
+};

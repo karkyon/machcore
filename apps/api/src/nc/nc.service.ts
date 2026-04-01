@@ -668,4 +668,23 @@ private buildSetupSheetHtml(data: any, opts: any): string {
     return { ok: true };
   }
 
+  /** NC-07: PGファイルダウンロード（バイナリストリーム返却） */
+  async downloadPgFile(id: number): Promise<{ buffer: Buffer; fileName: string }> {
+    const nc = await this.prisma.ncProgram.findUniqueOrThrow({
+      where: { id },
+      select: { id: true, fileName: true },
+    });
+    const filePath = await this.resolvePgFilePath(nc);
+
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundException(
+        `PGファイルが見つかりません: ${nc.fileName}  (パス: ${filePath})`,
+      );
+    }
+
+    const buffer = fs.readFileSync(filePath);
+    return { buffer, fileName: nc.fileName };
+  }
+
+
 }

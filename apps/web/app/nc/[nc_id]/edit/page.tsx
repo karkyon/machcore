@@ -1,7 +1,7 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { ncApi, machinesApi, NcDetail, Machine, UpdateNcBody } from "@/lib/api";
+import { ncApi, machinesApi, NcDetail, Machine, UpdateNcBody, downloadApi } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -169,6 +169,17 @@ export default function NcEditPage() {
   }, [isAuthenticated, token, dirty, machineId, machiningTime, folderName, fileName, version, clampNote, ncId, logout, router]);
 
   // キャンセル
+  
+  const handleDownload = async () => {
+    try {
+      const t = localStorage.getItem("work_token");
+      if (!t) { alert("先に作業を開始してください"); return; }
+      await downloadApi.pgFile(ncId, t);
+    } catch {
+      alert("ダウンロードに失敗しました");
+    }
+  };
+
   const handleCancel = useCallback(() => {
     if (isAuthenticated) {
       if (!confirm("変更を破棄して戻りますか？")) return;
@@ -428,6 +439,12 @@ export default function NcEditPage() {
               className="px-5 py-2.5 rounded-lg text-sm font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 transition-colors">
               ✗ キャンセル（変更を破棄）
             </button>
+              <button
+                onClick={handleDownload}
+                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-colors"
+              >
+                💾 USBへ書き出し
+              </button>
             <button
               onClick={handleSave}
               disabled={!isAuthenticated || saving || dirty.size === 0}

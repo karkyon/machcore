@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { printApi, PrintData, PrintOptions, NcTool } from "@/lib/api";
+import { printApi, PrintData, PrintOptions, NcTool, downloadApi} from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 
@@ -77,6 +77,17 @@ export default function PrintPage() {
   }, []);
 
   // ── 印刷実行 ──
+
+  const handleDownload = async () => {
+    try {
+      const t = localStorage.getItem("work_token");
+      if (!t) { alert("先に作業を開始してください"); return; }
+      await downloadApi.pgFile(ncId, t);
+    } catch {
+      alert("ダウンロードに失敗しました");
+    }
+  };
+
   const handlePrint = async () => {
     // token は useAuth() から取得（localStorage は使わない）
     if (!token) {

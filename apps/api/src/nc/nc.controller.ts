@@ -146,4 +146,19 @@ export class NcController {
     return this.nc.savePgFile(id, dto.content, dto.encoding, dto.lineEnding);
   }
 
+  /** NC-07: PGファイルダウンロード（JWT必須） */
+  @UseGuards(AuthGuard("jwt"))
+  @Get(":nc_id/download")
+  async downloadPgFile(
+    @Param("nc_id", ParseIntPipe) id: number,
+    @Res() reply: FastifyReply,
+  ) {
+    const { buffer, fileName } = await this.nc.downloadPgFile(id);
+    reply.header("Content-Type",        "application/octet-stream");
+    reply.header("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"`);
+    reply.header("Content-Length",      String(buffer.length));
+    return reply.send(buffer);
+  }
+
+
 }
