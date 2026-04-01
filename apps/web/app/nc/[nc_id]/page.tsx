@@ -155,6 +155,30 @@ export default function NcDetailPage() {
         </div>
       </div>
 
+      {/* ── 画面ナビゲーションタブ ── */}
+      <nav className="bg-slate-700 px-5 flex gap-0 shrink-0">
+        {([
+          { href: `/nc/${ncId}`,        icon: "📋", label: "NC詳細",    active: true  },
+          { href: `/nc/${ncId}/edit`,   icon: "✏️",  label: "変更・登録", active: false },
+          { href: `/nc/${ncId}/print`,  icon: "🖨",  label: "段取シート", active: false },
+          { href: `/nc/${ncId}/record`, icon: "⏱",  label: "作業記録",  active: false },
+        ] as { href: string; icon: string; label: string; active: boolean }[]).map(tab => (
+          <button
+            key={tab.href}
+            onClick={() => router.push(tab.href)}
+            className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              tab.active
+                ? "border-sky-400 text-sky-300"
+                : "border-transparent text-slate-400 hover:text-white hover:border-slate-400"
+            }`}
+          >
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </nav>
+
+
       {/* ── メインタブバー ── */}
       <div className="bg-white border-b border-slate-200 px-5 shrink-0 flex gap-0">
         {([ 
