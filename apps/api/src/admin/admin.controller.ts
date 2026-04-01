@@ -1,7 +1,8 @@
 import {
-  Controller, Get, Put, Body, UseGuards,
-  Param, Query, BadRequestException,
+  Controller, Get, Post, Put, Delete, Body, UseGuards,
+  Param, ParseIntPipe, Query, BadRequestException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -36,16 +37,104 @@ export class AdminController {
     });
   }
 
+  /** ADM-USR-01: ユーザ一覧 */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
   @Get('users')
   getUsers() {
     return this.prisma.user.findMany({
       select: {
-        id: true, employeeCode: true, name: true,
+        id: true, employeeCode: true, name: true, nameKana: true,
         role: true, isActive: true, createdAt: true,
       },
       orderBy: { id: 'asc' },
+    });
+  }
+
+  /** ADM-USR-02: ユーザ新規作成 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('users')
+  async createUser(@Body() body: {
+    employee_code: string;
+    name: string;
+    name_kana?: string;
+    password: string;
+    role?: 'VIEWER' | 'OPERATOR' | 'ADMIN';
+  }) {
+    const hash = await bcrypt.hash(body.password, 10);
+    return this.prisma.user.create({
+      data: {
+        employeeCode: body.employee_code,
+        name:         body.name,
+        nameKana:     body.name_kana,
+        passwordHash: hash,
+        role:         body.role ?? 'OPERATOR',
+        isActive:     true,
+      },
+      select: {
+        id: true, employeeCode: true, name: true, nameKana: true,
+        role: true, isActive: true, createdAt: true,
+      },
+    });
+  }
+
+  /** ADM-USR-03: ユーザ更新（PW変更は /password エンドポイントで） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Put('users/:id')
+  async updateUser(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: {
+      name?: string;
+      name_kana?: string;
+      role?: 'VIEWER' | 'OPERATOR' | 'ADMIN';
+      is_active?: boolean;
+    },
+  ) {
+    const data: any = {};
+    if (body.name      !== undefined) data.name     = body.name;
+    if (body.name_kana !== undefined) data.nameKana  = body.name_kana;
+    if (body.role      !== undefined) data.role      = body.role;
+    if (body.is_active !== undefined) data.isActive  = body.is_active;
+    return this.prisma.user.update({
+      where:  { id },
+      data,
+      select: {
+        id: true, employeeCode: true, name: true, nameKana: true,
+        role: true, isActive: true, createdAt: true,
+      },
+    });
+  }
+
+  /** ADM-USR-03b: パスワード変更専用 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Put('users/:id/password')
+  async resetPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { password: string },
+  ) {
+    if (!body.password || body.password.length < 4) {
+      throw new BadRequestException('パスワードは4文字以上必要です');
+    }
+    const hash = await bcrypt.hash(body.password, 10);
+    return this.prisma.user.update({
+      where:  { id },
+      data:   { passwordHash: hash },
+      select: { id: true, name: true },
+    });
+  }
+
+  /** ADM-USR-04: ユーザ論理削除（isActive=false） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Delete('users/:id')
+  deactivateUser(@Param('id', ParseIntPipe) id: number) {
+    return this.prisma.user.update({
+      where:  { id },
+      data:   { isActive: false },
+      select: { id: true, isActive: true },
     });
   }
 
@@ -63,7 +152,6 @@ export class AdminController {
     return { table, page: parseInt(page), limit: parseInt(limit), data: [] };
   }
 
-  /** ADM-STG: ファイル保存先パス設定 */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
   @Put('storage')
@@ -71,7 +159,6 @@ export class AdminController {
     return this.filesService.updateStoragePath(body.upload_base_path);
   }
 
-  /** ADM-STG: 現在の保存先パス取得 */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
   @Get('storage')

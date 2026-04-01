@@ -280,3 +280,37 @@ export const printApi = {
   getData: (ncId: number) =>
     api.get<PrintData>(`/nc/${ncId}/print-data`),
 };
+
+// ── 管理者: ユーザ管理 ────────────────────────────────────────
+export type AdminUserInfo = {
+  id: number;
+  employeeCode: string;
+  name: string;
+  nameKana: string | null;
+  role: 'VIEWER' | 'OPERATOR' | 'ADMIN';
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type CreateAdminUserBody = {
+  employee_code: string;
+  name: string;
+  name_kana?: string;
+  password: string;
+  role?: 'VIEWER' | 'OPERATOR' | 'ADMIN';
+};
+
+export type UpdateAdminUserBody = {
+  name?: string;
+  name_kana?: string;
+  role?: 'VIEWER' | 'OPERATOR' | 'ADMIN';
+  is_active?: boolean;
+};
+
+export const adminUsersApi = {
+  list:          ()                                       => api.get<AdminUserInfo[]>('/admin/users'),
+  create:        (body: CreateAdminUserBody)              => api.post<AdminUserInfo>('/admin/users', body),
+  update:        (id: number, body: UpdateAdminUserBody)  => api.put<AdminUserInfo>(`/admin/users/${id}`, body),
+  resetPassword: (id: number, password: string)          => api.put(`/admin/users/${id}/password`, { password }),
+  deactivate:    (id: number)                            => api.delete(`/admin/users/${id}`),
+};

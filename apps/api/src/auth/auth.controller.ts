@@ -23,4 +23,10 @@ export class AuthController {
   endWorkSession(@Req() req: any) {
     return this.authService.endWorkSession(req.user.session_id);
   }
+
+  /** AUTH-03: 管理者ログイン */
+  @Post('login')
+  login(@Body() body: { employee_code: string; password: string }) {
+    return this.authService.login(body.employee_code, body.password);
+  }
 }

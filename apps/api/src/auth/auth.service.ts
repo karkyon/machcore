@@ -79,6 +79,17 @@ export class AuthService {
     };
   }
 
+  async login(employeeCode: string, password: string) {
+    const user = await this.prisma.user.findFirst({ where: { employeeCode, isActive: true } });
+    console.log('LOGIN DEBUG user:', user ? user.id : 'NOT FOUND', 'code:', employeeCode);
+    if (!user) throw new UnauthorizedException('ユーザが存在しません');
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) throw new UnauthorizedException('パスワードが違います');
+    if (user.role !== 'ADMIN') throw new ForbiddenException('管理者権限が必要です');
+    const token = this.jwt.sign({ sub: user.id, role: user.role }, { expiresIn: '8h' });
+    return { access_token: token, user: { id: user.id, name: user.name, role: user.role } };
+  }
+
   async endWorkSession(sessionId: string) {
     await this.prisma.workSession.updateMany({
       where: { id: sessionId },
