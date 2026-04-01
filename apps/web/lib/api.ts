@@ -185,6 +185,44 @@ export const workRecordsApi = {
     api.post<{ id: number; message: string }>(`/nc/${ncId}/work-records`, body),
 };
 
+// ── ファイル管理 ────────────────────────────────────────────────
+export type NcFile = {
+  id: number;
+  file_type: 'PHOTO' | 'DRAWING' | 'PROGRAM' | 'OTHER';
+  original_name: string;
+  stored_name: string;
+  mime_type: string;
+  file_size: number;
+  file_path: string;
+  thumbnail_path: string | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+};
+
+export const filesApi = {
+  /** FIL-01: ファイル一覧 */
+  list: (ncId: number) =>
+    api.get<NcFile[]>(`/nc/${ncId}/files`),
+
+  /** FIL-02: アップロード（multipart/form-data） */
+  upload: (ncId: number, file: File, token: string) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('nc_program_id', String(ncId));
+    return api.post<{ id: number; message: string; stored_name: string }>(
+      '/files/upload',
+      fd,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+  },
+
+  /** FIL-04: ファイル削除 */
+  delete: (fileId: number, token: string) =>
+    api.delete(`/files/${fileId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+};
+
 export type UpdateNcBody = {
   machine_id?: number;
   machining_time?: number;

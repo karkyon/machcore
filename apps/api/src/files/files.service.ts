@@ -217,6 +217,28 @@ export class FilesService {
     return { filePath: file.filePath, mimeType: file.mimeType, fileName: file.originalName };
   }
 
+  // ── FIL-00b: サムネイル配信 ────────────────────────────────────
+  async serveThumb(fileId: number) {
+    const file = await this.prisma.ncFile.findUnique({ where: { id: fileId } });
+    if (!file) throw new NotFoundException(`file_id ${fileId} が存在しません`);
+
+    // thumbnailPath があれば優先、なければオリジナルをフォールバック
+    const servePath =
+      file.thumbnailPath && fs.existsSync(file.thumbnailPath)
+        ? file.thumbnailPath
+        : file.filePath;
+
+    if (!fs.existsSync(servePath))
+      throw new NotFoundException('ファイルが見つかりません');
+
+    const thumbMime = file.thumbnailPath ? 'image/jpeg' : file.mimeType;
+    return {
+      filePath: servePath,
+      mimeType: thumbMime,
+      fileName: path.basename(servePath),
+    };
+  }
+
   // ── 保存先パス更新 ────────────────────────────────────────────
   async updateStoragePath(newPath: string) {
     const trimmed = newPath.trim();

@@ -25,6 +25,21 @@ export class FilesController {
     return reply.send(stream);
   }
 
+  /** FIL-00b: サムネイル配信 */
+  @Get('thumb/:file_id')
+  async thumb(
+    @Param('file_id', ParseIntPipe) id: number,
+    @Res() reply: FastifyReply,
+  ) {
+    const { filePath, mimeType, fileName } =
+      await this.filesService.serveThumb(id);
+    reply.header('Content-Type', mimeType);
+    reply.header('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    reply.header('Cache-Control', 'public, max-age=3600');
+    const stream = fs.createReadStream(filePath);
+    return reply.send(stream);
+  }
+
   /** FIL-02: ファイルアップロード（写真/図/NCプログラム） */
   @UseGuards(AuthGuard('jwt'))
   @Post('upload')

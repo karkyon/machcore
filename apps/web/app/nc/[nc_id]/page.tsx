@@ -1,8 +1,9 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   ncApi, NcDetail, NcTool, ChangeHistory, WorkRecord, SetupSheetLog,
+  NcFile, filesApi,
 } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
@@ -35,6 +36,14 @@ export default function NcDetailPage() {
   const [prints,     setPrints]     = useState<SetupSheetLog[] | null>(null);
   const [histLoading, setHistLoading] = useState(false);
 
+  // ── ファイルタブ用ステート ──
+  const [files,        setFiles]        = useState<NcFile[] | null>(null);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [previewFile,  setPreviewFile]  = useState<NcFile | null>(null);
+  const [uploading,    setUploading]    = useState(false);
+  const [fileError,    setFileError]    = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const { operator, isAuthenticated, logout } = useAuth();
   const [authModalOpen, setAuthModalOpen]     = useState(false);
   const [authSessionType, setAuthSessionType] = useState("edit");
@@ -42,6 +51,44 @@ export default function NcDetailPage() {
   const openAuth = (sessionType: string) => {
     setAuthSessionType(sessionType);
     setAuthModalOpen(true);
+  };
+
+  // ── ファイルアップロード ──
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const token = localStorage.getItem("work_token");
+    if (!token) { openAuth("edit"); return; }
+
+    setUploading(true);
+    setFileError(null);
+    try {
+      await filesApi.upload(ncId, file, token);
+      const res = await filesApi.list(ncId);
+      setFiles(res.data);
+      ncApi.findOne(ncId).then(r => setDetail(r.data));
+    } catch {
+      setFileError("アップロードに失敗しました");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // ── ファイル削除 ──
+  const handleDelete = async (fileId: number) => {
+    if (!confirm("このファイルを削除しますか？")) return;
+    const token = localStorage.getItem("work_token");
+    if (!token) { openAuth("edit"); return; }
+
+    try {
+      await filesApi.delete(fileId, token);
+      setFiles(prev => prev ? prev.filter(f => f.id !== fileId) : prev);
+      if (previewFile?.id === fileId) setPreviewFile(null);
+      ncApi.findOne(ncId).then(r => setDetail(r.data));
+    } catch {
+      setFileError("削除に失敗しました");
+    }
   };
 
   // NC詳細ロード
@@ -68,6 +115,17 @@ export default function NcDetailPage() {
       ncApi.setupSheetLogs(ncId).then(r => setPrints(r.data)).finally(() => setHistLoading(false));
     }
   }, [mainTab, histTab, ncId, changes, works, prints]);
+
+  // ファイルタブ選択時にAPIコール（初回のみ）
+  useEffect(() => {
+    if (mainTab !== "files") return;
+    if (files !== null) return;
+    setFilesLoading(true);
+    filesApi.list(ncId)
+      .then(r => setFiles(r.data))
+      .catch(() => setFileError("ファイルの取得に失敗しました"))
+      .finally(() => setFilesLoading(false));
+  }, [mainTab, ncId, files]);
 
   const fmtDate = (s: string) =>
     new Date(s).toLocaleString("ja-JP", {
@@ -178,10 +236,9 @@ export default function NcDetailPage() {
         ))}
       </nav>
 
-
       {/* ── メインタブバー ── */}
       <div className="bg-white border-b border-slate-200 px-5 shrink-0 flex gap-0">
-        {([ 
+        {([
           { key: "lathe",   label: "旋盤データ" },
           { key: "tools",   label: "工具リスト" },
           { key: "history", label: "📋 履歴" },
@@ -401,8 +458,140 @@ export default function NcDetailPage() {
 
         {/* ─ 写真・図 ─ */}
         {mainTab === "files" && (
-          <div className="p-5">
-            <Empty label="写真・図（未実装）" />
+          <div className="p-5 space-y-6">
+            {/* ── エラー表示 ── */}
+            {fileError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-lg">
+                {fileError}
+              </div>
+            )}
+
+            {/* ── アップロードボタン ── */}
+            <div className="flex items-center gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/tiff,application/pdf"
+                className="hidden"
+                onChange={handleUpload}
+              />
+              {isAuthenticated ? (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors"
+                >
+                  {uploading ? <span className="animate-spin">⏳</span> : <span>📎</span>}
+                  {uploading ? "アップロード中…" : "ファイルを追加"}
+                </button>
+              ) : (
+                <button
+                  onClick={() => openAuth("edit")}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white text-sm rounded-lg hover:bg-slate-700 transition-colors"
+                >
+                  🔐 認証してファイルを追加
+                </button>
+              )}
+              <span className="text-xs text-slate-400">
+                対応形式: JPEG / PNG / TIFF / PDF
+              </span>
+            </div>
+
+            {/* ── ローディング ── */}
+            {filesLoading && (
+              <div className="flex items-center justify-center py-16 text-slate-400 gap-2">
+                <span className="animate-spin text-xl">⏳</span>
+                <span className="text-sm">読み込み中…</span>
+              </div>
+            )}
+
+            {/* ── ファイル一覧 ── */}
+            {!filesLoading && files !== null && (
+              <>
+                <FileSection
+                  title="📷 写真"
+                  files={files.filter(f => f.file_type === "PHOTO")}
+                  isAuthenticated={isAuthenticated}
+                  onPreview={setPreviewFile}
+                  onDelete={handleDelete}
+                />
+                <FileSection
+                  title="📄 図・段取図"
+                  files={files.filter(f => f.file_type === "DRAWING")}
+                  isAuthenticated={isAuthenticated}
+                  onPreview={setPreviewFile}
+                  onDelete={handleDelete}
+                />
+                {files.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-20 text-slate-300 gap-2">
+                    <div className="text-5xl">🖼</div>
+                    <p className="text-sm">ファイルがありません</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── プレビューモーダル ── */}
+            {previewFile && (
+              <div
+                className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+                onClick={() => setPreviewFile(null)}
+              >
+                <div
+                  className="bg-white rounded-xl overflow-hidden shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col"
+                  onClick={e => e.stopPropagation()}
+                >
+                  {/* モーダルヘッダー */}
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700 truncate max-w-[480px]">
+                        {previewFile.original_name}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {fmtSize(previewFile.file_size)} ・ {fmtUploadDate(previewFile.uploaded_at)}
+                        {previewFile.uploaded_by && ` ・ ${previewFile.uploaded_by}`}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setPreviewFile(null)}
+                      className="text-slate-400 hover:text-slate-700 text-xl px-2"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* プレビュー本体 */}
+                  <div className="flex-1 overflow-auto bg-slate-900 flex items-center justify-center min-h-[300px]">
+                    {previewFile.mime_type === "application/pdf" ? (
+                      <iframe
+                        src={`/api/files/serve/${previewFile.id}`}
+                        className="w-full h-[70vh]"
+                        title={previewFile.original_name}
+                      />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={`/api/files/serve/${previewFile.id}`}
+                        alt={previewFile.original_name}
+                        className="max-w-full max-h-[70vh] object-contain"
+                      />
+                    )}
+                  </div>
+
+                  {/* ダウンロードリンク */}
+                  <div className="px-4 py-3 border-t border-slate-200 shrink-0 flex justify-end">
+                    {/* ↓ FIX: <a が欠落していたバグを修正 */}
+                    <a
+                      href={`/api/files/serve/${previewFile.id}`}
+                      download={previewFile.original_name}
+                      className="text-xs text-sky-600 hover:underline"
+                    >
+                      ⬇ ダウンロード
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -420,7 +609,23 @@ export default function NcDetailPage() {
   );
 }
 
-// ── ヘルパーコンポーネント ──
+// ── ヘルパー関数 ──────────────────────────────────────────────────
+
+/** ファイルサイズを人間が読みやすい形式に変換 */
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** アップロード日時を YYYY/MM/DD 形式に変換 */
+function fmtUploadDate(s: string): string {
+  const d = new Date(s);
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// ── ヘルパーコンポーネント ────────────────────────────────────────
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
@@ -446,6 +651,90 @@ function Empty({ label }: { label: string }) {
     <div className="flex flex-col items-center justify-center py-20 text-slate-300 gap-2">
       <div className="text-4xl">📂</div>
       <p className="text-sm">{label}</p>
+    </div>
+  );
+}
+
+/** 写真・図グリッドセクション */
+function FileSection({
+  title,
+  files,
+  isAuthenticated,
+  onPreview,
+  onDelete,
+}: {
+  title: string;
+  files: NcFile[];
+  isAuthenticated: boolean;
+  onPreview: (f: NcFile) => void;
+  onDelete: (id: number) => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-sm font-bold text-slate-600">{title}</span>
+        <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+          {files.length} 件
+        </span>
+      </div>
+
+      {files.length === 0 ? (
+        <div className="text-xs text-slate-300 py-6 text-center border border-dashed border-slate-200 rounded-xl">
+          なし
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {files.map(f => (
+            <div
+              key={f.id}
+              className="group relative bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+            >
+              {/* サムネイル */}
+              <div
+                className="aspect-square bg-slate-100 flex items-center justify-center overflow-hidden"
+                onClick={() => onPreview(f)}
+              >
+                {f.mime_type === "application/pdf" ? (
+                  <div className="flex flex-col items-center gap-1 text-slate-400">
+                    <span className="text-3xl">📄</span>
+                    <span className="text-[10px]">PDF</span>
+                  </div>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/files/thumb/${f.id}`}
+                    alt={f.original_name}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    onError={e => {
+                      (e.target as HTMLImageElement).src = `/api/files/serve/${f.id}`;
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* ファイル名 */}
+              <div className="px-2 py-1.5">
+                <p className="text-[10px] text-slate-500 truncate leading-tight">
+                  {f.original_name}
+                </p>
+                <p className="text-[9px] text-slate-300 mt-0.5">{fmtSize(f.file_size)}</p>
+              </div>
+
+              {/* 削除ボタン（認証済み時のみ） */}
+              {isAuthenticated && (
+                <button
+                  onClick={e => { e.stopPropagation(); onDelete(f.id); }}
+                  className="absolute top-1.5 right-1.5 w-5 h-5 bg-red-500/80 text-white text-[10px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-600"
+                  title="削除"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
