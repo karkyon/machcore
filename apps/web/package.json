@@ -9,7 +9,13 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/search": "^6.6.0",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.40.0",
     "axios": "^1.14.0",
+    "codemirror": "^6.0.2",
     "next": "16.2.1",
     "react": "19.2.4",
     "react-dom": "19.2.4"

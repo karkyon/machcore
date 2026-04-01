@@ -4,6 +4,10 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CreateNcDto } from "./dto/create-nc.dto";
 import { UpdateNcDto } from "./dto/update-nc.dto";
 
+import * as fs from 'fs';
+import * as path from 'path';
+import * as chardet from 'chardet';
+import * as iconv from 'iconv-lite';
 @Injectable()
 export class NcService {
   constructor(private readonly prisma: PrismaService) {}
@@ -521,4 +525,83 @@ private buildSetupSheetHtml(data: any, opts: any): string {
       </body>
     </html>`;
   }
+
+  // ─────────────────────────────────────────────────────────
+  // PG ファイル関連  NC-06 / NC-06b
+  // ─────────────────────────────────────────────────────────
+
+  /** ファイルパス解決（company_settings.upload_base_path / folderName / fileName） */
+  private async resolvePgFilePath(
+    nc: { id: number; fileName: string },
+  ): Promise<string> {
+    const setting = await this.prisma.companySetting.findFirst();
+    const base =
+      setting?.uploadBasePath ??
+      '/home/karkyon/projects/machcore/uploads';
+    return path.join(base, 'nc_files', String(nc.id), 'pg', nc.fileName);
+  }
+
+  /** NC-06: PGファイル読込（chardet でエンコード自動検出 → UTF-8 変換） */
+  async getPgFile(id: number) {
+    const nc = await this.prisma.ncProgram.findUniqueOrThrow({ where: { id }, select: { id: true, fileName: true } });
+    const filePath = await this.resolvePgFilePath(nc);
+
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundException(
+        `PGファイルが見つかりません: ${nc.fileName}  (確認パス: ${filePath})`,
+      );
+    }
+
+    const buf = fs.readFileSync(filePath);
+
+    // エンコード検出
+    const detected = chardet.detect(buf) ?? 'UTF-8';
+    const d = detected.toLowerCase();
+    let encoding = 'UTF-8';
+    if (d.includes('shift') || d.includes('cp932') || d === 'windows-1252') {
+      encoding = 'SJIS';
+    } else if (d.includes('euc')) {
+      encoding = 'EUC-JP';
+    }
+
+    const iconvEnc = encoding === 'SJIS' ? 'CP932' : encoding;
+    const content  = iconv.decode(buf, iconvEnc);
+
+    // 改行コード検出
+    const lineEnding = content.includes('\r\n')
+      ? 'CRLF'
+      : content.includes('\r')
+      ? 'CR'
+      : 'LF';
+
+    return { content, encoding, lineEnding, fileName: nc.fileName };
+  }
+
+  /** NC-06b: PGファイル保存（iconv-lite で元エンコードに変換して上書き） */
+  async savePgFile(
+    id: number,
+    content: string,
+    encoding = 'UTF-8',
+    lineEnding = 'LF',
+  ) {
+    const nc = await this.prisma.ncProgram.findUniqueOrThrow({ where: { id }, select: { id: true, fileName: true } });
+    const filePath = await this.resolvePgFilePath(nc);
+
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundException(`PGファイルが見つかりません: ${nc.fileName}`);
+    }
+
+    // 改行コード正規化 → 指定形式に変換
+    let text = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    if (lineEnding === 'CRLF') text = text.replace(/\n/g, '\r\n');
+    else if (lineEnding === 'CR')  text = text.replace(/\n/g, '\r');
+
+    // 元エンコードに変換して保存
+    const iconvEnc = encoding === 'SJIS' ? 'CP932' : encoding;
+    const encoded  = iconv.encode(text, iconvEnc);
+    fs.writeFileSync(filePath, encoded);
+
+    return { ok: true };
+  }
+
 }

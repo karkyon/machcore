@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
+import GCodeEditor from "@/components/nc/GCodeEditor";
 
 export default function NcEditPage() {
   const { nc_id } = useParams();
@@ -32,6 +33,56 @@ export default function NcEditPage() {
 
   // AUTH
   const { operator, isAuthenticated, logout, token } = useAuth();
+  // PG エディタ
+  const [pgOpen,      setPgOpen]      = useState(false);
+  const [pgLoading,   setPgLoading]   = useState(false);
+  const [pgContent,   setPgContent]   = useState("");
+  const [pgEncoding,  setPgEncoding]  = useState("UTF-8");
+  const [pgLineEnding,setPgLineEnding]= useState("LF");
+  const [pgDirty,     setPgDirty]     = useState(false);
+  const [pgSaving,    setPgSaving]    = useState(false);
+  const [pgError,     setPgError]     = useState<string | null>(null);
+
+  const handlePgOpen = useCallback(async () => {
+    if (!token) { setAuthOpen(true); return; }
+    if (pgOpen) { setPgOpen(false); return; }
+    setPgLoading(true);
+    setPgError(null);
+    try {
+      const { default: axios } = await import("axios");
+      const res = await axios.get(`/api/nc/${ncId}/pg-file`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPgContent(res.data.content);
+      setPgEncoding(res.data.encoding);
+      setPgLineEnding(res.data.lineEnding);
+      setPgDirty(false);
+      setPgOpen(true);
+    } catch (e: any) {
+      setPgError(e?.response?.data?.message ?? "PGファイルの読込に失敗しました");
+    } finally {
+      setPgLoading(false);
+    }
+  }, [token, ncId, pgOpen]);
+
+  const handlePgSave = useCallback(async () => {
+    if (!token) return;
+    setPgSaving(true);
+    setPgError(null);
+    try {
+      const { default: axios } = await import("axios");
+      await axios.put(`/api/nc/${ncId}/pg-file`,
+        { content: pgContent, encoding: pgEncoding, lineEnding: pgLineEnding },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setPgDirty(false);
+    } catch (e: any) {
+      setPgError(e?.response?.data?.message ?? "PGファイルの保存に失敗しました");
+    } finally {
+      setPgSaving(false);
+    }
+  }, [token, ncId, pgContent, pgEncoding, pgLineEnding]);
+
   const [authOpen, setAuthOpen] = useState(false);
 
   // 経過タイマー
@@ -336,6 +387,38 @@ export default function NcEditPage() {
               </div>
 
             </div>
+          </div>
+
+          {/* PG テキストエディタ */}
+          <div className="mt-4">
+            <div className="flex items-center gap-3 mb-2">
+              <button
+                onClick={handlePgOpen}
+                disabled={!isAuthenticated || pgLoading}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                  pgOpen
+                    ? "bg-slate-700 text-white border-slate-700"
+                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                } ${!isAuthenticated || pgLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                {pgLoading ? "読込中…" : pgOpen ? "✕ エディタを閉じる" : "📝 テキストエディタで編集"}
+              </button>
+              {pgDirty && <span className="text-xs text-orange-500 font-bold">● 未保存</span>}
+              {pgSaving && <span className="text-xs text-sky-500">保存中…</span>}
+              {pgError && <span className="text-xs text-red-500">{pgError}</span>}
+            </div>
+            {pgOpen && (
+              <div className="h-[480px]">
+                <GCodeEditor
+                  content={pgContent}
+                  encoding={pgEncoding}
+                  lineEnding={pgLineEnding}
+                  readOnly={!isAuthenticated}
+                  onChange={v => { setPgContent(v); setPgDirty(true); }}
+                  onSave={handlePgSave}
+                />
+              </div>
+            )}
           </div>
 
           {/* アクションボタン */}

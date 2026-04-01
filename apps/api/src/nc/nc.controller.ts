@@ -3,6 +3,7 @@ import {
   ParseIntPipe, Body, UseGuards, Req, Res,
 } from "@nestjs/common";
 import { PrintNcDto } from "./dto/print-nc.dto";
+import { SavePgFileDto } from "./dto/save-pg-file.dto";
 import type { FastifyReply } from "fastify";
 import { AuthGuard } from "@nestjs/passport";
 import { NcService } from "./nc.service";
@@ -103,4 +104,22 @@ export class NcController {
     reply.header("Content-Length",      String(pdf.length));
     return reply.send(pdf);
   }
+
+  /** NC-06: PGファイル読込（JWT必須） */
+  @UseGuards(AuthGuard("jwt"))
+  @Get(":nc_id/pg-file")
+  getPgFile(@Param("nc_id", ParseIntPipe) id: number) {
+    return this.nc.getPgFile(id);
+  }
+
+  /** NC-06b: PGファイル保存（JWT必須） */
+  @UseGuards(AuthGuard("jwt"))
+  @Put(":nc_id/pg-file")
+  savePgFile(
+    @Param("nc_id", ParseIntPipe) id: number,
+    @Body() dto: SavePgFileDto,
+  ) {
+    return this.nc.savePgFile(id, dto.content, dto.encoding, dto.lineEnding);
+  }
+
 }
