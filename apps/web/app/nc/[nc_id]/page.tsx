@@ -388,6 +388,7 @@ export default function NcDetailPage() {
     <AuthModal
       isOpen={authModalOpen}
       sessionType={authSessionType}
+      ncProgramId={ncId}
       onSuccess={() => setAuthModalOpen(false)}
       onCancel={() => setAuthModalOpen(false)}
     />

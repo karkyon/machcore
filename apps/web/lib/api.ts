@@ -30,6 +30,8 @@ export type RecentAccess = {
   accessed_at: string;
 };
 
+export type Status = "NEW" | "PENDING_APPROVAL" | "APPROVED" | "CHANGING";
+
 export type NcDetail = {
   id: number;
   partId: number;
@@ -42,13 +44,29 @@ export type NcDetail = {
   oNumber: string | null;
   clampNote: string | null;
   version: string;
-  status: string;
-  registeredAt: string | null;
+  status: Status;
+  processingId: string | null;
+  drawingCount: number;
+  photoCount: number;
+  registeredAt: string;
   approvedAt: string | null;
-  registrar: { id: number; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+  registrar: { id: number; name: string };
   approver: { id: number; name: string } | null;
-  part: { partId: string; drawingNo: string; partName: string; clientName: string | null };
-  machine: { code: string; name: string } | null;
+  part: {
+    id: number;
+    partId: string;
+    drawingNo: string;
+    name: string;
+    clientName: string | null;
+  };
+  machine: {
+    id: number;
+    machineCode: string;
+    machineName: string;
+  } | null;
+  tools: NcTool[];
 };
 
 export type NcTool = {
@@ -126,6 +144,7 @@ export const authApi = {
     operator_id: number;
     password: string;
     session_type: string;
+    nc_program_id: number;
   }) => api.post<WorkSessionResponse>("/auth/work-session", body),
 
   endWorkSession: (token: string) =>

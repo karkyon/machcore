@@ -6,11 +6,12 @@ import { useAuth } from "../../contexts/AuthContext";
 type Props = {
   isOpen: boolean;
   sessionType: string;
+  ncProgramId: number;
   onSuccess: () => void;
   onCancel: () => void;
 };
 
-export default function AuthModal({ isOpen, sessionType, onSuccess, onCancel }: Props) {
+export default function AuthModal({ isOpen, sessionType, ncProgramId, onSuccess, onCancel }: Props) {
   const { login } = useAuth();
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserInfo | null>(null);
@@ -36,6 +37,7 @@ export default function AuthModal({ isOpen, sessionType, onSuccess, onCancel }: 
         operator_id: selectedUser.id,
         password,
         session_type: sessionType,
+        nc_program_id: ncProgramId,
       });
       login(res.data);
       onSuccess();

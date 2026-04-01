@@ -33,6 +33,7 @@ export class AuthService {
     operator_id: number;
     password: string;
     session_type: string;
+    nc_program_id: number;
   }) {
     if (!VALID_SESSION_TYPES.includes(body.session_type)) {
       throw new UnprocessableEntityException('session_type が不正な値です');
@@ -55,7 +56,7 @@ export class AuthService {
     const session = await this.prisma.workSession.create({
       data: {
         userId:      user.id,
-        ncProgramId: 1,
+        ncProgramId: body.nc_program_id,
         sessionType: body.session_type.toUpperCase() as any,
         expiresAt,
       },
