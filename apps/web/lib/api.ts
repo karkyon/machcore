@@ -190,17 +190,9 @@ export type CreateWorkRecordBody = {
 };
 
 export const workRecordsApi = {
-  /** WR-01: 作業記録一覧取得 */
-  list: (ncId: number): Promise<WorkRecord[]> =>
-    apiFetch(`/nc/${ncId}/work-records`),
- 
-  /** WR-02: 作業記録登録 */
-  create: (ncId: number, body: CreateWorkRecordBody): Promise<{ id: number; message: string }> =>
-    apiFetch(`/nc/${ncId}/work-records`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
+  list:   (ncId: number) => api.get<WorkRecord[]>(`/nc/${ncId}/work-records`),
+  create: (ncId: number, body: CreateWorkRecordBody) =>
+    api.post<{ id: number; message: string }>(`/nc/${ncId}/work-records`, body),
 };
 
 export type UpdateNcBody = {

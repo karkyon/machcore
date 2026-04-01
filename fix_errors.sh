@@ -1,3 +1,130 @@
+#!/bin/bash
+# ================================================================
+# fix_errors.sh — SCR-05 tscエラー修正スクリプト
+# ~/projects/machcore で実行すること
+# ================================================================
+set -e
+cd ~/projects/machcore
+
+echo "=== [1/4] nc.service.ts に import 追加 ==="
+python3 << 'PYEOF'
+path = 'apps/api/src/nc/nc.service.ts'
+with open(path, 'r') as f:
+    content = f.read()
+
+old = 'import { UpdateNcDto } from "./dto/update-nc.dto";'
+new = 'import { UpdateNcDto } from "./dto/update-nc.dto";\nimport { CreateWorkRecordDto } from "./dto/create-work-record.dto";'
+
+if 'CreateWorkRecordDto' not in content:
+    content = content.replace(old, new)
+    with open(path, 'w') as f:
+        f.write(content)
+    print("✅ import追加完了")
+else:
+    print("⏭  既に追加済み")
+PYEOF
+
+echo ""
+echo "=== [2/4] Prisma クライアント再生成（cycleTimeSec型を認識させる） ==="
+pnpm --filter api exec prisma generate
+echo "✅ prisma generate完了"
+
+echo ""
+echo "=== [3/4] api.ts の WorkRecord 型更新 + workRecordsApi を Axios に統一 ==="
+python3 << 'PYEOF'
+path = 'apps/web/lib/api.ts'
+with open(path, 'r') as f:
+    content = f.read()
+
+# --- WorkRecord型を新フィールド追加版に置換 ---
+old_wr_type = '''export type WorkRecord = {
+  id: number;
+  work_date: string;
+  operator_name: string | null;
+  machine_code: string | null;
+  setup_time: number | null;
+  machining_time: number | null;
+  quantity: number | null;
+  note: string | null;
+};'''
+
+new_wr_type = '''export type WorkRecord = {
+  id: number;
+  work_date: string;
+  operator_name: string | null;
+  machine_code: string | null;
+  setup_time: number | null;
+  machining_time: number | null;
+  cycle_time_sec: number | null;
+  quantity: number | null;
+  interruption_time_min: number | null;
+  work_type: string | null;
+  note: string | null;
+};'''
+
+if 'cycle_time_sec' not in content:
+    content = content.replace(old_wr_type, new_wr_type)
+    print("✅ WorkRecord型 更新完了")
+else:
+    print("⏭  WorkRecord型 既に更新済み")
+
+# --- workRecordsApi を Axios パターンで追加（未定義なら） ---
+if 'workRecordsApi' not in content:
+    append = '''
+export type CreateWorkRecordBody = {
+  setup_time_min?: number;
+  machining_time_min?: number;
+  cycle_time_sec?: number;
+  quantity?: number;
+  interruption_time_min?: number;
+  work_type?: string;
+  note?: string;
+  machine_id?: number;
+};
+
+export const workRecordsApi = {
+  list:   (ncId: number) => api.get<WorkRecord[]>(`/nc/${ncId}/work-records`),
+  create: (ncId: number, body: CreateWorkRecordBody) =>
+    api.post<{ id: number; message: string }>(`/nc/${ncId}/work-records`, body),
+};
+'''
+    content = content + append
+    print("✅ workRecordsApi 追加完了")
+else:
+    # 既存のworkRecordsApiをAxiosパターンに置換
+    import re
+    # apiFetchベースのworkRecordsApiを削除して置換
+    old_api = '''export const workRecordsApi = {
+  /** WR-01: 作業記録一覧取得 */
+  list: (ncId: number): Promise<WorkRecord[]> =>
+    apiFetch(`/nc/${ncId}/work-records`),
+ 
+  /** WR-02: 作業記録登録 */
+  create: (ncId: number, body: CreateWorkRecordBody): Promise<{ id: number; message: string }> =>
+    apiFetch(`/nc/${ncId}/work-records`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+};'''
+    new_api = '''export const workRecordsApi = {
+  list:   (ncId: number) => api.get<WorkRecord[]>(`/nc/${ncId}/work-records`),
+  create: (ncId: number, body: CreateWorkRecordBody) =>
+    api.post<{ id: number; message: string }>(`/nc/${ncId}/work-records`, body),
+};'''
+    if old_api in content:
+        content = content.replace(old_api, new_api)
+        print("✅ workRecordsApi Axios化完了")
+    else:
+        print("⏭  workRecordsApi 確認済み")
+
+with open(path, 'w') as f:
+    f.write(content)
+PYEOF
+
+echo ""
+echo "=== [4/4] record/page.tsx を Axios(.data)対応版に修正 ==="
+cat > apps/web/app/nc/\[nc_id\]/record/page.tsx << 'TSXEOF'
 "use client";
 // apps/web/app/nc/[nc_id]/record/page.tsx
 // SCR-05: 作業記録画面
@@ -537,3 +664,17 @@ function AuthModal({ ncId, sessionType, onSuccess, onCancel }: {
     </div>
   );
 }
+TSXEOF
+
+echo "✅ record/page.tsx 修正完了"
+echo ""
+echo "=== tsc検証 ==="
+pnpm --filter api exec tsc --noEmit 2>&1 | grep "error" | head -10
+pnpm --filter web exec tsc --noEmit 2>&1 | grep "error" | head -10
+echo "--- tsc完了 ---"
+
+echo ""
+echo "=== git commit & push ==="
+git add -A
+git commit -m "fix: SCR-05 tscエラー修正（Axios.data対応・Prisma再生成・import追加）"
+git push origin main
