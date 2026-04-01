@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { CreateWorkRecordDto } from './dto/create-work-record.dto';
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateNcDto } from "./dto/create-nc.dto";
 import { UpdateNcDto } from "./dto/update-nc.dto";

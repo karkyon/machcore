@@ -90,16 +90,6 @@ export type ChangeHistory = {
   change_detail: string | null;
 };
 
-export type WorkRecord = {
-  id: number;
-  work_date: string;
-  operator_name: string | null;
-  machine_code: string | null;
-  setup_time: number | null;
-  machining_time: number | null;
-  quantity: number | null;
-  note: string | null;
-};
 
 export type SetupSheetLog = {
   id: number;
