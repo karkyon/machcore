@@ -27,3 +27,6 @@ Thumbs.db
 
 # VSCode
 .vscode/settings.json
+
+# アップロードファイル（サーバローカルFS）
+uploads/
