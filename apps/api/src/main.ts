@@ -13,7 +13,9 @@ async function bootstrap() {
     new FastifyAdapter({ logger: false }),
   );
 
-  await app.register(fastifyMultipart, {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (app as any).register(fastifyMultipart, {
+    attachFieldsToBody: false,
     limits: { fileSize: 50 * 1024 * 1024 },
   });
   app.setGlobalPrefix('api');
