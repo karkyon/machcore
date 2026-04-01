@@ -118,6 +118,7 @@ export const ncApi = {
   changeHistory: (nc_id: number) => api.get<ChangeHistory[]>(`/nc/${nc_id}/change-history`),
   workRecords: (nc_id: number) => api.get<WorkRecord[]>(`/nc/${nc_id}/work-records`),
   setupSheetLogs: (nc_id: number) => api.get<SetupSheetLog[]>(`/nc/${nc_id}/setup-sheet-logs`),
+  update: (nc_id: number, body: UpdateNcBody) => api.put<{ nc_id: number; message: string }>(`/nc/${nc_id}`, body),
 };
 
 export type UserInfo = {
@@ -151,4 +152,23 @@ export const authApi = {
     api.delete("/auth/work-session", {
       headers: { Authorization: `Bearer ${token}` },
     }),
+};
+export type Machine = {
+  id: number;
+  machineCode: string;
+  machineName: string;
+  isActive: boolean;
+};
+
+export const machinesApi = {
+  list: () => api.get<Machine[]>("/machines"),
+};
+
+export type UpdateNcBody = {
+  machine_id?: number;
+  machining_time?: number;
+  folder_name?: string;
+  file_name?: string;
+  version?: string;
+  clamp_note?: string;
 };
