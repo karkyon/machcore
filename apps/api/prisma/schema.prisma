@@ -118,10 +118,11 @@ model Part {
 }
 
 model CompanySetting {
-  id          Int      @id @default(1)
-  companyName String   @db.VarChar(100) @map("company_name")
-  logoPath    String?  @db.VarChar(500) @map("logo_path")
-  updatedAt   DateTime @updatedAt       @map("updated_at")
+  id               Int      @id @default(1)
+  companyName      String   @db.VarChar(100)  @map("company_name")
+  logoPath         String?  @db.VarChar(500)  @map("logo_path")
+  uploadBasePath   String?  @db.VarChar(500)  @map("upload_base_path")
+  updatedAt        DateTime @updatedAt         @map("updated_at")
   @@map("company_settings")
 }
 

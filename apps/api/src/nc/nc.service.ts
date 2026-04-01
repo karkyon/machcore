@@ -215,7 +215,28 @@ export class NcService {
     }));
   }
 
-  /** WR-01: 作業記録一覧 */
+  /** FIL-01: ファイル一覧 */
+  async listFiles(ncProgramId: number) {
+    const rows = await this.prisma.ncFile.findMany({
+      where:   { ncProgramId },
+      orderBy: { uploadedAt: 'desc' },
+      include: { uploader: { select: { name: true } } },
+    });
+    return rows.map(r => ({
+      id:             r.id,
+      file_type:      r.fileType,
+      original_name:  r.originalName,
+      stored_name:    r.storedName,
+      mime_type:      r.mimeType,
+      file_size:      r.fileSize,
+      file_path:      r.filePath,
+      thumbnail_path: r.thumbnailPath,
+      uploaded_by:    r.uploader?.name ?? null,
+      uploaded_at:    r.uploadedAt,
+    }));
+  }
+
+    /** WR-01: 作業記録一覧 */
   async workRecords(ncProgramId: number) {
     const rows = await this.prisma.workRecord.findMany({
       where:   { ncProgramId },

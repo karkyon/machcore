@@ -6,6 +6,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { FilesService } from '../files/files.service';
 
 const ALLOWED_TABLES = [
   'users', 'machines', 'parts', 'nc_programs',
@@ -14,7 +15,10 @@ const ALLOWED_TABLES = [
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly filesService: FilesService,
+  ) {}
 
   @Get('company')
   getCompany() {
@@ -57,5 +61,23 @@ export class AdminController {
       throw new BadRequestException(`テーブル '${table}' は許可されていません`);
     }
     return { table, page: parseInt(page), limit: parseInt(limit), data: [] };
+  }
+
+  /** ADM-STG: ファイル保存先パス設定 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Put('storage')
+  updateStorage(@Body() body: { upload_base_path: string }) {
+    return this.filesService.updateStoragePath(body.upload_base_path);
+  }
+
+  /** ADM-STG: 現在の保存先パス取得 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('storage')
+  getStorage() {
+    return this.prisma.companySetting.findFirst({
+      select: { uploadBasePath: true, companyName: true },
+    });
   }
 }

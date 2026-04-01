@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import fastifyMultipart from '@fastify/multipart';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -12,6 +13,9 @@ async function bootstrap() {
     new FastifyAdapter({ logger: false }),
   );
 
+  await app.register(fastifyMultipart, {
+    limits: { fileSize: 50 * 1024 * 1024 },
+  });
   app.setGlobalPrefix('api');
 
   app.useGlobalPipes(

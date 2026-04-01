@@ -40,6 +40,12 @@ export class NcController {
     return this.nc.workRecords(id);
   }
 
+  /** FIL-01: ファイル一覧 */
+  @Get(":nc_id/files")
+  listFiles(@Param("nc_id", ParseIntPipe) id: number) {
+    return this.nc.listFiles(id);
+  }
+
   /** WR-02: 作業記録 新規登録 */
   @UseGuards(AuthGuard("jwt"))
   @Post(":nc_id/work-records")
