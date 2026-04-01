@@ -179,25 +179,10 @@ export type CreateWorkRecordBody = {
   machine_id?: number;
 };
 
-export type UpdateWorkRecordBody = {
-  setup_time_min?: number;
-  machining_time_min?: number;
-  cycle_time_sec?: number;
-  quantity?: number;
-  interruption_time_min?: number;
-  work_type?: string;
-  note?: string;
-  machine_id?: number;
-};
-
 export const workRecordsApi = {
   list:   (ncId: number) => api.get<WorkRecord[]>(`/nc/${ncId}/work-records`),
   create: (ncId: number, body: CreateWorkRecordBody) =>
     api.post<{ id: number; message: string }>(`/nc/${ncId}/work-records`, body),
-  update: (ncId: number, recordId: number, body: UpdateWorkRecordBody) =>
-    api.put<{ id: number; message: string }>(`/nc/${ncId}/work-records/${recordId}`, body),
-  delete: (ncId: number, recordId: number) =>
-    api.delete(`/nc/${ncId}/work-records/${recordId}`),
 };
 
 // ── ファイル管理 ────────────────────────────────────────────────
@@ -279,4 +264,26 @@ export type PrintOptions = {
 export const printApi = {
   getData: (ncId: number) =>
     api.get<PrintData>(`/nc/${ncId}/print-data`),
+};
+
+export type UpdateWorkRecordBody = {
+  setup_time_min?: number;
+  machining_time_min?: number;
+  cycle_time_sec?: number;
+  quantity?: number;
+  interruption_time_min?: number;
+  work_type?: string;
+  note?: string;
+  machine_id?: number;
+};
+
+export const workRecordsApi = {
+  list:   (ncId: number) => api.get<WorkRecord[]>(`/nc/${ncId}/work-records`),
+  create: (ncId: number, body: CreateWorkRecordBody) =>
+    api.post<{ id: number; message: string }>(`/nc/${ncId}/work-records`, body),
+  // ↓ 追記
+  update: (ncId: number, recordId: number, body: UpdateWorkRecordBody) =>
+    api.put<{ id: number; message: string }>(`/nc/${ncId}/work-records/${recordId}`, body),
+  delete: (ncId: number, recordId: number) =>
+    api.delete(`/nc/${ncId}/work-records/${recordId}`),
 };

@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Delete, Param, Query,
+  Controller, Get, Post, Put, Param, Query,
   ParseIntPipe, Body, UseGuards, Req, Res,
 } from "@nestjs/common";
 import { UpdateWorkRecordDto } from "./dto/update-work-record.dto";
@@ -11,7 +11,6 @@ import { NcService } from "./nc.service";
 import { CreateNcDto } from "./dto/create-nc.dto";
 import { UpdateNcDto } from "./dto/update-nc.dto";
 import { CreateWorkRecordDto } from "./dto/create-work-record.dto";
-import { UpdateWorkRecordDto } from "./dto/update-work-record.dto";
 
 @Controller("nc")
 export class NcController {
@@ -63,29 +62,6 @@ export class NcController {
   }
 
     /** WR-03: 作業記録 更新 */
-  @UseGuards(AuthGuard("jwt"))
-  @Put(":nc_id/work-records/:record_id")
-  updateWorkRecord(
-    @Param("nc_id", ParseIntPipe) ncId: number,
-    @Param("record_id", ParseIntPipe) recordId: number,
-    @Body() dto: UpdateWorkRecordDto,
-    @Req() req: any,
-  ) {
-    return this.nc.updateWorkRecord(ncId, recordId, dto, req.user.id);
-  }
-
-  /** WR-04: 作業記録 削除 */
-  @UseGuards(AuthGuard("jwt"))
-  @Delete(":nc_id/work-records/:record_id")
-  deleteWorkRecord(
-    @Param("nc_id", ParseIntPipe) ncId: number,
-    @Param("record_id", ParseIntPipe) recordId: number,
-    @Req() req: any,
-  ) {
-    return this.nc.deleteWorkRecord(ncId, recordId, req.user.id);
-  }
-
-  /** WR-03: 作業記録 更新 */
   @UseGuards(AuthGuard("jwt"))
   @Put(":nc_id/work-records/:record_id")
   updateWorkRecord(

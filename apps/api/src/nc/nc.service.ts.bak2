@@ -8,7 +8,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as chardet from 'chardet';
 import * as iconv from 'iconv-lite';
-import { UpdateWorkRecordDto } from "./dto/update-work-record.dto";
 @Injectable()
 export class NcService {
   constructor(private readonly prisma: PrismaService) {}
@@ -295,69 +294,6 @@ export class NcService {
       message: '作業記録を登録しました',
     };
   }
-  /** WR-03: 作業記録 更新 */
-  async updateWorkRecord(
-    ncProgramId: number,
-    recordId: number,
-    dto: UpdateWorkRecordDto,
-    operatorId: number,
-  ) {
-    const record = await this.prisma.workRecord.findFirst({
-      where: { id: recordId, ncProgramId },
-    });
-    if (!record) throw new NotFoundException(`work_record id:${recordId} が存在しません`);
-
-    const updated = await this.prisma.workRecord.update({
-      where: { id: recordId },
-      data: {
-        setupTimeMin:        dto.setup_time_min        !== undefined ? dto.setup_time_min        : record.setupTimeMin,
-        machiningTimeMin:    dto.machining_time_min    !== undefined ? dto.machining_time_min    : record.machiningTimeMin,
-        cycleTimeSec:        dto.cycle_time_sec        !== undefined ? dto.cycle_time_sec        : record.cycleTimeSec,
-        quantity:            dto.quantity              !== undefined ? dto.quantity              : record.quantity,
-        interruptionTimeMin: dto.interruption_time_min !== undefined ? dto.interruption_time_min : record.interruptionTimeMin,
-        workType:            dto.work_type             !== undefined ? dto.work_type             : record.workType,
-        note:                dto.note                 !== undefined ? dto.note                  : record.note,
-        machineId:           dto.machine_id            !== undefined ? dto.machine_id            : record.machineId,
-      },
-    });
-
-    await this.prisma.operationLog.create({
-      data: {
-        userId:      operatorId,
-        ncProgramId,
-        actionType:  "EDIT_SAVE",
-        metadata:    { action: "update_work_record", recordId },
-      },
-    });
-
-    return { id: updated.id, message: "作業記録を更新しました" };
-  }
-
-  /** WR-04: 作業記録 削除 */
-  async deleteWorkRecord(
-    ncProgramId: number,
-    recordId: number,
-    operatorId: number,
-  ) {
-    const record = await this.prisma.workRecord.findFirst({
-      where: { id: recordId, ncProgramId },
-    });
-    if (!record) throw new NotFoundException(`work_record id:${recordId} が存在しません`);
-
-    await this.prisma.workRecord.delete({ where: { id: recordId } });
-
-    await this.prisma.operationLog.create({
-      data: {
-        userId:      operatorId,
-        ncProgramId,
-        actionType:  "EDIT_SAVE",
-        metadata:    { action: "delete_work_record", recordId },
-      },
-    });
-
-    return { message: "作業記録を削除しました" };
-  }
-
   // ── NC-07: 段取シートデータ取得 ─────────────────────────────────
 async getPrintData(ncProgramId: number) {
   const nc = await this.prisma.ncProgram.findUnique({
