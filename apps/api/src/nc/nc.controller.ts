@@ -1,7 +1,9 @@
 import {
   Controller, Get, Post, Put, Param, Query,
-  ParseIntPipe, Body, UseGuards, Req,
+  ParseIntPipe, Body, UseGuards, Req, Res,
 } from "@nestjs/common";
+import { PrintNcDto } from "./dto/print-nc.dto";
+import type { FastifyReply } from "fastify";
 import { AuthGuard } from "@nestjs/passport";
 import { NcService } from "./nc.service";
 import { CreateNcDto } from "./dto/create-nc.dto";
@@ -78,5 +80,27 @@ export class NcController {
     @Req() req: any,
   ) {
     return this.nc.update(id, dto, req.user.id);
+  }
+
+  /** NC-07: 段取シートデータ取得（認証不要） */
+  @Get(":nc_id/print-data")
+  getPrintData(@Param("nc_id", ParseIntPipe) id: number) {
+    return this.nc.getPrintData(id);
+  }
+
+  /** NC-08: 段取シートPDF生成（JWT必須） */
+  @UseGuards(AuthGuard("jwt"))
+  @Post(":nc_id/print")
+  async generatePrint(
+    @Param("nc_id", ParseIntPipe) id: number,
+    @Body() dto: PrintNcDto,
+    @Req() req: any,
+    @Res() reply: FastifyReply,
+  ) {
+    const pdf = await this.nc.generateSetupSheetPdf(id, req.user.id, dto);
+    reply.header("Content-Type",        "application/pdf");
+    reply.header("Content-Disposition", `inline; filename="setup-sheet-${id}.pdf"`);
+    reply.header("Content-Length",      String(pdf.length));
+    return reply.send(pdf);
   }
 }

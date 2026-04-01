@@ -290,4 +290,235 @@ export class NcService {
       message: '作業記録を登録しました',
     };
   }
+  // ── NC-07: 段取シートデータ取得 ─────────────────────────────────
+async getPrintData(ncProgramId: number) {
+  const nc = await this.prisma.ncProgram.findUnique({
+    where: { id: ncProgramId },
+    include: {
+      part:      true,
+      machine:   true,
+      registrar: { select: { id: true, name: true } },
+      approver:  { select: { id: true, name: true } },
+      tools:     { orderBy: { sortOrder: 'asc' } },
+      files: {
+        where:   { fileType: 'DRAWING' },
+        orderBy: { uploadedAt: 'desc' },
+      },
+    },
+  });
+  if (!nc) throw new NotFoundException(`NC_id ${ncProgramId} が存在しません`);
+  return nc;
+}
+
+// ── NC-08: 段取シートPDF生成（Puppeteer） ───────────────────────
+async generateSetupSheetPdf(
+  ncProgramId: number,
+  operatorId:  number,
+  options:     { include_tools?: boolean; include_clamp?: boolean; include_drawings?: boolean },
+): Promise<Buffer> {
+  const data = await this.getPrintData(ncProgramId);
+
+  // Puppeteer 動的インポート
+  const puppeteer = (await import('puppeteer')).default;
+  const browser   = await puppeteer.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+    ],
+  });
+
+  try {
+    const page = await browser.newPage();
+    const html = this.buildSetupSheetHtml(data, options);
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
+
+    // Google Fontsの読込を少し待つ（タイムアウトしても続行）
+    await new Promise(r => setTimeout(r, 500));
+
+    const pdfUint8 = await page.pdf({
+      format:          'A4',
+      printBackground: true,
+      margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' },
+      displayHeaderFooter: true,
+      headerTemplate: '<span></span>',
+      footerTemplate: `
+        <div style="font-size:8px;width:100%;text-align:center;color:#888;font-family:sans-serif;">
+          <span class="pageNumber"></span> / <span class="totalPages"></span>
+        </div>`,
+    });
+
+    const pdfBuffer = Buffer.from(pdfUint8);
+
+    // SetupSheetLog INSERT（エラーはログのみ）
+    await this.prisma.setupSheetLog.create({
+      data: { ncProgramId, operatorId },
+    }).catch(e => console.warn('SetupSheetLog insert failed:', e.message));
+
+    return pdfBuffer;
+  } finally {
+    await browser.close();
+  }
+}
+
+// ── HTMLテンプレートビルダー ────────────────────────────────────
+private buildSetupSheetHtml(data: any, opts: any): string {
+  const includeTools    = opts.include_tools    !== false;
+  const includeClamp    = opts.include_clamp    !== false;
+  const now             = new Date();
+  const fmtNow          = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  const statusLabel: Record<string, string> = {
+    NEW:              '新規',
+    PENDING_APPROVAL: '未承認',
+    APPROVED:         '承認済',
+    CHANGING:         '変更中',
+  };
+  const statusColor: Record<string, string> = {
+    NEW:              '#1d4ed8',
+    PENDING_APPROVAL: '#b45309',
+    APPROVED:         '#15803d',
+    CHANGING:         '#b91c1c',
+  };
+
+  const toolRows = (includeTools && data.tools.length > 0) ? `
+    <section>
+      <h3 class="sec-title">工具リスト</h3>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th style="width:32px">No</th>
+            <th style="width:80px">加工種別</th>
+            <th>チップ型番（形状）</th>
+            <th>ホルダー型番</th>
+            <th style="width:52px">ノーズR</th>
+            <th style="width:42px">T番号</th>
+            <th>備考</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.tools.map((t: any) => `
+            <tr>
+              <td class="center mono">${t.sortOrder}</td>
+              <td>${t.processType ?? ''}</td>
+              <td class="mono">${t.chipModel ?? ''}</td>
+              <td class="mono">${t.holderModel ?? ''}</td>
+              <td class="center">${t.noseR ?? ''}</td>
+              <td class="center mono">${t.tNumber ?? ''}</td>
+              <td class="note">${t.note ?? ''}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </section>` : '';
+
+  const clampSection = (includeClamp && data.clampNote) ? `
+    <section>
+      <h3 class="sec-title">クランプ・備考</h3>
+      <div class="clamp-box">${data.clampNote.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div>
+    </section>` : '';
+
+  return `<!DOCTYPE html>
+    <html lang="ja">
+      <head>
+        <meta charset="UTF-8">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+        <style>
+          *  { margin:0; padding:0; box-sizing:border-box; }
+          body {
+            font-family: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;
+            font-size: 9.5pt; color: #111; line-height: 1.4;
+          }
+          /* ── ページヘッダー ── */
+          .ph { display:flex; justify-content:space-between; align-items:flex-end;
+                border-bottom:2.5px solid #1e3a5f; padding-bottom:5px; margin-bottom:10px; }
+          .ph-title { font-size:15pt; font-weight:700; color:#1e3a5f; }
+          .ph-meta  { font-size:7.5pt; color:#555; text-align:right; line-height:1.6; }
+          /* ── 部品バナー ── */
+          .banner { background:#1e3a5f; color:#fff; padding:7px 12px;
+                    border-radius:5px; margin-bottom:10px; }
+          .banner-name { font-size:13pt; font-weight:700; }
+          .banner-ids  { font-size:7.5pt; opacity:.85; margin-top:3px; letter-spacing:.02em; }
+          .badge { display:inline-block; padding:1px 6px; border-radius:3px;
+                  font-size:7pt; font-weight:700; border:1px solid currentColor; margin-left:6px; }
+          /* ── グリッド ── */
+          .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; }
+          .box   { border:1px solid #cbd5e1; border-radius:4px; overflow:hidden; }
+          .box-h { font-size:7.5pt; font-weight:700; background:#f1f5f9;
+                  padding:3px 8px; color:#475569; border-bottom:1px solid #cbd5e1; }
+          .row   { display:flex; padding:3px 8px; border-bottom:1px solid #f1f5f9; }
+          .row:last-child { border-bottom:none; }
+          .lbl   { width:80px; color:#6b7280; font-size:8pt; flex-shrink:0; }
+          .val   { font-family:monospace; font-size:9pt; }
+          /* ── セクション ── */
+          .sec-title { font-size:9pt; font-weight:700; color:#1e3a5f;
+                      border-bottom:1.5px solid #1e3a5f; padding-bottom:3px; margin-bottom:6px; }
+          section { margin-bottom:12px; }
+          /* ── クランプ備考 ── */
+          .clamp-box { background:#fefce8; border:1px solid #fde047; border-radius:4px;
+                      padding:8px 12px; font-size:9pt; white-space:pre-wrap; line-height:1.7; }
+          /* ── 工具テーブル ── */
+          .tbl { width:100%; border-collapse:collapse; font-size:8.5pt; }
+          .tbl th { background:#f1f5f9; font-weight:700; padding:4px 5px;
+                    border:1px solid #cbd5e1; color:#334155; text-align:left; }
+          .tbl td { padding:3px 5px; border:1px solid #e2e8f0; vertical-align:top; }
+          .tbl tr:nth-child(even) td { background:#f8fafc; }
+          .tbl tr { page-break-inside:avoid; }
+          .center { text-align:center; }
+          .mono   { font-family:monospace; }
+          .note   { font-size:8pt; color:#555; }
+          @media print {
+            body { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="ph">
+          <span class="ph-title">NC 段取シート</span>
+          <div class="ph-meta">
+            <div>MachCore — NC旋盤プログラム管理システム</div>
+            <div>Ver. <strong>${data.version}</strong> &nbsp;|&nbsp; 出力日時: ${fmtNow}</div>
+          </div>
+        </div>
+
+        <div class="banner">
+          <div class="banner-name">
+            ${data.part.name} — 工程 L${data.processL}
+            <span class="badge" style="color:${statusColor[data.status] ?? '#555'};border-color:${statusColor[data.status] ?? '#555'};">
+              ${statusLabel[data.status] ?? data.status}
+            </span>
+          </div>
+          <div class="banner-ids">
+            図面番号: ${data.part.drawingNo}
+            &nbsp;|&nbsp; 部品ID: ${data.part.partId}
+            &nbsp;|&nbsp; NC_id: ${data.id}
+            ${data.part.clientName ? `&nbsp;|&nbsp; 納入先: ${data.part.clientName}` : ''}
+            ${data.processingId   ? `&nbsp;|&nbsp; 加工ID: ${data.processingId}` : ''}
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="box">
+            <div class="box-h">加工情報</div>
+            <div class="row"><span class="lbl">工程</span><span class="val">L${data.processL}</span></div>
+            <div class="row"><span class="lbl">機械</span><span class="val">${data.machine?.machineName ?? data.machine?.machineCode ?? '—'}</span></div>
+            <div class="row"><span class="lbl">加工時間</span><span class="val">${data.machiningTime != null ? `${data.machiningTime} 分` : '—'}</span></div>
+            <div class="row"><span class="lbl">O番号</span><span class="val">${data.oNumber ?? '—'}</span></div>
+          </div>
+          <div class="box">
+            <div class="box-h">ファイル情報</div>
+            <div class="row"><span class="lbl">フォルダ名</span><span class="val">${data.folderName}</span></div>
+            <div class="row"><span class="lbl">ファイル名</span><span class="val">${data.fileName}</span></div>
+            <div class="row"><span class="lbl">登録者</span><span class="val">${data.registrar?.name ?? '—'}</span></div>
+            <div class="row"><span class="lbl">承認者</span><span class="val">${data.approver?.name ?? '未承認'}</span></div>
+          </div>
+        </div>
+
+        ${clampSection}
+        ${toolRows}
+      </body>
+    </html>`;
+  }
 }

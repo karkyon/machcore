@@ -231,3 +231,37 @@ export type UpdateNcBody = {
   version?: string;
   clamp_note?: string;
 };
+
+// ── 段取シート ──────────────────────────────────────────────────
+export type PrintData = {
+  id:           number;
+  processL:     number;
+  version:      string;
+  status:       Status;
+  folderName:   string;
+  fileName:     string;
+  oNumber:      string | null;
+  machiningTime: number | null;
+  clampNote:    string | null;
+  part: {
+    partId:     string;
+    drawingNo:  string;
+    name:       string;
+    clientName: string | null;
+  };
+  machine: { machineCode: string; machineName: string } | null;
+  registrar: { name: string };
+  approver:  { name: string } | null;
+  tools:     NcTool[];
+};
+
+export type PrintOptions = {
+  include_tools?:    boolean;
+  include_clamp?:    boolean;
+  include_drawings?: boolean;
+};
+
+export const printApi = {
+  getData: (ncId: number) =>
+    api.get<PrintData>(`/nc/${ncId}/print-data`),
+};
