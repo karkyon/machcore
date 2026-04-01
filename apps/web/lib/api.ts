@@ -308,9 +308,23 @@ export type UpdateAdminUserBody = {
 };
 
 export const adminUsersApi = {
-  list:          ()                                       => api.get<AdminUserInfo[]>('/admin/users'),
-  create:        (body: CreateAdminUserBody)              => api.post<AdminUserInfo>('/admin/users', body),
-  update:        (id: number, body: UpdateAdminUserBody)  => api.put<AdminUserInfo>(`/admin/users/${id}`, body),
-  resetPassword: (id: number, password: string)          => api.put(`/admin/users/${id}/password`, { password }),
-  deactivate:    (id: number)                            => api.delete(`/admin/users/${id}`),
+  list:          (token: string)                                       => api.get<AdminUserInfo[]>('/admin/users', { headers: { Authorization: `Bearer ${token}` } }),
+  create:        (body: CreateAdminUserBody, token: string)            => api.post<AdminUserInfo>('/admin/users', body, { headers: { Authorization: `Bearer ${token}` } }),
+  update:        (id: number, body: UpdateAdminUserBody, token: string) => api.put<AdminUserInfo>(`/admin/users/${id}`, body, { headers: { Authorization: `Bearer ${token}` } }),
+  resetPassword: (id: number, password: string, token: string)        => api.put(`/admin/users/${id}/password`, { password }, { headers: { Authorization: `Bearer ${token}` } }),
+  deactivate:    (id: number, token: string)                          => api.delete(`/admin/users/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
+};
+
+// ── 管理者: ログイン ──────────────────────────────────────────────
+export type AdminLoginResponse = {
+  access_token: string;
+  user: { id: number; name: string; role: string };
+};
+
+export const adminAuthApi = {
+  login: (employeeCode: string, password: string) =>
+    api.post<AdminLoginResponse>('/auth/login', {
+      employee_code: employeeCode,
+      password,
+    }),
 };

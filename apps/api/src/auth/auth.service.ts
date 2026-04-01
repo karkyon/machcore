@@ -81,7 +81,6 @@ export class AuthService {
 
   async login(employeeCode: string, password: string) {
     const user = await this.prisma.user.findFirst({ where: { employeeCode, isActive: true } });
-    console.log('LOGIN DEBUG user:', user ? user.id : 'NOT FOUND', 'code:', employeeCode);
     if (!user) throw new UnauthorizedException('ユーザが存在しません');
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('パスワードが違います');
