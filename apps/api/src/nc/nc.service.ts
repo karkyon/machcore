@@ -404,7 +404,7 @@ async generateSetupSheetPdf(
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
     // Google Fontsの読込を少し待つ（タイムアウトしても続行）
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 2000)); // Noto Sans JP読込待機
 
     const pdfUint8 = await page.pdf({
       format:          'A4',
@@ -468,7 +468,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
         </thead>
         <tbody>
           ${data.tools.map((t: any) => `
-            <tr>
+            <tr style="page-break-inside: avoid;">
               <td class="center mono">${t.sortOrder}</td>
               <td>${t.processType ?? ''}</td>
               <td class="mono">${t.chipModel ?? ''}</td>

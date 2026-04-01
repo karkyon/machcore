@@ -621,10 +621,7 @@ function RecordPageInner() {
                     className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white font-bold py-3 rounded-lg text-sm transition-colors">
                     {saving ? "更新中…" : "✓ 更新（保存）"}
                   </button>
-                  <button onClick={handleDelete} disabled={deleting || saving}
-                    className="px-5 py-3 bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white font-bold rounded-lg text-sm transition-colors">
-                    {deleting ? "削除中…" : "🗑 削除"}
-                  </button>
+{/* v2仕様: 削除機能なし（備考欄に「取消:理由」で対応） */}
                 </>
               )}
               <button onClick={handleCancel}
