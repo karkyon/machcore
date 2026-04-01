@@ -245,6 +245,9 @@ model WorkRecord {
   machiningTimeMin Int?                      @map("machining_time_min")
   quantity         Int?
   note             String?  @db.Text
+  workType         String?  @db.VarChar(20)  @map("work_type")
+  cycleTimeSec     Int?                      @map("cycle_time_sec")
+  interruptionTimeMin Int?                   @map("interruption_time_min")
   sessionId        String?  @db.VarChar(36)  @map("session_id")
   createdAt        DateTime @default(now())  @map("created_at")
   ncProgram        NcProgram @relation(fields: [ncProgramId], references: [id])

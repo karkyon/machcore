@@ -164,6 +164,45 @@ export const machinesApi = {
   list: () => api.get<Machine[]>("/machines"),
 };
 
+export type WorkRecord = {
+  id: number;
+  work_date: string;
+  operator_name: string | null;
+  machine_code: string | null;
+  setup_time: number | null;       // 分
+  machining_time: number | null;   // 分
+  cycle_time_sec: number | null;   // 秒
+  quantity: number | null;
+  interruption_time_min: number | null;
+  work_type: string | null;
+  note: string | null;
+};
+ 
+export type CreateWorkRecordBody = {
+  setup_time_min?: number;
+  machining_time_min?: number;
+  cycle_time_sec?: number;
+  quantity?: number;
+  interruption_time_min?: number;
+  work_type?: string;
+  note?: string;
+  machine_id?: number;
+};
+
+export const workRecordsApi = {
+  /** WR-01: 作業記録一覧取得 */
+  list: (ncId: number): Promise<WorkRecord[]> =>
+    apiFetch(`/nc/${ncId}/work-records`),
+ 
+  /** WR-02: 作業記録登録 */
+  create: (ncId: number, body: CreateWorkRecordBody): Promise<{ id: number; message: string }> =>
+    apiFetch(`/nc/${ncId}/work-records`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+};
+
 export type UpdateNcBody = {
   machine_id?: number;
   machining_time?: number;

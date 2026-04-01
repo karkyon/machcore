@@ -6,6 +6,7 @@ import { AuthGuard } from "@nestjs/passport";
 import { NcService } from "./nc.service";
 import { CreateNcDto } from "./dto/create-nc.dto";
 import { UpdateNcDto } from "./dto/update-nc.dto";
+import { CreateWorkRecordDto } from "./dto/create-work-record.dto";
 
 @Controller("nc")
 export class NcController {
@@ -37,6 +38,17 @@ export class NcController {
   @Get(":nc_id/work-records")
   workRecords(@Param("nc_id", ParseIntPipe) id: number) {
     return this.nc.workRecords(id);
+  }
+
+  /** WR-02: 作業記録 新規登録 */
+  @UseGuards(AuthGuard("jwt"))
+  @Post(":nc_id/work-records")
+  createWorkRecord(
+    @Param("nc_id", ParseIntPipe) id: number,
+    @Body() dto: CreateWorkRecordDto,
+    @Req() req: any,
+  ) {
+    return this.nc.createWorkRecord(id, dto, req.user.id);
   }
 
   @Get(":nc_id")

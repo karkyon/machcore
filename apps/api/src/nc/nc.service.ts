@@ -104,51 +104,6 @@ export class NcService {
     return r;
   }
 
-  /** NC-09: 変更履歴一覧 */
-  async changeHistory(ncProgramId: number) {
-    const rows = await this.prisma.changeHistory.findMany({
-      where:   { ncProgramId },
-      orderBy: { changedAt: "desc" },
-      include: { operator: { select: { id: true, name: true } } },
-    });
-    return rows.map(r => ({
-      id: r.id, changed_at: r.changedAt, change_type: r.changeType,
-      change_detail: r.content, ver_before: r.versionBefore,
-      ver_after: r.versionAfter, operator_name: r.operator?.name ?? null,
-    }));
-  }
-
-  /** NC-10: 印刷履歴一覧 */
-  async setupSheetLogs(ncProgramId: number) {
-    const rows = await this.prisma.setupSheetLog.findMany({
-      where:   { ncProgramId },
-      orderBy: { printedAt: "desc" },
-      include: { operator: { select: { id: true, name: true } } },
-    });
-    return rows.map(r => ({
-      id: r.id, printed_at: r.printedAt, version: null,
-      printer_name: r.operator?.name ?? null,
-    }));
-  }
-
-  /** WR-01: 作業記録一覧 */
-  async workRecords(ncProgramId: number) {
-    const rows = await this.prisma.workRecord.findMany({
-      where:   { ncProgramId },
-      orderBy: { workDate: "desc" },
-      include: {
-        operator: { select: { name: true } },
-        machine:  { select: { machineCode: true } },
-      },
-    });
-    return rows.map(r => ({
-      id: r.id, work_date: r.workDate, operator_name: r.operator?.name ?? null,
-      machine_code: r.machine?.machineCode ?? null,
-      setup_time: r.setupTimeMin, machining_time: r.machiningTimeMin,
-      quantity: r.quantity, note: r.note,
-    }));
-  }
-
   /** NC-04: 新規登録 */
   async create(dto: CreateNcDto, operatorId: number) {
     const part = await this.prisma.part.findUnique({ where: { id: dto.part_id } });
@@ -230,5 +185,87 @@ export class NcService {
     });
 
     return { nc_id: updated.id, message: "更新が完了しました" };
+  }
+  
+  /** NC-09: 変更履歴一覧 */
+  async changeHistory(ncProgramId: number) {
+    const rows = await this.prisma.changeHistory.findMany({
+      where:   { ncProgramId },
+      orderBy: { changedAt: "desc" },
+      include: { operator: { select: { id: true, name: true } } },
+    });
+    return rows.map(r => ({
+      id: r.id, changed_at: r.changedAt, change_type: r.changeType,
+      change_detail: r.content, ver_before: r.versionBefore,
+      ver_after: r.versionAfter, operator_name: r.operator?.name ?? null,
+    }));
+  }
+
+  /** NC-10: 印刷履歴一覧 */
+  async setupSheetLogs(ncProgramId: number) {
+    const rows = await this.prisma.setupSheetLog.findMany({
+      where:   { ncProgramId },
+      orderBy: { printedAt: "desc" },
+      include: { operator: { select: { id: true, name: true } } },
+    });
+    return rows.map(r => ({
+      id: r.id, printed_at: r.printedAt, version: null,
+      printer_name: r.operator?.name ?? null,
+    }));
+  }
+
+  /** WR-01: 作業記録一覧 */
+  async workRecords(ncProgramId: number) {
+    const rows = await this.prisma.workRecord.findMany({
+      where:   { ncProgramId },
+      orderBy: { workDate: "desc" },
+      include: {
+        operator: { select: { name: true } },
+        machine:  { select: { machineCode: true } },
+      },
+    });
+    return rows.map(r => ({
+      id: r.id, work_date: r.workDate, operator_name: r.operator?.name ?? null,
+      machine_code: r.machine?.machineCode ?? null,
+      setup_time: r.setupTimeMin, machining_time: r.machiningTimeMin,
+      quantity: r.quantity, note: r.note,
+    }));
+  }
+ 
+  /** WR-02: 作業記録 新規登録 */
+  async createWorkRecord(
+    ncProgramId: number,
+    dto: CreateWorkRecordDto,
+    operatorId: number,
+  ) {
+    // nc_program が存在するか確認
+    const nc = await this.prisma.ncProgram.findUnique({
+      where: { id: ncProgramId },
+    });
+    if (!nc) throw new NotFoundException(`NC_id ${ncProgramId} が存在しません`);
+ 
+    // 使用機械: dto.machine_id → nc.machineId → null の優先順
+    const machineId = dto.machine_id ?? nc.machineId ?? null;
+ 
+    const record = await this.prisma.workRecord.create({
+      data: {
+        ncProgramId,
+        operatorId,
+        machineId,
+        workDate:            new Date(),
+        setupTimeMin:        dto.setup_time_min        ?? null,
+        machiningTimeMin:    dto.machining_time_min    ?? null,
+        cycleTimeSec:        dto.cycle_time_sec        ?? null,
+        quantity:            dto.quantity              ?? null,
+        interruptionTimeMin: dto.interruption_time_min ?? null,
+        workType:            dto.work_type             ?? null,
+        note:                dto.note                  ?? null,
+      },
+    });
+ 
+    return {
+      id:      record.id,
+      message: '作業記録を登録しました',
+    };
   }
 }
