@@ -321,6 +321,13 @@ export default function PrintPage() {
                     }
                   </button>
                   <button
+                    onClick={handleDownload}
+                    disabled={printing}
+                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+                  >
+                    💾 NCプログラム → USB
+                  </button>
+                                    <button
                     onClick={handleCancel}
                     disabled={printing}
                     className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm rounded-lg transition-colors"
