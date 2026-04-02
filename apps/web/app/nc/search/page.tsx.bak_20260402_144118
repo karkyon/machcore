@@ -31,26 +31,11 @@ export default function SearchPage() {
   const [results, setResults] = useState<NcSearchResult[]>([]);
   const [total, setTotal]     = useState<number | null>(null);
   const [recent, setRecent]   = useState<RecentAccess[]>([]);
-  const [selected, setSelected]   = useState<number | null>(null);
-  const [isAdmin,  setIsAdmin]    = useState(false);
-  const [adminInfo, setAdminInfo] = useState<{ companyName?: string; logoPath?: string } | null>(null);
+  const [selected, setSelected] = useState<number | null>(null);
 
   // 最近のアクセス取得
   useEffect(() => {
     ncApi.recent().then(r => setRecent(r.data)).catch(() => {});
-  }, []);
-
-  // 管理者ログイン状態チェック
-  useEffect(() => {
-    const token = sessionStorage.getItem("admin_token");
-    if (!token) return;
-    setIsAdmin(true);
-    fetch("/api/admin/company", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setAdminInfo(data); })
-      .catch(() => {});
   }, []);
 
   const handleSearch = useCallback(async () => {
@@ -246,44 +231,6 @@ export default function SearchPage() {
                   </div>
                 </div>
               ))
-            )}
-          </div>
-          {/* ── 管理者エリア（ADMIN限定） ── */}
-          <div className="border-t border-slate-100 px-4 py-3 shrink-0">
-            {isAdmin ? (
-              <div className="space-y-2">
-                {adminInfo?.logoPath && (
-                  <img
-                    src={`/api/${adminInfo.logoPath}`}
-                    alt="company logo"
-                    className="h-8 object-contain"
-                  />
-                )}
-                <p className="text-[11px] font-bold text-slate-500 truncate">
-                  {adminInfo?.companyName ?? "管理者メニュー"}
-                </p>
-                <div className="flex flex-col gap-1">
-                  <a
-                    href="/admin/users"
-                    className="text-[11px] text-sky-600 hover:text-sky-700 flex items-center gap-1"
-                  >
-                    👥 ユーザ管理
-                  </a>
-                  <a
-                    href="/admin/login"
-                    className="text-[11px] text-slate-400 hover:text-slate-600 flex items-center gap-1"
-                  >
-                    ↩ 管理者ログアウト
-                  </a>
-                </div>
-              </div>
-            ) : (
-              <a
-                href="/admin/login"
-                className="text-[10px] text-slate-300 hover:text-slate-500 transition-colors"
-              >
-                ⚙ 管理者
-              </a>
             )}
           </div>
         </section>

@@ -125,14 +125,6 @@ export default function NcDetailPage() {
   });
 
   // NC詳細ロード
-  // USB pending: 認証成功後に自動ダウンロード
-  useEffect(() => {
-    if (isAuthenticated && pendingUsb && token) {
-      setPendingUsb(false);
-      downloadApi.pgFile(ncId, token).catch(() => alert("PGファイルのダウンロードに失敗しました"));
-    }
-  }, [isAuthenticated, pendingUsb, token, ncId]);
-
   useEffect(() => {
     if (!ncId) return;
     ncApi.findOne(ncId)
@@ -223,10 +215,7 @@ export default function NcDetailPage() {
                 この作業を開始する
               </button>
             )}
-            <button
-              onClick={() => { setPendingUsb(true); openAuth("usbdownload"); }}
-              className="text-[11px] bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded font-bold transition-colors"
-            >
+            <button className="text-[11px] bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded font-bold transition-colors">
               PG → USB 書き出し
             </button>
           </span>
