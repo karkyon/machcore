@@ -1,4 +1,8 @@
 "use client";
+import { Document, Page, pdfjs } from "react-pdf";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import {
@@ -563,11 +567,24 @@ export default function NcDetailPage() {
                   {/* プレビュー本体 */}
                   <div className="flex-1 overflow-auto bg-slate-900 flex items-center justify-center min-h-[300px]">
                     {previewFile.mime_type === "application/pdf" ? (
-                      <iframe
-                        src={`/api/files/serve/${previewFile.id}`}
-                        className="w-full h-[70vh]"
-                        title={previewFile.original_name}
-                      />
+                      <div className="flex flex-col items-center gap-2 py-2">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setPdfPage(p => Math.max(1, p-1))}
+                            disabled={pdfPage <= 1}
+                            className="px-3 py-1 bg-slate-700 text-white text-xs rounded disabled:opacity-40">◀</button>
+                          <span className="text-white text-xs">{pdfPage} / {pdfNumPages}</span>
+                          <button onClick={() => setPdfPage(p => Math.min(pdfNumPages, p+1))}
+                            disabled={pdfPage >= pdfNumPages}
+                            className="px-3 py-1 bg-slate-700 text-white text-xs rounded disabled:opacity-40">▶</button>
+                        </div>
+                        <Document
+                          file={`/api/files/serve/${previewFile.id}`}
+                          onLoadSuccess={({ numPages }) => { setPdfNumPages(numPages); setPdfPage(1); }}
+                          className="max-h-[65vh] overflow-auto"
+                        >
+                          <Page pageNumber={pdfPage} width={700} />
+                        </Document>
+                      </div>
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img

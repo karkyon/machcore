@@ -1,3 +1,4 @@
+import ReactSelect from "react-select";
 "use client";
 // apps/web/app/nc/[nc_id]/record/page.tsx
 // SCR-05: 作業記録画面  v2 – ?edit=id 対応・2ペイン・更新/削除
@@ -11,6 +12,7 @@ import {
 } from "@/lib/api";
 
 const WORK_TYPES = ["量産", "試作", "変更", "新規登録"] as const;
+const WORK_TYPE_OPTIONS = WORK_TYPES.map(v => ({ value: v, label: v }));
 
 // ── ユーティリティ ────────────────────────────────────────────────
 function toHM(totalMin: number | null): [number, number] {

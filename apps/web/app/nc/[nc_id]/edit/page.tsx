@@ -1,7 +1,7 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { ncApi, machinesApi, NcDetail, Machine, UpdateNcBody, downloadApi } from "@/lib/api";
+import { ncApi, machinesApi, filesApi, NcDetail, Machine, UpdateNcBody, downloadApi } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +30,30 @@ export default function NcEditPage() {
   // 変更検知（オレンジ枠用）
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const markDirty = (field: string) => setDirty(prev => new Set(prev).add(field));
+
+  // ファイルアップロード
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const scanInputRef  = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+
+  const handleFileUpload = useCallback(async (file: File) => {
+    if (!token) return;
+    setUploading(true);
+    setUploadMsg(null);
+    try {
+      await filesApi.upload(ncId, file, token);
+      setUploadMsg(`✅ ${file.name} をアップロードしました`);
+      // 枚数カウント更新のため詳細再取得
+      const res = await ncApi.findOne(ncId);
+      setDetail(res.data);
+    } catch {
+      setUploadMsg('❌ アップロードに失敗しました');
+    } finally {
+      setUploading(false);
+      setTimeout(() => setUploadMsg(null), 3000);
+    }
+  }, [token, ncId]);
 
   // AUTH
   const { operator, isAuthenticated, logout, token } = useAuth();
