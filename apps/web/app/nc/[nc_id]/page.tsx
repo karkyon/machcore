@@ -46,6 +46,8 @@ export default function NcDetailPage() {
   const [previewFile,  setPreviewFile]  = useState<NcFile | null>(null);
   const [uploading,    setUploading]    = useState(false);
   const [fileError,    setFileError]    = useState<string | null>(null);
+  const [pdfNumPages,  setPdfNumPages]  = useState<number>(1);
+  const [pdfPage,      setPdfPage]      = useState<number>(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { operator, isAuthenticated, logout } = useAuth();
