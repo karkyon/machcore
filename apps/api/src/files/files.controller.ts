@@ -1,6 +1,6 @@
 // apps/api/src/files/files.controller.ts
 import {
-  Controller, Get, Post, Delete, Param, ParseIntPipe,
+  Controller, BadRequestException, Get, Post, Delete, Param, ParseIntPipe,
   UseGuards, Req, Res, Body,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';

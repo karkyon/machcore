@@ -1,4 +1,6 @@
 "use client";
+import dynamic from "next/dynamic";
+const ImageEditor = dynamic(() => import("@/components/nc/ImageEditor"), { ssr: false });
 import { useDropzone } from "react-dropzone";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";

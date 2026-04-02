@@ -239,6 +239,57 @@ export class FilesService {
     };
   }
 
+
+  // ── FIL-EDIT: 編集済み画像保存（元ファイル保持・命名規則適用） ──
+  async saveEditedFile(
+    fileId: number,
+    imageBuffer: Buffer,
+    ncProgramId: number,
+    processingId: string | undefined,
+    uploaderId: number,
+  ) {
+    const orig = await this.prisma.ncFile.findUnique({ where: { id: fileId } });
+    if (!orig) throw new NotFoundException(`file_id ${fileId} が存在しません`);
+
+    const base    = await this.getBasePath();
+    const dir     = path.join(base, 'nc_files', String(ncProgramId), 'images');
+    this.ensureDir(dir);
+
+    // 命名規則: {加工ID}-{YYYYMMDD-HHmmss}-{連番}.png
+    const dateStr = new Date().toISOString()
+      .replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+    const pid = processingId || String(ncProgramId);
+    const existing = fs.readdirSync(dir).filter(f => f.startsWith(`${pid}-`));
+    const seq = String(existing.length + 1).padStart(3, '0');
+    const fileName = `${pid}-${dateStr}-${seq}.png`;
+    const filePath = path.join(dir, fileName);
+
+    fs.writeFileSync(filePath, imageBuffer);
+
+    // PNG サムネイル生成（400px）
+    const thumbName = `thumb_${fileName}`;
+    const thumbPath = path.join(dir, thumbName);
+    await sharp(imageBuffer).resize(400).jpeg({ quality: 80 }).toFile(thumbPath);
+
+    // DB登録
+    const record = await this.prisma.ncFile.create({
+      data: {
+        ncProgramId,
+        uploadedBy:    uploaderId,
+        fileType:      'PHOTO',
+        originalName:  fileName,
+        storedName:    fileName,
+        mimeType:      'image/png',
+        fileSize:      imageBuffer.length,
+        filePath,
+        thumbnailPath: thumbPath,
+      },
+    });
+
+    await this.updateFileCounts(ncProgramId);
+    return { id: record.id, file_name: fileName, message: '編集済み画像を保存しました' };
+  }
+
   // ── 保存先パス更新 ────────────────────────────────────────────
   async updateStoragePath(newPath: string) {
     const trimmed = newPath.trim();
