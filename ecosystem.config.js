@@ -9,9 +9,9 @@ module.exports = {
     {
       name: 'machcore-web',
       script: 'pnpm',
-      args: 'run dev -- -p 3010',
+      args: 'run dev',
       cwd: '/home/karkyon/projects/machcore/apps/web',
-      env: { NODE_ENV: 'development' },
+      env: { NODE_ENV: 'development', PORT: '3010' },
     },
   ],
 };
