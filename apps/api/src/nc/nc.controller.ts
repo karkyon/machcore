@@ -2,6 +2,8 @@ import {
   Controller, Get, Post, Put, Delete, Param, Query,
   ParseIntPipe, Body, UseGuards, Req, Res,
 } from "@nestjs/common";
+import { Roles } from "../common/decorators/roles.decorator";
+import { RolesGuard } from "../common/guards/roles.guard";
 import { UpdateWorkRecordDto } from "./dto/update-work-record.dto";
 import { PrintNcDto } from "./dto/print-nc.dto";
 import { SavePgFileDto } from "./dto/save-pg-file.dto";
@@ -51,7 +53,8 @@ export class NcController {
   }
 
   /** WR-02: 作業記録 新規登録 */
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
   @Post(":nc_id/work-records")
   createWorkRecord(
     @Param("nc_id", ParseIntPipe) id: number,
@@ -62,7 +65,8 @@ export class NcController {
   }
 
     /** WR-03: 作業記録 更新 */
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
   @Put(":nc_id/work-records/:record_id")
   updateWorkRecord(
     @Param("nc_id", ParseIntPipe) ncId: number,
@@ -74,7 +78,8 @@ export class NcController {
   }
 
   /** WR-04: 作業記録 削除 */
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
   @Delete(":nc_id/work-records/:record_id")
   deleteWorkRecord(
     @Param("nc_id", ParseIntPipe) ncId: number,
@@ -90,14 +95,16 @@ export class NcController {
   }
 
   /** NC-04: 新規登録 */
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
   @Post()
   create(@Body() dto: CreateNcDto, @Req() req: any) {
     return this.nc.create(dto, req.user.id);
   }
 
   /** NC-05: 更新 */
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
   @Put(":nc_id")
   update(
     @Param("nc_id", ParseIntPipe) id: number,
@@ -114,7 +121,8 @@ export class NcController {
   }
 
   /** NC-08: 段取シートPDF生成（JWT必須） */
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
   @Post(":nc_id/print")
   async generatePrint(
     @Param("nc_id", ParseIntPipe) id: number,
