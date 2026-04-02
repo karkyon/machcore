@@ -402,26 +402,22 @@ async generateSetupSheetPdf(
     const page = await browser.newPage();
     // 図ファイルをBase64に変換（include_drawings=true の場合）
     const drawingBase64s: string[] = [];
-    if (options.include_drawings !== false && data.files && data.files.length > 0) {
-      const sharp = (await import('sharp')).default;
-      for (const f of data.files.slice(0, 3)) {  // 最大3枚
+    if (options.include_drawings === true && data.files && data.files.length > 0) {
+      const sharpLib = (await import('sharp')).default;
+      for (const f of (data.files as any[]).slice(0, 3)) {
         try {
-          const filePath = (f as any).filePath ?? (f as any).file_path;
+          const filePath: string = f.filePath ?? f.file_path ?? '';
           if (!filePath || !fs.existsSync(filePath)) continue;
           const buf = fs.readFileSync(filePath);
-          const mime = (f as any).mimeType ?? (f as any).mime_type ?? '';
-          let imgBuf: Buffer;
+          const mime: string = f.mimeType ?? f.mime_type ?? '';
           if (mime.includes('tiff') || mime.includes('tif')) {
-            imgBuf = await sharp(buf).png().toBuffer();
-            drawingBase64s.push(`data:image/png;base64,${imgBuf.toString('base64')}`);
-          } else if (mime.includes('pdf')) {
-            // PDFは埋め込みスキップ（テキストで注記のみ）
-            drawingBase64s.push(`__PDF__:${(f as any).originalName ?? 'drawing.pdf'}`);
-          } else {
-            drawingBase64s.push(`data:${mime};base64,${buf.toString('base64')}`);
+            const imgBuf = await sharpLib(buf).png().toBuffer();
+            drawingBase64s.push('data:image/png;base64,' + imgBuf.toString('base64'));
+          } else if (!mime.includes('pdf')) {
+            drawingBase64s.push('data:' + mime + ';base64,' + buf.toString('base64'));
           }
-        } catch (e) {
-          console.warn('Drawing embed failed:', e);
+        } catch (e: any) {
+          console.warn('Drawing embed failed:', e?.message);
         }
       }
     }
@@ -462,21 +458,13 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   const includeClamp    = opts.include_clamp    !== false;
   const includeDrawings = opts.include_drawings === true;
   const drawingBase64s: string[] = opts.drawingBase64s ?? [];
-
-  const drawingsSection = (includeDrawings && drawingBase64s.length > 0) ? `
-    <section style="margin-bottom:12px;page-break-inside:avoid;">
-      <h3 class="sec-title">段取図</h3>
-      <div style="display:flex;flex-direction:column;gap:10px;">
-        ${drawingBase64s.map((src: string, i: number) => {
-          if (src.startsWith('__PDF__:')) {
-            const name = src.replace('__PDF__:', '');
-            return \`<p style="font-size:9pt;color:#555;">📄 PDF図面: \${name}（PDF埋め込み非対応のため省略）</p>\`;
-          }
-          return \`<img src="\${src}" alt="段取図\${i + 1}" style="max-width:100%;height:auto;border:1px solid #e2e8f0;border-radius:4px;" />\`;
-        }).join('')}
-      </div>
-    </section>
-  ` : '';
+  const drawingsSection = (includeDrawings && drawingBase64s.length > 0)
+    ? '<section style="margin-bottom:12px;page-break-inside:avoid;"><h3 class=\"sec-title\">段取図</h3><div style="display:flex;flex-direction:column;gap:10px;">'
+      + drawingBase64s.map((src: string, i: number) =>
+          '<img src="' + src + '" alt="段取図' + (i + 1) + '" style="max-width:100%;height:auto;border:1px solid #e2e8f0;border-radius:4px;" />'
+        ).join('')
+      + '</div></section>'
+    : '';
   const now             = new Date();
   const fmtNow          = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 
