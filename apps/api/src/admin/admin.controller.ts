@@ -141,7 +141,7 @@ export class AdminController {
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
   @Get('raw/:table')
-  getRaw(
+  async getRaw(
     @Param('table') table: string,
     @Query('page') page = '1',
     @Query('limit') limit = '50',
@@ -149,7 +149,19 @@ export class AdminController {
     if (!ALLOWED_TABLES.includes(table)) {
       throw new BadRequestException(`テーブル '${table}' は許可されていません`);
     }
-    return { table, page: parseInt(page), limit: parseInt(limit), data: [] };
+    const p = Math.max(1, parseInt(page));
+    const l = Math.min(200, Math.max(1, parseInt(limit)));
+    const offset = (p - 1) * l;
+    const [rows, countRows] = await Promise.all([
+      this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT * FROM "${table}" ORDER BY id DESC LIMIT $1 OFFSET $2`, l, offset,
+      ),
+      this.prisma.$queryRawUnsafe<{ count: bigint }[]>(
+        `SELECT COUNT(*) AS count FROM "${table}"`,
+      ),
+    ]);
+    const total = Number(countRows[0]?.count ?? 0);
+    return { table, page: p, limit: l, total, data: rows };
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)

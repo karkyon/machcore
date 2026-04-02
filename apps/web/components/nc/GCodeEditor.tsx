@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useCallback, useState } from "react";
-import { EditorView, lineNumbers, highlightActiveLine, keymap, drawSelection } from "@codemirror/view";
+import { EditorView, lineNumbers, highlightActiveLine, keymap, drawSelection, rectangularSelection } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
 import { history, historyKeymap, defaultKeymap, undo, redo } from "@codemirror/commands";
 import {
@@ -123,6 +123,7 @@ export default function GCodeEditor({
         keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
         saveKey,
         wrapComp.current.of([]),
+        rectangularSelection(),
         roComp.current.of(EditorState.readOnly.of(readOnly)),
         updateListener,
       ],
