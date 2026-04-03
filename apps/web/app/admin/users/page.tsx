@@ -156,6 +156,10 @@ export default function AdminUsersPage() {
         </div>
         <div className="flex items-center gap-4">
           {adminUser && <span className="text-slate-300 text-sm">{adminUser.name}</span>}
+          <button onClick={() => router.push("/admin/settings")}
+            className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors">
+            ⚙ 設定
+          </button>
           <button onClick={handleLogout}
             className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors">
             ログアウト

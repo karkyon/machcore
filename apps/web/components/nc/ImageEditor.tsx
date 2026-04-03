@@ -25,7 +25,8 @@ export default function ImageEditor({ imageUrl, fileId, ncId, processingId, toke
     let canvas: any;
 
     (async () => {
-      fabric = (await import("fabric")).fabric;
+      const fabricModule = await import("fabric") as any;
+      fabric = fabricModule.fabric ?? fabricModule;
       if (!canvasRef.current) return;
 
       canvas = new fabric.Canvas(canvasRef.current, {
@@ -73,7 +74,8 @@ export default function ImageEditor({ imageUrl, fileId, ncId, processingId, toke
     const canvas = fabricRef.current;
     if (!canvas || tool === "select") return;
 
-    const fabric = (await import("fabric")).fabric;
+    const fabricModule = await import("fabric") as any;
+    const fabric = fabricModule.fabric ?? fabricModule;
     const rect   = canvasRef.current!.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;

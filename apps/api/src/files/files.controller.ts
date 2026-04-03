@@ -74,6 +74,34 @@ export class FilesController {
     );
   }
 
+  /** FIL-EDIT: 編集済み画像保存（ImageEditor → multipart blob） */
+  @UseGuards(AuthGuard('jwt'))
+  @Post(':file_id/save-edited')
+  async saveEdited(
+    @Param('file_id', ParseIntPipe) fileId: number,
+    @Req() req: FastifyRequest & { user: any },
+  ) {
+    const data = await req.file();
+    if (!data) throw new BadRequestException('ファイルが見つかりません');
+
+    const fields      = data.fields as any;
+    const ncProgramId = parseInt(fields?.nc_program_id?.value ?? '0');
+    const processingId: string | undefined = fields?.processing_id?.value || undefined;
+    if (!ncProgramId) throw new BadRequestException('nc_program_id が必要です');
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) chunks.push(chunk as Buffer);
+    const imageBuffer = Buffer.concat(chunks);
+
+    return this.filesService.saveEditedFile(
+      fileId,
+      imageBuffer,
+      ncProgramId,
+      processingId,
+      req.user.id,
+    );
+  }
+
   /** FIL-04: ファイル削除 */
   @UseGuards(AuthGuard('jwt'))
   @Delete(':file_id')

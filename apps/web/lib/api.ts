@@ -349,3 +349,21 @@ export const downloadApi = {
     });
   },
 };
+
+// ── 管理者: 会社設定・ストレージ設定 ────────────────────────
+export type CompanySetting = {
+  companyName: string | null;
+  logoPath:    string | null;
+  uploadBasePath: string | null;
+};
+
+export const adminSettingsApi = {
+  getCompany:    (token: string) =>
+    api.get<CompanySetting>('/admin/company', { headers: { Authorization: `Bearer ${token}` } }),
+  updateCompany: (body: { company_name?: string; logo_path?: string }, token: string) =>
+    api.put('/admin/company', body, { headers: { Authorization: `Bearer ${token}` } }),
+  getStorage:    (token: string) =>
+    api.get<{ uploadBasePath: string | null }>('/admin/storage', { headers: { Authorization: `Bearer ${token}` } }),
+  updateStorage: (uploadBasePath: string, token: string) =>
+    api.put('/admin/storage', { upload_base_path: uploadBasePath }, { headers: { Authorization: `Bearer ${token}` } }),
+};

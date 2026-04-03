@@ -10,7 +10,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import {
   ncApi, NcDetail, NcTool, ChangeHistory, WorkRecord, SetupSheetLog,
-  NcFile, filesApi,
+  NcFile, filesApi, downloadApi,
 } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
@@ -54,7 +54,7 @@ export default function NcDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // AUTH（D&Dより先に宣言必須）
-  const { operator, isAuthenticated, logout } = useAuth();
+  const { operator, isAuthenticated, logout, token } = useAuth();
   const [authModalOpen,   setAuthModalOpen]   = useState(false);
   const [authSessionType, setAuthSessionType] = useState("edit");
 
@@ -62,6 +62,7 @@ export default function NcDetailPage() {
     setAuthSessionType(sessionType);
     setAuthModalOpen(true);
   }, []);
+  const [pendingUsb, setPendingUsb] = useState(false);
 
   // ── ファイルアップロード（ボタン経由）──
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
