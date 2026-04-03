@@ -165,7 +165,6 @@ function RecordPageInner() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showAuthModal,   setShowAuthModal]   = useState(false);
   const [saving,       setSaving]       = useState(false);
-  const [deleting,     setDeleting]     = useState(false);
   const [toast,        setToast]        = useState<string | null>(null);
   const [sessionInfo,  setSessionInfo]  = useState<{ operatorName: string } | null>(null);
 
@@ -352,24 +351,6 @@ function RecordPageInner() {
     }
   };
 
-  // ── WR-04: 削除 ──
-  const handleDelete = async () => {
-    if (!editRecordId) return;
-    if (!confirm("この作業記録を削除しますか？")) return;
-    setDeleting(true);
-    try {
-      await workRecordsApi.delete(ncId, editRecordId);
-      const recRes = await workRecordsApi.list(ncId);
-      setAllRecords(recRes.data);
-      await endSession();
-      showToast("🗑 作業記録を削除しました");
-      setTimeout(() => router.push(`/nc/${ncId}`), 1200);
-    } catch {
-      showToast("❌ 削除に失敗しました");
-    } finally {
-      setDeleting(false);
-    }
-  };
 
   if (!nc) return (
     <div className="flex items-center justify-center h-screen text-slate-400">読み込み中…</div>

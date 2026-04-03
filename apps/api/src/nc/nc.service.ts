@@ -259,6 +259,33 @@ export class NcService {
     }));
   }
  
+
+  /** WR-単件: 作業記録1件取得（編集モード用） */
+  async findWorkRecord(ncProgramId: number, recordId: number) {
+    const r = await this.prisma.workRecord.findFirst({
+      where:   { id: recordId, ncProgramId },
+      include: {
+        operator: { select: { name: true } },
+        machine:  { select: { machineCode: true } },
+      },
+    });
+    if (!r) throw new NotFoundException(`work_record id:${recordId} が存在しません`);
+    return {
+      id:                   r.id,
+      work_date:            r.workDate,
+      operator_name:        r.operator?.name ?? null,
+      machine_code:         r.machine?.machineCode ?? null,
+      machine_id:           r.machineId,
+      setup_time:           r.setupTimeMin,
+      machining_time:       r.machiningTimeMin,
+      cycle_time_sec:       r.cycleTimeSec,
+      quantity:             r.quantity,
+      interruption_time_min: r.interruptionTimeMin,
+      work_type:            r.workType,
+      note:                 r.note,
+    };
+  }
+
   /** WR-02: 作業記録 新規登録 */
   async createWorkRecord(
     ncProgramId: number,

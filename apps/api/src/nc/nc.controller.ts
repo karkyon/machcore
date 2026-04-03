@@ -52,6 +52,16 @@ export class NcController {
     return this.nc.listFiles(id);
   }
 
+
+  /** WR-単件: 作業記録1件取得（編集モード用） */
+  @Get(":nc_id/work-records/:record_id")
+  findWorkRecord(
+    @Param("nc_id",     ParseIntPipe) ncId:     number,
+    @Param("record_id", ParseIntPipe) recordId: number,
+  ) {
+    return this.nc.findWorkRecord(ncId, recordId);
+  }
+
   /** WR-02: 作業記録 新規登録 */
   @UseGuards(AuthGuard("jwt"), RolesGuard)
   @Roles("OPERATOR", "ADMIN")
