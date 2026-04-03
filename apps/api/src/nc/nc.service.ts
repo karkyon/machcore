@@ -679,15 +679,15 @@ private buildSetupSheetHtml(data: any, opts: any): string {
 
   /** ファイルパス解決（company_settings.upload_base_path / folderName / fileName） */
   private async resolvePgFilePath(
-    nc: { id: number; fileName: string; folderName?: string | null },
+    nc: { id: number; fileName: string; folderName: string | null },
   ): Promise<string> {
     const setting = await this.prisma.companySetting.findFirst();
-    const base = setting?.uploadBasePath ?? '/mnt/ncfiles';
-    // SMB共有の実フォルダ構造: /mnt/ncfiles/ｶﾟﾛｺﾞﾗﾑ/{folderName}/{fileName}
+    const base =
+      setting?.uploadBasePath ??
+      '/home/karkyon/projects/machcore/uploads';
     if (nc.folderName) {
-      return path.join(base, 'ｶﾟﾛｺﾞﾗﾑ', nc.folderName, nc.fileName);
+      return path.join(base, '\uff7c\uff9b\uff78\uff9e\uff97\uff91', nc.folderName, nc.fileName);
     }
-    // fallback: nc_id ベース（新規アップロード分）
     return path.join(base, 'nc_files', String(nc.id), 'pg', nc.fileName);
   }
 

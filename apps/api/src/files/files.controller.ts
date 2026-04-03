@@ -19,10 +19,19 @@ export class FilesController {
     @Res() reply: FastifyReply,
   ) {
     const { filePath, mimeType, fileName } = await this.filesService.serveFile(id);
+
+    // TIFFはブラウザ非対応 → sharp でオンザフライPNG変換
+    if (mimeType === 'image/tiff' || mimeType === 'image/tif') {
+      const sharp = (await import('sharp')).default;
+      const pngBuf = await sharp(filePath).png().toBuffer();
+      reply.header('Content-Type', 'image/png');
+      reply.header('Content-Disposition', `inline; filename="${encodeURIComponent(fileName.replace(/\.tiff?$/i, '.png'))}"`);
+      return reply.send(pngBuf);
+    }
+
     reply.header('Content-Type', mimeType);
     reply.header('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
-    const stream = fs.createReadStream(filePath);
-    return reply.send(stream);
+    return reply.send(fs.createReadStream(filePath));
   }
 
   /** FIL-00b: サムネイル配信 */
