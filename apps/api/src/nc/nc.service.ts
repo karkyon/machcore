@@ -424,9 +424,6 @@ async generateSetupSheetPdf(
     const html = this.buildSetupSheetHtml(data, { ...options, drawingBase64s });
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
-    // Google Fontsの読込を少し待つ（タイムアウトしても続行）
-    await new Promise(r => setTimeout(r, 2000)); // Noto Sans JP読込待機
-
     const pdfUint8 = await page.pdf({
       format:          'A4',
       printBackground: true,
@@ -521,70 +518,87 @@ private buildSetupSheetHtml(data: any, opts: any): string {
     <html lang="ja">
       <head>
         <meta charset="UTF-8">
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
         <style>
-          *  { margin:0; padding:0; box-sizing:border-box; }
+          * { margin:0; padding:0; box-sizing:border-box; }
           body {
-            font-family: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;
-            font-size: 9.5pt; color: #111; line-height: 1.4;
+            font-family: 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', 'MS PGothic', sans-serif;
+            font-size: 9.5pt; color: #111; line-height: 1.45;
           }
           /* ── ページヘッダー ── */
           .ph { display:flex; justify-content:space-between; align-items:flex-end;
-                border-bottom:2.5px solid #1e3a5f; padding-bottom:5px; margin-bottom:10px; }
-          .ph-title { font-size:15pt; font-weight:700; color:#1e3a5f; }
-          .ph-meta  { font-size:7.5pt; color:#555; text-align:right; line-height:1.6; }
+                border-bottom:2.5px solid #1e3a5f; padding-bottom:5px; margin-bottom:8px; }
+          .ph-title { font-size:16pt; font-weight:700; color:#1e3a5f; letter-spacing:.03em; }
+          .ph-meta  { font-size:7.5pt; color:#555; text-align:right; line-height:1.7; }
           /* ── 部品バナー ── */
           .banner { background:#1e3a5f; color:#fff; padding:7px 12px;
-                    border-radius:5px; margin-bottom:10px; }
+                    border-radius:5px; margin-bottom:8px; }
           .banner-name { font-size:13pt; font-weight:700; }
           .banner-ids  { font-size:7.5pt; opacity:.85; margin-top:3px; letter-spacing:.02em; }
           .badge { display:inline-block; padding:1px 6px; border-radius:3px;
-                  font-size:7pt; font-weight:700; border:1px solid currentColor; margin-left:6px; }
-          /* ── グリッド ── */
-          .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; }
+                   font-size:7pt; font-weight:700; border:1px solid currentColor; margin-left:6px; }
+          /* ── 情報グリッド (3カラム) ── */
+          .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:8px; }
+          .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px; }
           .box   { border:1px solid #cbd5e1; border-radius:4px; overflow:hidden; }
-          .box-h { font-size:7.5pt; font-weight:700; background:#f1f5f9;
-                  padding:3px 8px; color:#475569; border-bottom:1px solid #cbd5e1; }
+          .box-h { font-size:7.5pt; font-weight:700; background:#1e3a5f; color:#fff;
+                   padding:3px 8px; }
           .row   { display:flex; padding:3px 8px; border-bottom:1px solid #f1f5f9; }
           .row:last-child { border-bottom:none; }
-          .lbl   { width:80px; color:#6b7280; font-size:8pt; flex-shrink:0; }
-          .val   { font-family:monospace; font-size:9pt; }
+          .lbl   { width:72px; color:#6b7280; font-size:7.5pt; flex-shrink:0; }
+          .val   { font-family: 'Courier New', monospace; font-size:8.5pt; font-weight:600; }
+          /* ── Oナンバー強調 ── */
+          .o-num { display:inline-block; background:#1e3a5f; color:#fff;
+                   font-family:monospace; font-weight:700; font-size:11pt;
+                   padding:2px 10px; border-radius:3px; letter-spacing:.08em; }
           /* ── セクション ── */
           .sec-title { font-size:9pt; font-weight:700; color:#1e3a5f;
-                      border-bottom:1.5px solid #1e3a5f; padding-bottom:3px; margin-bottom:6px; }
-          section { margin-bottom:12px; }
+                       border-bottom:1.5px solid #1e3a5f; padding-bottom:3px;
+                       margin-bottom:5px; margin-top:10px; }
+          section { margin-bottom:10px; page-break-inside:avoid; }
           /* ── クランプ備考 ── */
-          .clamp-box { background:#fefce8; border:1px solid #fde047; border-radius:4px;
-                      padding:8px 12px; font-size:9pt; white-space:pre-wrap; line-height:1.7; }
+          .clamp-box { background:#fefce8; border:1.5px solid #f59e0b; border-radius:4px;
+                       padding:8px 12px; font-size:9.5pt; white-space:pre-wrap; line-height:1.8;
+                       font-weight:500; }
           /* ── 工具テーブル ── */
-          .tbl { width:100%; border-collapse:collapse; font-size:8.5pt; }
-          .tbl th { background:#f1f5f9; font-weight:700; padding:4px 5px;
-                    border:1px solid #cbd5e1; color:#334155; text-align:left; }
-          .tbl td { padding:3px 5px; border:1px solid #e2e8f0; vertical-align:top; }
+          .tbl { width:100%; border-collapse:collapse; font-size:8pt; }
+          .tbl thead tr { background:#1e3a5f; }
+          .tbl th { font-weight:700; padding:4px 5px; border:1px solid #94a3b8;
+                    color:#fff; text-align:left; }
+          .tbl td { padding:3.5px 5px; border:1px solid #e2e8f0; vertical-align:top; }
           .tbl tr:nth-child(even) td { background:#f8fafc; }
           .tbl tr { page-break-inside:avoid; }
           .center { text-align:center; }
-          .mono   { font-family:monospace; }
-          .note   { font-size:8pt; color:#555; }
+          .mono   { font-family:'Courier New', monospace; }
+          .note   { font-size:7.5pt; color:#555; }
+          /* ── 図セクション ── */
+          .drawings-grid { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+          .drawing-img   { max-width:48%; max-height:200px; object-fit:contain;
+                           border:1px solid #e2e8f0; border-radius:4px; }
+          /* ── フッター情報 ── */
+          .foot-info { margin-top:12px; padding-top:6px; border-top:1px solid #e2e8f0;
+                       display:flex; justify-content:space-between;
+                       font-size:7.5pt; color:#6b7280; }
           @media print {
             body { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+            .no-print { display:none; }
           }
         </style>
       </head>
       <body>
+        <!-- ページヘッダー -->
         <div class="ph">
           <span class="ph-title">NC 段取シート</span>
           <div class="ph-meta">
             <div>MachCore — NC旋盤プログラム管理システム</div>
-            <div>Ver. <strong>${data.version}</strong> &nbsp;|&nbsp; 出力日時: ${fmtNow}</div>
+            <div>Ver. <strong>${data.version}</strong>&nbsp;|&nbsp;出力日時: ${fmtNow}</div>
           </div>
         </div>
 
+        <!-- 部品バナー -->
         <div class="banner">
           <div class="banner-name">
             ${data.part.name} — 工程 L${data.processL}
-            <span class="badge" style="color:${statusColor[data.status] ?? '#555'};border-color:${statusColor[data.status] ?? '#555'};">
+            <span class="badge" style="color:${statusColor[data.status] ?? '#ccc'};border-color:${statusColor[data.status] ?? '#ccc'};">
               ${statusLabel[data.status] ?? data.status}
             </span>
           </div>
@@ -597,26 +611,37 @@ private buildSetupSheetHtml(data: any, opts: any): string {
           </div>
         </div>
 
-        <div class="grid2">
+        <!-- 加工情報 (3カラム) -->
+        <div class="grid3">
           <div class="box">
-            <div class="box-h">加工情報</div>
-            <div class="row"><span class="lbl">工程</span><span class="val">L${data.processL}</span></div>
-            <div class="row"><span class="lbl">機械</span><span class="val">${data.machine?.machineName ?? data.machine?.machineCode ?? '—'}</span></div>
-            <div class="row"><span class="lbl">加工時間</span><span class="val">${data.machiningTime != null ? `${data.machiningTime} 分` : '—'}</span></div>
-            <div class="row"><span class="lbl">O番号</span><span class="val">${data.oNumber ?? '—'}</span></div>
+            <div class="box-h">🔩 NCプログラム</div>
+            <div class="row"><span class="lbl">フォルダ</span><span class="val">${data.folderName ?? '—'}</span></div>
+            <div class="row"><span class="lbl">ファイル名</span><span class="val">${data.fileName ?? '—'}</span></div>
+            <div class="row"><span class="lbl">O番号</span>
+              <span class="val">${data.oNumber ? `<span class="o-num">O${data.oNumber}</span>` : '—'}</span>
+            </div>
           </div>
           <div class="box">
-            <div class="box-h">ファイル情報</div>
-            <div class="row"><span class="lbl">フォルダ名</span><span class="val">${data.folderName}</span></div>
-            <div class="row"><span class="lbl">ファイル名</span><span class="val">${data.fileName}</span></div>
+            <div class="box-h">⚙ 加工設定</div>
+            <div class="row"><span class="lbl">機械</span><span class="val">${data.machine?.machineName ?? data.machine?.machineCode ?? '—'}</span></div>
+            <div class="row"><span class="lbl">加工時間</span><span class="val">${data.machiningTime != null ? `${data.machiningTime} 分` : '—'}</span></div>
+          </div>
+          <div class="box">
+            <div class="box-h">👤 担当・承認</div>
             <div class="row"><span class="lbl">登録者</span><span class="val">${data.registrar?.name ?? '—'}</span></div>
             <div class="row"><span class="lbl">承認者</span><span class="val">${data.approver?.name ?? '未承認'}</span></div>
           </div>
         </div>
 
         ${clampSection}
-        ${drawingsSection}
         ${toolRows}
+        ${drawingsSection}
+
+        <!-- フッター情報 -->
+        <div class="foot-info">
+          <span>NC旋盤プログラム管理システム MachCore</span>
+          <span>出力: ${fmtNow}</span>
+        </div>
       </body>
     </html>`;
   }
