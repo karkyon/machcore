@@ -679,18 +679,21 @@ private buildSetupSheetHtml(data: any, opts: any): string {
 
   /** ファイルパス解決（company_settings.upload_base_path / folderName / fileName） */
   private async resolvePgFilePath(
-    nc: { id: number; fileName: string },
+    nc: { id: number; fileName: string; folderName?: string | null },
   ): Promise<string> {
     const setting = await this.prisma.companySetting.findFirst();
-    const base =
-      setting?.uploadBasePath ??
-      '/home/karkyon/projects/machcore/uploads';
+    const base = setting?.uploadBasePath ?? '/mnt/ncfiles';
+    // SMB共有の実フォルダ構造: /mnt/ncfiles/ｶﾟﾛｺﾞﾗﾑ/{folderName}/{fileName}
+    if (nc.folderName) {
+      return path.join(base, 'ｶﾟﾛｺﾞﾗﾑ', nc.folderName, nc.fileName);
+    }
+    // fallback: nc_id ベース（新規アップロード分）
     return path.join(base, 'nc_files', String(nc.id), 'pg', nc.fileName);
   }
 
   /** NC-06: PGファイル読込（chardet でエンコード自動検出 → UTF-8 変換） */
   async getPgFile(id: number) {
-    const nc = await this.prisma.ncProgram.findUniqueOrThrow({ where: { id }, select: { id: true, fileName: true } });
+    const nc = await this.prisma.ncProgram.findUniqueOrThrow({ where: { id }, select: { id: true, fileName: true, folderName: true } });
     const filePath = await this.resolvePgFilePath(nc);
 
     if (!fs.existsSync(filePath)) {
@@ -731,7 +734,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
     encoding = 'UTF-8',
     lineEnding = 'LF',
   ) {
-    const nc = await this.prisma.ncProgram.findUniqueOrThrow({ where: { id }, select: { id: true, fileName: true } });
+    const nc = await this.prisma.ncProgram.findUniqueOrThrow({ where: { id }, select: { id: true, fileName: true, folderName: true } });
     const filePath = await this.resolvePgFilePath(nc);
 
     if (!fs.existsSync(filePath)) {
@@ -755,7 +758,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   async downloadPgFile(id: number): Promise<{ buffer: Buffer; fileName: string }> {
     const nc = await this.prisma.ncProgram.findUniqueOrThrow({
       where: { id },
-      select: { id: true, fileName: true },
+      select: { id: true, fileName: true, folderName: true },
     });
     const filePath = await this.resolvePgFilePath(nc);
 
