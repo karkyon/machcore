@@ -686,7 +686,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
       setting?.uploadBasePath ??
       '/home/karkyon/projects/machcore/uploads';
     if (nc.folderName) {
-      return path.join(base, '\uff7c\uff9b\uff78\uff9e\uff97\uff91', nc.folderName, nc.fileName);
+      return path.join(base, '\uff8c\uff9f\uff9b\uff78\uff9e\uff97\uff91', nc.folderName, nc.fileName);
     }
     return path.join(base, 'nc_files', String(nc.id), 'pg', nc.fileName);
   }

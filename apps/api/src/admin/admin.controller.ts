@@ -115,8 +115,8 @@ export class AdminController {
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { password: string },
   ) {
-    if (!body.password || body.password.length < 4) {
-      throw new BadRequestException('パスワードは4文字以上必要です');
+    if (!body.password || body.password.length < 1) {
+      throw new BadRequestException('パスワードを入力してください');
     }
     const hash = await bcrypt.hash(body.password, 10);
     return this.prisma.user.update({
