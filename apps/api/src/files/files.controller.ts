@@ -42,6 +42,17 @@ export class FilesController {
   ) {
     const { filePath, mimeType, fileName } =
       await this.filesService.serveThumb(id);
+
+    // TIFFはブラウザ非対応 → sharp でオンザフライPNG変換（serve と同様）
+    if (mimeType === 'image/tiff' || mimeType === 'image/tif') {
+      const sharp = (await import('sharp')).default;
+      const pngBuf = await sharp(filePath).resize(200, 200, { fit: 'inside' }).png().toBuffer();
+      reply.header('Content-Type', 'image/png');
+      reply.header('Content-Disposition', `inline; filename="${encodeURIComponent(fileName.replace(/\.tiff?$/i, '.png'))}"`);
+      reply.header('Cache-Control', 'public, max-age=3600');
+      return reply.send(pngBuf);
+    }
+
     reply.header('Content-Type', mimeType);
     reply.header('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
     reply.header('Cache-Control', 'public, max-age=3600');
