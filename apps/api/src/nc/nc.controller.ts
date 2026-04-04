@@ -50,6 +50,12 @@ export class NcController {
     return this.nc.workRecords(id);
   }
 
+  /** 操作ログ一覧 */
+  @Get(":nc_id/operation-logs")
+  operationLogs(@Param("nc_id", ParseIntPipe) id: number) {
+    return this.nc.operationLogs(id);
+  }
+
   /** FIL-01: ファイル一覧 */
   @Get(":nc_id/files")
   listFiles(@Param("nc_id", ParseIntPipe) id: number) {

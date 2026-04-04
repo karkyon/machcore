@@ -1,5 +1,5 @@
-import ReactSelect from "react-select";
 "use client";
+import ReactSelect from "react-select";
 // apps/web/app/nc/[nc_id]/record/page.tsx
 // SCR-05: 作業記録画面  v2 – ?edit=id 対応・2ペイン・更新/削除
 

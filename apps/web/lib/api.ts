@@ -108,6 +108,7 @@ export const ncApi = {
   changeHistory: (nc_id: number) => api.get<ChangeHistory[]>(`/nc/${nc_id}/change-history`),
   workRecords: (nc_id: number) => api.get<WorkRecord[]>(`/nc/${nc_id}/work-records`),
   setupSheetLogs: (nc_id: number) => api.get<SetupSheetLog[]>(`/nc/${nc_id}/setup-sheet-logs`),
+  operationLogs:  (nc_id: number) => api.get<OperationLog[]>(`/nc/${nc_id}/operation-logs`),
   update: (nc_id: number, body: UpdateNcBody) => api.put<{ nc_id: number; message: string }>(`/nc/${nc_id}`, body),
 };
 
@@ -366,4 +367,40 @@ export const adminSettingsApi = {
     api.get<{ uploadBasePath: string | null }>('/admin/storage', { headers: { Authorization: `Bearer ${token}` } }),
   updateStorage: (uploadBasePath: string, token: string) =>
     api.put('/admin/storage', { upload_base_path: uploadBasePath }, { headers: { Authorization: `Bearer ${token}` } }),
+};
+// ── 操作ログ ────────────────────────────────────────────────────
+export type OperationLog = {
+  id:          number;
+  action_type: string;
+  user_name:   string | null;
+  session_id:  string | null;
+  metadata:    Record<string, unknown> | null;
+  created_at:  string;
+};
+
+export type AdminLog = OperationLog & {
+  employee_code: string | null;
+  nc_id:         number | null;
+  drawing_no:    string | null;
+  part_name:     string | null;
+  file_name:     string | null;
+};
+
+export const operationLogsApi = {
+  listByNc: (ncId: number) =>
+    api.get<OperationLog[]>(`/nc/${ncId}/operation-logs`),
+};
+
+export const adminLogsApi = {
+  list: (params: {
+    action_type?: string;
+    user_id?: number;
+    nc_id?: number;
+    date_from?: string;
+    date_to?: string;
+    page?: number;
+    limit?: number;
+  }) => api.get<{ total: number; page: number; limit: number; data: AdminLog[] }>(
+    '/admin/logs', { params }
+  ),
 };

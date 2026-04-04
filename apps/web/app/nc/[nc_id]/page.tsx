@@ -10,7 +10,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import {
   ncApi, NcDetail, NcTool, ChangeHistory, WorkRecord, SetupSheetLog,
-  NcFile, filesApi, downloadApi,
+  NcFile, filesApi, downloadApi, OperationLog, operationLogsApi,
 } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
@@ -18,7 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 
 type MainTab = "lathe" | "tools" | "history" | "files";
-type HistorySubTab = "change" | "work" | "print";
+type HistorySubTab = "change" | "work" | "print" | "oplog";
 
 const CHANGE_TYPE_LABELS: Record<string, string> = {
   NEW_REGISTRATION: "新規登録",
@@ -42,6 +42,7 @@ export default function NcDetailPage() {
   const [works,       setWorks]       = useState<WorkRecord[]    | null>(null);
   const [prints,      setPrints]      = useState<SetupSheetLog[] | null>(null);
   const [histLoading, setHistLoading] = useState(false);
+  const [oplogs,      setOplogs]      = useState<OperationLog[] | null>(null);
 
   // ── ファイルタブ用ステート ──
   const [files,        setFiles]        = useState<NcFile[] | null>(null);
@@ -158,7 +159,11 @@ export default function NcDetailPage() {
       setHistLoading(true);
       ncApi.setupSheetLogs(ncId).then(r => setPrints(r.data)).finally(() => setHistLoading(false));
     }
-  }, [mainTab, histTab, ncId, changes, works, prints]);
+    if (histTab === "oplog" && oplogs === null) {
+      setHistLoading(true);
+      ncApi.operationLogs(ncId).then(r => setOplogs(r.data)).catch(() => setOplogs([])).finally(() => setHistLoading(false));
+    }
+  }, [mainTab, histTab, ncId, changes, works, prints, oplogs]);
 
   // ファイルタブ選択時にAPIコール（初回のみ）
   useEffect(() => {
@@ -376,6 +381,7 @@ export default function NcDetailPage() {
                   { key: "change", label: "✏️ 変更履歴" },
                   { key: "work",   label: "⏱ 作業記録" },
                   { key: "print",  label: "🖨 印刷履歴" },
+                  { key: "oplog",  label: "🔍 操作ログ" },
                 ] as { key: HistorySubTab; label: string }[]).map(t => (
                   <button
                     key={t.key}
@@ -469,7 +475,50 @@ export default function NcDetailPage() {
                   )
                 )}
 
-                {/* 印刷履歴 */}
+
+                {/* 操作ログ */}
+                {histTab === "oplog" && !histLoading && (
+                  oplogs === null ? null :
+                  oplogs.length === 0 ? <Empty label="操作ログなし" /> : (
+                    <table className="w-full text-xs border-collapse bg-white rounded-xl overflow-hidden shadow-sm">
+                      <thead className="bg-slate-100 text-slate-600">
+                        <tr>
+                          {["日時", "操作", "担当者", "詳細"].map(h => (
+                            <th key={h} className="px-3 py-2 text-left font-bold border-b border-slate-200">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {oplogs.map((log, i) => {
+                          const labels: Record<string, { label: string; color: string }> = {
+                            SESSION_START: { label: "作業開始",    color: "bg-green-100 text-green-700" },
+                            SESSION_END:   { label: "作業終了",    color: "bg-slate-100 text-slate-600" },
+                            USB_DOWNLOAD:  { label: "PGファイルDL", color: "bg-blue-100 text-blue-700" },
+                            FILE_UPLOAD:   { label: "ファイルUP",  color: "bg-sky-100 text-sky-700" },
+                            FILE_DELETE:   { label: "ファイル削除", color: "bg-red-100 text-red-600" },
+                          };
+                          const badge = labels[log.action_type] ?? { label: log.action_type, color: "bg-slate-100 text-slate-500" };
+                          const meta  = log.metadata as Record<string, unknown> | null;
+                          const detail = meta?.fileName ?? meta?.originalName ?? meta?.session_type ?? "";
+                          return (
+                            <tr key={log.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                              <td className="px-3 py-2 whitespace-nowrap text-slate-500">
+                                {new Date(log.created_at).toLocaleString("ja-JP")}
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${badge.color}`}>{badge.label}</span>
+                              </td>
+                              <td className="px-3 py-2">{log.user_name ?? "—"}</td>
+                              <td className="px-3 py-2 text-slate-500 font-mono text-xs">{String(detail || "")}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )
+                )}
+
+                                {/* 印刷履歴 */}
                 {histTab === "print" && !histLoading && (
                   prints === null ? null :
                   prints.length === 0 ? <Empty label="印刷履歴なし" /> : (

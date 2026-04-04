@@ -220,6 +220,26 @@ export class NcService {
     }));
   }
 
+  /** 操作ログ一覧（USB_DOWNLOAD/FILE_UPLOAD/FILE_DELETE/SESSION_START/END のみ） */
+  async operationLogs(ncProgramId: number) {
+    const rows = await this.prisma.operationLog.findMany({
+      where: {
+        ncProgramId,
+        actionType: { in: ['USB_DOWNLOAD', 'FILE_UPLOAD', 'FILE_DELETE', 'SESSION_START', 'SESSION_END'] as any[] },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { user: { select: { name: true } } },
+    });
+    return rows.map(r => ({
+      id:          r.id,
+      action_type: r.actionType,
+      user_name:   r.user?.name ?? null,
+      session_id:  r.sessionId,
+      metadata:    r.metadata,
+      created_at:  r.createdAt,
+    }));
+  }
+
   /** FIL-01: ファイル一覧 */
   async listFiles(ncProgramId: number) {
     const rows = await this.prisma.ncFile.findMany({

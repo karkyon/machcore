@@ -179,4 +179,58 @@ export class AdminController {
       select: { uploadBasePath: true, companyName: true },
     });
   }
+
+
+  /** ADM-LOG: 操作ログ一覧（全NC・全ユーザ・フィルタ付き） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('logs')
+  async getLogs(
+    @Query('action_type') actionType?: string,
+    @Query('user_id')     userId?: string,
+    @Query('nc_id')       ncId?: string,
+    @Query('date_from')   dateFrom?: string,
+    @Query('date_to')     dateTo?: string,
+    @Query('page')        page = '1',
+    @Query('limit')       limit = '50',
+  ) {
+    const where: any = {};
+    if (actionType) where.actionType = actionType;
+    if (userId)     where.userId     = parseInt(userId);
+    if (ncId)       where.ncProgramId = parseInt(ncId);
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo)   where.createdAt.lte = new Date(dateTo + 'T23:59:59Z');
+    }
+    const skip  = (parseInt(page) - 1) * parseInt(limit);
+    const take  = parseInt(limit);
+    const [rows, total] = await Promise.all([
+      this.prisma.operationLog.findMany({
+        where, skip, take,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user:      { select: { name: true, employeeCode: true } },
+          ncProgram: { select: { id: true, folderName: true, fileName: true,
+                                 part: { select: { drawingNo: true, name: true } } } },
+        },
+      }),
+      this.prisma.operationLog.count({ where }),
+    ]);
+    return {
+      total, page: parseInt(page), limit: parseInt(limit),
+      data: rows.map(r => ({
+        id:          r.id,
+        action_type: r.actionType,
+        user_name:   r.user?.name ?? null,
+        employee_code: r.user?.employeeCode ?? null,
+        nc_id:       r.ncProgramId,
+        drawing_no:  (r.ncProgram as any)?.part?.drawingNo ?? null,
+        part_name:   (r.ncProgram as any)?.part?.name ?? null,
+        file_name:   r.ncProgram?.fileName ?? null,
+        metadata:    r.metadata,
+        created_at:  r.createdAt,
+      })),
+    };
+  }
 }
