@@ -64,26 +64,34 @@ export class FilesController {
   @UseGuards(AuthGuard('jwt'))
   @Post('upload')
   async upload(@Req() req: FastifyRequest & { user: any }) {
-    let fileData: any = null;
-    let ncProgramId   = 0;
+    let fileBuffer:  Buffer | null = null;
+    let fileFilename = '';
+    let fileMimetype = '';
+    let ncProgramId  = 0;
 
     for await (const part of req.parts()) {
-      if ((part as any).type === 'file') {
-        fileData = part;
+      if ('file' in part) {
+        // ファイルストリームをバッファに消費してから次のパートへ
+        const chunks: Buffer[] = [];
+        for await (const chunk of (part as any).file) chunks.push(chunk as Buffer);
+        fileBuffer   = Buffer.concat(chunks);
+        fileFilename = (part as any).filename ?? '';
+        fileMimetype = (part as any).mimetype ?? 'application/octet-stream';
       } else if ((part as any).fieldname === 'nc_program_id') {
         ncProgramId = parseInt((part as any).value ?? '0');
       }
     }
 
-    if (!fileData)    throw new BadRequestException('ファイルが見つかりません');
+    if (!fileBuffer)  throw new BadRequestException('ファイルが見つかりません');
     if (!ncProgramId) throw new BadRequestException('nc_program_id が必要です');
 
+    const { Readable } = await import('stream');
     return this.filesService.uploadFile(
       ncProgramId,
       req.user.id,
-      fileData.file,
-      fileData.filename,
-      fileData.mimetype,
+      Readable.from(fileBuffer),
+      fileFilename,
+      fileMimetype,
     );
   }
 
