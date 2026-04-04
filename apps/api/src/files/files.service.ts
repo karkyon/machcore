@@ -3,6 +3,7 @@ import {
   Injectable, NotFoundException, BadRequestException, ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { OperationLogService } from '../common/operation-log.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import sharp from 'sharp';
@@ -22,7 +23,10 @@ const ALLOWED_MIME: Record<string, string> = {
 
 @Injectable()
 export class FilesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly opLog: OperationLogService,
+  ) {}
 
   // ── 保存先ベースパスを取得（DB設定 or デフォルト） ──────────────
   private async getBasePath(): Promise<string> {
@@ -141,6 +145,13 @@ export class FilesService {
     // nc_programs の枚数カウント更新
     await this.updateFileCounts(ncProgramId);
 
+    this.opLog.log({
+      actionType:  'FILE_UPLOAD',
+      userId:      uploaderId,
+      ncProgramId,
+      metadata:    { originalName, mimeType: finalMime, fileType: fileTypeStr },
+    });
+
     return { id: record.id, message: 'アップロード完了', stored_name: storedName };
   }
 
@@ -206,6 +217,12 @@ export class FilesService {
 
     await this.prisma.ncFile.delete({ where: { id: fileId } });
     await this.updateFileCounts(file.ncProgramId);
+    this.opLog.log({
+      actionType:  'FILE_DELETE',
+      userId:      requesterId,
+      ncProgramId: file.ncProgramId,
+      metadata:    { originalName: file.originalName, fileId },
+    });
     return { message: 'ファイルを削除しました' };
   }
 

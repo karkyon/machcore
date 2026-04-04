@@ -7,6 +7,7 @@ import { MachinesModule } from './machines/machines.module';
 import { NcModule } from './nc/nc.module';
 import { FilesModule } from './files/files.module';
 import { AdminModule } from './admin/admin.module';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { AdminModule } from './admin/admin.module';
     NcModule,
     FilesModule,
     AdminModule,
+    CommonModule,
   ],
 })
 export class AppModule {}

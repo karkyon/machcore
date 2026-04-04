@@ -5,6 +5,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+import { OperationLogService } from '../common/operation-log.service';
 
 const SESSION_EXPIRES_MS: Record<string, number> = {
   edit:         4 * 60 * 60 * 1000,
@@ -27,6 +28,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly opLog: OperationLogService,
   ) {}
 
   async createWorkSession(body: {
@@ -71,6 +73,14 @@ export class AuthService {
 
     const token = this.jwt.sign(payload, { expiresIn: expiresSec });
 
+    this.opLog.log({
+      actionType:  'SESSION_START',
+      userId:      user.id,
+      ncProgramId: body.nc_program_id,
+      sessionId:   session.id,
+      metadata:    { session_type: body.session_type },
+    });
+
     return {
       access_token: token,
       session_type: body.session_type,
@@ -86,6 +96,7 @@ export class AuthService {
     if (!valid) throw new UnauthorizedException('パスワードが違います');
     if (user.role !== 'ADMIN') throw new ForbiddenException('管理者権限が必要です');
     const token = this.jwt.sign({ sub: user.id, role: user.role }, { expiresIn: '8h' });
+    this.opLog.log({ actionType: 'LOGIN', userId: user.id, metadata: { role: user.role } });
     return { access_token: token, user: { id: user.id, name: user.name, role: user.role } };
   }
 
@@ -94,6 +105,7 @@ export class AuthService {
       where: { id: sessionId },
       data:  { isActive: false, endedAt: new Date() },
     });
+    this.opLog.log({ actionType: 'SESSION_END', sessionId });
     return { message: 'セッションを終了しました' };
   }
 }

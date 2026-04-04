@@ -10,13 +10,17 @@ import { SavePgFileDto } from "./dto/save-pg-file.dto";
 import type { FastifyReply } from "fastify";
 import { AuthGuard } from "@nestjs/passport";
 import { NcService } from "./nc.service";
+import { OperationLogService } from "../common/operation-log.service";
 import { CreateNcDto } from "./dto/create-nc.dto";
 import { UpdateNcDto } from "./dto/update-nc.dto";
 import { CreateWorkRecordDto } from "./dto/create-work-record.dto";
 
 @Controller("nc")
 export class NcController {
-  constructor(private readonly nc: NcService) {}
+  constructor(
+    private readonly nc: NcService,
+    private readonly opLog: OperationLogService,
+  ) {}
 
   @Get("search")
   search(
@@ -121,6 +125,14 @@ export class NcController {
     @Body() dto: UpdateNcDto,
     @Req() req: any,
   ) {
+    this.opLog.log({
+      actionType:  'EDIT_SAVE',
+      userId:      req.user?.sub,
+      ncProgramId: id,
+      sessionId:   req.user?.session_id,
+      ipAddress:   req.ip,
+      metadata:    { target: 'nc_data' },
+    });
     return this.nc.update(id, dto, req.user.id);
   }
 
@@ -141,6 +153,13 @@ export class NcController {
     @Res() reply: FastifyReply,
   ) {
     const pdf = await this.nc.generateSetupSheetPdf(id, req.user.id, dto);
+    this.opLog.log({
+      actionType:  'SETUP_PRINT',
+      userId:      req.user?.sub,
+      ncProgramId: id,
+      sessionId:   req.user?.session_id,
+      ipAddress:   req.ip,
+    });
     reply.header("Content-Type",        "application/pdf");
     reply.header("Content-Disposition", `inline; filename="setup-sheet-${id}.pdf"`);
     reply.header("Content-Length",      String(pdf.length));
@@ -157,11 +176,21 @@ export class NcController {
   /** NC-06b: PGファイル保存（JWT必須） */
   @UseGuards(AuthGuard("jwt"))
   @Put(":nc_id/pg-file")
-  savePgFile(
+  async savePgFile(
     @Param("nc_id", ParseIntPipe) id: number,
     @Body() dto: SavePgFileDto,
+    @Req() req: any,
   ) {
-    return this.nc.savePgFile(id, dto.content, dto.encoding, dto.lineEnding);
+    const result = await this.nc.savePgFile(id, dto.content, dto.encoding, dto.lineEnding);
+    this.opLog.log({
+      actionType:  'EDIT_SAVE',
+      userId:      req.user?.sub,
+      ncProgramId: id,
+      sessionId:   req.user?.session_id,
+      ipAddress:   req.ip,
+      metadata:    { target: 'pg_file', encoding: dto.encoding },
+    });
+    return result;
   }
 
   /** NC-07: PGファイルダウンロード（JWT必須） */
@@ -169,9 +198,18 @@ export class NcController {
   @Get(":nc_id/download")
   async downloadPgFile(
     @Param("nc_id", ParseIntPipe) id: number,
+    @Req() req: any,
     @Res() reply: FastifyReply,
   ) {
     const { buffer, fileName } = await this.nc.downloadPgFile(id);
+    this.opLog.log({
+      actionType:  'USB_DOWNLOAD',
+      userId:      req.user?.sub,
+      ncProgramId: id,
+      sessionId:   req.user?.session_id,
+      ipAddress:   req.ip,
+      metadata:    { fileName },
+    });
     reply.header("Content-Type",        "application/octet-stream");
     reply.header("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"`);
     reply.header("Content-Length",      String(buffer.length));
