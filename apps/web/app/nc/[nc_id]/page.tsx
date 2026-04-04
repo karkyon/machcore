@@ -229,7 +229,7 @@ export default function NcDetailPage() {
               </button>
             )}
             <button
-              onClick={() => { setPendingUsb(true); openAuth("usbdownload"); }}
+              onClick={() => { setPendingUsb(true); openAuth("usb_download"); }}
               className="text-[11px] bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded font-bold transition-colors"
             >
               PG → USB 書き出し
