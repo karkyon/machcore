@@ -2,6 +2,17 @@ import axios from "axios";
 
 const api = axios.create({ baseURL: "/api" });
 
+// リクエストインターセプター: work_tokenを自動付与
+api.interceptors.request.use((config) => {
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("work_token");
+    if (token && !config.headers["Authorization"]) {
+      config.headers["Authorization"] = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
 export type NcSearchResult = {
   nc_id: number;
   part_db_id: number;
