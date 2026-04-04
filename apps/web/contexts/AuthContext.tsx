@@ -23,7 +23,10 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("work_token");
+  });
   const [operator, setOperator] = useState<Operator | null>(null);
   const [sessionType, setSessionType] = useState<string | null>(null);
 
