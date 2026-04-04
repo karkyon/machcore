@@ -80,9 +80,8 @@ export default function PrintPage() {
 
   const handleDownload = async () => {
     try {
-      const t = localStorage.getItem("work_token");
-      if (!t) { alert("先に作業を開始してください"); return; }
-      await downloadApi.pgFile(ncId, t);
+      if (!token) { alert("先に作業を開始してください"); return; }
+      await downloadApi.pgFile(ncId, token);
     } catch {
       alert("ダウンロードに失敗しました");
     }

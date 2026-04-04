@@ -69,7 +69,6 @@ export default function NcDetailPage() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const token = localStorage.getItem("work_token");
     if (!token) { openAuth("edit"); return; }
     setUploading(true);
     setFileError(null);
@@ -89,7 +88,6 @@ export default function NcDetailPage() {
   // ── ファイル削除 ──
   const handleDelete = async (fileId: number) => {
     if (!confirm("このファイルを削除しますか？")) return;
-    const token = localStorage.getItem("work_token");
     if (!token) { openAuth("edit"); return; }
     try {
       await filesApi.delete(fileId, token);
@@ -103,7 +101,6 @@ export default function NcDetailPage() {
 
   // ── D&Dアップロード（react-dropzone）── useAuth・openAuth後に配置
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const token = localStorage.getItem("work_token");
     if (!token) { openAuth("edit"); return; }
     setFileError(null);
     for (const file of acceptedFiles) {

@@ -83,7 +83,7 @@ function AuthModal({ ncId, sessionType, onSuccess, onCancel }: {
   const [loading,  setLoading]  = useState(false);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`)
+    fetch("/api/users")
       .then(r => r.json()).then(setUsers);
   }, []);
 
@@ -91,7 +91,7 @@ function AuthModal({ ncId, sessionType, onSuccess, onCancel }: {
     if (!selId || !password) { setError("担当者とパスワードを入力してください"); return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/work-session`, {
+      const res = await fetch("/api/auth/work-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ operator_id: selId, password, session_type: sessionType, nc_program_id: ncId }),
@@ -278,7 +278,7 @@ function RecordPageInner() {
     try {
       const token = localStorage.getItem("work_token");
       if (token) {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/work-session`, {
+        await fetch("/api/auth/work-session", {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -618,7 +618,7 @@ function RecordPageInner() {
 
       {/* 認証モーダル */}
       {showAuthModal && (
-        <AuthModal ncId={ncId} sessionType="record"
+        <AuthModal ncId={ncId} sessionType="work_record"
           onSuccess={handleAuthSuccess}
           onCancel={() => setShowAuthModal(false)} />
       )}

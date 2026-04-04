@@ -19,7 +19,7 @@ dist/
 
 # ログ
 *.log
-logs/
+/logs/
 
 # OS
 .DS_Store

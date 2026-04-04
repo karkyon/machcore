@@ -529,7 +529,8 @@ export default function NcEditPage() {
               </button>
               <button
                 onClick={handleDownload}
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-colors"
+                disabled={!isAuthenticated}
+                className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${isAuthenticated ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
               >
                 💾 USBへ書き出し
               </button>

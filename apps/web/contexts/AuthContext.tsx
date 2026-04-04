@@ -31,6 +31,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(res.access_token);
     setOperator(res.operator);
     setSessionType(res.session_type);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("work_token", res.access_token);
+    }
   }, []);
 
   const logout = useCallback(() => {
@@ -40,6 +43,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setOperator(null);
     setSessionType(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("work_token");
+    }
   }, [token]);
 
   return (
