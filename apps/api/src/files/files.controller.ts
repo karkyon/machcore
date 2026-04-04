@@ -64,18 +64,26 @@ export class FilesController {
   @UseGuards(AuthGuard('jwt'))
   @Post('upload')
   async upload(@Req() req: FastifyRequest & { user: any }) {
-    const data = await req.file();
-    if (!data) throw new Error('ファイルが見つかりません');
+    let fileData: any = null;
+    let ncProgramId   = 0;
 
-    const ncProgramId = parseInt((data.fields as any)?.nc_program_id?.value ?? '0');
-    if (!ncProgramId) throw new Error('nc_program_id が必要です');
+    for await (const part of req.parts()) {
+      if ((part as any).type === 'file') {
+        fileData = part;
+      } else if ((part as any).fieldname === 'nc_program_id') {
+        ncProgramId = parseInt((part as any).value ?? '0');
+      }
+    }
+
+    if (!fileData)    throw new BadRequestException('ファイルが見つかりません');
+    if (!ncProgramId) throw new BadRequestException('nc_program_id が必要です');
 
     return this.filesService.uploadFile(
       ncProgramId,
       req.user.id,
-      data.file,
-      data.filename,
-      data.mimetype,
+      fileData.file,
+      fileData.filename,
+      fileData.mimetype,
     );
   }
 
