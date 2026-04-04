@@ -69,7 +69,7 @@ export default function NcDetailPage() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!token) { openAuth("edit"); return; }
+    if (!token || !operator) { openAuth("edit"); return; }
     setUploading(true);
     setFileError(null);
     try {
@@ -101,7 +101,7 @@ export default function NcDetailPage() {
 
   // ── D&Dアップロード（react-dropzone）── useAuth・openAuth後に配置
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (!token) { openAuth("edit"); return; }
+    if (!token || !operator) { openAuth("edit"); return; }
     setFileError(null);
     for (const file of acceptedFiles) {
       setUploading(true);
@@ -122,7 +122,7 @@ export default function NcDetailPage() {
     onDrop,
     accept: { "image/*": [], "application/pdf": [] },
     noClick: true,
-    disabled: !isAuthenticated || uploading,
+    disabled: !(isAuthenticated && operator) || uploading,
   });
 
   // NC詳細ロード
@@ -583,7 +583,7 @@ export default function NcDetailPage() {
                   className="hidden"
                   onChange={handleUpload}
                 />
-                {isAuthenticated ? (
+                {(isAuthenticated && operator) ? (
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
