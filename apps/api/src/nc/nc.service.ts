@@ -215,7 +215,7 @@ export class NcService {
       include: { operator: { select: { id: true, name: true } } },
     });
     return rows.map(r => ({
-      id: r.id, printed_at: r.printedAt, version: null,
+      id: r.id, printed_at: r.printedAt, version: r.version ?? null,
       printer_name: r.operator?.name ?? null,
     }));
   }
@@ -487,7 +487,7 @@ async generateSetupSheetPdf(
 
     // SetupSheetLog INSERT（エラーはログのみ）
     await this.prisma.setupSheetLog.create({
-      data: { ncProgramId, operatorId },
+      data: { ncProgramId, operatorId, version: data?.version ?? null },
     }).catch(e => console.warn('SetupSheetLog insert failed:', e.message));
 
     return pdfBuffer;
