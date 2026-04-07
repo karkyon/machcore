@@ -75,7 +75,11 @@ export default function AdminSettingsPage() {
           </div>
           <span className="text-sm font-bold tracking-wide">MachCore 管理パネル</span>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          <a href="/nc/search"
+            className="text-xs bg-slate-600 hover:bg-slate-500 text-slate-200 px-3 py-1.5 rounded transition-colors">
+            ← NC画面
+          </a>
           <button onClick={() => { sessionStorage.removeItem("admin_token"); router.push("/admin/login"); }}
             className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded transition-colors">
             ログアウト
