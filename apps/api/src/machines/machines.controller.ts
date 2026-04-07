@@ -10,7 +10,7 @@ export class MachinesController {
   findAll() {
     return this.prisma.machine.findMany({
       where: { isActive: true },
-      select: { id: true, machineCode: true, machineName: true, sortOrder: true },
+      select: { id: true, machineCode: true, machineName: true, sortOrder: true, isActive: true },
       orderBy: { sortOrder: 'asc' },
     });
   }

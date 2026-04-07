@@ -149,25 +149,51 @@ export default function AdminUsersPage() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <header className="bg-slate-800 text-white px-6 py-3 flex items-center justify-between shadow">
-        <div className="flex items-center gap-3">
-          <span className="font-bold text-lg">MachCore</span>
-          <span className="text-slate-400 text-sm">/ 管理者ユーザ管理</span>
+      {/* トップヘッダー */}
+    <header className="bg-slate-900 text-white px-5 py-2.5 flex items-center gap-3 shrink-0 border-b border-slate-800">
+      <div className="flex items-center gap-2">
+        <div className="w-6 h-6 rounded bg-sky-600 flex items-center justify-center">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
         </div>
-        <div className="flex items-center gap-4">
-          {adminUser && <span className="text-slate-300 text-sm">{adminUser.name}</span>}
-          <button onClick={() => router.push("/admin/settings")}
-            className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors">
-            ⚙ 設定
-          </button>
-          <button onClick={handleLogout}
-            className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors">
-            ログアウト
-          </button>
-        </div>
-      </header>
+        <span className="text-sm font-bold tracking-wide">MachCore 管理パネル</span>
+      </div>
+      <div className="ml-auto flex items-center gap-3">
+        <span className="text-xs text-slate-400">{adminUser?.name}（管理者）</span>
+        <button onClick={handleLogout}
+          className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded transition-colors">
+          ログアウト
+        </button>
+      </div>
+    </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-8">
+    {/* サイドバー + メイン */}
+    <div className="flex flex-1 min-h-0">
+      {/* サイドバー */}
+      <aside className="w-48 shrink-0 bg-slate-800 flex flex-col py-4 gap-1 border-r border-slate-700">
+        <div className="px-4 pb-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">メニュー</div>
+        <a href="/admin/users"
+          className="mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm bg-sky-600 text-white font-bold">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          ユーザ管理
+        </a>
+        <a href="/admin/machines"
+          className="mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          機械管理
+        </a>
+        <a href="/admin/settings"
+          className="mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          システム設定
+        </a>
+        <a href="/admin/raw"
+          className="mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          RAWデータ
+        </a>
+      </aside>
+
+      <main className="flex-1 overflow-y-auto p-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold text-slate-700">ユーザ一覧</h1>
           <button onClick={openCreate}
@@ -226,7 +252,8 @@ export default function AdminUsersPage() {
             )}
           </div>
         )}
-      </main>
+        </main>
+    </div>
 
       {toast && (
         <div className={`fixed bottom-6 right-6 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-bold
