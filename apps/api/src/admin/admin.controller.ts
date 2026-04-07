@@ -233,4 +233,64 @@ export class AdminController {
       })),
     };
   }
+
+  // ══ 機械マスタ管理 ══
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('machines')
+  getMachines() {
+    return this.prisma.machine.findMany({
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('machines')
+  async createMachine(@Body() body: {
+    machine_code: string;
+    machine_name: string;
+    machine_type?: string;
+    maker?: string;
+    sort_order?: number;
+  }) {
+    return this.prisma.machine.create({
+      data: {
+        machineCode: body.machine_code,
+        machineName: body.machine_name,
+        machineType: body.machine_type,
+        maker:       body.maker,
+        sortOrder:   body.sort_order ?? 0,
+        isActive:    true,
+      },
+    });
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Put('machines/:id')
+  async updateMachine(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: {
+      machine_code?: string;
+      machine_name?: string;
+      machine_type?: string;
+      maker?: string;
+      sort_order?: number;
+      is_active?: boolean;
+    },
+  ) {
+    return this.prisma.machine.update({
+      where: { id },
+      data: {
+        ...(body.machine_code != null && { machineCode: body.machine_code }),
+        ...(body.machine_name != null && { machineName: body.machine_name }),
+        ...(body.machine_type != null && { machineType: body.machine_type }),
+        ...(body.maker        != null && { maker: body.maker }),
+        ...(body.sort_order   != null && { sortOrder: body.sort_order }),
+        ...(body.is_active    != null && { isActive: body.is_active }),
+      },
+    });
+  }
 }

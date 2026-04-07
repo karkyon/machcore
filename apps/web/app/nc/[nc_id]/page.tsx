@@ -278,7 +278,7 @@ export default function NcDetailPage() {
         {/* ── タブコンテンツ ── */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* ─ 旋盤データ（工具リスト含む） ─ */}
+          {/* ─ 旋盤データ（加工リスト含む） ─ */}
           {mainTab === "lathe" && (
             <div className="p-5 space-y-5 max-w-5xl">
 
@@ -380,10 +380,10 @@ export default function NcDetailPage() {
                 </button>
               )}
 
-              {/* ── 工具リスト（インライン） ── */}
+              {/* ── 加工リスト（インライン） ── */}
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">工具リスト</span>
+                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">加工リスト</span>
                   {d.tools.length > 0 && (
                     <span className="ml-2 text-xs text-slate-400">{d.tools.length}件</span>
                   )}

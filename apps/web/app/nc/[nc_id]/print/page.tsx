@@ -298,7 +298,7 @@ export default function PrintPage() {
                   </h3>
                   <div className="space-y-2">
                     <CheckOption
-                      label="工具リストを含める"
+                      label="加工リストを含める"
                       checked={includeTools}
                       onChange={setIncludeTools}
                     />
@@ -414,10 +414,10 @@ function DataPreview({
         </div>
       )}
 
-      {/* 工具リスト */}
+      {/* 加工リスト */}
       {showTools && nc.tools.length > 0 && (
         <div>
-          <p className="text-xs font-bold text-slate-500 mb-1">工具リスト（{nc.tools.length} 本）</p>
+          <p className="text-xs font-bold text-slate-500 mb-1">加工リスト（{nc.tools.length} 本）</p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
               <thead className="bg-slate-50 text-slate-500">
@@ -446,7 +446,7 @@ function DataPreview({
 
       {!showTools && nc.tools.length > 0 && (
         <p className="text-xs text-slate-400 italic">
-          ※ 工具リスト {nc.tools.length} 本（オプションにより非表示）
+          ※ 加工リスト {nc.tools.length} 本（オプションにより非表示）
         </p>
       )}
     </div>

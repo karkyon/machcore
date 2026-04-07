@@ -521,196 +521,214 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   const includeClamp    = opts.include_clamp    !== false;
   const includeDrawings = opts.include_drawings === true;
   const drawingBase64s: string[] = opts.drawingBase64s ?? [];
-  const drawingsSection = (includeDrawings && drawingBase64s.length > 0)
-    ? '<section style="margin-bottom:12px;page-break-inside:avoid;"><h3 class=\"sec-title\">段取図</h3><div style="display:flex;flex-direction:column;gap:10px;">'
-      + drawingBase64s.map((src: string, i: number) =>
-          '<img src="' + src + '" alt="段取図' + (i + 1) + '" style="max-width:100%;height:auto;border:1px solid #e2e8f0;border-radius:4px;" />'
-        ).join('')
-      + '</div></section>'
-    : '';
-  const now             = new Date();
-  const fmtNow          = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 
-  const statusLabel: Record<string, string> = {
-    NEW:              '新規',
-    PENDING_APPROVAL: '未承認',
-    APPROVED:         '承認済',
-    CHANGING:         '変更中',
-  };
-  const statusColor: Record<string, string> = {
-    NEW:              '#1d4ed8',
-    PENDING_APPROVAL: '#b45309',
-    APPROVED:         '#15803d',
-    CHANGING:         '#b91c1c',
+  const now    = new Date();
+  const fmtNow = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const fmtDate = (d: string | null | undefined) => {
+    if (!d) return '';
+    try { const dt = new Date(d); return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`; }
+    catch { return d; }
   };
 
-  const toolRows = (includeTools && data.tools.length > 0) ? `
-    <section>
-      <h3 class="sec-title">工具リスト</h3>
-      <table class="tbl">
-        <thead>
-          <tr>
-            <th style="width:32px">No</th>
-            <th style="width:80px">加工種別</th>
-            <th>チップ型番（形状）</th>
-            <th>ホルダー型番</th>
-            <th style="width:52px">ノーズR</th>
-            <th style="width:42px">T番号</th>
-            <th>備考</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${data.tools.map((t: any) => `
-            <tr style="page-break-inside: avoid;">
-              <td class="center mono">${t.sortOrder}</td>
-              <td>${t.processType ?? ''}</td>
-              <td class="mono">${t.chipModel ?? ''}</td>
-              <td class="mono">${t.holderModel ?? ''}</td>
-              <td class="center">${t.noseR ?? ''}</td>
-              <td class="center mono">${t.tNumber ?? ''}</td>
-              <td class="note">${t.note ?? ''}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
-    </section>` : '';
+  const toolRows = (includeTools && data.tools && data.tools.length > 0) ? data.tools.map((t: any) => `
+    <tr style="page-break-inside:avoid;">
+      <td class="c">${t.sortOrder ?? ''}</td>
+      <td>${t.processType ?? ''}</td>
+      <td class="mono">${t.chipModel ?? ''}</td>
+      <td class="mono">${t.holderModel ?? ''}</td>
+      <td class="c">${t.noseR ?? ''}</td>
+      <td>${t.note ?? ''}</td>
+    </tr>`).join('') : '<tr><td colspan="6" class="c" style="color:#aaa;padding:6px;">加工データなし</td></tr>';
 
-  const clampSection = (includeClamp && data.clampNote) ? `
-    <section>
-      <h3 class="sec-title">クランプ・備考</h3>
-      <div class="clamp-box">${data.clampNote.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div>
-    </section>` : '';
+  const drawingsHtml = (includeDrawings && drawingBase64s.length > 0)
+    ? `<div style="margin-top:8px;page-break-inside:avoid;"><div class="sh">段取図</div>
+       <div style="display:flex;flex-wrap:wrap;gap:8px;">
+         ${drawingBase64s.map((src: string, i: number) => `<img src="${src}" alt="段取図${i+1}" style="max-width:49%;height:auto;border:1px solid #ccc;" />`).join('')}
+       </div></div>` : '';
+
+  const machTimeMin = data.machiningTime ?? 0;
+  const machM = Math.floor(machTimeMin);
+  const machS = Math.round((machTimeMin - machM) * 60);
+  const machTimeStr = `${machM} M ${String(machS).padStart(2,'0')} S`;
 
   return `<!DOCTYPE html>
-    <html lang="ja">
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          * { margin:0; padding:0; box-sizing:border-box; }
-          body {
-            font-family: 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', 'MS PGothic', sans-serif;
-            font-size: 9.5pt; color: #111; line-height: 1.45;
-          }
-          /* ── ページヘッダー ── */
-          .ph { display:flex; justify-content:space-between; align-items:flex-end;
-                border-bottom:2.5px solid #1e3a5f; padding-bottom:5px; margin-bottom:8px; }
-          .ph-title { font-size:16pt; font-weight:700; color:#1e3a5f; letter-spacing:.03em; }
-          .ph-meta  { font-size:7.5pt; color:#555; text-align:right; line-height:1.7; }
-          /* ── 部品バナー ── */
-          .banner { background:#1e3a5f; color:#fff; padding:7px 12px;
-                    border-radius:5px; margin-bottom:8px; }
-          .banner-name { font-size:13pt; font-weight:700; }
-          .banner-ids  { font-size:7.5pt; opacity:.85; margin-top:3px; letter-spacing:.02em; }
-          .badge { display:inline-block; padding:1px 6px; border-radius:3px;
-                   font-size:7pt; font-weight:700; border:1px solid currentColor; margin-left:6px; }
-          /* ── 情報グリッド (3カラム) ── */
-          .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:8px; }
-          .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px; }
-          .box   { border:1px solid #cbd5e1; border-radius:4px; overflow:hidden; }
-          .box-h { font-size:7.5pt; font-weight:700; background:#1e3a5f; color:#fff;
-                   padding:3px 8px; }
-          .row   { display:flex; padding:3px 8px; border-bottom:1px solid #f1f5f9; }
-          .row:last-child { border-bottom:none; }
-          .lbl   { width:72px; color:#6b7280; font-size:7.5pt; flex-shrink:0; }
-          .val   { font-family: 'Courier New', monospace; font-size:8.5pt; font-weight:600; }
-          /* ── Oナンバー強調 ── */
-          .o-num { display:inline-block; background:#1e3a5f; color:#fff;
-                   font-family:monospace; font-weight:700; font-size:11pt;
-                   padding:2px 10px; border-radius:3px; letter-spacing:.08em; }
-          /* ── セクション ── */
-          .sec-title { font-size:9pt; font-weight:700; color:#1e3a5f;
-                       border-bottom:1.5px solid #1e3a5f; padding-bottom:3px;
-                       margin-bottom:5px; margin-top:10px; }
-          section { margin-bottom:10px; page-break-inside:avoid; }
-          /* ── クランプ備考 ── */
-          .clamp-box { background:#fefce8; border:1.5px solid #f59e0b; border-radius:4px;
-                       padding:8px 12px; font-size:9.5pt; white-space:pre-wrap; line-height:1.8;
-                       font-weight:500; }
-          /* ── 工具テーブル ── */
-          .tbl { width:100%; border-collapse:collapse; font-size:8pt; }
-          .tbl thead tr { background:#1e3a5f; }
-          .tbl th { font-weight:700; padding:4px 5px; border:1px solid #94a3b8;
-                    color:#fff; text-align:left; }
-          .tbl td { padding:3.5px 5px; border:1px solid #e2e8f0; vertical-align:top; }
-          .tbl tr:nth-child(even) td { background:#f8fafc; }
-          .tbl tr { page-break-inside:avoid; }
-          .center { text-align:center; }
-          .mono   { font-family:'Courier New', monospace; }
-          .note   { font-size:7.5pt; color:#555; }
-          /* ── 図セクション ── */
-          .drawings-grid { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
-          .drawing-img   { max-width:48%; max-height:200px; object-fit:contain;
-                           border:1px solid #e2e8f0; border-radius:4px; }
-          /* ── フッター情報 ── */
-          .foot-info { margin-top:12px; padding-top:6px; border-top:1px solid #e2e8f0;
-                       display:flex; justify-content:space-between;
-                       font-size:7.5pt; color:#6b7280; }
-          @media print {
-            body { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
-            .no-print { display:none; }
-          }
-        </style>
-      </head>
-      <body>
-        <!-- ページヘッダー -->
-        <div class="ph">
-          <span class="ph-title">NC 段取シート</span>
-          <div class="ph-meta">
-            <div>MachCore — NC旋盤プログラム管理システム</div>
-            <div>Ver. <strong>${data.version}</strong>&nbsp;|&nbsp;出力日時: ${fmtNow}</div>
-          </div>
-        </div>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Noto Sans JP', sans-serif; font-size: 9pt; color: #000; background: #fff; padding: 8mm; }
+  h1.title { font-size: 14pt; font-weight: 700; margin-bottom: 4px; }
+  .id-row { font-size: 8pt; color: #444; margin-bottom: 6px; }
+  table.info { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  table.info td { border: 1px solid #999; padding: 2px 5px; font-size: 9pt; vertical-align: middle; }
+  table.info td.lbl { background: #e8e8e8; font-weight: 700; width: 80px; white-space: nowrap; }
+  table.info td.val { }
+  .備考box { background: #fffde7; border: 1px solid #ccc; padding: 4px 6px; font-size: 8.5pt;
+              white-space: pre-wrap; min-height: 28px; margin-bottom: 4px; }
+  table.sign { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  table.sign td { border: 1px solid #999; padding: 2px 5px; font-size: 8.5pt; }
+  table.sign td.lbl { background: #e8e8e8; font-weight: 700; white-space: nowrap; }
+  table.work { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  table.work td { border: 1px solid #999; padding: 3px 5px; font-size: 8.5pt; height: 22px; }
+  table.work td.lbl { background: #e8e8e8; font-weight: 700; white-space: nowrap; width: 70px; }
+  .sh { font-size: 8.5pt; font-weight: 700; background: #1e3a5f; color: #fff; padding: 2px 6px; margin-bottom: 1px; }
+  table.tools { width: 100%; border-collapse: collapse; }
+  table.tools th { background: #1e3a5f; color: #fff; font-weight: 700; padding: 3px 5px;
+                   border: 1px solid #7a9cbf; font-size: 8.5pt; text-align: left; }
+  table.tools td { border: 1px solid #ccc; padding: 2.5px 5px; font-size: 8.5pt; vertical-align: top; }
+  table.tools tr:nth-child(even) td { background: #f5f5f5; }
+  .c { text-align: center; }
+  .mono { font-family: 'Courier New', monospace; }
+  .foot { margin-top: 8px; padding-top: 4px; border-top: 1px solid #ccc;
+          display: flex; justify-content: space-between; font-size: 7.5pt; color: #666; }
+  @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+</style>
+</head>
+<body>
+  <!-- タイトル行 -->
+  <table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
+    <tr>
+      <td style="vertical-align:bottom;">
+        <h1 class="title">NC段取シート</h1>
+      </td>
+      <td style="text-align:right;vertical-align:bottom;font-size:8pt;color:#555;">
+        出力日時: ${fmtNow}
+      </td>
+    </tr>
+  </table>
 
-        <!-- 部品バナー -->
-        <div class="banner">
-          <div class="banner-name">
-            ${data.part.name} — 工程 L${data.processL}
-            <span class="badge" style="color:${statusColor[data.status] ?? '#ccc'};border-color:${statusColor[data.status] ?? '#ccc'};">
-              ${statusLabel[data.status] ?? data.status}
-            </span>
-          </div>
-          <div class="banner-ids">
-            図面番号: ${data.part.drawingNo}
-            &nbsp;|&nbsp; 部品ID: ${data.part.partId}
-            &nbsp;|&nbsp; NC_id: ${data.id}
-            ${data.part.clientName ? `&nbsp;|&nbsp; 納入先: ${data.part.clientName}` : ''}
-            ${data.processingId   ? `&nbsp;|&nbsp; 加工ID: ${data.processingId}` : ''}
-          </div>
-        </div>
+  <!-- ID行 -->
+  <div class="id-row">
+    NC_id <strong>${data.id}</strong>
+    &nbsp;&nbsp;部品id <strong>${data.part?.partId ?? '—'}</strong>
+    &nbsp;&nbsp;加工id <strong>${data.processingId ?? '—'}</strong>
+  </div>
 
-        <!-- 加工情報 (3カラム) -->
-        <div class="grid3">
-          <div class="box">
-            <div class="box-h">🔩 NCプログラム</div>
-            <div class="row"><span class="lbl">フォルダ</span><span class="val">${data.folderName ?? '—'}</span></div>
-            <div class="row"><span class="lbl">ファイル名</span><span class="val">${data.fileName ?? '—'}</span></div>
-            <div class="row"><span class="lbl">O番号</span>
-              <span class="val">${data.oNumber ? `<span class="o-num">O${data.oNumber}</span>` : '—'}</span>
-            </div>
-          </div>
-          <div class="box">
-            <div class="box-h">⚙ 加工設定</div>
-            <div class="row"><span class="lbl">機械</span><span class="val">${data.machine?.machineName ?? data.machine?.machineCode ?? '—'}</span></div>
-            <div class="row"><span class="lbl">加工時間</span><span class="val">${data.machiningTime != null ? `${data.machiningTime} 分` : '—'}</span></div>
-          </div>
-          <div class="box">
-            <div class="box-h">👤 担当・承認</div>
-            <div class="row"><span class="lbl">登録者</span><span class="val">${data.registrar?.name ?? '—'}</span></div>
-            <div class="row"><span class="lbl">承認者</span><span class="val">${data.approver?.name ?? '未承認'}</span></div>
-          </div>
-        </div>
+  <!-- 部品情報テーブル -->
+  <table class="info">
+    <tr>
+      <td class="lbl">納入先</td>
+      <td colspan="3">${data.part?.clientName ?? ''}</td>
+    </tr>
+    <tr>
+      <td class="lbl">図面番号</td>
+      <td>${data.part?.drawingNo ?? ''}</td>
+      <td class="lbl" style="width:70px;">名　称</td>
+      <td>${data.part?.name ?? ''}</td>
+    </tr>
+    <tr>
+      <td class="lbl">主機種型式</td>
+      <td colspan="3">${data.part?.machineType ?? data.machineType ?? ''}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Ｌ</td>
+      <td style="width:60px;"><strong>${data.processL ?? ''}</strong></td>
+      <td class="lbl">機　械</td>
+      <td>${data.machine?.machineCode ?? ''}</td>
+    </tr>
+    <tr>
+      <td class="lbl">タ イ ム</td>
+      <td><strong>${machTimeStr}</strong></td>
+      <td class="lbl">承認ステ</td>
+      <td>${data.status === 'APPROVED' ? '承認済' : data.status === 'CHANGING' ? '変更中' : data.status === 'PENDING_APPROVAL' ? '未承認' : '新規'}</td>
+    </tr>
+    <tr>
+      <td class="lbl">ﾌｧｲﾙ名</td>
+      <td>${data.fileName ?? ''}</td>
+      <td class="lbl">ｏﾅﾝﾊﾞｰ</td>
+      <td><strong>${data.oNumber ?? ''}</strong></td>
+    </tr>
+    <tr>
+      <td class="lbl">FD名 / USB</td>
+      <td colspan="3">${data.folderName ?? ''}</td>
+    </tr>
+  </table>
 
-        ${clampSection}
-        ${toolRows}
-        ${drawingsSection}
+  ${includeClamp && data.clampNote ? `
+  <!-- 備考 -->
+  <div style="margin-bottom:4px;">
+    <div class="sh" style="margin-bottom:0;">備　考</div>
+    <div class="備考box">${(data.clampNote ?? '').replace(/\n/g, '<br/>')}</div>
+  </div>` : ''}
 
-        <!-- フッター情報 -->
-        <div class="foot-info">
-          <span>NC旋盤プログラム管理システム MachCore</span>
-          <span>出力: ${fmtNow}</span>
-        </div>
-      </body>
-    </html>`;
-  }
+  <!-- Ver / 承認者 -->
+  <table class="sign">
+    <tr>
+      <td class="lbl">Ver</td>
+      <td style="width:80px;">${data.version ?? ''}</td>
+      <td class="lbl">承認者</td>
+      <td>${data.approver?.name ?? ''}</td>
+      <td class="lbl">承認日</td>
+      <td>${fmtDate(data.approvedAt)}</td>
+    </tr>
+  </table>
+
+  <!-- 段取担当 / 量産担当 -->
+  <table class="work">
+    <tr>
+      <td class="lbl">段取担当</td>
+      <td style="min-width:100px;">&nbsp;</td>
+      <td class="lbl">量産担当</td>
+      <td style="min-width:100px;">&nbsp;</td>
+      <td class="lbl">個　数</td>
+      <td>&nbsp;</td>
+    </tr>
+    <tr>
+      <td class="lbl">段取時間</td>
+      <td><span style="color:#aaa;font-size:8pt;">&nbsp;&nbsp;&nbsp;&nbsp;h&nbsp;&nbsp;&nbsp;&nbsp;m</span></td>
+      <td class="lbl">量産時間</td>
+      <td><span style="color:#aaa;font-size:8pt;">&nbsp;&nbsp;&nbsp;&nbsp;h&nbsp;&nbsp;&nbsp;&nbsp;m</span></td>
+      <td class="lbl">入　力</td>
+      <td>&nbsp;</td>
+    </tr>
+  </table>
+
+  <!-- 変更届 -->
+  <table class="work" style="margin-bottom:4px;">
+    <tr>
+      <td class="lbl" style="width:60px;">変更届</td>
+      <td>
+        シート&nbsp;□&nbsp;&nbsp;
+        プログラム&nbsp;□&nbsp;&nbsp;
+        図&nbsp;□&nbsp;&nbsp;
+        写真&nbsp;□
+      </td>
+    </tr>
+    <tr>
+      <td class="lbl">内　容</td>
+      <td>&nbsp;</td>
+    </tr>
+  </table>
+
+  ${includeTools ? `
+  <!-- 加工リスト -->
+  <div class="sh">加工リスト</div>
+  <table class="tools">
+    <thead>
+      <tr>
+        <th class="c" style="width:28px;">No</th>
+        <th style="width:80px;">加　工</th>
+        <th>形　状</th>
+        <th>ホルダー</th>
+        <th class="c" style="width:50px;">ノーズR</th>
+        <th>備　考</th>
+      </tr>
+    </thead>
+    <tbody>${toolRows}</tbody>
+  </table>` : ''}
+
+  ${drawingsHtml}
+
+  <!-- フッター -->
+  <div class="foot">
+    <span>NC旋盤プログラム管理システム MachCore</span>
+    <span>図面番号: ${data.part?.drawingNo ?? ''} | 部品ID: ${data.part?.partId ?? ''} | NC_id: ${data.id}</span>
+  </div>
+</body>
+</html>`;
+}
 
   // ─────────────────────────────────────────────────────────
   // PG ファイル関連  NC-06 / NC-06b
