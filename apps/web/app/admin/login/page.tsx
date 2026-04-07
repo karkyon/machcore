@@ -103,6 +103,7 @@ export default function AdminLoginPage() {
 
         <div className="border-t border-slate-100 px-8 py-4 text-center">
           <p className="text-xs text-slate-400">管理者アカウントのみログイン可能です</p>
+          <a href="/nc/search" className="text-xs text-slate-400 hover:text-slate-600 transition-colors block text-center mt-3">← NC画面に戻る</a>
         </div>
       </div>
     </div>
