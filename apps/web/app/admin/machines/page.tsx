@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 type Machine = {
   id: number;
@@ -16,6 +16,7 @@ type DialogMode = "create" | "edit" | null;
 
 export default function AdminMachinesPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const [machines,   setMachines]   = useState<Machine[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [toast,      setToast]      = useState<{ msg: string; ok: boolean } | null>(null);
@@ -125,7 +126,7 @@ export default function AdminMachinesPage() {
           ].map(item => (
             <a key={item.href} href={item.href}
               className={`mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors ${
-                typeof window !== "undefined" && window.location.pathname === item.href
+                pathname === item.href
                   ? "bg-sky-600 text-white font-bold"
                   : "text-slate-300 hover:bg-slate-700 hover:text-white"
               }`}>
