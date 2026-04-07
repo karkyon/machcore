@@ -653,6 +653,24 @@ private buildSetupSheetHtml(data: any, opts: any): string {
     <div class="備考box">${(data.clampNote ?? '').replace(/\n/g, '<br/>')}</div>
   </div>` : ''}
 
+
+  ${includeTools ? `
+  <!-- 加工リスト -->
+  <div class="sh">加工リスト</div>
+  <table class="tools">
+    <thead>
+      <tr>
+        <th class="c" style="width:28px;">No</th>
+        <th style="width:90px;">加　工</th>
+        <th style="width:70px;">形　状</th>
+        <th>ホルダー</th>
+        <th class="c" style="width:50px;">ノーズR</th>
+        <th>備　考</th>
+      </tr>
+    </thead>
+    <tbody>${toolRows}</tbody>
+  </table>` : ''}
+
   <!-- Ver / 承認者 -->
   <table class="sign">
     <tr>
@@ -705,23 +723,6 @@ private buildSetupSheetHtml(data: any, opts: any): string {
       <td><span style="margin-right:30px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; mm</span>FD名&nbsp;&nbsp;&nbsp;${data.folderName ?? ''}</td>
     </tr>
   </table>
-
-  ${includeTools ? `
-  <!-- 加工リスト -->
-  <div class="sh">加工リスト</div>
-  <table class="tools">
-    <thead>
-      <tr>
-        <th class="c" style="width:28px;">No</th>
-        <th style="width:90px;">加　工</th>
-        <th style="width:70px;">形　状</th>
-        <th>ホルダー</th>
-        <th class="c" style="width:50px;">ノーズR</th>
-        <th>備　考</th>
-      </tr>
-    </thead>
-    <tbody>${toolRows}</tbody>
-  </table>` : ''}
 
   ${drawingsHtml}
 

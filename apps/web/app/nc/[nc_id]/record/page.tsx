@@ -530,7 +530,7 @@ function RecordPageInner() {
               className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300">
               <option value="">— 機械を選択 —</option>
               {machines.map(m => (
-                <option key={m.id} value={m.id}>{m.machineCode} — {m.machineName}</option>
+                <option key={m.id} value={m.id}>{m.id} : {m.machineName}</option>
               ))}
             </select>
           </div>
