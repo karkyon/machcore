@@ -222,345 +222,349 @@ export default function NcEditPage() {
 
   const d = detail;
 
+
   return (
     <>
-      {/* ── 隠しファイルinput ── */}
-      <input
-        ref={photoInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/tiff,image/gif"
-        multiple
-        className="hidden"
-        onChange={e => {
-          if (e.target.files) Array.from(e.target.files).forEach(handleFileUpload);
-          e.target.value = "";
-        }}
-      />
-      <input
-        ref={scanInputRef}
-        type="file"
-        accept="image/tiff,image/tif,application/pdf,image/jpeg,image/png"
-        multiple
-        className="hidden"
-        onChange={e => {
-          if (e.target.files) Array.from(e.target.files).forEach(handleFileUpload);
-          e.target.value = "";
-        }}
-      />
+      <div className="h-screen flex flex-col bg-slate-100">
 
-      <div className="h-screen flex flex-col bg-slate-50">
-
-        {/* ── ヘッダー ── */}
-        <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
+        {/* ── グローバルヘッダー ── */}
+        <header className="bg-slate-800 text-white px-5 py-2.5 flex items-center gap-3 shrink-0">
           <button
             onClick={() => router.push(`/nc/${ncId}`)}
-            className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-sky-900 border border-slate-600 hover:border-sky-500 rounded-lg text-xs font-medium text-sky-300 hover:text-sky-200 transition-colors"
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-white transition-colors shrink-0"
           >
-            ← NC詳細
+            <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+            </span>
+            NC詳細
           </button>
           <span className="text-slate-600">|</span>
           <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
           <span className="text-slate-400 text-xs">|</span>
           <span className="text-sm font-medium">✏️ 変更・登録</span>
-          <span className="ml-auto flex items-center gap-2">
+          <span className="ml-auto">
             {isAuthenticated && operator ? (
               <span className="text-[11px] bg-red-600 text-white px-3 py-1 rounded font-bold animate-pulse">
                 作業中: {operator.name}　{fmtElapsed(elapsed)}
               </span>
             ) : (
-              <span className="text-[11px] text-slate-400 bg-slate-700 px-2 py-0.5 rounded">
+              <span className="text-[11px] text-slate-400 bg-slate-700 px-2 py-1 rounded">
                 🔒 認証待ち
               </span>
             )}
           </span>
         </header>
 
-        {/* ── 部品ヘッダー ── */}
-        <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
-          <div className="flex items-center gap-3 mb-1">
-            <span className="font-mono text-sky-600 font-bold text-lg">{d.part.drawingNo}</span>
-            <ProcessBadge level={d.processL} />
-            <StatusBadge status={d.status} />
-            <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">
-              Ver.{d.version}
-            </span>
+        {/* ── 部品ヘッダー（白カード） ── */}
+        {d && (
+          <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
+            <div className="flex items-center gap-3 mb-1">
+              <span className="font-mono text-sky-600 font-bold text-lg">{d.part.drawingNo}</span>
+              <ProcessBadge level={d.processL} />
+              <StatusBadge status={d.status} />
+              <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver.{d.version}</span>
+            </div>
+            <div className="flex items-center gap-4 text-[11px] text-slate-500 font-mono">
+              <span>{d.part.name}</span>
+              <span className="text-slate-300">|</span>
+              <span>NC_id: {d.id}</span>
+              {d.part.clientName && <><span className="text-slate-300">|</span><span>{d.part.clientName}</span></>}
+            </div>
           </div>
-          <div className="flex items-center gap-4 text-[11px] text-slate-500">
-            <span>{d.part.name}</span>
-            <span className="text-slate-300">|</span>
-            <span>NC_id: <span className="font-mono text-slate-700">{d.id}</span></span>
-            {d.part.clientName && (
-              <><span className="text-slate-300">|</span><span>{d.part.clientName}</span></>
-            )}
-          </div>
-        </div>
+        )}
+
+        {/* ── タブナビ ── */}
+        <nav className="bg-slate-800 px-5 flex gap-0 shrink-0 border-t border-slate-700">
+          {([
+            { href: `/nc/${ncId}`,        label: "NC詳細",    icon: "📋", active: false },
+            { href: `/nc/${ncId}/edit`,   label: "変更・登録", icon: "✏️",  active: true  },
+            { href: `/nc/${ncId}/print`,  label: "段取シート", icon: "🖨",  active: false },
+            { href: `/nc/${ncId}/record`, label: "作業記録",  icon: "⏱",  active: false },
+          ] as {href:string;label:string;icon:string;active:boolean}[]).map(tab => (
+            <button key={tab.href} onClick={() => router.push(tab.href)}
+              className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                tab.active ? "text-sky-400 border-sky-400" : "text-slate-400 hover:text-slate-200 border-transparent"
+              }`}>
+              {tab.icon} {tab.label}
+              {tab.active && isAuthenticated && <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse ml-1" />}
+            </button>
+          ))}
+        </nav>
 
         {/* ── メインコンテンツ ── */}
         <div className="flex-1 overflow-y-auto p-5">
-          <div className="max-w-2xl mx-auto">
 
-            {/* ロック状態バナー */}
-            {!isAuthenticated && (
-              <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-amber-800 font-bold text-sm">🔒 編集にはWork Session認証が必要です</p>
-                  <p className="text-amber-600 text-xs mt-0.5">担当者を選択してパスワードを入力してください</p>
+          {/* === LOCKED STATE === */}
+          {!isAuthenticated && d && (
+            <div className="max-w-2xl mx-auto">
+              <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-white flex flex-col items-center justify-center py-12 px-8 gap-4 text-center">
+                <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center text-2xl">🔒</div>
+                <div className="font-bold text-slate-700 text-base">変更・登録 — 作業開始前</div>
+                <div className="text-slate-500 text-sm max-w-sm">
+                  現在のデータを確認しています。変更・登録を行うには担当者の確認（パスワード）が必要です。
+                </div>
+                {/* データサマリー 50%透過 */}
+                <div className="w-full max-w-md rounded-xl border border-slate-200 overflow-hidden opacity-50 pointer-events-none text-xs">
+                  <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200">
+                    <div className="p-2.5"><div className="text-slate-400">機械</div><div className="font-bold">{d.machine?.machineCode ?? "—"}</div></div>
+                    <div className="p-2.5"><div className="text-slate-400">ファイル名</div><div className="font-mono font-bold">{d.fileName ?? "—"}</div></div>
+                    <div className="p-2.5"><div className="text-slate-400">加工時間</div><div className="font-mono font-bold">{d.machiningTime != null ? `${d.machiningTime} 分` : "—"}</div></div>
+                  </div>
+                  <div className="p-2.5"><div className="text-slate-400">備考</div><div className="text-slate-600">{d.clampNote ? d.clampNote.slice(0,40)+"…" : "—"}</div></div>
                 </div>
                 <button
                   onClick={() => setAuthOpen(true)}
-                  className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors"
+                  className="flex items-center gap-2 px-6 py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl text-sm transition-colors"
                 >
-                  この作業を開始する
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  この作業を開始する（担当者確認）
                 </button>
-              </div>
-            )}
-
-            {/* エラー表示 */}
-            {isAuthenticated && saveError && (
-              <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-red-600 text-sm">
-                ⚠️ {saveError}
-              </div>
-            )}
-
-            {/* 編集フォーム（認証後のみ） */}
-            {isAuthenticated && (
-            <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden ${!isAuthenticated ? "opacity-60" : ""}`}>
-              <div className="bg-slate-50 border-b border-slate-200 px-5 py-3">
-                <h2 className="text-sm font-bold text-slate-700">NCデータ編集</h2>
-                {dirty.size > 0 && (
-                  <span className="text-[11px] text-orange-600 font-medium">
-                    ● {dirty.size}項目 変更済み
-                  </span>
-                )}
-              </div>
-
-              <div className="p-5 space-y-4">
-
-                {/* 工程L（変更不可） + Ver */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">
-                      工程 L <span className="text-slate-300 font-normal">（変更不可）</span>
-                    </label>
-                    <div className="border border-slate-200 rounded px-3 py-2 text-sm bg-slate-50 text-slate-400 font-mono">
-                      L{d.processL}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">
-                      Ver <span className="text-red-400">*</span>
-                      {dirty.has("version") && <span className="text-orange-500 ml-1">●</span>}
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={1}
-                      value={version}
-                      disabled={!isAuthenticated}
-                      onChange={e => { setVersion(e.target.value.toUpperCase()); markDirty("version"); }}
-                      className={fieldCls("version", "font-mono uppercase")}
-                      placeholder="A"
-                    />
-                  </div>
-                </div>
-
-                {/* 機械 */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">
-                    機械 <span className="text-red-400">*</span>
-                    {dirty.has("machineId") && <span className="text-orange-500 ml-1">●</span>}
-                  </label>
-                  <select
-                    value={machineId}
-                    disabled={!isAuthenticated}
-                    onChange={e => { setMachineId(e.target.value === "" ? "" : Number(e.target.value)); markDirty("machineId"); }}
-                    className={fieldCls("machineId")}
-                  >
-                    <option value="">-- 機械を選択 --</option>
-                    {machines.map(m => (
-                      <option key={m.id} value={m.id}>{m.machineCode} — {m.machineName}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 加工時間 */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">
-                    加工時間（分）
-                    {dirty.has("machiningTime") && <span className="text-orange-500 ml-1">●</span>}
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={machiningTime}
-                    disabled={!isAuthenticated}
-                    onChange={e => { setMachiningTime(e.target.value); markDirty("machiningTime"); }}
-                    className={fieldCls("machiningTime")}
-                    placeholder="0"
-                  />
-                </div>
-
-                {/* フォルダ名 */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">
-                    フォルダ名 <span className="text-red-400">*</span>
-                    {dirty.has("folderName") && <span className="text-orange-500 ml-1">●</span>}
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={50}
-                    value={folderName}
-                    disabled={!isAuthenticated}
-                    onChange={e => { setFolderName(e.target.value); markDirty("folderName"); }}
-                    className={fieldCls("folderName", "font-mono")}
-                    placeholder="例: NC_PARTS_001"
-                  />
-                </div>
-
-                {/* ファイル名 */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">
-                    ファイル名 / O番号 <span className="text-red-400">*</span>
-                    {dirty.has("fileName") && <span className="text-orange-500 ml-1">●</span>}
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={50}
-                    value={fileName}
-                    disabled={!isAuthenticated}
-                    onChange={e => { setFileName(e.target.value); markDirty("fileName"); }}
-                    className={fieldCls("fileName", "font-mono")}
-                    placeholder="例: O1234"
-                  />
-                </div>
-
-                {/* クランプ備考 */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">
-                    クランプ / 備考
-                    {dirty.has("clampNote") && <span className="text-orange-500 ml-1">●</span>}
-                  </label>
-                  <textarea
-                    rows={4}
-                    maxLength={2000}
-                    value={clampNote}
-                    disabled={!isAuthenticated}
-                    onChange={e => { setClampNote(e.target.value); markDirty("clampNote"); }}
-                    className={fieldCls("clampNote")}
-                    placeholder="クランプ条件・注意事項など"
-                  />
-                  <p className="text-[10px] text-slate-400 mt-0.5 text-right">{clampNote.length} / 2000</p>
-                </div>
-
+                <div className="text-xs text-slate-400">担当者の選択とパスワード確認後に編集できます</div>
               </div>
             </div>
-            )}
+          )}
 
-            {/* ── ファイル取込エリア ── */}
-            {isAuthenticated && (
-              <div className="mt-4 bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
-                  📎 ファイル取込
-                </h3>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <button
-                    onClick={() => photoInputRef.current?.click()}
-                    disabled={uploading}
-                    className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
-                  >
-                    📷 写真を取り込む
-                  </button>
-                  <button
-                    onClick={() => scanInputRef.current?.click()}
-                    disabled={uploading}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
-                  >
-                    🖼 図をスキャン（取込）
-                  </button>
-                  {uploading && (
-                    <span className="text-xs text-slate-400 animate-pulse">⏳ アップロード中…</span>
-                  )}
-                  {uploadMsg && (
-                    <span className="text-xs font-medium text-slate-600">{uploadMsg}</span>
-                  )}
+          {/* === ACTIVE STATE === */}
+          {isAuthenticated && d && (
+            <div className="max-w-4xl mx-auto space-y-4">
+
+              {/* セッションバナー（赤） */}
+              <div className="bg-red-600 rounded-xl px-5 py-3 flex items-center gap-3">
+                <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse shrink-0"></div>
+                <div className="flex-1">
+                  <div className="text-white font-bold text-sm">変更・登録 作業中</div>
+                  <div className="text-red-200 text-xs">{operator?.name}（{operator?.role}）— 作業開始から {fmtElapsed(elapsed)}</div>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-2">
-                  写真: JPEG / PNG / TIFF対応 ／ 図: TIFF / PDF / PNG / JPEG対応（TIFF → PNG自動変換）
-                </p>
+                <div className="text-white font-mono text-sm font-bold">{fmtElapsed(elapsed)}</div>
               </div>
-            )}
 
-            {/* ── PG テキストエディタ ── */}
-            <div className="mt-4">
-              <div className="flex items-center gap-3 mb-2">
-                <button
-                  onClick={handlePgOpen}
-                  disabled={!isAuthenticated || pgLoading}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
-                    pgOpen
-                      ? "bg-slate-700 text-white border-slate-700"
-                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                  } ${!isAuthenticated || pgLoading ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  {pgLoading ? "読込中…" : pgOpen ? "✕ エディタを閉じる" : "📝 テキストエディタで編集"}
-                </button>
-                {pgDirty  && <span className="text-xs text-orange-500 font-bold">● 未保存</span>}
-                {pgSaving && <span className="text-xs text-sky-500">保存中…</span>}
-                {pgError  && <span className="text-xs text-red-500">{pgError}</span>}
+              {/* エラー表示 */}
+              {saveError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-red-600 text-sm">⚠️ {saveError}</div>
+              )}
+
+              {/* 編集フォームカード */}
+              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                <div className="flex items-center gap-1.5 mb-4 text-xs font-bold text-amber-600">
+                  <div className="w-2 h-2 bg-amber-400 rounded-full"></div>
+                  編集モード — 変更した項目はオレンジ枠で表示
+                </div>
+
+                <div className="grid grid-cols-3 gap-5">
+
+                  {/* 左カラム（col-span-2）: フォームフィールド */}
+                  <div className="col-span-2 space-y-4">
+
+                    {/* 行1: 工程L | 機械 | 加工時間 | フォルダ名 */}
+                    <div className="grid grid-cols-4 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-1">工程 L <span className="text-red-400 text-[10px]">変更不可</span></label>
+                        <input
+                          value={`L${d.processL}`} readOnly
+                          className="border border-slate-200 rounded px-3 py-2 text-sm w-full bg-slate-50 text-slate-400 cursor-not-allowed"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-1">機械 <span className="text-red-400">*</span></label>
+                        <select
+                          value={machineId}
+                          onChange={e => { setMachineId(e.target.value === "" ? "" : Number(e.target.value)); markDirty("machineId"); }}
+                          className={fieldCls("machineId")}
+                        >
+                          <option value="">— 選択 —</option>
+                          {machines.map(m => (
+                            <option key={m.id} value={m.id}>{m.machineCode}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-1">加工時間（分）</label>
+                        <input
+                          type="number" min={0}
+                          value={machiningTime}
+                          onChange={e => { setMachiningTime(e.target.value); markDirty("machiningTime"); }}
+                          className={fieldCls("machiningTime")}
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-1">フォルダ名 <span className="text-red-400">*</span></label>
+                        <input
+                          type="text" maxLength={50}
+                          value={folderName}
+                          onChange={e => { setFolderName(e.target.value); markDirty("folderName"); }}
+                          className={fieldCls("folderName", "font-mono")}
+                          placeholder="例: 旭A"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 行2: ファイル名/O番号 | Ver */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-1">
+                          ファイル名 / O番号 <span className="text-red-400">*</span>
+                          {dirty.has("fileName") && <span className="text-orange-500 ml-1">●</span>}
+                        </label>
+                        <input
+                          type="text" maxLength={50}
+                          value={fileName}
+                          onChange={e => { setFileName(e.target.value); markDirty("fileName"); }}
+                          className={fieldCls("fileName", "font-mono")}
+                          placeholder="例: 7065"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-1">
+                          Ver <span className="text-red-400">*</span>
+                          {dirty.has("version") && <span className="text-orange-500 ml-1">●</span>}
+                        </label>
+                        <input
+                          type="text" maxLength={3}
+                          value={version}
+                          onChange={e => { setVersion(e.target.value.toUpperCase()); markDirty("version"); }}
+                          className={fieldCls("version", "font-mono font-bold")}
+                          placeholder="A"
+                        />
+                      </div>
+                    </div>
+
+                    {/* クランプ / 備考 */}
+                    <div>
+                      <label className="text-xs text-slate-500 block mb-1">
+                        クランプ / 備考
+                        {dirty.has("clampNote") && <span className="text-orange-500 ml-1">●</span>}
+                      </label>
+                      <textarea
+                        rows={4}
+                        maxLength={2000}
+                        value={clampNote}
+                        onChange={e => { setClampNote(e.target.value); markDirty("clampNote"); }}
+                        className={`${fieldCls("clampNote")} resize-y`}
+                        placeholder="クランプ条件・注意事項など"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-0.5 text-right">{clampNote.length} / 2000</p>
+                    </div>
+                  </div>
+
+                  {/* 右カラム: ファイル操作 */}
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-slate-500 block mb-1">図枚数</label>
+                      <input type="number" readOnly value={d.drawingCount}
+                        className="border border-slate-200 rounded px-3 py-2 text-sm w-full bg-slate-50 text-slate-500" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 block mb-1">写真枚数</label>
+                      <input type="number" readOnly value={d.photoCount}
+                        className="border border-slate-200 rounded px-3 py-2 text-sm w-full bg-slate-50 text-slate-500" />
+                    </div>
+                    <div className="pt-1 space-y-2">
+                      <button
+                        onClick={() => photoInputRef.current?.click()}
+                        disabled={uploading}
+                        className="w-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        📷 写真を取り込む
+                      </button>
+                      <button
+                        onClick={() => drawingInputRef.current?.click()}
+                        disabled={uploading}
+                        className="w-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        📄 図をスキャン
+                      </button>
+                    </div>
+                    {/* NCプログラム操作パネル */}
+                    <div className="rounded-xl p-2.5 space-y-1.5" style={{background:"#0f172a", border:"1.5px solid #1e40af"}}>
+                      <div className="text-[10px] text-sky-400 font-bold text-center tracking-wide mb-1">NCプログラム</div>
+                      <button
+                        onClick={() => { setPendingUsb(true); openAuth("usb_download"); }}
+                        className="w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg font-medium transition-colors"
+                        style={{background:"#1d4ed8", color:"#fff"}}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        USB へ書き出し
+                      </button>
+                      <button
+                        onClick={() => setPgEditorOpen(o => !o)}
+                        className="w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg font-medium transition-colors"
+                        style={{background:"#164e63", color:"#67e8f9"}}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                        テキストエディタで編集
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-              {pgOpen && (
-                <div className="h-[480px]">
-                  <GCodeEditor
-                    content={pgContent}
-                    encoding={pgEncoding}
-                    lineEnding={pgLineEnding}
-                    readOnly={!isAuthenticated}
-                    onChange={v => { setPgContent(v); setPgDirty(true); }}
-                    onSave={handlePgSave}
+
+              {/* PGテキストエディタ */}
+              {pgEditorOpen && (
+                <div className="rounded-xl overflow-hidden" style={{border:"2px solid #1e40af", background:"#0f172a"}}>
+                  <div className="flex items-center gap-2 px-3 py-2" style={{background:"#1e3a5f"}}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#67e8f9" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                    <span className="text-sky-300 font-bold text-sm">NCプログラム テキストエディタ</span>
+                    {pgDirty && <span className="text-amber-400 text-xs ml-1">● 未保存</span>}
+                    <div className="flex-1"></div>
+                    <button onClick={() => setPgEditorOpen(false)} className="text-slate-500 hover:text-white text-xs px-2">✕ 閉じる</button>
+                  </div>
+                  <PgEditorPane
+                    ncId={ncId}
+                    token={token!}
+                    onDirtyChange={setPgDirty}
+                    onSave={() => setPgDirty(false)}
                   />
                 </div>
               )}
-            </div>
 
-            {/* ── アクションボタン ── */}
-            <div className="mt-5 flex items-center justify-between">
-              <button
-                onClick={handleCancel}
-                className="px-5 py-2.5 rounded-lg text-sm font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 transition-colors"
-              >
-                ✗ キャンセル（変更を破棄）
-              </button>
-              <button
-                onClick={handleDownload}
-                disabled={!isAuthenticated}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${isAuthenticated ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
-              >
-                💾 USBへ書き出し
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={!isAuthenticated || saving || dirty.size === 0}
-                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-colors ${
-                  isAuthenticated && dirty.size > 0 && !saving
-                    ? "bg-sky-600 hover:bg-sky-700 text-white"
-                    : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                }`}
-              >
-                {saving ? "登録中..." : "✓ 作業完了（登録）"}
-              </button>
-            </div>
+              {/* ── 完了ボタンバー ── */}
+              <div className="rounded-xl p-4 flex items-center gap-3 flex-wrap" style={{background:"#fff7ed", border:"1.5px solid #fed7aa"}}>
+                <button
+                  onClick={handleSave}
+                  disabled={saving || dirty.size === 0}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-bold text-sm rounded-lg transition-colors"
+                >
+                  ✓ 作業完了（登録）
+                </button>
+                <div className="text-xs text-amber-700">← 登録と同時に変更履歴に記録されます</div>
+                <div className="flex-1"></div>
+                <button
+                  onClick={handleCancel}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-bold text-sm rounded-lg transition-colors"
+                >
+                  ✗ キャンセル（変更を破棄）
+                </button>
+              </div>
 
-          </div>
+            </div>
+          )}
+
+          {/* ファイル入力（非表示） */}
+          <input ref={photoInputRef} type="file" accept="image/*,.pdf,.tif,.tiff" multiple className="hidden"
+            onChange={e => handleFileUpload(e.target.files, "photo")} />
+          <input ref={drawingInputRef} type="file" accept="image/*,.pdf,.tif,.tiff" multiple className="hidden"
+            onChange={e => handleFileUpload(e.target.files, "drawing")} />
+
         </div>
       </div>
 
-      {/* AUTH モーダル */}
-      <AuthModal
-        isOpen={authOpen}
-        sessionType="edit"
-        ncProgramId={ncId}
-        onSuccess={() => setAuthOpen(false)}
-        onCancel={() => setAuthOpen(false)}
-      />
+      {/* 認証モーダル */}
+      {authOpen && (
+        <AuthModal
+          ncId={ncId}
+          sessionType={pendingUsb ? "usb_download" : "edit"}
+          onSuccess={handleAuthSuccess}
+          onCancel={() => { setAuthOpen(false); setPendingUsb(false); }}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-slate-800 text-white px-5 py-3 rounded-lg shadow-lg text-sm z-50 animate-pulse">
+          {toast}
+        </div>
+      )}
     </>
   );
 }
