@@ -468,7 +468,7 @@ export default function NcEditPage() {
                         📷 写真を取り込む
                       </button>
                       <button
-                        onClick={() => drawingInputRef.current?.click()}
+                        onClick={() => scanInputRef.current?.click()}
                         disabled={uploading}
                         className="w-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5"
                       >
@@ -479,7 +479,7 @@ export default function NcEditPage() {
                     <div className="rounded-xl p-2.5 space-y-1.5" style={{background:"#0f172a", border:"1.5px solid #1e40af"}}>
                       <div className="text-[10px] text-sky-400 font-bold text-center tracking-wide mb-1">NCプログラム</div>
                       <button
-                        onClick={() => { setPendingUsb(true); openAuth("usb_download"); }}
+                        onClick={handleDownload}
                         className="w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg font-medium transition-colors"
                         style={{background:"#1d4ed8", color:"#fff"}}
                       >
@@ -487,7 +487,7 @@ export default function NcEditPage() {
                         USB へ書き出し
                       </button>
                       <button
-                        onClick={() => setPgEditorOpen(o => !o)}
+                        onClick={() => handlePgOpen()}
                         className="w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg font-medium transition-colors"
                         style={{background:"#164e63", color:"#67e8f9"}}
                       >
@@ -500,20 +500,22 @@ export default function NcEditPage() {
               </div>
 
               {/* PGテキストエディタ */}
-              {pgEditorOpen && (
+              {pgOpen && (
                 <div className="rounded-xl overflow-hidden" style={{border:"2px solid #1e40af", background:"#0f172a"}}>
                   <div className="flex items-center gap-2 px-3 py-2" style={{background:"#1e3a5f"}}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#67e8f9" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
                     <span className="text-sky-300 font-bold text-sm">NCプログラム テキストエディタ</span>
                     {pgDirty && <span className="text-amber-400 text-xs ml-1">● 未保存</span>}
                     <div className="flex-1"></div>
-                    <button onClick={() => setPgEditorOpen(false)} className="text-slate-500 hover:text-white text-xs px-2">✕ 閉じる</button>
+                    <button onClick={() => setPgOpen(false)} className="text-slate-500 hover:text-white text-xs px-2">✕ 閉じる</button>
                   </div>
-                  <PgEditorPane
-                    ncId={ncId}
-                    token={token!}
-                    onDirtyChange={setPgDirty}
-                    onSave={() => setPgDirty(false)}
+                  <GCodeEditor
+                    content={pgContent}
+                    encoding={pgEncoding}
+                    lineEnding={pgLineEnding}
+                    readOnly={!isAuthenticated}
+                    onChange={v => { setPgContent(v); setPgDirty(true); }}
+                    onSave={handlePgSave}
                   />
                 </div>
               )}
@@ -542,9 +544,9 @@ export default function NcEditPage() {
 
           {/* ファイル入力（非表示） */}
           <input ref={photoInputRef} type="file" accept="image/*,.pdf,.tif,.tiff" multiple className="hidden"
-            onChange={e => handleFileUpload(e.target.files, "photo")} />
-          <input ref={drawingInputRef} type="file" accept="image/*,.pdf,.tif,.tiff" multiple className="hidden"
-            onChange={e => handleFileUpload(e.target.files, "drawing")} />
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }} />
+          <input ref={scanInputRef} type="file" accept="image/*,.pdf,.tif,.tiff" multiple className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }} />
 
         </div>
       </div>
@@ -552,17 +554,18 @@ export default function NcEditPage() {
       {/* 認証モーダル */}
       {authOpen && (
         <AuthModal
-          ncId={ncId}
-          sessionType={pendingUsb ? "usb_download" : "edit"}
-          onSuccess={handleAuthSuccess}
-          onCancel={() => { setAuthOpen(false); setPendingUsb(false); }}
+          isOpen={authOpen}
+          sessionType="edit"
+          ncProgramId={ncId}
+          onSuccess={() => setAuthOpen(false)}
+          onCancel={() => setAuthOpen(false)}
         />
       )}
 
       {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-6 right-6 bg-slate-800 text-white px-5 py-3 rounded-lg shadow-lg text-sm z-50 animate-pulse">
-          {toast}
+      {uploadMsg && (
+        <div className="fixed bottom-6 right-6 bg-slate-800 text-white px-5 py-3 rounded-lg shadow-lg text-sm z-50">
+          {uploadMsg}
         </div>
       )}
     </>
