@@ -97,27 +97,47 @@ export default function AdminMachinesPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="bg-slate-800 text-white px-6 py-3 flex items-center gap-3 shrink-0">
-        <button onClick={() => router.push("/admin/users")}
-          className="text-slate-400 hover:text-white text-sm transition-colors">
-          ← ユーザ管理
-        </button>
-        <div className="h-4 w-px bg-slate-600" />
+      {/* トップヘッダー */}
+      <header className="bg-slate-900 text-white px-5 py-2.5 flex items-center gap-3 shrink-0 border-b border-slate-800">
         <div className="flex items-center gap-2">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="2" y="3" width="20" height="14" rx="2"/>
-            <line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
-          </svg>
-          <span className="font-bold text-sm">機械マスタ管理</span>
+          <div className="w-6 h-6 rounded bg-sky-600 flex items-center justify-center">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+          </div>
+          <span className="text-sm font-bold tracking-wide">MachCore 管理パネル</span>
         </div>
-        <button onClick={() => { sessionStorage.removeItem("admin_token"); sessionStorage.removeItem("admin_user"); router.push("/admin/login"); }}
-          className="ml-auto text-xs text-slate-400 hover:text-white transition-colors">
-          ログアウト
-        </button>
+        <div className="ml-auto">
+          <button onClick={() => { sessionStorage.removeItem("admin_token"); sessionStorage.removeItem("admin_user"); router.push("/admin/login"); }}
+            className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded transition-colors">
+            ログアウト
+          </button>
+        </div>
       </header>
 
-      <main className="flex-1 p-6 max-w-5xl mx-auto w-full">
+      {/* サイドバー + メイン */}
+      <div className="flex flex-1 min-h-0">
+        <aside className="w-48 shrink-0 bg-slate-800 flex flex-col py-4 gap-1 border-r border-slate-700">
+          <div className="px-4 pb-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">メニュー</div>
+          {[
+            { href: "/admin/users",    label: "ユーザ管理",   icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0" },
+            { href: "/admin/machines", label: "機械管理",     icon: "M22 12h-4l-3 9L9 3l-3 9H2" },
+            { href: "/admin/settings", label: "システム設定", icon: "M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" },
+            { href: "/admin/raw",      label: "RAWデータ",    icon: "M4 6h16M4 10h16M4 14h16M4 18h16" },
+          ].map(item => (
+            <a key={item.href} href={item.href}
+              className={`mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors ${
+                typeof window !== "undefined" && window.location.pathname === item.href
+                  ? "bg-sky-600 text-white font-bold"
+                  : "text-slate-300 hover:bg-slate-700 hover:text-white"
+              }`}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d={item.icon}/>
+              </svg>
+              {item.label}
+            </a>
+          ))}
+        </aside>
+
+        <main className="flex-1 overflow-y-auto p-6">
         <div className="flex justify-between items-center mb-4">
           <p className="text-sm text-slate-500">{machines.length} 件登録済み（無効含む）</p>
           <button onClick={openCreate}
@@ -168,7 +188,8 @@ export default function AdminMachinesPage() {
             )}
           </div>
         )}
-      </main>
+        </main>
+      </div>
 
       {dialogMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">

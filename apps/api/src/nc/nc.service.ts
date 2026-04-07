@@ -538,7 +538,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
       <td class="mono">${t.holderModel ?? ''}</td>
       <td class="c">${t.noseR ?? ''}</td>
       <td>${t.note ?? ''}</td>
-    </tr>`).join('') : '<tr><td colspan="6" class="c" style="color:#aaa;padding:6px;">加工データなし</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="6" class="c" style="color:#aaa;font-size:8pt;padding:4px;">加工データなし</td></tr>';
 
   const drawingsHtml = (includeDrawings && drawingBase64s.length > 0)
     ? `<div style="margin-top:8px;page-break-inside:avoid;"><div class="sh">段取図</div>
@@ -700,6 +700,10 @@ private buildSetupSheetHtml(data: any, opts: any): string {
       <td class="lbl">内　容</td>
       <td>&nbsp;</td>
     </tr>
+    <tr>
+      <td class="lbl">掴　代</td>
+      <td><span style="margin-right:30px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; mm</span>FD名&nbsp;&nbsp;&nbsp;${data.folderName ?? ''}</td>
+    </tr>
   </table>
 
   ${includeTools ? `
@@ -709,8 +713,8 @@ private buildSetupSheetHtml(data: any, opts: any): string {
     <thead>
       <tr>
         <th class="c" style="width:28px;">No</th>
-        <th style="width:80px;">加　工</th>
-        <th>形　状</th>
+        <th style="width:90px;">加　工</th>
+        <th style="width:70px;">形　状</th>
         <th>ホルダー</th>
         <th class="c" style="width:50px;">ノーズR</th>
         <th>備　考</th>
