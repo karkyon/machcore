@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 import dynamic from "next/dynamic";
 const ImageEditor = dynamic(() => import("@/components/nc/ImageEditor"), { ssr: false });
 import { useDropzone } from "react-dropzone";
@@ -232,11 +233,11 @@ export default function NcDetailPage() {
         {/* ── 画面ナビゲーションタブ ── */}
         <nav className="bg-slate-700 px-5 flex gap-0 shrink-0">
           {([
-            { href: `/nc/${ncId}`,        icon: "📋", label: "NC詳細",    active: true  },
-            { href: `/nc/${ncId}/edit`,   icon: "✏️",  label: "変更・登録", active: false },
-            { href: `/nc/${ncId}/print`,  icon: "🖨",  label: "段取シート", active: false },
-            { href: `/nc/${ncId}/record`, icon: "⏱",  label: "作業記録",  active: false },
-          ] as { href: string; icon: string; label: string; active: boolean }[]).map(tab => (
+            { href: `/nc/${ncId}`,        label: "NC詳細",    active: true,  svg: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> },
+            { href: `/nc/${ncId}/edit`,   label: "変更・登録", active: false, svg: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> },
+            { href: `/nc/${ncId}/print`,  label: "段取シート", active: false, svg: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> },
+            { href: `/nc/${ncId}/record`, label: "作業記録",  active: false, svg: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> },
+          ] as { href: string; label: string; active: boolean; svg: React.ReactNode }[]).map(tab => (
             <button
               key={tab.href}
               onClick={() => router.push(tab.href)}
@@ -246,7 +247,7 @@ export default function NcDetailPage() {
                   : "border-transparent text-slate-400 hover:text-white hover:border-slate-400"
               }`}
             >
-              <span>{tab.icon}</span>
+              {tab.svg}
               <span>{tab.label}</span>
             </button>
           ))}
@@ -255,20 +256,21 @@ export default function NcDetailPage() {
         {/* ── メインタブバー ── */}
         <div className="bg-white border-b border-slate-200 px-5 shrink-0 flex gap-0">
           {([
-            { key: "lathe",   label: "旋盤データ" },
-            { key: "history", label: "📋 履歴" },
-            { key: "files",   label: "写真・図" },
-          ] as { key: MainTab; label: string }[]).map(t => (
+            { key: "lathe",   label: "旋盤データ", svg: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg> },
+            { key: "history", label: "履歴",       svg: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg> },
+            { key: "files",   label: "写真・図",   svg: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> },
+          ] as { key: MainTab; label: string; svg: React.ReactNode }[]).map(t => (
             <button
               key={t.key}
               onClick={() => setMainTab(t.key)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
                 mainTab === t.key
                   ? "border-sky-500 text-sky-600"
                   : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
-              {t.label}
+              {t.svg}
+              <span>{t.label}</span>
             </button>
           ))}
         </div>
@@ -425,21 +427,21 @@ export default function NcDetailPage() {
               {/* サブタブ */}
               <div className="bg-slate-50 border-b border-slate-200 px-5 flex gap-0 shrink-0">
                 {([
-                  { key: "change", label: "✏️ 変更履歴" },
-                  { key: "work",   label: "⏱ 作業記録" },
-                  { key: "print",  label: "🖨 印刷履歴" },
-                  { key: "oplog",  label: "🔍 操作ログ" },
-                ] as { key: HistorySubTab; label: string }[]).map(t => (
+                  { key: "change", label: "変更履歴", svg: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> },
+                  { key: "work",   label: "作業記録", svg: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> },
+                  { key: "print",  label: "印刷履歴", svg: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> },
+                  { key: "oplog",  label: "操作ログ", svg: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg> },
+                ] as { key: HistorySubTab; label: string; svg: React.ReactNode }[]).map(t => (
                   <button
                     key={t.key}
                     onClick={() => setHistTab(t.key)}
-                    className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
+                    className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
                       histTab === t.key
                         ? "border-sky-500 text-sky-600"
                         : "border-transparent text-slate-500 hover:text-slate-700"
                     }`}
                   >
-                    {t.label}
+                    {t.svg}{t.label}
                   </button>
                 ))}
               </div>
