@@ -91,7 +91,29 @@ export default function SearchPage() {
         <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
         <span className="text-slate-400 text-xs">|</span>
         <span className="text-sm font-medium">NC 旋盤プログラム管理システム</span>
-        <span className="ml-auto text-[10px] text-slate-400 bg-slate-700 px-2 py-0.5 rounded">認証不要</span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[10px] text-slate-400 bg-slate-700 px-2 py-0.5 rounded">認証不要</span>
+          {isAdmin ? (
+            <div className="flex items-center gap-2 pl-2 border-l border-slate-700">
+              <span className="text-[11px] text-slate-300">{adminInfo?.companyName ?? "管理者"}</span>
+              <a href="/admin/users"
+                className="text-[11px] bg-slate-700 hover:bg-slate-600 text-sky-400 px-2.5 py-1 rounded transition-colors">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="inline mr-1"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                ユーザ管理
+              </a>
+              <a href="/admin/login"
+                className="text-[11px] text-slate-400 hover:text-slate-200 transition-colors">
+                ログアウト
+              </a>
+            </div>
+          ) : (
+            <a href="/admin/login"
+              className="flex items-center gap-1 text-[11px] bg-slate-700 hover:bg-slate-600 text-slate-300 px-2.5 py-1 rounded transition-colors border border-slate-600">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+              管理者
+            </a>
+          )}
+        </div>
       </header>
 
       {/* ── メインコンテンツ（3カラム） ── */}
