@@ -296,7 +296,7 @@ export default function NcEditPage() {
 
           {/* === LOCKED STATE === */}
           {!isAuthenticated && d && (
-            <div className="max-w-2xl mx-auto">
+            <div className="max-w-lg mx-auto mt-8">
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 flex flex-col items-center gap-4 text-center">
                 <div className="w-14 h-14 rounded-full bg-red-50 border border-red-200 flex items-center justify-center">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#991b1b" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>

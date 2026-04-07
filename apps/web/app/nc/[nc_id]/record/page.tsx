@@ -468,8 +468,8 @@ function RecordPageInner() {
 
       {/* 認証前ロックカード */}
       {!isAuthenticated && (
-        <div className="flex flex-col items-center justify-center py-8 px-5">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-lg w-full text-center">
+        <div className="max-w-lg mx-auto mt-8 px-5">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 w-full text-center">
             <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-4">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
             </div>

@@ -237,8 +237,8 @@ export default function PrintPage() {
 
           {/* ── ロック状態 ── */}
           {!isAuthenticated && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-lg w-full">
+            <div className="max-w-lg mx-auto mt-8">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 w-full">
                 <div className="text-center mb-6">
                   <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto mb-3">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
