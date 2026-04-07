@@ -1,7 +1,14 @@
 export function ProcessBadge({ level }: { level: number }) {
-  const colors = ["", "bg-sky-500", "bg-indigo-500", "bg-violet-500", "bg-purple-500", "bg-pink-500"];
+  const colors = [
+    "",
+    "bg-sky-100 text-sky-700",
+    "bg-indigo-100 text-indigo-700",
+    "bg-violet-100 text-violet-700",
+    "bg-purple-100 text-purple-700",
+    "bg-pink-100 text-pink-700",
+  ];
   return (
-    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-bold text-white shrink-0 ${colors[level] ?? "bg-slate-400"}`}>
+    <span className={`text-[11px] font-bold px-2 py-0.5 rounded font-mono ${colors[level] ?? "bg-slate-100 text-slate-600"}`}>
       L{level}
     </span>
   );
