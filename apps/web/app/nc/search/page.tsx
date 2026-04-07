@@ -36,11 +36,21 @@ export default function SearchPage() {
   const [recent, setRecent]   = useState<RecentAccess[]>([]);
   const [selected, setSelected]   = useState<number | null>(null);
   const [isAdmin,  setIsAdmin]    = useState(false);
+  const [clientInput,  setClientInput]  = useState("");
+  const [machineInput, setMachineInput] = useState("");
+  const [clientNames,  setClientNames]  = useState<string[]>([]);
+  const [machines,     setMachines]     = useState<{ id: number; machineCode: string }[]>([]);
   const [adminInfo, setAdminInfo] = useState<{ companyName?: string; logoPath?: string } | null>(null);
 
   // 最近のアクセス取得
   useEffect(() => {
     ncApi.recent().then(r => setRecent(r.data)).catch(() => {});
+  }, []);
+
+  // 納入先・機械リスト取得
+  useEffect(() => {
+    fetch("/api/nc/client-names").then(r => r.json()).then(setClientNames).catch(() => {});
+    fetch("/api/machines").then(r => r.json()).then(setMachines).catch(() => {});
   }, []);
 
   // 管理者ログイン状態チェック
@@ -68,6 +78,20 @@ export default function SearchPage() {
     setLoading(true);
     setSelected(null);
     try {
+      const params = new URLSearchParams({ key: searchKey, q: searchQ });
+      if (clientInput) params.set("client_name", clientInput);
+      if (machineInput) params.set("machine_id", machineInput);
+      const res = await fetch(`/api/nc/search?${params}`).then(r => r.json());
+      setResults(res.data ?? []);
+      setTotal(res.total ?? 0);
+    } catch {
+      setResults([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+    return;
+    try {
       const res = await ncApi.search(searchKey, searchQ);
       setResults(res.data.data);
       setTotal(res.data.total);
@@ -77,7 +101,7 @@ export default function SearchPage() {
     } finally {
       setLoading(false);
     }
-  }, [ncIdInput, partIdInput, drawingNoInput, nameInput]);
+  }, [ncIdInput, partIdInput, drawingNoInput, nameInput, clientInput, machineInput]);
 
   const handleSelect = (ncId: number) => {
     setSelected(ncId);
@@ -189,6 +213,32 @@ export default function SearchPage() {
                   className="w-full border border-amber-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                 />
               </div>
+              <div>
+                <label className="text-xs text-slate-500 block mb-1">納入先</label>
+                <select
+                  value={clientInput}
+                  onChange={e => setClientInput(e.target.value)}
+                  className="w-full border border-amber-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white"
+                >
+                  <option value="">— すべて —</option>
+                  {clientNames.map(n => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-slate-500 block mb-1">主機種型式</label>
+                <select
+                  value={machineInput}
+                  onChange={e => setMachineInput(e.target.value)}
+                  className="w-full border border-amber-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white"
+                >
+                  <option value="">— すべて —</option>
+                  {machines.map(m => (
+                    <option key={m.id} value={String(m.id)}>{m.machineCode}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* ── 検索・クリアボタン ── */}
@@ -205,6 +255,7 @@ export default function SearchPage() {
                   onClick={() => {
                     setNcIdInput(""); setPartIdInput("");
                     setDrawingNoInput(""); setNameInput("");
+                    setClientInput(""); setMachineInput("");
                     setResults([]); setTotal(null); setSelected(null);
                   }}
                   className="w-full border border-slate-200 text-slate-500 hover:bg-slate-50 py-1.5 rounded-lg text-xs transition-colors"

@@ -14,7 +14,7 @@ export class NcService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** NC-01: 部品検索 */
-  async search(key: string, q: string, limit = 50, offset = 0) {
+  async search(key: string, q: string, limit = 50, offset = 0, clientName?: string, machineId?: number) {
     const where: any = {};
     if (q && q.trim()) {
       const trimQ = q.trim();
@@ -39,6 +39,14 @@ export class NcService {
           ];
       }
     }
+    // 追加フィルタ
+    if (clientName) {
+      where.part = { ...(where.part ?? {}), clientName: { contains: clientName, mode: "insensitive" } };
+    }
+    if (machineId) {
+      where.machineId = machineId;
+    }
+
     const [total, data] = await Promise.all([
       this.prisma.ncProgram.count({ where }),
       this.prisma.ncProgram.findMany({
@@ -66,6 +74,17 @@ export class NcService {
         machining_time: r.machiningTime,
       })),
     };
+  }
+
+  /** 納入先一覧（検索フォーム用） */
+  async getClientNames(): Promise<string[]> {
+    const rows = await this.prisma.part.findMany({
+      where: { clientName: { not: null } },
+      select: { clientName: true },
+      distinct: ["clientName"],
+      orderBy: { clientName: "asc" },
+    });
+    return rows.map(r => r.clientName!).filter(Boolean);
   }
 
   /** NC-02: 最近のアクセス5件 */

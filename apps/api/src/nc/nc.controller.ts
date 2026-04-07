@@ -28,8 +28,16 @@ export class NcController {
     @Query("q") q: string,
     @Query("limit") limit: string,
     @Query("offset") offset: string,
+    @Query("client_name") clientName: string,
+    @Query("machine_id") machineId: string,
   ) {
-    return this.nc.search(key, q, parseInt(limit) || 50, parseInt(offset) || 0);
+    return this.nc.search(key, q, parseInt(limit) || 50, parseInt(offset) || 0, clientName, machineId ? parseInt(machineId) : undefined);
+  }
+
+  @Get("client-names")
+  async clientNames() {
+    const rows = await this.nc.getClientNames();
+    return rows;
   }
 
   @Get("recent")
