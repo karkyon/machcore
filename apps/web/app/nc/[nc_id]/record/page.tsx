@@ -468,20 +468,20 @@ function RecordPageInner() {
 
       {/* 認証前ロックカード */}
       {!isAuthenticated && (
-        <div className="mx-5 my-4 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center py-10 gap-4 text-center">
-          <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B6D11" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <div className="flex flex-col items-center justify-center py-8 px-5">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-lg w-full text-center">
+            <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-4">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+            <div className="font-bold text-slate-700 text-base mb-1">作業記録 — 作業開始前</div>
+            <div className="text-slate-500 text-sm mb-5">段取・加工時間、ワーク数を記録するには担当者の確認が必要です。</div>
+            <button onClick={() => setShowAuthModal(true)}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium transition-colors w-full justify-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              この作業を開始する（担当者確認）
+            </button>
+            <div className="text-xs text-slate-400 mt-3">担当者の選択とパスワード確認後に記録を入力・編集できます</div>
           </div>
-          <div>
-            <div className="text-sm font-medium text-slate-800">作業記録 — 作業開始前</div>
-            <div className="text-xs text-slate-500 mt-1 max-w-xs">段取・加工時間、ワーク数を記録するには担当者の確認が必要です。</div>
-          </div>
-          <button onClick={() => setShowAuthModal(true)}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-sm font-medium transition-colors">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            この作業を開始する（担当者確認）
-          </button>
-          <div className="text-xs text-slate-400">担当者の選択とパスワード確認後に記録を入力・編集できます</div>
         </div>
       )}
 

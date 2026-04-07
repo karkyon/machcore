@@ -297,8 +297,10 @@ export default function NcEditPage() {
           {/* === LOCKED STATE === */}
           {!isAuthenticated && d && (
             <div className="max-w-2xl mx-auto">
-              <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-white flex flex-col items-center justify-center py-12 px-8 gap-4 text-center">
-                <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center text-2xl">🔒</div>
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 flex flex-col items-center gap-4 text-center">
+                <div className="w-14 h-14 rounded-full bg-red-50 border border-red-200 flex items-center justify-center">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#991b1b" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </div>
                 <div className="font-bold text-slate-700 text-base">変更・登録 — 作業開始前</div>
                 <div className="text-slate-500 text-sm max-w-sm">
                   現在のデータを確認しています。変更・登録を行うには担当者の確認（パスワード）が必要です。
