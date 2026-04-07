@@ -344,7 +344,7 @@ function RecordPageInner() {
         <span className="text-slate-600">|</span>
         <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
         <span className="text-slate-400 text-xs">|</span>
-        <span className="text-sm font-medium">⏱ 作業記録</span>
+        <span className="text-sm font-medium flex items-center gap-1.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録</span>
         <span className="ml-auto">
           {isAuthenticated && sessionInfo ? (
             <span className="text-[11px] bg-emerald-700 text-white px-3 py-1 rounded font-bold">

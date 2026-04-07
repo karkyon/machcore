@@ -241,7 +241,7 @@ export default function NcEditPage() {
           <span className="text-slate-600">|</span>
           <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
           <span className="text-slate-400 text-xs">|</span>
-          <span className="text-sm font-medium">✏️ 変更・登録</span>
+          <span className="text-sm font-medium flex items-center gap-1.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録</span>
           <span className="ml-auto">
             {isAuthenticated && operator ? (
               <span className="text-[11px] bg-red-600 text-white px-3 py-1 rounded font-bold animate-pulse">
