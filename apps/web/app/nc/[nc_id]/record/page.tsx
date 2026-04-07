@@ -382,20 +382,27 @@ function RecordPageInner() {
 
       {/* タブナビ */}
       <nav className="bg-slate-800 px-5 flex gap-0 shrink-0 border-t border-slate-700">
-        {([
-          { href: `/nc/${ncId}`,        label: "NC詳細",    icon: "📋", active: false, dot: "" },
-          { href: `/nc/${ncId}/edit`,   label: "変更・登録", icon: "✏️",  active: false, dot: "" },
-          { href: `/nc/${ncId}/print`,  label: "段取シート", icon: "🖨",  active: false, dot: "" },
-          { href: `/nc/${ncId}/record`, label: "作業記録",  icon: "⏱",  active: true,  dot: isAuthenticated ? "green" : "" },
-        ] as {href:string;label:string;icon:string;active:boolean;dot:string}[]).map(tab => (
-          <button key={tab.href} onClick={() => router.push(tab.href)}
-            className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-              tab.active ? "text-emerald-400 border-emerald-400" : "text-slate-400 hover:text-slate-200 border-transparent"
-            }`}>
-            {tab.dot === "green" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
-            {tab.icon} {tab.label}
-          </button>
-        ))}
+        <button onClick={() => router.push(`/nc/${ncId}`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          NC詳細
+        </button>
+        <button onClick={() => router.push(`/nc/${ncId}/edit`)}
+          className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${"border-transparent text-slate-400 hover:text-slate-200"}`}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          変更・登録
+        </button>
+        <button onClick={() => router.push(`/nc/${ncId}/print`)}
+          className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${"border-transparent text-slate-400 hover:text-slate-200"}`}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          段取シート
+        </button>
+        <button onClick={() => router.push(`/nc/${ncId}/record`)}
+          className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${"text-emerald-400 border-emerald-400"}`}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          作業記録
+          {isAuthenticated && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />}
+        </button>
       </nav>
 
       {/* 上ペイン: 過去作業記録一覧 */}
