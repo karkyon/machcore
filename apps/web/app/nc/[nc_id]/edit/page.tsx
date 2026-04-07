@@ -255,20 +255,20 @@ export default function NcEditPage() {
           </span>
         </header>
 
-        {/* ── 部品ヘッダー（白カード） ── */}
+        {/* 部品情報エリア */}
         {d && (
           <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
             <div className="flex items-center gap-3 mb-1">
               <span className="font-mono text-sky-600 font-bold text-lg">{d.part.drawingNo}</span>
               <ProcessBadge level={d.processL} />
               <StatusBadge status={d.status} />
-              <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver.{d.version}</span>
+              <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
             </div>
-            <div className="flex items-center gap-4 text-[11px] text-slate-500 font-mono">
-              <span>{d.part.name}</span>
-              <span className="text-slate-300">|</span>
+            <div className="text-sm text-slate-700 font-medium mb-1">{d.part.name}</div>
+            <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
               <span>NC_id: {d.id}</span>
-              {d.part.clientName && <><span className="text-slate-300">|</span><span>{d.part.clientName}</span></>}
+              <span>部品ID: {d.part.partId}</span>
+              {d.part.clientName && <span>納入先: {d.part.clientName}</span>}
             </div>
           </div>
         )}

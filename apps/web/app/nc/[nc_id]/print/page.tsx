@@ -161,74 +161,50 @@ export default function PrintPage() {
     <div className="h-screen flex flex-col bg-slate-100 overflow-hidden">
 
       {/* ── グローバルヘッダー ── */}
-      <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
-        <button
-          onClick={() => router.push(`/nc/${ncId}`)}
-          className="inline-flex items-center gap-2.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm font-medium text-white transition-colors shrink-0"
-        >
-          <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      <header className="bg-slate-800 text-white px-5 py-2.5 flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => router.push(`/nc/${ncId}`)}
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-white transition-colors shrink-0"
+          >
+            <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+            </span>
+            NC詳細
+          </button>
+          <span className="text-slate-600">|</span>
+          <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
+          <span className="text-slate-400 text-xs">|</span>
+          <span className="text-sm font-medium">🖨 段取シート</span>
+          <span className="ml-auto">
+            {isAuthenticated && operator ? (
+              <span className="text-[11px] bg-amber-600 text-white px-3 py-1 rounded font-bold">
+                作業中: {operator.name}　{fmtElapsed(elapsed)}
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-400 bg-slate-700 px-2 py-1 rounded">
+                🔒 認証待ち
+              </span>
+            )}
           </span>
-          NC詳細に戻る
-        </button>
-        <span className="text-slate-400">|</span>
-        <span className="font-bold text-sky-400 tracking-wide">MachCore</span>
-        <span className="ml-auto text-xs text-slate-400">NC旋盤プログラム管理</span>
-      </header>
+        </header>
 
-      {/* ── 部品ヘッダー ── */}
+      {/* 部品情報エリア */}
       <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-lg font-bold text-slate-800">
-            {nc.part.name} — 工程 L{nc.processL}
-          </span>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${STATUS_COLOR[nc.status] ?? "bg-slate-100 text-slate-600"}`}>
+        <div className="flex items-center gap-3 mb-1">
+          <span className="font-mono text-sky-600 font-bold text-lg">{nc.part.drawingNo}</span>
+          <span className="text-[11px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded font-mono font-bold">L{nc.processL}</span>
+          <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${STATUS_COLOR[nc.status] ?? "bg-slate-100 text-slate-600"}`}>
             {STATUS_LABEL[nc.status] ?? nc.status}
           </span>
-          <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">
-            Ver. {nc.version}
-          </span>
-          <span className="text-xs text-slate-500 font-mono">{nc.part.drawingNo}</span>
+          <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {nc.version}</span>
         </div>
-        <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono mt-1">
+        <div className="text-sm text-slate-700 font-medium mb-1">{nc.part.name}</div>
+        <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
           <span>NC_id: {nc.id}</span>
           <span>部品ID: {nc.part.partId}</span>
           {nc.part.clientName && <span>納入先: {nc.part.clientName}</span>}
         </div>
       </div>
-
-      {/* ── 画面ナビゲーションタブ ── */}
-      <nav className="bg-slate-700 px-5 flex gap-0 shrink-0">
-        {([
-          { href: `/nc/${ncId}`,        icon: "📋", label: "NC詳細",    active: false },
-          { href: `/nc/${ncId}/edit`,   icon: "✏️",  label: "変更・登録", active: false },
-          { href: `/nc/${ncId}/print`,  icon: "🖨",  label: "段取シート", active: true  },
-          { href: `/nc/${ncId}/record`, icon: "⏱",  label: "作業記録",  active: false },
-        ] as { href: string; icon: string; label: string; active: boolean }[]).map(tab => (
-          <button
-            key={tab.href}
-            onClick={() => router.push(tab.href)}
-            className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-              tab.active
-                ? "border-sky-400 text-sky-300"
-                : "border-transparent text-slate-400 hover:text-white hover:border-slate-400"
-            }`}
-          >
-            <span>{tab.icon}</span>
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </nav>
-
-      {/* ── セッションバナー（認証後） ── */}
-      {isAuthenticated && operator && (
-        <div className="bg-red-600 text-white px-5 py-1.5 flex items-center gap-3 text-xs shrink-0">
-          <span className="font-bold">⚡ 作業中:</span>
-          <span>{operator.name}</span>
-          <span className="font-mono bg-red-700 px-2 py-0.5 rounded">{fmtElapsed(elapsed)}</span>
-          <span className="text-red-300">段取シート発行</span>
-        </div>
-      )}
 
       {/* タブナビ */}
       <nav className="bg-slate-800 px-5 flex gap-0 shrink-0 border-t border-slate-700">
