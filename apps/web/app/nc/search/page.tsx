@@ -112,9 +112,13 @@ export default function SearchPage() {
     <div className="h-screen flex flex-col bg-slate-50">
       {/* ── ヘッダー ── */}
       <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
+        {adminInfo?.logoPath && (
+          <img src={adminInfo.logoPath.replace(/^apps\/web\/public/, "").replace(/^\/+/, "/")}
+            alt="logo" className="h-7 object-contain" />
+        )}
         <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
         <span className="text-slate-400 text-xs">|</span>
-        <span className="text-sm font-medium">NC 旋盤プログラム管理システム</span>
+        <span className="text-sm font-medium">{adminInfo?.companyName ?? "NC 旋盤プログラム管理システム"}</span>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-[10px] text-slate-400 bg-slate-700 px-2 py-0.5 rounded">認証不要</span>
           {isAdmin ? (
@@ -425,7 +429,7 @@ export default function SearchPage() {
               <div className="space-y-2">
                 {adminInfo?.logoPath && (
                   <img
-                    src={`/api/${adminInfo.logoPath}`}
+                    src={(adminInfo.logoPath ?? "").replace(/^apps\/web\/public/, "").replace(/^\/+/, "/")}
                     alt="company logo"
                     className="h-8 object-contain"
                   />
