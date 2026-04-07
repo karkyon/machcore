@@ -79,6 +79,12 @@ function AuthModal({ ncId, sessionType, onSuccess, onCancel }: {
   const [error,    setError]    = useState("");
   const [loading,  setLoading]  = useState(false);
 
+  const SESSION_LABELS: Record<string, string> = {
+    edit: "変更・登録",
+    setup_print: "段取シート印刷",
+    work_record: "作業記録",
+  };
+
   useEffect(() => {
     fetch("/api/users").then(r => r.json()).then(setUsers);
   }, []);
@@ -101,46 +107,53 @@ function AuthModal({ ncId, sessionType, onSuccess, onCancel }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-        <div className="bg-slate-800 text-white px-5 py-4">
-          <h2 className="font-bold text-base">⏱ 作業記録 — 担当者認証</h2>
-          <p className="text-xs text-slate-400 mt-0.5">担当者を選択してパスワードを入力してください</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+        <div className="bg-slate-800 px-6 py-4">
+          <h2 className="text-white font-bold text-lg">作業を開始する</h2>
+          <p className="text-slate-400 text-xs mt-1">
+            {SESSION_LABELS[sessionType] ?? sessionType} — 担当者を選択してパスワードを入力してください
+          </p>
         </div>
-        <div className="p-5 space-y-4">
-          <div className="grid grid-cols-3 gap-2">
-            {users.map(u => (
-              <button key={u.id}
-                onClick={() => { setSelId(u.id); setSelName(u.name); setPassword(""); }}
-                className={`py-2 px-2 rounded-lg text-sm font-medium border transition-colors ${
-                  selId === u.id
-                    ? "bg-sky-600 border-sky-600 text-white"
-                    : "bg-slate-50 border-slate-200 text-slate-700 hover:border-sky-400"
-                }`}
-              >{u.name}</button>
-            ))}
+        <div className="p-6 space-y-5">
+          <div>
+            <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">担当者</p>
+            <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+              {users.map(u => (
+                <button key={u.id}
+                  onClick={() => { setSelId(u.id); setSelName(u.name); setPassword(""); setError(""); }}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
+                    selId === u.id
+                      ? "border-sky-500 bg-sky-50 text-sky-700"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                  }`}
+                >{u.name}</button>
+              ))}
+            </div>
           </div>
           {selId && (
-            <div className="space-y-1">
-              <label className="text-xs text-slate-500 font-medium">パスワード</label>
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">
+                パスワード（{selName}）
+              </p>
               <input type="password" value={password}
                 onChange={e => setPassword(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleSubmit()}
                 autoFocus
-                className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
+                className="w-full border border-slate-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                 placeholder="パスワードを入力"
               />
             </div>
           )}
-          {error && <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded">{error}</p>}
-          <div className="flex gap-3 pt-1">
+          {error && <p className="text-red-600 text-sm bg-red-50 rounded-lg px-4 py-2">{error}</p>}
+          <div className="flex gap-3 pt-2">
+            <button onClick={onCancel}
+              className="flex-1 px-4 py-2 rounded-lg border border-slate-300 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
+            >キャンセル</button>
             <button onClick={handleSubmit}
               disabled={!selId || !password || loading}
-              className="flex-1 bg-sky-600 hover:bg-sky-700 disabled:bg-sky-300 text-white font-bold py-2.5 rounded-lg text-sm transition-colors"
-            >{loading ? "確認中…" : "確認してこの作業を開始する"}</button>
-            <button onClick={onCancel}
-              className="px-4 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors"
-            >キャンセル</button>
+              className="flex-1 px-4 py-2 rounded-lg bg-sky-600 text-white text-sm font-bold hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >{loading ? "確認中..." : "確認してこの作業を開始する"}</button>
           </div>
         </div>
       </div>
