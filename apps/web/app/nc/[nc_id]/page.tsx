@@ -17,7 +17,7 @@ import { ProcessBadge } from "@/components/nc/ProcessBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 
-type MainTab = "lathe" | "tools" | "history" | "files";
+type MainTab = "lathe" | "history" | "files";
 type HistorySubTab = "change" | "work" | "print" | "oplog";
 
 const CHANGE_TYPE_LABELS: Record<string, string> = {
@@ -283,7 +283,6 @@ export default function NcDetailPage() {
         <div className="bg-white border-b border-slate-200 px-5 shrink-0 flex gap-0">
           {([
             { key: "lathe",   label: "旋盤データ" },
-            { key: "tools",   label: "工具リスト" },
             { key: "history", label: "📋 履歴" },
             { key: "files",   label: "写真・図" },
           ] as { key: MainTab; label: string }[]).map(t => (
@@ -304,72 +303,150 @@ export default function NcDetailPage() {
         {/* ── タブコンテンツ ── */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* ─ 旋盤データ ─ */}
+          {/* ─ 旋盤データ（工具リスト含む） ─ */}
           {mainTab === "lathe" && (
-            <div className="p-5 max-w-2xl space-y-4">
-              <Section title="工程・機械">
-                <Row label="工程"     value={`L${d.processL}`} />
-                <Row label="機械"     value={d.machine?.machineName ?? d.machine?.machineCode ?? "—"} />
-                <Row label="加工時間" value={d.machiningTime != null ? `${d.machiningTime} 分` : "—"} />
-                <Row label="段取参考" value={d.setupTimeRef  != null ? `${d.setupTimeRef} 分`  : "—"} />
-              </Section>
-              <Section title="ファイル情報">
-                <Row label="フォルダ名" value={d.folderName ?? "—"} />
-                <Row label="ファイル名" value={d.fileName   ?? "—"} />
-                <Row label="O番号"      value={d.oNumber    ?? "—"} />
-              </Section>
-              <Section title="付帯情報">
-                <Row label="図枚数"   value={`${d.drawingCount} 枚`} />
-                <Row label="写真枚数" value={`${d.photoCount} 枚`} />
-              </Section>
-              {d.clampNote && (
-                <Section title="クランプ・備考">
-                  <pre className="text-xs text-slate-700 whitespace-pre-wrap font-sans p-4">{d.clampNote}</pre>
-                </Section>
-              )}
-              <Section title="登録・承認">
-                <Row label="登録者" value={d.registrar.name} />
-                <Row label="登録日" value={fmtDate(d.createdAt)} />
-                <Row label="承認者" value={d.approver?.name ?? "未承認"} />
-              </Section>
-            </div>
-          )}
+            <div className="p-5 space-y-5 max-w-5xl">
 
-          {/* ─ 工具リスト ─ */}
-          {mainTab === "tools" && (
-            <div className="p-5">
-              {d.tools.length === 0 ? (
-                <Empty label="工具データなし" />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs border-collapse bg-white rounded-xl overflow-hidden shadow-sm">
-                    <thead className="bg-slate-100 text-slate-600">
-                      <tr>
-                        {["No", "加工種別", "チップ型番", "ホルダー型番", "ノーズR", "T番号", "備考"].map(h => (
-                          <th key={h} className="px-3 py-2 text-left font-bold border-b border-slate-200">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {d.tools.map((t: NcTool, i: number) => (
-                        <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                          <td className="px-3 py-2 font-mono text-slate-500">{t.sortOrder}</td>
-                          <td className="px-3 py-2">{t.processType ?? "—"}</td>
-                          <td className="px-3 py-2 font-mono">{t.chipModel   ?? "—"}</td>
-                          <td className="px-3 py-2 font-mono">{t.holderModel ?? "—"}</td>
-                          <td className="px-3 py-2">{t.noseR   ?? "—"}</td>
-                          <td className="px-3 py-2 font-mono">{t.tNumber ?? "—"}</td>
-                          <td className="px-3 py-2 text-slate-500">{t.note ?? ""}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {/* ── 上部グリッド: 工程・機械・加工時間・フォルダ・図・写真 ── */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div className="grid grid-cols-6 divide-x divide-slate-100 border-b border-slate-100">
+                  {[
+                    { label: "工程 L", value: String(d.processL), mono: true },
+                    { label: "機械",   value: d.machine?.machineCode ?? "—", mono: true },
+                    { label: "加工時間", value: d.machiningTime != null ? `${d.machiningTime} 分` : "—", mono: true },
+                    { label: "フォルダ", value: d.folderName ?? "—", mono: true },
+                  ].map(f => (
+                    <div key={f.label} className="p-3">
+                      <div className="text-[10px] text-slate-400 mb-1">{f.label}</div>
+                      <div className={`text-sm font-medium text-slate-800 ${f.mono ? "font-mono" : ""}`}>{f.value}</div>
+                    </div>
+                  ))}
+                  {/* 図 */}
+                  <div className="p-3 text-center">
+                    <div className="text-[10px] text-slate-400 mb-1">図</div>
+                    <button onClick={() => setMainTab("files")}
+                      className="text-sm font-bold text-sky-600 hover:text-sky-700 hover:underline transition-colors">
+                      {d.drawingCount} 枚
+                    </button>
+                  </div>
+                  {/* 写真 */}
+                  <div className="p-3 text-center">
+                    <div className="text-[10px] text-slate-400 mb-1">写真</div>
+                    <button onClick={() => setMainTab("files")}
+                      className="text-sm font-bold text-sky-600 hover:text-sky-700 hover:underline transition-colors">
+                      {d.photoCount} 枚
+                    </button>
+                  </div>
                 </div>
+
+                {/* ── ファイル名 / O番号（独立行） ── */}
+                <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100">
+                  <div className="p-3">
+                    <div className="text-[10px] text-slate-400 mb-1">ファイル名</div>
+                    <div className="text-sm font-mono font-medium text-slate-800">{d.fileName ?? "—"}</div>
+                  </div>
+                  <div className="p-3">
+                    <div className="text-[10px] text-slate-400 mb-1">O番号</div>
+                    <div className="text-sm font-mono font-medium text-slate-800">{d.oNumber ?? "—"}</div>
+                  </div>
+                </div>
+
+                {/* ── NC_id / 加工ID（独立行） ── */}
+                <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100">
+                  <div className="p-3">
+                    <div className="text-[10px] text-slate-400 mb-1">NC_id</div>
+                    <div className="text-sm font-mono font-medium text-slate-800">{d.id}</div>
+                  </div>
+                  <div className="p-3">
+                    <div className="text-[10px] text-slate-400 mb-1">加工ID</div>
+                    <div className="text-sm font-mono font-medium text-slate-800">{d.processingId ?? "—"}</div>
+                  </div>
+                </div>
+
+                {/* ── クランプ/備考 ── */}
+                <div className="p-3 border-b border-slate-100">
+                  <div className="text-[10px] text-slate-400 mb-1">クランプ / 備考</div>
+                  <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">
+                    {d.clampNote || "—"}
+                  </pre>
+                </div>
+
+                {/* ── 登録者 / 登録日 / 承認者 ── */}
+                <div className="grid grid-cols-3 divide-x divide-slate-100">
+                  <div className="p-3">
+                    <div className="text-[10px] text-slate-400 mb-1">登録者</div>
+                    <div className="text-sm text-slate-700">{d.registrar.name}</div>
+                  </div>
+                  <div className="p-3">
+                    <div className="text-[10px] text-slate-400 mb-1">登録日</div>
+                    <div className="text-sm font-mono text-slate-700">{fmtDate(d.createdAt)}</div>
+                  </div>
+                  <div className="p-3">
+                    <div className="text-[10px] text-slate-400 mb-1">承認者</div>
+                    <div className="text-sm text-slate-700">{d.approver?.name ?? "未承認"}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── 写真・図への誘導バナー ── */}
+              {(d.drawingCount > 0 || d.photoCount > 0) && (
+                <button onClick={() => setMainTab("files")}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-xl transition-colors group text-left">
+                  <div className="w-9 h-9 rounded-lg bg-sky-100 group-hover:bg-sky-200 flex items-center justify-center text-sky-600 shrink-0 transition-colors">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-sky-700">写真・図を見る</div>
+                    <div className="text-xs text-sky-500 mt-0.5">
+                      図 {d.drawingCount}枚 / 写真 {d.photoCount}枚 — 段取図・写真・PDFを確認できます
+                    </div>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2" className="shrink-0"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
               )}
+
+              {/* ── 工具リスト（インライン） ── */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">工具リスト</span>
+                  {d.tools.length > 0 && (
+                    <span className="ml-2 text-xs text-slate-400">{d.tools.length}件</span>
+                  )}
+                </div>
+                {d.tools.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-xs text-slate-400">工具データなし</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          {["NO", "加工", "形状（チップ）", "ホルダー", "ノーズR", "T NO", "備考"].map(h => (
+                            <th key={h} className="px-3 py-2 text-left font-bold text-slate-500 text-[10px] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {d.tools.map((t: NcTool, i: number) => (
+                          <tr key={t.id} className={`border-b border-slate-100 last:border-b-0 ${i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}>
+                            <td className="px-3 py-2.5 font-mono text-slate-500 text-center w-10">{t.sortOrder}</td>
+                            <td className="px-3 py-2.5 text-slate-700">{t.processType ?? "—"}</td>
+                            <td className="px-3 py-2.5 font-mono text-slate-700">{t.chipModel ?? "—"}</td>
+                            <td className="px-3 py-2.5 font-mono text-slate-700">{t.holderModel ?? "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-slate-600">{t.noseR ?? "—"}</td>
+                            <td className="px-3 py-2.5 font-mono text-slate-600 text-center">{t.tNumber ?? "—"}</td>
+                            <td className="px-3 py-2.5 text-slate-500">{t.note ?? ""}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
 
-          {/* ─ 履歴 ─ */}
+                    {/* ─ 履歴 ─ */}
           {mainTab === "history" && (
             <div className="flex flex-col h-full">
               {/* サブタブ */}

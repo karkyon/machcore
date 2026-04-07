@@ -25,9 +25,12 @@ const ACTION_LABELS: Record<string, string> = {
 export default function SearchPage() {
   const router = useRouter();
 
-  const [key, setKey]         = useState("drawing_no");
-  const [q, setQ]             = useState("");
   const [loading, setLoading] = useState(false);
+  // ワイヤーフレーム仕様: 各フィールド個別管理
+  const [ncIdInput,      setNcIdInput]      = useState("");
+  const [partIdInput,    setPartIdInput]    = useState("");
+  const [drawingNoInput, setDrawingNoInput] = useState("");
+  const [nameInput,      setNameInput]      = useState("");
   const [results, setResults] = useState<NcSearchResult[]>([]);
   const [total, setTotal]     = useState<number | null>(null);
   const [recent, setRecent]   = useState<RecentAccess[]>([]);
@@ -54,10 +57,18 @@ export default function SearchPage() {
   }, []);
 
   const handleSearch = useCallback(async () => {
+    // 優先順位: NC ID > 部品ID > 図面番号 > 名称 > 全件
+    let searchKey = "drawing_no";
+    let searchQ   = "";
+    if (ncIdInput.trim())      { searchKey = "nc_id";      searchQ = ncIdInput.trim(); }
+    else if (partIdInput.trim()){ searchKey = "part_id";   searchQ = partIdInput.trim(); }
+    else if (drawingNoInput.trim()){ searchKey = "drawing_no"; searchQ = drawingNoInput.trim(); }
+    else if (nameInput.trim()) { searchKey = "name";       searchQ = nameInput.trim(); }
+
     setLoading(true);
     setSelected(null);
     try {
-      const res = await ncApi.search(key, q);
+      const res = await ncApi.search(searchKey, searchQ);
       setResults(res.data.data);
       setTotal(res.data.total);
     } catch {
@@ -66,7 +77,7 @@ export default function SearchPage() {
     } finally {
       setLoading(false);
     }
-  }, [key, q]);
+  }, [ncIdInput, partIdInput, drawingNoInput, nameInput]);
 
   const handleSelect = (ncId: number) => {
     setSelected(ncId);
@@ -94,39 +105,72 @@ export default function SearchPage() {
               <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold">認証不要</span>
             </div>
 
-            {/* 検索キー選択 */}
-            <div className="space-y-3">
+            {/* ── ID 直接指定 ── */}
+            <div className="space-y-2">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">ID 直接指定</div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">
-                  検索キー
-                </label>
-                <select
-                  value={key}
-                  onChange={e => setKey(e.target.value)}
-                  className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
-                >
-                  {SEARCH_KEYS.map(k => (
-                    <option key={k.value} value={k.value}>{k.label}</option>
-                  ))}
-                </select>
+                <label className="text-xs text-slate-500 block mb-1">NC ID <span className="text-slate-400 text-[10px]">（K_id）</span></label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={ncIdInput}
+                    onChange={e => setNcIdInput(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleSearch()}
+                    placeholder="例: 92"
+                    className="flex-1 border border-amber-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  />
+                  <button
+                    onClick={handleSearch}
+                    disabled={loading}
+                    className="bg-sky-500 hover:bg-sky-600 disabled:bg-sky-300 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors"
+                  >
+                    検索
+                  </button>
+                </div>
               </div>
-
-              {/* 検索テキスト */}
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">
-                  検索文字列
-                </label>
+                <label className="text-xs text-slate-500 block mb-1">部品 ID</label>
+                <input
+                  type="number"
+                  value={partIdInput}
+                  onChange={e => setPartIdInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleSearch()}
+                  placeholder="例: 3807"
+                  className="w-full border border-amber-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                />
+                <div className="text-[10px] text-slate-400 mt-0.5">※複数工程は別行で表示</div>
+              </div>
+            </div>
+
+            {/* ── テキスト条件 ── */}
+            <div className="border-t border-slate-100 pt-3 space-y-2">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">テキスト条件</div>
+              <div>
+                <label className="text-xs text-slate-500 block mb-1">図面番号</label>
                 <input
                   type="text"
-                  value={q}
-                  onChange={e => setQ(e.target.value)}
+                  value={drawingNoInput}
+                  onChange={e => setDrawingNoInput(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && handleSearch()}
-                  placeholder="空欄 = 全件表示"
-                  className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  placeholder="F67487"
+                  className="w-full border border-amber-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                 />
               </div>
+              <div>
+                <label className="text-xs text-slate-500 block mb-1">名称</label>
+                <input
+                  type="text"
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleSearch()}
+                  placeholder="部品名称の一部"
+                  className="w-full border border-amber-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                />
+              </div>
+            </div>
 
-              {/* 検索ボタン */}
+            {/* ── 検索・クリアボタン ── */}
+            <div className="pt-1 space-y-2">
               <button
                 onClick={handleSearch}
                 disabled={loading}
@@ -134,16 +178,24 @@ export default function SearchPage() {
               >
                 {loading ? "検索中..." : "🔍 検索"}
               </button>
-
-              {/* クリア */}
-              {(results.length > 0 || q) && (
+              {(results.length > 0 || ncIdInput || partIdInput || drawingNoInput || nameInput) && (
                 <button
-                  onClick={() => { setQ(""); setResults([]); setTotal(null); setSelected(null); }}
-                  className="w-full border border-slate-200 text-slate-500 hover:bg-slate-50 py-2 rounded-lg text-sm transition-colors"
+                  onClick={() => {
+                    setNcIdInput(""); setPartIdInput("");
+                    setDrawingNoInput(""); setNameInput("");
+                    setResults([]); setTotal(null); setSelected(null);
+                  }}
+                  className="w-full border border-slate-200 text-slate-500 hover:bg-slate-50 py-1.5 rounded-lg text-xs transition-colors"
                 >
                   クリア
                 </button>
               )}
+              <button
+                onClick={() => { setDrawingNoInput("旧"); handleSearch(); }}
+                className="w-full border border-slate-200 text-slate-400 hover:bg-slate-50 py-1.5 rounded-lg text-xs transition-colors"
+              >
+                旧ファイルで探す（旧索引）
+              </button>
             </div>
 
             {/* 件数表示 */}
@@ -161,9 +213,16 @@ export default function SearchPage() {
 
         {/* ── 中央カラム: 検索結果リスト（最大400px） ── */}
         <main className="w-[400px] shrink-0 border-r border-slate-200 flex flex-col overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 bg-white shrink-0">
-            <h2 className="text-sm font-bold text-slate-700">検索結果</h2>
-            <p className="text-[11px] text-slate-400">工程別行表示。行クリックでNC詳細へ</p>
+          <div className="px-4 py-3 border-b border-slate-100 bg-white shrink-0 flex items-center justify-between">
+            <div>
+              <span className="text-sm font-bold text-slate-700">検索結果</span>
+              {total !== null && total > 0 && (
+                <span className="ml-2 text-xs text-slate-400">{total}件</span>
+              )}
+            </div>
+            {results.length > 0 && (
+              <span className="text-[11px] text-sky-500 cursor-default">工程ごとに1行表示</span>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -179,31 +238,65 @@ export default function SearchPage() {
                 <p className="text-sm">該当なし</p>
               </div>
             )}
-            {results.map(r => (
-              <div
-                key={r.nc_id}
-                onClick={() => handleSelect(r.nc_id)}
-                className={`px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${
-                  selected === r.nc_id
-                    ? "bg-sky-50 border-l-4 border-l-sky-400 pl-3"
-                    : "hover:bg-slate-50"
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <ProcessBadge level={r.process_l} />
-                  <span className="font-mono text-sky-600 font-bold text-sm">{r.drawing_no}</span>
-                  <StatusBadge status={r.status} />
-                  <span className="ml-auto font-mono text-[10px] text-slate-400">Ver.{r.version}</span>
-                </div>
-                <div className="text-sm text-slate-700 mb-1">{r.part_name}</div>
-                <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                  <span>{r.machine_code ?? "機械未設定"}</span>
-                  {r.machining_time && <span>⏱ {r.machining_time}分</span>}
-                  <span className="font-mono">NC#{r.nc_id}</span>
-                  {r.client_name && <span className="ml-auto text-[10px]">{r.client_name}</span>}
-                </div>
-              </div>
-            ))}
+            {/* 部品グループ表示 */}
+            {(() => {
+              // part_db_id でグループ化（順序を保持）
+              const groups: { key: string; items: typeof results }[] = [];
+              const seen = new Map<string, number>();
+              results.forEach(r => {
+                const gk = String(r.part_db_id);
+                if (!seen.has(gk)) { seen.set(gk, groups.length); groups.push({ key: gk, items: [] }); }
+                groups[seen.get(gk)!].items.push(r);
+              });
+              return groups.map(g => {
+                const first = g.items[0];
+                return (
+                  <div key={g.key} className="border-b border-slate-200">
+                    {/* 部品グループヘッダー */}
+                    <div className="px-4 pt-3 pb-1.5">
+                      <div className="flex items-center gap-0 flex-wrap">
+                        <span className="font-bold text-slate-800 text-sm">{first.part_name}</span>
+                        <span className="text-slate-300 mx-2 text-xs">—</span>
+                        <span className="font-mono text-sky-600 font-bold text-xs">{first.drawing_no}</span>
+                        {first.client_name && (
+                          <><span className="text-slate-300 mx-2 text-xs">—</span>
+                          <span className="text-slate-400 text-xs">{first.client_name}</span></>
+                        )}
+                      </div>
+                    </div>
+                    {/* 工程行 */}
+                    {g.items.map(r => (
+                      <div
+                        key={r.nc_id}
+                        onClick={() => handleSelect(r.nc_id)}
+                        className={`px-4 py-2.5 border-t border-slate-100 cursor-pointer transition-colors flex items-center gap-3 ${
+                          selected === r.nc_id
+                            ? "bg-sky-50 border-l-[3px] border-l-sky-400 pl-[13px]"
+                            : "hover:bg-slate-50"
+                        }`}
+                      >
+                        <ProcessBadge level={r.process_l} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-slate-700 font-medium">
+                              工程 L{r.process_l} — {r.machine_code ?? "機械未設定"}
+                            </span>
+                            <StatusBadge status={r.status} />
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono mt-0.5">
+                            <span>NC: {r.nc_id}</span>
+                            <span>/</span>
+                            <span>{r.file_name || "—"}</span>
+                            {r.machining_time != null && <><span>/</span><span>{r.machining_time}分</span></>}
+                          </div>
+                        </div>
+                        <span className="font-mono text-[10px] text-slate-400 shrink-0">Ver.{r.version}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              });
+            })()}
           </div>
         </main>
 

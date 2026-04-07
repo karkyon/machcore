@@ -254,7 +254,7 @@ export default function NcEditPage() {
         <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
           <button
             onClick={() => router.push(`/nc/${ncId}`)}
-            className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-sky-900 border border-slate-600 hover:border-sky-500 rounded-lg text-xs font-medium text-sky-300 hover:text-sky-200 transition-colors"
+            className="text-slate-400 hover:text-white text-xs transition-colors"
           >
             ← NC詳細
           </button>
@@ -316,14 +316,13 @@ export default function NcEditPage() {
             )}
 
             {/* エラー表示 */}
-            {isAuthenticated && saveError && (
+            {saveError && (
               <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-red-600 text-sm">
                 ⚠️ {saveError}
               </div>
             )}
 
-            {/* 編集フォーム（認証後のみ） */}
-            {isAuthenticated && (
+            {/* 編集フォーム */}
             <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden ${!isAuthenticated ? "opacity-60" : ""}`}>
               <div className="bg-slate-50 border-b border-slate-200 px-5 py-3">
                 <h2 className="text-sm font-bold text-slate-700">NCデータ編集</h2>
@@ -453,7 +452,6 @@ export default function NcEditPage() {
 
               </div>
             </div>
-            )}
 
             {/* ── ファイル取込エリア ── */}
             {isAuthenticated && (
