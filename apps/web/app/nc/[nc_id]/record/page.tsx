@@ -183,7 +183,7 @@ export default function RecordPage() {
     setAuthLoading(true); setAuthError("");
     try {
       const res = await authApi.createWorkSession({
-        operator_id: selOpId, password, session_type: "WORK_RECORD", nc_program_id: ncId,
+        operator_id: selOpId, password, session_type: "work_record", nc_program_id: ncId,
       });
       setWorkToken(res.data.access_token);
       setIsAuthenticated(true);
