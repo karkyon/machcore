@@ -10,4 +10,6 @@ export class UpdateWorkRecordDto {
   @IsOptional() @IsString()      work_type?: string;
   @IsOptional() @IsString()      note?: string;
   @IsOptional() @IsInt()         machine_id?: number;
+  @IsOptional()                   setup_operator_ids?: number[];
+  @IsOptional()                   production_operator_ids?: number[];
 }

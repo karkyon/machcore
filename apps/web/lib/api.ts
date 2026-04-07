@@ -178,6 +178,8 @@ export type WorkRecord = {
   interruption_time_min: number | null;
   work_type: string | null;
   note: string | null;
+  setup_operator_ids: number[] | null;
+  production_operator_ids: number[] | null;
 };
  
 export type CreateWorkRecordBody = {
@@ -189,6 +191,8 @@ export type CreateWorkRecordBody = {
   work_type?: string;
   note?: string;
   machine_id?: number;
+  setup_operator_ids?: number[];
+  production_operator_ids?: number[];
 };
 
 export type UpdateWorkRecordBody = {
@@ -200,6 +204,8 @@ export type UpdateWorkRecordBody = {
   work_type?: string;
   note?: string;
   machine_id?: number;
+  setup_operator_ids?: number[];
+  production_operator_ids?: number[];
 };
 
 export const workRecordsApi = {

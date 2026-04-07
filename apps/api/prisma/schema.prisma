@@ -250,6 +250,8 @@ model WorkRecord {
   cycleTimeSec     Int?                      @map("cycle_time_sec")
   interruptionTimeMin Int?                   @map("interruption_time_min")
   sessionId        String?  @db.VarChar(36)  @map("session_id")
+  setupOperatorIds        Json?              @default("[]") @map("setup_operator_ids")
+  productionOperatorIds   Json?              @default("[]") @map("production_operator_ids")
   createdAt        DateTime @default(now())  @map("created_at")
   ncProgram        NcProgram @relation(fields: [ncProgramId], references: [id])
   operator         User      @relation(fields: [operatorId],  references: [id])

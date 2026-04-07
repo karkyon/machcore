@@ -35,4 +35,12 @@ export class CreateWorkRecordDto {
   /** 使用機械ID（Sessionから引き継ぎ可、省略時はncProgram.machineIdを使用） */
   @IsOptional() @IsInt()
   machine_id?: number;
+
+  /** 段取担当者IDリスト（複数可） */
+  @IsOptional()
+  setup_operator_ids?: number[];
+
+  /** 量産担当者IDリスト（複数可） */
+  @IsOptional()
+  production_operator_ids?: number[];
 }

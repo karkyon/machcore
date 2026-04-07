@@ -1,239 +1,163 @@
 "use client";
-import ReactSelect from "react-select";
-// apps/web/app/nc/[nc_id]/record/page.tsx
-// SCR-05: 作業記録画面  v2
-
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
 import {
-  ncApi, workRecordsApi, machinesApi,
-  type WorkRecord, type Machine, type NcDetail,
-  type CreateWorkRecordBody, type UpdateWorkRecordBody,
+  ncApi, workRecordsApi, machinesApi, usersApi, authApi,
+  NcDetail, WorkRecord, Machine, UserInfo,
+  CreateWorkRecordBody, UpdateWorkRecordBody,
 } from "@/lib/api";
 
-const WORK_TYPES = ["量産", "試作", "変更", "新規登録"] as const;
-const WORK_TYPE_OPTIONS = WORK_TYPES.map(v => ({ value: v, label: v }));
-
-function toHM(totalMin: number | null): [number, number] {
-  if (!totalMin) return [0, 0];
-  return [Math.floor(totalMin / 60), totalMin % 60];
-}
-function toMS(totalSec: number | null): [number, number] {
-  if (!totalSec) return [0, 0];
-  return [Math.floor(totalSec / 60), totalSec % 60];
-}
-function fmtMin(min: number | null) {
-  if (min == null) return "—";
-  const [h, m] = toHM(min);
-  return h > 0 ? `${h}h${m}m` : `${m}分`;
-}
-function fmtSec(sec: number | null) {
-  if (sec == null) return "—";
-  const [m, s] = toMS(sec);
-  return m > 0 ? `${m}分${s}秒` : `${s}秒`;
-}
-function fmtDate(s: string) {
-  return new Date(s).toLocaleString("ja-JP", {
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
-
-function NumInput({ value, onChange, min = 0, max, className = "" }: {
-  value: number; onChange: (v: number) => void;
-  min?: number; max?: number; className?: string;
+// ─── 時間入力コンポーネント ─────────────────────────────────────
+function NumInput({ value, onChange, min=0, max=999, className="" }: {
+  value: number; onChange: (v: number) => void; min?: number; max?: number; className?: string;
 }) {
   return (
-    <input
-      type="number" min={min} max={max} value={value}
-      onChange={e => {
-        const v = parseInt(e.target.value) || 0;
-        onChange(max !== undefined ? Math.min(v, max) : v);
-      }}
-      className={`border border-slate-300 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-sky-300 ${className}`}
+    <input type="number" min={min} max={max} value={value}
+      onChange={e => onChange(Math.max(min, Math.min(max, Number(e.target.value) || 0)))}
+      className={`border border-slate-300 rounded px-2 py-1.5 text-sm text-center w-16 focus:outline-none focus:ring-2 focus:ring-sky-300 ${className}`}
     />
   );
 }
 
-function TimeInput({ h, m, onH, onM }: {
-  h: number; m: number; onH: (v: number) => void; onM: (v: number) => void;
-}) {
+function TimeInput({ h, m, onH, onM }: { h:number; m:number; onH:(v:number)=>void; onM:(v:number)=>void }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <NumInput value={h} onChange={onH} min={0} className="w-16" />
-      <span className="text-xs text-slate-400">h</span>
-      <NumInput value={m} onChange={onM} min={0} max={59} className="w-16" />
-      <span className="text-xs text-slate-400">m</span>
+    <div className="flex items-center gap-1">
+      <NumInput value={h} onChange={onH} /><span className="text-xs text-slate-400">h</span>
+      <NumInput value={m} onChange={onM} min={0} max={59} /><span className="text-xs text-slate-400">m</span>
     </div>
   );
 }
 
-function AuthModal({ ncId, sessionType, onSuccess, onCancel }: {
-  ncId: number; sessionType: string;
-  onSuccess: (opName: string) => void; onCancel: () => void;
+// ─── 複数選択コンポーネント（Select2スタイル） ─────────────────
+function MultiUserSelect({ users, selected, onChange, placeholder }: {
+  users: UserInfo[]; selected: number[]; onChange: (ids: number[]) => void; placeholder: string;
 }) {
-  const [users,    setUsers]    = useState<{ id: number; name: string }[]>([]);
-  const [selId,    setSelId]    = useState<number | null>(null);
-  const [selName,  setSelName]  = useState("");
-  const [password, setPassword] = useState("");
-  const [error,    setError]    = useState("");
-  const [loading,  setLoading]  = useState(false);
-
-  const SESSION_LABELS: Record<string, string> = {
-    edit: "変更・登録",
-    setup_print: "段取シート印刷",
-    work_record: "作業記録",
-  };
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/users").then(r => r.json()).then(setUsers);
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const handleSubmit = async () => {
-    if (!selId || !password) { setError("担当者とパスワードを入力してください"); return; }
-    setLoading(true); setError("");
-    try {
-      const res = await fetch("/api/auth/work-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ operator_id: selId, password, session_type: sessionType, nc_program_id: ncId }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError("パスワードが違います"); setPassword(""); return; }
-      localStorage.setItem("work_token", data.access_token);
-      onSuccess(selName);
-    } catch { setError("通信エラーが発生しました"); }
-    finally { setLoading(false); }
+  const toggle = (id: number) => {
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
   };
 
+  const selectedUsers = users.filter(u => selected.includes(u.id));
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="bg-slate-800 px-6 py-4">
-          <h2 className="text-white font-bold text-lg">作業を開始する</h2>
-          <p className="text-slate-400 text-xs mt-1">
-            {SESSION_LABELS[sessionType] ?? sessionType} — 担当者を選択してパスワードを入力してください
-          </p>
-        </div>
-        <div className="p-6 space-y-5">
-          <div>
-            <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">担当者</p>
-            <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-              {users.map(u => (
-                <button key={u.id}
-                  onClick={() => { setSelId(u.id); setSelName(u.name); setPassword(""); setError(""); }}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
-                    selId === u.id
-                      ? "border-sky-500 bg-sky-50 text-sky-700"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                  }`}
-                >{u.name}</button>
-              ))}
-            </div>
-          </div>
-          {selId && (
-            <div>
-              <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">
-                パスワード（{selName}）
-              </p>
-              <input type="password" value={password}
-                onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleSubmit()}
-                autoFocus
-                className="w-full border border-slate-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-                placeholder="パスワードを入力"
-              />
-            </div>
-          )}
-          {error && <p className="text-red-600 text-sm bg-red-50 rounded-lg px-4 py-2">{error}</p>}
-          <div className="flex gap-3 pt-2">
-            <button onClick={onCancel}
-              className="flex-1 px-4 py-2 rounded-lg border border-slate-300 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
-            >キャンセル</button>
-            <button onClick={handleSubmit}
-              disabled={!selId || !password || loading}
-              className="flex-1 px-4 py-2 rounded-lg bg-sky-600 text-white text-sm font-bold hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >{loading ? "確認中..." : "確認してこの作業を開始する"}</button>
-          </div>
-        </div>
+    <div ref={ref} className="relative">
+      <div
+        onClick={() => setOpen(o => !o)}
+        className="min-h-[38px] w-full border border-slate-300 rounded px-2 py-1 cursor-pointer bg-white flex flex-wrap gap-1 items-center focus:ring-2 focus:ring-sky-300"
+      >
+        {selectedUsers.length === 0 && (
+          <span className="text-slate-400 text-sm">{placeholder}</span>
+        )}
+        {selectedUsers.map(u => (
+          <span key={u.id} className="bg-sky-100 text-sky-800 text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+            {u.name}
+            <button type="button" onClick={e => { e.stopPropagation(); toggle(u.id); }}
+              className="text-sky-500 hover:text-sky-700 font-bold leading-none">&times;</button>
+          </span>
+        ))}
+        <span className="ml-auto text-slate-400 text-xs">▼</span>
       </div>
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {users.filter(u => u.isActive).map(u => (
+            <div key={u.id}
+              onClick={() => toggle(u.id)}
+              className={`px-3 py-2 text-sm cursor-pointer flex items-center gap-2 hover:bg-sky-50 ${selected.includes(u.id) ? "bg-sky-50 font-bold text-sky-700" : "text-slate-700"}`}
+            >
+              <span className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${selected.includes(u.id) ? "bg-sky-500 border-sky-500 text-white" : "border-slate-300"}`}>
+                {selected.includes(u.id) && "✓"}
+              </span>
+              {u.name}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function RecordPageInner() {
-  const { nc_id }    = useParams<{ nc_id: string }>();
-  const ncId         = parseInt(nc_id);
-  const router       = useRouter();
-  const searchParams = useSearchParams();
+// ─── メインページ ──────────────────────────────────────────────
+export default function RecordPage() {
+  const params    = useParams();
+  const router    = useRouter();
+  const ncId      = Number(params.nc_id);
 
-  const [nc,              setNc]              = useState<NcDetail | null>(null);
-  const [machines,        setMachines]        = useState<Machine[]>([]);
-  const [allRecords,      setAllRecords]      = useState<WorkRecord[]>([]);
+  const [nc,       setNc]       = useState<NcDetail | null>(null);
+  const [records,  setRecords]  = useState<WorkRecord[]>([]);
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const [allUsers, setAllUsers] = useState<UserInfo[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [toast,    setToast]    = useState("");
+  const [saving,   setSaving]   = useState(false);
+
+  // 認証
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showAuthModal,   setShowAuthModal]   = useState(false);
-  const [saving,          setSaving]          = useState(false);
-  const [toast,           setToast]           = useState<string | null>(null);
-  const [sessionInfo,     setSessionInfo]     = useState<{ operatorName: string } | null>(null);
-  const [editMode,        setEditMode]        = useState(false);
-  const [editRecordId,    setEditRecordId]    = useState<number | null>(null);
-  const [elapsed,         setElapsed]         = useState(0);
+  const [workToken,        setWorkToken]       = useState("");
+  const [authUsers,        setAuthUsers]       = useState<UserInfo[]>([]);
+  const [selOpId,          setSelOpId]         = useState<number | null>(null);
+  const [password,         setPassword]        = useState("");
+  const [authError,        setAuthError]       = useState("");
+  const [authLoading,      setAuthLoading]     = useState(false);
+  const [showAuth,         setShowAuth]        = useState(false);
+
+  // 編集モード
+  const [editRecordId, setEditRecordId] = useState<number | null>(null);
+
+  // フォーム
+  const [workType,    setWorkType]    = useState("量産");
+  const [machineId,   setMachineId]   = useState<number | null>(null);
+  const [setupH,      setSetupH]      = useState(0);
+  const [setupM,      setSetupM]      = useState(0);
+  const [machH,       setMachH]       = useState(0);
+  const [machM,       setMachM]       = useState(0);
+  const [cycleM,      setCycleM]      = useState(0);
+  const [cycleS,      setCycleS]      = useState(0);
+  const [quantity,    setQuantity]    = useState<number|"">("");
+  const [interruption,setInterruption]= useState(0);
+  const [note,        setNote]        = useState("");
+  // 担当者複数選択
+  const [setupOps,    setSetupOps]    = useState<number[]>([]);
+  const [prodOps,     setProdOps]     = useState<number[]>([]);
+
+  // タイマー
+  const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [setupH,       setSetupH]       = useState(0);
-  const [setupM,       setSetupM]       = useState(0);
-  const [machH,        setMachH]        = useState(0);
-  const [machM,        setMachM]        = useState(0);
-  const [cycleM,       setCycleM]       = useState(0);
-  const [cycleS,       setCycleS]       = useState(0);
-  const [quantity,     setQuantity]     = useState<number | "">("");
-  const [interruption, setInterruption] = useState(0);
-  const [workType,     setWorkType]     = useState<string>("量産");
-  const [note,         setNote]         = useState("");
-  const [machineId,    setMachineId]    = useState<number | null>(null);
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
-  const resetForm = useCallback((nc: NcDetail | null) => {
-    setEditMode(false); setEditRecordId(null);
-    setSetupH(0); setSetupM(0); setMachH(0); setMachM(0);
-    if (nc?.machiningTime) { setCycleM(nc.machiningTime); setCycleS(0); }
-    else { setCycleM(0); setCycleS(0); }
-    setQuantity(""); setInterruption(0); setWorkType("量産"); setNote("");
-    setMachineId(nc?.machineId ?? null);
-  }, []);
-
-  const loadRecord = useCallback((r: WorkRecord) => {
-    const [sh, sm] = toHM(r.setup_time);
-    const [mh, mm] = toHM(r.machining_time);
-    const [cm, cs] = toMS(r.cycle_time_sec);
-    setSetupH(sh); setSetupM(sm); setMachH(mh); setMachM(mm);
-    setCycleM(cm); setCycleS(cs);
-    setQuantity(r.quantity ?? "");
-    setInterruption(r.interruption_time_min ?? 0);
-    setWorkType(r.work_type ?? "量産");
-    setNote(r.note ?? "");
-    setEditMode(true); setEditRecordId(r.id);
-  }, []);
-
-  useEffect(() => {
-    Promise.all([
-      ncApi.findOne(ncId),
-      machinesApi.list(),
-      workRecordsApi.list(ncId),
-    ]).then(([ncRes, machRes, recRes]) => {
-      const d = ncRes.data as NcDetail;
-      setNc(d);
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [ncRes, recRes, machRes, userRes] = await Promise.all([
+        ncApi.findOne(ncId),
+        workRecordsApi.list(ncId),
+        machinesApi.list(),
+        usersApi.list(),
+      ]);
+      setNc(ncRes.data);
+      setRecords(recRes.data);
       setMachines(machRes.data.filter((m: Machine) => m.isActive));
-      setAllRecords(recRes.data);
-      setMachineId(d.machineId ?? null);
-      if (d.machiningTime) { setCycleM(d.machiningTime); setCycleS(0); }
-      const editId = searchParams.get("edit");
-      if (editId) {
-        const target = (recRes.data as WorkRecord[]).find(r => r.id === parseInt(editId));
-        if (target) loadRecord(target);
-      }
-    });
-  }, [ncId, searchParams, loadRecord]);
+      setAllUsers(userRes.data);
+      setAuthUsers(userRes.data.filter((u: UserInfo) => u.isActive));
+      // 機械初期値
+      if (ncRes.data?.machine?.id) setMachineId(ncRes.data.machine.id);
+    } catch { showToast("❌ データ取得失敗"); }
+    finally { setLoading(false); }
+  }, [ncId]);
 
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // タイマー
   useEffect(() => {
     if (isAuthenticated) {
       timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
@@ -244,415 +168,339 @@ function RecordPageInner() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isAuthenticated]);
 
-  const fmtElapsed = (sec: number) => {
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    const s = sec % 60;
-    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  const fmtTime = (s: number) => {
+    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
   };
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+  const fmtMin = (min: number | null) => {
+    if (!min) return "—";
+    return `${Math.floor(min/60)}h ${min%60}m`;
   };
 
-  const handleAuthSuccess = useCallback((opName: string) => {
-    setIsAuthenticated(true);
-    setShowAuthModal(false);
-    setSessionInfo({ operatorName: opName });
-  }, []);
+  const handleAuth = async () => {
+    if (!selOpId || !password) { setAuthError("担当者とパスワードを入力してください"); return; }
+    setAuthLoading(true); setAuthError("");
+    try {
+      const res = await authApi.createWorkSession({
+        operator_id: selOpId, password, session_type: "WORK_RECORD", nc_program_id: ncId,
+      });
+      setWorkToken(res.data.access_token);
+      setIsAuthenticated(true);
+      setShowAuth(false);
+      setPassword("");
+    } catch { setAuthError("認証に失敗しました。パスワードを確認してください"); }
+    finally { setAuthLoading(false); }
+  };
 
   const endSession = async () => {
-    try {
-      const token = localStorage.getItem("work_token");
-      if (token) {
-        await fetch("/api/auth/work-session", {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
-    } catch (_) {}
-    localStorage.removeItem("work_token");
+    if (workToken) { try { await authApi.endWorkSession(workToken); } catch {} }
+    setIsAuthenticated(false); setWorkToken(""); setSelOpId(null);
   };
 
-  const handleCancel = async () => {
-    if (!confirm("キャンセルしますか？入力内容は保存されません。")) return;
-    await endSession();
-    router.push(`/nc/${ncId}`);
+  const resetForm = useCallback((ncData?: NcDetail | null) => {
+    setEditRecordId(null);
+    setWorkType("量産"); setNote("");
+    setSetupH(0); setSetupM(0); setMachH(0); setMachM(0);
+    setCycleM(0); setCycleS(0); setQuantity(""); setInterruption(0);
+    setSetupOps([]); setProdOps([]);
+    if (ncData?.machine?.id) setMachineId(ncData.machine.id);
+    else setMachineId(null);
+  }, []);
+
+  const handleEdit = (r: WorkRecord) => {
+    if (!isAuthenticated) { setShowAuth(true); return; }
+    setEditRecordId(r.id);
+    const sm = r.setup_time ?? 0;
+    setSetupH(Math.floor(sm/60)); setSetupM(sm%60);
+    const mm = r.machining_time ?? 0;
+    setMachH(Math.floor(mm/60)); setMachM(mm%60);
+    const cs = r.cycle_time_sec ?? 0;
+    setCycleM(Math.floor(cs/60)); setCycleS(cs%60);
+    setQuantity(r.quantity ?? "");
+    setInterruption(r.interruption_time_min ?? 0);
+    setWorkType(r.work_type ?? "量産");
+    setNote(r.note ?? "");
+    setMachineId(machines.find(m => m.machineCode === r.machine_code)?.id ?? null);
+    setSetupOps((r.setup_operator_ids as any) ?? []);
+    setProdOps((r.production_operator_ids as any) ?? []);
   };
 
-  const handleSubmit = async () => {
+  const handleSave = async () => {
     if (saving) return;
     setSaving(true);
     try {
-      const body: CreateWorkRecordBody = {
-        setup_time_min:        (setupH * 60 + setupM) || undefined,
-        machining_time_min:    (machH  * 60 + machM)  || undefined,
-        cycle_time_sec:        (cycleM * 60 + cycleS) || undefined,
-        quantity:              quantity !== "" ? Number(quantity) : undefined,
-        interruption_time_min: interruption || undefined,
-        work_type:             workType,
-        note:                  note || undefined,
-        machine_id:            machineId ?? undefined,
+      const base = {
+        setup_time_min:         (setupH*60+setupM) || undefined,
+        machining_time_min:     (machH*60+machM)   || undefined,
+        cycle_time_sec:         (cycleM*60+cycleS) || undefined,
+        quantity:               quantity !== "" ? Number(quantity) : undefined,
+        interruption_time_min:  interruption || undefined,
+        work_type:              workType,
+        note:                   note || undefined,
+        machine_id:             machineId ?? undefined,
+        setup_operator_ids:     setupOps.length > 0 ? setupOps : undefined,
+        production_operator_ids:prodOps.length  > 0 ? prodOps  : undefined,
       };
-      const res = await workRecordsApi.create(ncId, body);
-      if (!res.data?.id) throw new Error("登録失敗");
-      await endSession();
-      showToast("✅ 作業記録を登録しました");
-      setTimeout(() => router.push(`/nc/${ncId}`), 1200);
-    } catch {
-      showToast("❌ 登録に失敗しました");
-    } finally {
-      setSaving(false);
-    }
+      if (editRecordId) {
+        await workRecordsApi.update(ncId, editRecordId, base as UpdateWorkRecordBody);
+        showToast("✅ 更新しました");
+      } else {
+        const res = await workRecordsApi.create(ncId, base as CreateWorkRecordBody);
+        if (!res.data?.id) throw new Error();
+        await endSession();
+        showToast("✅ 作業記録を登録しました");
+        setTimeout(() => router.push(`/nc/${ncId}`), 1200);
+        return;
+      }
+      await loadData();
+      resetForm(nc);
+    } catch { showToast("❌ 保存に失敗しました"); }
+    finally { setSaving(false); }
   };
 
-  const handleUpdate = async () => {
-    if (saving || !editRecordId) return;
-    setSaving(true);
-    try {
-      const body: UpdateWorkRecordBody = {
-        setup_time_min:        (setupH * 60 + setupM) || undefined,
-        machining_time_min:    (machH  * 60 + machM)  || undefined,
-        cycle_time_sec:        (cycleM * 60 + cycleS) || undefined,
-        quantity:              quantity !== "" ? Number(quantity) : undefined,
-        interruption_time_min: interruption || undefined,
-        work_type:             workType,
-        note:                  note || undefined,
-        machine_id:            machineId ?? undefined,
-      };
-      await workRecordsApi.update(ncId, editRecordId, body);
-      const recRes = await workRecordsApi.list(ncId);
-      setAllRecords(recRes.data);
-      await endSession();
-      showToast("✅ 作業記録を更新しました");
-      setTimeout(() => router.push(`/nc/${ncId}`), 1200);
-    } catch {
-      showToast("❌ 更新に失敗しました");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!nc) return (
-    <div className="flex items-center justify-center h-screen text-slate-400">読み込み中…</div>
-  );
-
-  const part = nc.part;
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-400">読み込み中...</div>;
+  if (!nc)     return <div className="min-h-screen flex items-center justify-center text-red-500">データが見つかりません</div>;
 
   return (
-    <div className="flex flex-col h-screen bg-slate-100 overflow-hidden">
-
-      {/* グローバルヘッダー */}
-      <header className="bg-slate-800 text-white px-5 py-2.5 flex items-center gap-3 shrink-0">
-        <button
-          onClick={() => router.push(`/nc/${ncId}`)}
-          className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-white transition-colors shrink-0"
-        >
-          <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-          </span>
-          NC詳細
-        </button>
-        <span className="text-slate-600">|</span>
-        <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
-        <span className="text-slate-400 text-xs">|</span>
-        <span className="text-sm font-medium flex items-center gap-1.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録</span>
-        <span className="ml-auto">
-          {isAuthenticated && sessionInfo ? (
-            <span className="text-[11px] bg-emerald-700 text-white px-3 py-1 rounded font-bold">
-              作業中: {sessionInfo.operatorName}　{fmtElapsed(elapsed)}
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* ヘッダー */}
+      <header className="bg-slate-900 text-white px-4 py-2.5 flex items-center gap-3 shrink-0">
+        <button onClick={() => router.push(`/nc/${ncId}`)} className="text-slate-400 hover:text-white text-sm">← NC詳細</button>
+        <div className="flex items-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span className="font-bold text-sm">作業記録</span>
+        </div>
+        <div className="text-xs text-slate-400">{nc.part?.drawingNo} | {nc.part?.name}</div>
+        {isAuthenticated && (
+          <div className="ml-auto flex items-center gap-3">
+            <span className="text-xs bg-amber-500 text-white px-2.5 py-1 rounded-full font-bold animate-pulse">
+              ● 作業中 {fmtTime(elapsed)}
             </span>
-          ) : (
-            <span className="text-[11px] text-slate-400 bg-slate-700 px-2 py-1 rounded">
-              🔒 認証待ち
-            </span>
-          )}
-        </span>
+            <button onClick={() => endSession()} className="text-xs text-slate-400 hover:text-white">セッション終了</button>
+          </div>
+        )}
+        {!isAuthenticated && (
+          <button onClick={() => setShowAuth(true)} className="ml-auto text-xs bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded">
+            ⏱ 作業記録を入力
+          </button>
+        )}
       </header>
 
-      {/* 部品情報エリア */}
-      <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
-        <div className="flex items-center gap-3 mb-1">
-          <span className="font-mono text-sky-600 font-bold text-lg">{nc.part.drawingNo}</span>
-          <span className="text-[11px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded font-mono font-bold">L{nc.processL}</span>
-          <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-            nc.status === "APPROVED" ? "bg-green-100 text-green-700" :
-            nc.status === "PENDING_APPROVAL" ? "bg-amber-100 text-amber-700" :
-            nc.status === "CHANGING" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600"
-          }`}>
-            {nc.status === "APPROVED" ? "承認済" : nc.status === "PENDING_APPROVAL" ? "未承認" : nc.status === "CHANGING" ? "変更中" : nc.status}
-          </span>
-          <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {nc.version}</span>
-        </div>
-        <div className="text-sm text-slate-700 font-medium mb-1">{nc.part.name}</div>
-        <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
-          <span>NC_id: {nc.id}</span>
-          <span>部品ID: {nc.part.partId}</span>
-          {nc.part.clientName && <span>納入先: {nc.part.clientName}</span>}
-        </div>
-      </div>
-
-      {/* タブナビ */}
-      <nav className="bg-slate-800 px-5 flex gap-0 shrink-0 border-t border-slate-700">
-        <button onClick={() => router.push(`/nc/${ncId}`)}
-          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          NC詳細
-        </button>
-        <button onClick={() => router.push(`/nc/${ncId}/edit`)}
-          className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${"border-transparent text-slate-400 hover:text-slate-200"}`}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          変更・登録
-        </button>
-        <button onClick={() => router.push(`/nc/${ncId}/print`)}
-          className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${"border-transparent text-slate-400 hover:text-slate-200"}`}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-          段取シート
-        </button>
-        <button onClick={() => router.push(`/nc/${ncId}/record`)}
-          className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${"text-emerald-400 border-emerald-400"}`}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-          作業記録
-          {isAuthenticated && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />}
-        </button>
-      </nav>
-
-      {/* 上ペイン: 過去作業記録一覧 */}
-      <div className="bg-white border-b border-slate-200 shrink-0" style={{ maxHeight: "40%" }}>
-        <div className="flex items-center justify-between px-5 py-2 border-b border-slate-100">
-          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            過去の作業記録 ({allRecords.length}件)
-          </h3>
-
-        </div>
-        <div className="overflow-y-auto" style={{ maxHeight: "calc(40vh - 40px)" }}>
-          {allRecords.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-6">記録なし</p>
-          ) : (
-            <table className="w-full text-xs border-collapse">
-              <thead className="bg-slate-50 sticky top-0 z-10">
-                <tr>
-                  {["作業日", "担当者", "機械", "段取", "加工", "個数", "CT", "種別", "備考", ""].map(h => (
-                    <th key={h} className="px-3 py-2 text-left font-bold text-slate-500 border-b border-slate-200 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {allRecords.map((r, i) => (
-                  <tr key={r.id}
-                    className={`transition-colors ${
-                      editRecordId === r.id
-                        ? "bg-amber-50 border-l-2 border-l-amber-400"
-                        : i % 2 === 0 ? "bg-white hover:bg-slate-50" : "bg-slate-50 hover:bg-slate-100"
-                    }`}>
-                    <td className="px-3 py-2 font-mono whitespace-nowrap text-slate-500">{fmtDate(r.work_date)}</td>
-                    <td className="px-3 py-2">{r.operator_name ?? "—"}</td>
-                    <td className="px-3 py-2 font-mono">{r.machine_code ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">{fmtMin(r.setup_time)}</td>
-                    <td className="px-3 py-2 text-right">{fmtMin(r.machining_time)}</td>
-                    <td className="px-3 py-2 text-right">{r.quantity ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">{fmtSec(r.cycle_time_sec)}</td>
-                    <td className="px-3 py-2">
-                      {r.work_type && (
-                        <span className="bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded">{r.work_type}</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-slate-400 max-w-[200px] truncate">{r.note ?? ""}</td>
-                    <td className="px-3 py-2">
-                      <button
-                        onClick={() => {
-                          if (!isAuthenticated) { setShowAuthModal(true); return; }
-                          loadRecord(r);
-                        }}
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded transition-colors ${
-                          editRecordId === r.id
-                            ? "bg-amber-400 text-white"
-                            : "bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-700"
-                        }`}>
-                        ✏️ 編集
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-
-      {/* 認証前ロックカード */}
-      {!isAuthenticated && (
-        <div className="max-w-lg mx-auto mt-8 px-5">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 w-full text-center">
-            <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-4">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            </div>
-            <div className="font-bold text-slate-700 text-base mb-1">作業記録 — 作業開始前</div>
-            <div className="text-slate-500 text-sm mb-5">段取・加工時間、ワーク数を記録するには担当者の確認が必要です。</div>
-            <button onClick={() => setShowAuthModal(true)}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium transition-colors w-full justify-center">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              この作業を開始する（担当者確認）
-            </button>
-            <div className="text-xs text-slate-400 mt-3">担当者の選択とパスワード確認後に記録を入力・編集できます</div>
+      <div className="flex flex-1 min-h-0">
+        {/* 左ペイン: 過去記録一覧 */}
+        <div className="w-[420px] shrink-0 bg-white border-r border-slate-200 flex flex-col">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <span className="text-sm font-bold text-slate-600">過去の作業記録（{records.length}件）</span>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {records.length === 0 && (
+              <p className="text-center py-12 text-slate-400 text-sm">記録がありません</p>
+            )}
+            {records.map(r => (
+              <div key={r.id}
+                className={`px-4 py-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors ${editRecordId === r.id ? "bg-sky-50 border-l-4 border-l-sky-500" : ""}`}
+                onClick={() => handleEdit(r)}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-slate-500">{r.work_date?.slice(0,10)}</span>
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                    r.work_type === "量産" ? "bg-green-100 text-green-700" :
+                    r.work_type === "試作" ? "bg-purple-100 text-purple-700" :
+                    r.work_type === "変更" ? "bg-orange-100 text-orange-700" :
+                    "bg-slate-100 text-slate-600"
+                  }`}>{r.work_type ?? "量産"}</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-slate-600">
+                  <span>担当: {r.operator_name ?? "—"}</span>
+                  <span>機械: {r.machine_code ?? "—"}</span>
+                  {r.quantity && <span>{r.quantity}個</span>}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
+                  <span>段取: {fmtMin(r.setup_time)}</span>
+                  <span>加工: {fmtMin(r.machining_time)}</span>
+                  {r.interruption_time_min ? <span>中断: {r.interruption_time_min}m</span> : null}
+                </div>
+                {(r.setup_operator_ids as any)?.length > 0 && (
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    段取担当: {((r.setup_operator_ids as any) as number[]).map(id =>
+                      allUsers.find(u => u.id === id)?.name ?? `id:${id}`).join(", ")}
+                  </div>
+                )}
+                {(r.production_operator_ids as any)?.length > 0 && (
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    量産担当: {((r.production_operator_ids as any) as number[]).map(id =>
+                      allUsers.find(u => u.id === id)?.name ?? `id:${id}`).join(", ")}
+                  </div>
+                )}
+                {r.note && <div className="text-xs text-slate-400 mt-0.5 truncate">備考: {r.note}</div>}
+              </div>
+            ))}
           </div>
         </div>
-      )}
 
-      {/* 下ペイン: 入力フォーム */}
-      <div className={`flex-1 overflow-y-auto transition-opacity ${
-        isAuthenticated ? "opacity-100" : "opacity-50 pointer-events-none select-none"
-      }`}>
-        <div className="max-w-2xl mx-auto p-5 space-y-4">
-
+        {/* 右ペイン: 入力フォーム */}
+        <div className={`flex-1 overflow-y-auto p-5 ${!isAuthenticated && !editRecordId ? "opacity-50 pointer-events-none select-none" : ""}`}>
           {/* モードバー */}
-          <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold ${
-            editMode
-              ? "bg-amber-100 border border-amber-300 text-amber-800"
-              : "bg-sky-50 border border-sky-200 text-sky-700"
+          <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold mb-4 ${
+            editRecordId ? "bg-amber-100 border border-amber-300 text-amber-800" : "bg-sky-50 border border-sky-200 text-sky-700"
           }`}>
-            <span>{editMode ? "✏️ 編集モード — 選択した記録を修正します" : "＋ 新規入力モード"}</span>
-            {editMode && (
-              <button onClick={() => resetForm(nc)}
-                className="text-xs bg-white border border-slate-300 text-slate-600 px-2 py-1 rounded hover:bg-slate-50 transition-colors">
+            <span>{editRecordId ? `✏️ 編集モード — 記録ID: ${editRecordId}` : "＋ 新規入力モード"}</span>
+            {editRecordId && (
+              <button onClick={() => resetForm(nc)} className="text-xs bg-white border border-slate-300 text-slate-600 px-2 py-1 rounded hover:bg-slate-50">
                 ＋ 新規に戻す
               </button>
             )}
           </div>
 
-          {/* 機械選択 */}
-          <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">使用機械</label>
-            <select
-              value={machineId ?? ""}
-              onChange={e => setMachineId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300">
-              <option value="">— 機械を選択 —</option>
-              {machines.map(m => (
-                <option key={m.id} value={m.id}>{m.id} : {m.machineName}</option>
-              ))}
-            </select>
-          </div>
+          <div className="space-y-4 max-w-2xl">
+            {/* 種別 + 機械 */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-2">種別 *</label>
+                <div className="flex gap-2 flex-wrap">
+                  {["量産","試作","変更","新規登録"].map(t => (
+                    <button key={t} type="button" onClick={() => setWorkType(t)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${workType === t ? "bg-sky-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-2">使用機械</label>
+                <select value={machineId ?? ""}
+                  onChange={e => setMachineId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white">
+                  <option value="">— 選択 —</option>
+                  {machines.map(m => <option key={m.id} value={m.id}>{m.id} : {m.machineName}</option>)}
+                </select>
+              </div>
+            </div>
 
-          {/* 時間入力 */}
-          <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">作業時間</label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="space-y-1">
-                <span className="text-xs text-slate-500">段取時間</span>
-                <TimeInput h={setupH} m={setupM} onH={setSetupH} onM={setSetupM} />
-              </div>
-              <div className="space-y-1">
-                <span className="text-xs text-slate-500">加工時間</span>
-                <TimeInput h={machH} m={machM} onH={setMachH} onM={setMachM} />
-              </div>
-              <div className="space-y-1">
-                <span className="text-xs text-slate-500">サイクルタイム</span>
-                <div className="flex items-center gap-1.5">
-                  <NumInput value={cycleM} onChange={setCycleM} min={0} className="w-16" />
-                  <span className="text-xs text-slate-400">m</span>
-                  <NumInput value={cycleS} onChange={setCycleS} min={0} max={59} className="w-16" />
-                  <span className="text-xs text-slate-400">s</span>
+            {/* 段取セクション */}
+            <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 space-y-3">
+              <div className="text-sm font-bold text-blue-700 border-b border-blue-200 pb-2">🔧 段取</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">段取時間</label>
+                  <TimeInput h={setupH} m={setupM} onH={setSetupH} onM={setSetupM} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">段取担当者（複数可）</label>
+                  <MultiUserSelect users={allUsers} selected={setupOps} onChange={setSetupOps} placeholder="担当者を選択..." />
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* 個数・中断 */}
-          <div className="bg-white rounded-lg border border-slate-200 p-4 grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">個数</label>
-              <div className="flex items-center gap-2">
-                <input type="number" min={0} value={quantity}
-                  onChange={e => setQuantity(e.target.value === "" ? "" : parseInt(e.target.value))}
-                  placeholder="個数を入力"
-                  className="border border-slate-300 rounded px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-sky-300" />
-                <span className="text-sm text-slate-400">個</span>
+            {/* 量産セクション */}
+            <div className="bg-green-50 rounded-xl border border-green-200 p-4 space-y-3">
+              <div className="text-sm font-bold text-green-700 border-b border-green-200 pb-2">⚙️ 量産</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">加工時間</label>
+                  <TimeInput h={machH} m={machM} onH={setMachH} onM={setMachM} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">量産担当者（複数可）</label>
+                  <MultiUserSelect users={allUsers} selected={prodOps} onChange={setProdOps} placeholder="担当者を選択..." />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">加工個数</label>
+                  <div className="flex items-center gap-1">
+                    <input type="number" min={0} value={quantity}
+                      onChange={e => setQuantity(e.target.value === "" ? "" : Number(e.target.value))}
+                      className="border border-slate-300 rounded px-2 py-1.5 text-sm w-20 focus:outline-none focus:ring-2 focus:ring-sky-300" />
+                    <span className="text-xs text-slate-400">個</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">サイクルタイム</label>
+                  <div className="flex items-center gap-1">
+                    <NumInput value={cycleM} onChange={setCycleM} /><span className="text-xs text-slate-400">m</span>
+                    <NumInput value={cycleS} onChange={setCycleS} min={0} max={59} /><span className="text-xs text-slate-400">s</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">中断時間</label>
+                  <div className="flex items-center gap-1">
+                    <NumInput value={interruption} onChange={setInterruption} className="w-16" />
+                    <span className="text-xs text-slate-400">分</span>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">中断時間</label>
-              <div className="flex items-center gap-2">
-                <NumInput value={interruption} onChange={setInterruption} min={0} className="w-20" />
-                <span className="text-xs text-slate-400">分</span>
-              </div>
+
+            {/* 備考 */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <label className="text-xs font-bold text-slate-500 block mb-2">備考</label>
+              <textarea value={note} onChange={e => setNote(e.target.value)} maxLength={1000} rows={3}
+                className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300 resize-none"
+                placeholder="問題点・注意事項・特記事項（誤入力は「取消:理由」と記入）" />
+              <div className="text-right text-xs text-slate-400 mt-1">{note.length} / 1000</div>
             </div>
-          </div>
 
-          {/* 種別 */}
-          <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
-              種別 <span className="text-red-500">*</span>
-            </label>
-            <div className="flex gap-2 flex-wrap">
-              {WORK_TYPES.map(t => (
-                <button key={t} onClick={() => setWorkType(t)}
-                  className={`px-4 py-1.5 rounded text-sm font-medium border transition-colors ${
-                    workType === t
-                      ? "bg-sky-600 border-sky-600 text-white"
-                      : "bg-white border-slate-300 text-slate-600 hover:border-sky-400"
-                  }`}>{t}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* 備考 */}
-          <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">備考</label>
-            <textarea value={note} onChange={e => setNote(e.target.value)}
-              maxLength={1000} rows={3}
-              placeholder="問題点・注意事項・特記事項など"
-              className="w-full border border-slate-300 rounded px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-sky-300" />
-            <div className="text-right text-xs text-slate-400">{note.length}/1000</div>
-          </div>
-
-          {/* アクションボタン */}
-          <div className="flex gap-3 pt-2 pb-8">
-            {!editMode ? (
-              <button onClick={handleSubmit} disabled={saving}
-                className="flex-1 bg-sky-600 hover:bg-sky-700 disabled:bg-sky-300 text-white font-bold py-3 rounded-lg text-sm transition-colors">
-                {saving ? "登録中…" : "✓ 作業完了（登録）"}
+            {/* ボタン */}
+            <div className="flex gap-3">
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 py-3 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white font-bold text-sm transition-colors">
+                {saving ? "保存中..." : editRecordId ? "✓ 更新（保存）" : "✓ 作業完了（登録）"}
               </button>
-            ) : (
-              <>
-                <button onClick={handleUpdate} disabled={saving}
-                  className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white font-bold py-3 rounded-lg text-sm transition-colors">
-                  {saving ? "更新中…" : "✓ 更新（保存）"}
-                </button>
-              </>
-            )}
-            <button onClick={handleCancel}
-              className="px-5 py-3 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition-colors">
-              ✗ キャンセル
-            </button>
+              <button onClick={() => { resetForm(nc); if (!editRecordId) endSession(); router.push(`/nc/${ncId}`); }}
+                className="px-6 py-3 rounded-xl border border-slate-300 text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors">
+                ✕ キャンセル
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* 認証モーダル */}
-      {showAuthModal && (
-        <AuthModal ncId={ncId} sessionType="work_record"
-          onSuccess={handleAuthSuccess}
-          onCancel={() => setShowAuthModal(false)} />
+      {showAuth && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="bg-slate-800 px-5 py-4">
+              <h2 className="text-white font-bold">⏱ 作業記録 — 担当者認証</h2>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-2">担当者を選択</label>
+                <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
+                  {authUsers.map(u => (
+                    <button key={u.id} type="button" onClick={() => { setSelOpId(u.id); setAuthError(""); }}
+                      className={`py-2 px-1 rounded-lg text-xs font-bold border transition-colors ${selOpId === u.id ? "bg-sky-600 text-white border-sky-600" : "bg-white text-slate-700 border-slate-200 hover:border-sky-400"}`}>
+                      {u.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">パスワード</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleAuth()}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+              </div>
+              {authError && <p className="text-red-600 text-sm bg-red-50 rounded px-3 py-2">{authError}</p>}
+              <div className="flex gap-3">
+                <button onClick={() => { setShowAuth(false); setPassword(""); setAuthError(""); }}
+                  className="flex-1 py-2 rounded-lg border border-slate-300 text-slate-600 text-sm font-medium">キャンセル</button>
+                <button onClick={handleAuth} disabled={authLoading || !selOpId || !password}
+                  className="flex-1 py-2 rounded-lg bg-sky-600 text-white text-sm font-bold disabled:opacity-40">
+                  {authLoading ? "認証中..." : "確認して開始"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 right-6 bg-slate-800 text-white px-5 py-3 rounded-lg shadow-lg text-sm z-50">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-bold z-50">
           {toast}
         </div>
       )}
     </div>
-  );
-}
-
-export default function RecordPage() {
-  return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center h-screen text-slate-400">読み込み中…</div>
-    }>
-      <RecordPageInner />
-    </Suspense>
   );
 }

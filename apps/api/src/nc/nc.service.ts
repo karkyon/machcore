@@ -322,6 +322,8 @@ export class NcService {
       interruption_time_min: r.interruptionTimeMin,
       work_type:            r.workType,
       note:                 r.note,
+      setup_operator_ids:      r.setupOperatorIds,
+      production_operator_ids: r.productionOperatorIds,
     };
   }
 
@@ -353,6 +355,8 @@ export class NcService {
         interruptionTimeMin: dto.interruption_time_min ?? null,
         workType:            dto.work_type             ?? null,
         note:                dto.note                  ?? null,
+        setupOperatorIds:      dto.setup_operator_ids      ?? [],
+        productionOperatorIds: dto.production_operator_ids ?? [],
       },
     });
  
@@ -384,6 +388,8 @@ export class NcService {
         workType:            dto.work_type             !== undefined ? dto.work_type             : record.workType,
         note:                dto.note                 !== undefined ? dto.note                  : record.note,
         machineId:           dto.machine_id            !== undefined ? dto.machine_id            : record.machineId,
+        setupOperatorIds:      dto.setup_operator_ids      !== undefined ? dto.setup_operator_ids      : (record.setupOperatorIds as any ?? []),
+        productionOperatorIds: dto.production_operator_ids !== undefined ? dto.production_operator_ids : (record.productionOperatorIds as any ?? []),
       },
     });
 
