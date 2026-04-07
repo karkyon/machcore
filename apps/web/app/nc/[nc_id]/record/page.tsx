@@ -404,12 +404,7 @@ function RecordPageInner() {
           <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
             過去の作業記録 ({allRecords.length}件)
           </h3>
-          {!isAuthenticated && (
-            <button onClick={() => setShowAuthModal(true)}
-              className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow">
-              この作業を開始する
-            </button>
-          )}
+
         </div>
         <div className="overflow-y-auto" style={{ maxHeight: "calc(40vh - 40px)" }}>
           {allRecords.length === 0 ? (
