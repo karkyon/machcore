@@ -159,6 +159,10 @@ export default function AdminUsersPage() {
       </div>
       <div className="ml-auto flex items-center gap-3">
         <span className="text-xs text-slate-400">{adminUser?.name}（管理者）</span>
+        <a href="/nc/search"
+          className="text-xs bg-slate-600 hover:bg-slate-500 text-slate-200 px-3 py-1.5 rounded transition-colors">
+          ← NC画面
+        </a>
         <button onClick={handleLogout}
           className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded transition-colors">
           ログアウト
