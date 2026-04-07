@@ -207,34 +207,7 @@ export default function NcDetailPage() {
           <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
           <span className="text-slate-400 text-xs">|</span>
           <span className="text-sm font-medium">NC 詳細</span>
-          <span className="ml-auto flex items-center gap-2">
-            {isAuthenticated && operator ? (
-              <>
-                <span className="text-[11px] bg-red-600 text-white px-2 py-0.5 rounded font-bold animate-pulse">
-                  作業中: {operator.name}
-                </span>
-                <button
-                  onClick={logout}
-                  className="text-[11px] text-slate-400 hover:text-white transition-colors"
-                >
-                  終了
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => openAuth("edit")}
-                className="text-[11px] bg-sky-600 hover:bg-sky-700 text-white px-3 py-1 rounded font-bold transition-colors"
-              >
-                この作業を開始する
-              </button>
-            )}
-            <button
-              onClick={() => { setPendingUsb(true); openAuth("usb_download"); }}
-              className="text-[11px] bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded font-bold transition-colors"
-            >
-              PG → USB 書き出し
-            </button>
-          </span>
+
         </header>
 
         {/* ── 部品ヘッダーエリア ── */}
