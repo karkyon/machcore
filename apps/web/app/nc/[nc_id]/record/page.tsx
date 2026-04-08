@@ -437,7 +437,7 @@ export default function RecordPage() {
                     </div>
                     <div>
                       <label className="text-xs font-bold text-slate-500 block mb-1">段取終了日時</label>
-                      <input type="datetime-local" value={setupEnd} onChange={e => setSetupEnd(e.target.value)}
+                      <input type="datetime-local" value={setupEnd} onChange={e => { setSetupEnd(e.target.value); setProdStart(e.target.value); }}
                         className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" />
                     </div>
                   </div>
@@ -488,7 +488,7 @@ export default function RecordPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-xs font-bold text-slate-500 block mb-1">量産開始日時</label>
-                      <input type="datetime-local" value={prodStart} onChange={e => setProdStart(e.target.value)}
+                      <input type="datetime-local" value={prodStart} onChange={e => { setProdStart(e.target.value); setSetupEnd(e.target.value); }}
                         className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" />
                     </div>
                     <div>
