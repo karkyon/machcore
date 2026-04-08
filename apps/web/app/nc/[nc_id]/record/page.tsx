@@ -129,8 +129,7 @@ export default function RecordPage() {
   // 担当者複数選択
   const [setupOps,    setSetupOps]    = useState<number[]>([]);
   const [prodOps,     setProdOps]     = useState<number[]>([]);
-  const [setupTimeMode,   setSetupTimeMode]   = useState<"hm"|"datetime">("hm");
-  const [prodTimeMode,    setProdTimeMode]    = useState<"hm"|"datetime">("hm");
+  const [timeMode, setTimeMode] = useState<"hm"|"datetime">("hm");
   const [setupStart,  setSetupStart]  = useState("");
   const [setupEnd,    setSetupEnd]    = useState("");
   const [prodStart,   setProdStart]   = useState("");
@@ -213,7 +212,7 @@ export default function RecordPage() {
     setSetupH(0); setSetupM(0); setMachH(0); setMachM(0);
     setCycleM(0); setCycleS(0); setQuantity(""); setInterruption(0);
     setSetupOps([]); setProdOps([]);
-    setSetupTimeMode("hm"); setProdTimeMode("hm");
+    setTimeMode("hm");
     setSetupStart(""); setSetupEnd(""); setProdStart(""); setProdEnd("");
     setSetupInterruption(0);
     if (ncData?.machine?.id) setMachineId(ncData.machine.id);
@@ -243,11 +242,11 @@ export default function RecordPage() {
     setSaving(true);
     try {
       const base = {
-        setup_time_min:         setupTimeMode==="datetime" && setupStart && setupEnd
+        setup_time_min:         timeMode==="datetime" && setupStart && setupEnd
           ? Math.max(0, Math.round((new Date(setupEnd).getTime()-new Date(setupStart).getTime())/60000) - setupInterruption)
           : (setupH*60+setupM) || undefined,
-        interruption_time_min:  setupTimeMode==="datetime" ? (setupInterruption || undefined) : (interruption || undefined),
-        machining_time_min:     prodTimeMode==="datetime" && prodStart && prodEnd
+        interruption_time_min:  timeMode==="datetime" ? (setupInterruption || undefined) : (interruption || undefined),
+        machining_time_min:     timeMode==="datetime" && prodStart && prodEnd
           ? Math.max(0, Math.round((new Date(prodEnd).getTime()-new Date(prodStart).getTime())/60000) - (interruption||0))
           : (machH*60+machM) || undefined,
         cycle_time_sec:         (cycleM*60+cycleS) || undefined,
@@ -400,17 +399,17 @@ export default function RecordPage() {
                 <span className="text-sm font-bold text-blue-700">🔧 段取</span>
                 <div className="flex items-center gap-2 text-xs">
                   <span className="text-slate-500">入力方法:</span>
-                  <button type="button" onClick={() => setSetupTimeMode("hm")}
-                    className={`px-2 py-0.5 rounded font-bold transition-colors ${setupTimeMode==="hm" ? "bg-blue-600 text-white" : "bg-white text-slate-500 border border-slate-300"}`}>
+                  <button type="button" onClick={() => setTimeMode("hm")}
+                    className={`px-2 py-0.5 rounded font-bold transition-colors ${timeMode==="hm" ? "bg-blue-600 text-white" : "bg-white text-slate-500 border border-slate-300"}`}>
                     h/m入力
                   </button>
-                  <button type="button" onClick={() => setSetupTimeMode("datetime")}
-                    className={`px-2 py-0.5 rounded font-bold transition-colors ${setupTimeMode==="datetime" ? "bg-blue-600 text-white" : "bg-white text-slate-500 border border-slate-300"}`}>
+                  <button type="button" onClick={() => setTimeMode("datetime")}
+                    className={`px-2 py-0.5 rounded font-bold transition-colors ${timeMode==="datetime" ? "bg-blue-600 text-white" : "bg-white text-slate-500 border border-slate-300"}`}>
                     開始/終了日時
                   </button>
                 </div>
               </div>
-              {setupTimeMode === "hm" ? (
+              {timeMode === "hm" ? (
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">段取時間</label>
