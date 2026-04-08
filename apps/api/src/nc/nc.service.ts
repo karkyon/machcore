@@ -293,8 +293,14 @@ export class NcService {
     return rows.map(r => ({
       id: r.id, work_date: r.workDate, operator_name: r.operator?.name ?? null,
       machine_code: r.machine?.machineCode ?? null,
+      machine_id: r.machineId,
       setup_time: r.setupTimeMin, machining_time: r.machiningTimeMin,
+      cycle_time_sec: r.cycleTimeSec,
       quantity: r.quantity, note: r.note,
+      interruption_time_min: r.interruptionTimeMin,
+      work_type: r.workType,
+      setup_operator_ids:      r.setupOperatorIds,
+      production_operator_ids: r.productionOperatorIds,
     }));
   }
  
