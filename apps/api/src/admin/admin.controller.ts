@@ -300,7 +300,7 @@ export class AdminController {
   @Get('printers')
   getPrinters() {
     try {
-      const out = execSync('lpstat -p 2>/dev/null', { encoding: 'utf-8', timeout: 5000 });
+      const out = execSync('/usr/bin/lpstat -p 2>/dev/null', { encoding: 'utf-8', timeout: 5000 });
       const printers = out.split('\n')
         .filter(l => l.startsWith('printer '))
         .map(l => { const m = l.match(/^printer (\S+)/); return m ? m[1] : null; })
