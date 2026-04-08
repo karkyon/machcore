@@ -156,6 +156,18 @@ export class NcController {
     return this.nc.getPrintData(id);
   }
 
+  /** NC-08b: ダイレクト印刷（JWT必須） */
+  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
+  @Post(":nc_id/direct-print")
+  async directPrint(
+    @Param("nc_id", ParseIntPipe) id: number,
+    @Body() dto: PrintNcDto,
+    @Req() req: any,
+  ) {
+    return this.nc.directPrint(id, req.user.id, dto);
+  }
+
   /** NC-08: 段取シートPDF生成（JWT必須） */
   @UseGuards(AuthGuard("jwt"), RolesGuard)
   @Roles("OPERATOR", "ADMIN")

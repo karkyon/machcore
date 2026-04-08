@@ -42,6 +42,7 @@ export default function PrintPage() {
 
   // ── 状態 ──
   const [printing,  setPrinting]  = useState(false);
+  const [directPrinting, setDirectPrinting] = useState(false);
   const [printError, setPrintError] = useState<string | null>(null);
   const [toast,     setToast]     = useState<string | null>(null);
 
@@ -135,6 +136,30 @@ export default function PrintPage() {
     } finally {
       setPrinting(false);
     }
+  };
+
+  // ── ダイレクト印刷 ──
+  const handleDirectPrint = async () => {
+    if (!token) { setPrintError("認証が必要です"); return; }
+    setDirectPrinting(true); setPrintError(null);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3011/api";
+      const res = await fetch(`${apiUrl}/nc/${ncId}/direct-print`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ include_tools: includeTools, include_clamp: includeClamp, include_drawings: includeDrawings }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.message ?? `HTTP ${res.status}`);
+      }
+      const result = await res.json();
+      logout();
+      showToast(`✅ ${result.message}`);
+      setTimeout(() => router.push(`/nc/${ncId}`), 1500);
+    } catch (e: any) {
+      setPrintError(e.message ?? "印刷に失敗しました");
+    } finally { setDirectPrinting(false); }
   };
 
   // ── キャンセル ──
@@ -327,6 +352,13 @@ export default function PrintPage() {
                       : <><span>🖨</span> 作業完了（印刷実行）</>
                     }
                   </button>
+              <button
+                onClick={handleDirectPrint}
+                disabled={directPrinting || printing}
+                className="w-full py-3 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
+              >
+                {directPrinting ? "印刷中..." : "🖨 ダイレクト印刷（プリンタへ直接送信）"}
+              </button>
                   <button
                     onClick={handleDownload}
                     disabled={printing}

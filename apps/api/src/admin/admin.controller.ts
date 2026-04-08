@@ -1,3 +1,4 @@
+import { execSync } from "child_process";
 import {
   Controller, Get, Post, Put, Delete, Body, UseGuards,
   Param, ParseIntPipe, Query, BadRequestException,
@@ -292,5 +293,43 @@ export class AdminController {
         ...(body.is_active    != null && { isActive: body.is_active }),
       },
     });
+  }
+  /** プリンタ一覧取得（CUPS lpstat） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('printers')
+  getPrinters() {
+    try {
+      const out = execSync('lpstat -p 2>/dev/null', { encoding: 'utf-8', timeout: 5000 });
+      const printers = out.split('\n')
+        .filter(l => l.startsWith('printer '))
+        .map(l => { const m = l.match(/^printer (\S+)/); return m ? m[1] : null; })
+        .filter(Boolean);
+      return { printers };
+    } catch {
+      return { printers: [] };
+    }
+  }
+
+  /** プリンタ設定更新 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Put('printer')
+  async updatePrinter(@Body() body: { printer_name: string }) {
+    await this.prisma.companySetting.upsert({
+      where: { id: 1 },
+      update: { printerName: body.printer_name },
+      create: { id: 1, companyName: '', printerName: body.printer_name },
+    });
+    return { message: 'プリンタ設定を更新しました' };
+  }
+
+  /** プリンタ設定取得 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('printer')
+  async getPrinter() {
+    const s = await this.prisma.companySetting.findFirst({ select: { printerName: true } });
+    return { printer_name: s?.printerName ?? null };
   }
 }

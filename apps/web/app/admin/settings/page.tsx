@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { adminSettingsApi } from "../../../lib/api";
+import { adminSettingsApi, adminPrinterApi } from "../../../lib/api";
 
 export default function AdminSettingsPage() {
   const router = useRouter();
@@ -13,6 +13,8 @@ export default function AdminSettingsPage() {
   const [loading,     setLoading]     = useState(true);
   const [saving,      setSaving]      = useState(false);
   const [toast,       setToast]       = useState<{ msg: string; ok: boolean } | null>(null);
+  const [printerList,   setPrinterList]   = useState<string[]>([]);
+  const [selectedPrinter, setSelectedPrinter] = useState("");
 
   const getToken = () => sessionStorage.getItem("admin_token") ?? "";
 
@@ -22,7 +24,9 @@ export default function AdminSettingsPage() {
     Promise.all([
       adminSettingsApi.getCompany(token),
       adminSettingsApi.getStorage(token),
-    ]).then(([comp, stor]) => {
+      adminPrinterApi.list(token),
+      adminPrinterApi.get(token),
+    ]).then(([comp, stor, printers, currentPrinter]) => {
       setCompanyName(comp.data.companyName ?? "");
       setLogoPath(comp.data.logoPath ?? "");
       setStoragePath(stor.data.uploadBasePath ?? "");
@@ -45,6 +49,17 @@ export default function AdminSettingsPage() {
       showToast("会社設定を保存しました", true);
     } catch {
       showToast("保存に失敗しました", false);
+    } finally { setSaving(false); }
+  };
+
+  const handleSavePrinter = async () => {
+    const token = getToken();
+    setSaving(true);
+    try {
+      await adminPrinterApi.update(selectedPrinter, token);
+      setToast({ msg: "✅ プリンタ設定を保存しました", ok: true });
+    } catch {
+      setToast({ msg: "❌ 保存に失敗しました", ok: false });
     } finally { setSaving(false); }
   };
 
@@ -170,6 +185,38 @@ export default function AdminSettingsPage() {
                 <button
                   onClick={handleSaveStorage}
                   disabled={saving}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
+                >
+                  {saving ? "保存中…" : "保存"}
+                </button>
+              </div>
+            </section>
+
+            {/* ── プリンタ設定 ── */}
+            <section className="bg-white rounded-xl shadow p-6 space-y-4">
+              <h2 className="text-base font-bold text-slate-700 border-b border-slate-100 pb-2">
+                🖨 ダイレクト印刷プリンタ設定
+              </h2>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">使用プリンタ</label>
+                <select
+                  value={selectedPrinter}
+                  onChange={e => setSelectedPrinter(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white"
+                >
+                  <option value="">— 選択してください —</option>
+                  {printerList.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  サーバに登録されているCUPSプリンタが表示されます。段取シート画面のダイレクト印刷で使用されます。
+                </p>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSavePrinter}
+                  disabled={saving || !selectedPrinter}
                   className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
                 >
                   {saving ? "保存中…" : "保存"}

@@ -377,6 +377,15 @@ export type CompanySetting = {
   uploadBasePath: string | null;
 };
 
+export const adminPrinterApi = {
+  list:   (token: string) =>
+    api.get<{ printers: string[] }>('/admin/printers', { headers: { Authorization: `Bearer ${token}` } }),
+  get:    (token: string) =>
+    api.get<{ printer_name: string | null }>('/admin/printer', { headers: { Authorization: `Bearer ${token}` } }),
+  update: (printer_name: string, token: string) =>
+    api.put('/admin/printer', { printer_name }, { headers: { Authorization: `Bearer ${token}` } }),
+};
+
 export const adminSettingsApi = {
   getCompany:    (token: string) =>
     api.get<CompanySetting>('/admin/company', { headers: { Authorization: `Bearer ${token}` } }),

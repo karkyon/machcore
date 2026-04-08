@@ -5,6 +5,7 @@ import { CreateNcDto } from "./dto/create-nc.dto";
 import { UpdateNcDto } from "./dto/update-nc.dto";
 
 import * as fs from 'fs';
+import { execSync } from 'child_process';
 import * as path from 'path';
 import * as chardet from 'chardet';
 import * as iconv from 'iconv-lite';
@@ -280,7 +281,32 @@ export class NcService {
     }));
   }
 
-    /** WR-01: 作業記録一覧 */
+    /** PRT-03: ダイレクト印刷 */
+  async directPrint(
+    ncProgramId: number,
+    operatorId: number,
+    options: { include_tools?: boolean; include_clamp?: boolean; include_drawings?: boolean },
+  ): Promise<{ message: string }> {
+    // プリンタ名取得
+    const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true } });
+    const printerName = setting?.printerName;
+    if (!printerName) throw new Error('プリンタが設定されていません。管理者設定で設定してください。');
+
+    // PDF生成
+    const pdfBuffer = await this.generateSetupSheetPdf(ncProgramId, operatorId, options);
+
+    // 一時ファイルに書き出してlpで印刷
+    const tmpPath = `/tmp/machcore-print-${ncProgramId}-${Date.now()}.pdf`;
+    fs.writeFileSync(tmpPath, pdfBuffer);
+    try {
+      execSync(`lp -d ${printerName} -o media=A4 -o fit-to-page "${tmpPath}"`, { timeout: 15000 });
+    } finally {
+      try { fs.unlinkSync(tmpPath); } catch {}
+    }
+    return { message: `${printerName} に送信しました` };
+  }
+
+  /** WR-01: 作業記録一覧 */
   async workRecords(ncProgramId: number) {
     const rows = await this.prisma.workRecord.findMany({
       where:   { ncProgramId },
