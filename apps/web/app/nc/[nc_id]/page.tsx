@@ -144,7 +144,13 @@ export default function NcDetailPage() {
   useEffect(() => {
     if (!ncId) return;
     ncApi.findOne(ncId)
-      .then(r => setDetail(r.data))
+      .then(r => {
+        setDetail(r.data);
+        const partId = (r.data as any)?.part?.id;
+        if (partId) {
+          ncApi.byPart(partId).then(p => setProcesses(p.data ?? [])).catch(() => {});
+        }
+      })
       .catch(e => setLoadError(e.message));
   }, [ncId]);
 

@@ -298,8 +298,11 @@ export default function RecordPage() {
         const res = await workRecordsApi.create(ncId, base as CreateWorkRecordBody, workToken);
         if (!res.data?.id) throw new Error();
         // 段取シート回収済みマーク
-        if (selectedSheet && workToken) {
-          try { await ncApi.collectSetupSheet(ncId, selectedSheet.id, workToken); } catch {}
+        if (selectedSheet) {
+          const tok = workToken || localStorage.getItem("work_token") || "";
+          if (tok) {
+            try { await ncApi.collectSetupSheet(ncId, selectedSheet.id, tok); } catch (e) { console.error("collect error", e); }
+          }
         }
         await endSession();
         showToast("✅ 作業記録を登録しました");
