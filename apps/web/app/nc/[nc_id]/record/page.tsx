@@ -465,32 +465,64 @@ export default function RecordPage() {
             {/* 量産セクション */}
             <div className="bg-green-50 rounded-xl border border-green-200 p-4 space-y-3">
               <div className="text-sm font-bold text-green-700 border-b border-green-200 pb-2">⚙️ 量産</div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">加工時間</label>
-                  <TimeInput h={machH} m={machM} onH={setMachH} onM={setMachM} />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">量産担当者（複数可）</label>
-                  <MultiUserSelect users={allUsers} selected={prodOps} onChange={setProdOps} placeholder="担当者を選択..." />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">加工個数</label>
-                  <div className="flex items-center gap-1">
-                    <input type="number" min={0} value={quantity}
-                      onChange={e => setQuantity(e.target.value === "" ? "" : Number(e.target.value))}
-                      className="border border-slate-300 rounded px-2 py-1.5 text-sm w-20 focus:outline-none focus:ring-2 focus:ring-sky-300" />
-                    <span className="text-xs text-slate-400">個</span>
+              {timeMode === "hm" ? (
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">加工時間</label>
+                    <TimeInput h={machH} m={machM} onH={setMachH} onM={setMachM} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">中断時間</label>
+                    <div className="flex items-center gap-1">
+                      <NumInput value={interruption} onChange={setInterruption} className="w-16" />
+                      <span className="text-xs text-slate-400">分</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">量産担当者（複数可）</label>
+                    <MultiUserSelect users={allUsers} selected={prodOps} onChange={setProdOps} placeholder="担当者を選択..." />
                   </div>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">中断時間</label>
-                  <div className="flex items-center gap-1">
-                    <NumInput value={interruption} onChange={setInterruption} className="w-16" />
-                    <span className="text-xs text-slate-400">分</span>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">量産開始日時</label>
+                      <input type="datetime-local" value={prodStart} onChange={e => setProdStart(e.target.value)}
+                        className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">量産終了日時</label>
+                      <input type="datetime-local" value={prodEnd} onChange={e => setProdEnd(e.target.value)}
+                        className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" />
+                    </div>
                   </div>
+                  {prodStart && prodEnd && (() => {
+                    const mins = Math.round((new Date(prodEnd).getTime() - new Date(prodStart).getTime()) / 60000);
+                    return mins > 0 ? <p className="text-xs text-green-600 font-bold">→ 量産時間: {Math.floor(mins/60)}h {mins%60}m（{mins}分）</p> : null;
+                  })()}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">中断時間（分）</label>
+                      <div className="flex items-center gap-1">
+                        <NumInput value={interruption} onChange={setInterruption} className="w-16" />
+                        <span className="text-xs text-slate-400">分</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">量産担当者（複数可）</label>
+                      <MultiUserSelect users={allUsers} selected={prodOps} onChange={setProdOps} placeholder="担当者を選択..." />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">加工個数</label>
+                <div className="flex items-center gap-1">
+                  <input type="number" min={0} value={quantity}
+                    onChange={e => setQuantity(e.target.value === "" ? "" : Number(e.target.value))}
+                    className="border border-slate-300 rounded px-2 py-1.5 text-sm w-20 focus:outline-none focus:ring-2 focus:ring-sky-300" />
+                  <span className="text-xs text-slate-400">個</span>
                 </div>
               </div>
             </div>
