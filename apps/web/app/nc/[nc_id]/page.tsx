@@ -1,4 +1,8 @@
 "use client";
+// SSR環境でのDOMMatrix polyfill（react-pdf用）
+if (typeof window === "undefined" && typeof (global as any).DOMMatrix === "undefined") {
+  (global as any).DOMMatrix = class DOMMatrix { constructor(..._: any[]) {} };
+}
 import React from "react";
 import dynamic from "next/dynamic";
 const ImageEditor = dynamic(() => import("@/components/nc/ImageEditor"), { ssr: false });
