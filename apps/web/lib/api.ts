@@ -210,10 +210,12 @@ export type UpdateWorkRecordBody = {
 
 export const workRecordsApi = {
   list:   (ncId: number) => api.get<WorkRecord[]>(`/nc/${ncId}/work-records`),
-  create: (ncId: number, body: CreateWorkRecordBody) =>
-    api.post<{ id: number; message: string }>(`/nc/${ncId}/work-records`, body),
-  update: (ncId: number, recordId: number, body: UpdateWorkRecordBody) =>
-    api.put<{ id: number; message: string }>(`/nc/${ncId}/work-records/${recordId}`, body),
+  create: (ncId: number, body: CreateWorkRecordBody, token?: string) =>
+    api.post<{ id: number; message: string }>(`/nc/${ncId}/work-records`, body,
+      token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+  update: (ncId: number, recordId: number, body: UpdateWorkRecordBody, token?: string) =>
+    api.put<{ id: number; message: string }>(`/nc/${ncId}/work-records/${recordId}`, body,
+      token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
   delete: (ncId: number, recordId: number) =>
     api.delete(`/nc/${ncId}/work-records/${recordId}`),
 };

@@ -258,10 +258,10 @@ export default function RecordPage() {
         production_operator_ids:prodOps.length  > 0 ? prodOps  : undefined,
       };
       if (editRecordId) {
-        await workRecordsApi.update(ncId, editRecordId, base as UpdateWorkRecordBody);
+        await workRecordsApi.update(ncId, editRecordId, base as UpdateWorkRecordBody, workToken);
         showToast("✅ 更新しました");
       } else {
-        const res = await workRecordsApi.create(ncId, base as CreateWorkRecordBody);
+        const res = await workRecordsApi.create(ncId, base as CreateWorkRecordBody, workToken);
         if (!res.data?.id) throw new Error();
         await endSession();
         showToast("✅ 作業記録を登録しました");
