@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ncApi, workRecordsApi, machinesApi, usersApi, authApi,
-  NcDetail, WorkRecord, Machine, UserInfo,
+  NcDetail, WorkRecord, Machine, UserInfo, SetupSheetLog,
   CreateWorkRecordBody, UpdateWorkRecordBody,
 } from "@/lib/api";
 
@@ -348,59 +348,73 @@ export default function RecordPage() {
       </nav>
 
       <div className="flex flex-1 min-h-0">
-        {/* 左ペイン: 過去記録一覧 */}
-        <div className="w-[420px] shrink-0 bg-white border-r border-slate-200 flex flex-col">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-            <span className="text-sm font-bold text-slate-600">過去の作業記録（{records.length}件）</span>
+        {/* 左ペイン: 段取シートリスト */}
+        <div className="w-[380px] shrink-0 bg-white border-r border-slate-200 flex flex-col">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <div>
+              <span className="text-sm font-bold text-slate-700">🗒 段取シート一覧</span>
+              <span className="ml-2 text-[11px] text-slate-400">未回収: {setupSheets.length}件</span>
+            </div>
+            <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">印刷日付新しい順</span>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {records.length === 0 && (
-              <p className="text-center py-12 text-slate-400 text-sm">記録がありません</p>
+            {setupSheets.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 py-12">
+                <span className="text-3xl">📋</span>
+                <p className="text-sm">印刷済み段取シートなし</p>
+                <p className="text-xs text-slate-300">段取シート画面から印刷してください</p>
+              </div>
             )}
-            {records.map(r => (
-              <div key={r.id}
-                className={`px-4 py-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors ${editRecordId === r.id ? "bg-sky-50 border-l-4 border-l-sky-500" : ""}`}
-                onClick={() => handleEdit(r)}
+            {setupSheets.map(s => (
+              <div key={s.id}
+                onClick={() => { setSelectedSheet(s); if (!isAuthenticated) setShowAuth(true); }}
+                className={`px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${
+                  selectedSheet?.id === s.id
+                    ? "bg-emerald-50 border-l-4 border-l-emerald-500"
+                    : "hover:bg-slate-50"
+                }`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-slate-500">{r.work_date?.slice(0,10)}</span>
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                    r.work_type === "量産" ? "bg-green-100 text-green-700" :
-                    r.work_type === "試作" ? "bg-purple-100 text-purple-700" :
-                    r.work_type === "変更" ? "bg-orange-100 text-orange-700" :
-                    "bg-slate-100 text-slate-600"
-                  }`}>{r.work_type ?? "量産"}</span>
+                  <span className="text-xs font-mono font-bold text-slate-600">
+                    {new Date(s.printed_at).toLocaleDateString("ja-JP", {month:"2-digit",day:"2-digit"})}
+                    {" "}
+                    {new Date(s.printed_at).toLocaleTimeString("ja-JP", {hour:"2-digit",minute:"2-digit"})}
+                  </span>
+                  {s.version && (
+                    <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-mono">
+                      Ver.{s.version}
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center gap-3 text-xs text-slate-600">
-                  <span>担当: {r.operator_name ?? "—"}</span>
-                  <span>機械: {r.machine_code ?? "—"}</span>
-                  {r.quantity && <span>{r.quantity}個</span>}
+                <div className="text-xs text-slate-500">
+                  印刷者: {(s as any).operator_name ?? "—"}
                 </div>
-                <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
-                  <span>段取: {fmtMin(r.setup_time)}</span>
-                  <span>加工: {fmtMin(r.machining_time)}</span>
-                  {r.interruption_time_min ? <span>中断: {r.interruption_time_min}m</span> : null}
-                </div>
-                {(r.setup_operator_ids as any)?.length > 0 && (
-                  <div className="text-xs text-slate-400 mt-0.5">
-                    段取担当: {((r.setup_operator_ids as any) as number[]).map(id =>
-                      allUsers.find(u => u.id === id)?.name ?? `id:${id}`).join(", ")}
-                  </div>
+                {selectedSheet?.id === s.id && (
+                  <div className="mt-1.5 text-[11px] text-emerald-700 font-bold">▶ この段取シートで記録入力中</div>
                 )}
-                {(r.production_operator_ids as any)?.length > 0 && (
-                  <div className="text-xs text-slate-400 mt-0.5">
-                    量産担当: {((r.production_operator_ids as any) as number[]).map(id =>
-                      allUsers.find(u => u.id === id)?.name ?? `id:${id}`).join(", ")}
-                  </div>
-                )}
-                {r.note && <div className="text-xs text-slate-400 mt-0.5 truncate">備考: {r.note}</div>}
               </div>
             ))}
           </div>
         </div>
 
         {/* 右ペイン: 入力フォーム */}
-        <div className={`flex-1 overflow-y-auto p-5 ${!isAuthenticated && !editRecordId ? "opacity-50 pointer-events-none select-none" : ""}`}>
+        <div className="flex-1 overflow-y-auto p-5">
+          {!isAuthenticated && (
+            <div className="mb-5 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-4">
+              <span className="text-3xl">⏱</span>
+              <div className="flex-1">
+                <div className="text-sm font-bold text-emerald-800">作業記録 — 作業開始前</div>
+                <div className="text-xs text-emerald-600 mt-0.5">
+                  {selectedSheet ? `段取シート（${new Date(selectedSheet.printed_at).toLocaleDateString("ja-JP")}）を選択中` : "左リストから段取シートを選択してください"}
+                </div>
+              </div>
+              <button onClick={() => setShowAuth(true)}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-colors whitespace-nowrap">
+                🔓 作業を開始する
+              </button>
+            </div>
+          )}
+          <div className={!isAuthenticated && !editRecordId ? "opacity-40 pointer-events-none select-none" : ""}>
           {/* モードバー */}
           <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold mb-4 ${
             editRecordId ? "bg-amber-100 border border-amber-300 text-amber-800" : "bg-sky-50 border border-sky-200 text-sky-700"
@@ -596,6 +610,7 @@ export default function RecordPage() {
         </div>
       </div>
 
+          </div>
       {/* 認証モーダル */}
       {showAuth && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">

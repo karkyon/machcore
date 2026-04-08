@@ -102,6 +102,14 @@ export type ChangeHistory = {
 };
 
 
+export type ProcessEntry = {
+  nc_id: number;
+  process_l: number;
+  version: string;
+  status: string;
+  machine_code: string | null;
+};
+
 export type SetupSheetLog = {
   id: number;
   printed_at: string;
@@ -118,6 +126,10 @@ export const ncApi = {
   findOne: (nc_id: number) => api.get<NcDetail>(`/nc/${nc_id}`),
   changeHistory: (nc_id: number) => api.get<ChangeHistory[]>(`/nc/${nc_id}/change-history`),
   workRecords: (nc_id: number) => api.get<WorkRecord[]>(`/nc/${nc_id}/work-records`),
+  byPart: (partDbId: number) => api.get<ProcessEntry[]>(`/nc/by-part/${partDbId}`),
+  setupSheetLogsUncollected: (ncId: number) => api.get<SetupSheetLog[]>(`/nc/${ncId}/setup-sheet-logs?uncollected=1`),
+  collectSetupSheet: (ncId: number, logId: number, token: string) =>
+    api.put(`/nc/${ncId}/setup-sheet-logs/${logId}/collect`, {}, { headers: { Authorization: `Bearer ${token}` } }),
   setupSheetLogs: (nc_id: number) => api.get<SetupSheetLog[]>(`/nc/${nc_id}/setup-sheet-logs`),
   operationLogs:  (nc_id: number) => api.get<OperationLog[]>(`/nc/${nc_id}/operation-logs`),
   update: (nc_id: number, body: UpdateNcBody) => api.put<{ nc_id: number; message: string }>(`/nc/${nc_id}`, body),
