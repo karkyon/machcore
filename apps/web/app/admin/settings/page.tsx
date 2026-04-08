@@ -30,6 +30,8 @@ export default function AdminSettingsPage() {
       setCompanyName(comp.data.companyName ?? "");
       setLogoPath(comp.data.logoPath ?? "");
       setStoragePath(stor.data.uploadBasePath ?? "");
+      setPrinterList(printers.data?.printers ?? []);
+      setSelectedPrinter(currentPrinter.data?.printer_name ?? "");
     }).catch(() => showToast("設定の取得に失敗しました", false))
       .finally(() => setLoading(false));
   }, [router]);
