@@ -88,6 +88,22 @@ export class NcService {
     return rows.map(r => r.clientName!).filter(Boolean);
   }
 
+  /** NC-XX: 同部品の工程一覧 */
+  async byPart(partDbId: number) {
+    const rows = await this.prisma.ncProgram.findMany({
+      where: { partId: partDbId },
+      select: {
+        id: true, processL: true, version: true, status: true,
+        machine: { select: { machineCode: true } },
+      },
+      orderBy: { processL: "asc" },
+    });
+    return rows.map(r => ({
+      nc_id: r.id, process_l: r.processL, version: r.version,
+      status: r.status, machine_code: r.machine?.machineCode ?? null,
+    }));
+  }
+
   /** NC-02: 最近のアクセス5件 */
   async recent() {
     const logs = await this.prisma.operationLog.findMany({
@@ -228,15 +244,19 @@ export class NcService {
   }
 
   /** NC-10: 印刷履歴一覧 */
-  async setupSheetLogs(ncProgramId: number) {
+  async setupSheetLogs(ncProgramId: number, uncollectedOnly = false) {
     const rows = await this.prisma.setupSheetLog.findMany({
-      where:   { ncProgramId },
+      where: {
+        ncProgramId,
+        ...(uncollectedOnly ? { workCollected: false } : {}),
+      },
       orderBy: { printedAt: "desc" },
       include: { operator: { select: { id: true, name: true } } },
     });
     return rows.map(r => ({
       id: r.id, printed_at: r.printedAt, version: r.version ?? null,
-      printer_name: r.operator?.name ?? null,
+      operator_name: r.operator?.name ?? null,
+      work_collected: r.workCollected,
     }));
   }
 
@@ -304,6 +324,15 @@ export class NcService {
       try { fs.unlinkSync(tmpPath); } catch {}
     }
     return { message: `${printerName} に送信しました` };
+  }
+
+  /** SSL-01: 段取シート回収済みマーク */
+  async collectSetupSheet(logId: number) {
+    await this.prisma.setupSheetLog.update({
+      where: { id: logId },
+      data: { workCollected: true },
+    });
+    return { message: "段取シートを回収済みにしました" };
   }
 
   /** WR-01: 作業記録一覧 */

@@ -93,7 +93,8 @@ export default function RecordPage() {
   const ncId      = Number(params.nc_id);
 
   const [nc,       setNc]       = useState<NcDetail | null>(null);
-  const [records,  setRecords]  = useState<WorkRecord[]>([]);
+  const [setupSheets, setSetupSheets] = useState<SetupSheetLog[]>([]);
+  const [selectedSheet, setSelectedSheet] = useState<SetupSheetLog | null>(null);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [allUsers, setAllUsers] = useState<UserInfo[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -145,14 +146,14 @@ export default function RecordPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [ncRes, recRes, machRes, userRes] = await Promise.all([
+      const [ncRes, sheetRes, machRes, userRes] = await Promise.all([
         ncApi.findOne(ncId),
-        workRecordsApi.list(ncId),
+        ncApi.setupSheetLogs(ncId),
         machinesApi.list(),
         usersApi.list(),
       ]);
       setNc(ncRes.data);
-      setRecords(recRes.data);
+      setSetupSheets((sheetRes.data as any[]).filter(s => !s.work_collected));
       setMachines(machRes.data.filter((m: Machine) => m.isActive));
       setAllUsers(userRes.data);
       setAuthUsers(userRes.data.filter((u: UserInfo) => u.isActive));

@@ -43,14 +43,34 @@ export class NcController {
   @Get("recent")
   recent() { return this.nc.recent(); }
 
+  /** 同部品の工程一覧 */
+  @Get("by-part/:part_db_id")
+  byPart(@Param("part_db_id", ParseIntPipe) partDbId: number) {
+    return this.nc.byPart(partDbId);
+  }
+
   @Get(":nc_id/change-history")
   changeHistory(@Param("nc_id", ParseIntPipe) id: number) {
     return this.nc.changeHistory(id);
   }
 
   @Get(":nc_id/setup-sheet-logs")
-  setupSheetLogs(@Param("nc_id", ParseIntPipe) id: number) {
-    return this.nc.setupSheetLogs(id);
+  setupSheetLogs(
+    @Param("nc_id", ParseIntPipe) id: number,
+    @Query("uncollected") uncollected?: string,
+  ) {
+    return this.nc.setupSheetLogs(id, uncollected === "1" || uncollected === "true");
+  }
+
+  /** 段取シート回収完了（work_collected=true） */
+  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
+  @Put(":nc_id/setup-sheet-logs/:log_id/collect")
+  async collectSetupSheet(
+    @Param("nc_id", ParseIntPipe) ncId: number,
+    @Param("log_id", ParseIntPipe) logId: number,
+  ) {
+    return this.nc.collectSetupSheet(logId);
   }
 
   @Get(":nc_id/work-records")

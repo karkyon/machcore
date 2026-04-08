@@ -16,6 +16,7 @@ import {
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
 import { useAuth } from "@/contexts/AuthContext";
+import { ProcessEntry } from "@/lib/api";
 import AuthModal from "@/components/auth/AuthModal";
 
 type MainTab = "lathe" | "history" | "files";
@@ -35,6 +36,11 @@ export default function NcDetailPage() {
 
   const [detail,      setDetail]      = useState<NcDetail | null>(null);
   const [loadError,   setLoadError]   = useState<string | null>(null);
+  const [processes,   setProcesses]   = useState<ProcessEntry[]>([]);
+  const [floatOpen,   setFloatOpen]   = useState(true);
+  const [floatPos,    setFloatPos]    = useState({ x: 16, y: 120 });
+  const [dragging,    setDragging]    = useState(false);
+  const dragStart     = useRef<{ mx: number; my: number; px: number; py: number } | null>(null);
 
   const [mainTab,     setMainTab]     = useState<MainTab>("lathe");
   const [histTab,     setHistTab]     = useState<HistorySubTab>("change");
@@ -192,9 +198,18 @@ export default function NcDetailPage() {
 
   const d = detail;
 
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!dragging || !dragStart.current) return;
+    setFloatPos({
+      x: Math.max(0, dragStart.current.px + e.clientX - dragStart.current.mx),
+      y: Math.max(0, dragStart.current.py + e.clientY - dragStart.current.my),
+    });
+  };
+  const onMouseUp = () => { setDragging(false); dragStart.current = null; };
+
   return (
     <>
-      <div className="h-screen flex flex-col bg-slate-50">
+      <div className="h-screen flex flex-col bg-slate-50" onMouseMove={onMouseMove} onMouseUp={onMouseUp}>
 
         {/* ── ヘッダー ── */}
         <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
@@ -210,6 +225,60 @@ export default function NcDetailPage() {
           <span className="text-sm font-medium">NC 詳細</span>
 
         </header>
+
+        {/* ── フローティング工程切り替えパネル ── */}
+        {processes.length > 1 && (
+          <div
+            style={{ position: "fixed", left: floatPos.x, top: floatPos.y, zIndex: 100, userSelect: "none" }}
+            className="shadow-2xl rounded-xl overflow-hidden border border-slate-700 w-52"
+          >
+            {/* ヘッダー（ドラッグハンドル + OPEN/CLOSE） */}
+            <div
+              className="bg-slate-800 text-white px-3 py-1.5 flex items-center gap-2 cursor-move"
+              onMouseDown={e => {
+                setDragging(true);
+                dragStart.current = { mx: e.clientX, my: e.clientY, px: floatPos.x, py: floatPos.y };
+              }}
+            >
+              <span className="text-[10px] font-bold text-slate-300 flex-1">⚙ 工程切り替え</span>
+              <button
+                onMouseDown={e => e.stopPropagation()}
+                onClick={() => setFloatOpen(v => !v)}
+                className="text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-0.5 rounded font-bold text-slate-200"
+              >
+                {floatOpen ? "CLOSE" : "OPEN"}
+              </button>
+            </div>
+            {/* 工程リスト */}
+            {floatOpen && (
+              <div className="bg-white">
+                {processes.map(p => (
+                  <button
+                    key={p.nc_id}
+                    onClick={() => router.push(`/nc/${p.nc_id}`)}
+                    className={`w-full text-left px-3 py-2 text-xs border-b border-slate-100 flex items-center gap-2 transition-colors ${
+                      p.nc_id === ncId
+                        ? "bg-sky-50 border-l-2 border-l-sky-400"
+                        : "hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${p.nc_id === ncId ? "bg-sky-500 text-white" : "bg-slate-100 text-slate-600"}`}>
+                      L{p.process_l}
+                    </span>
+                    <span className="font-mono text-slate-600">{p.machine_code ?? "—"}</span>
+                    <span className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                      p.status === "APPROVED" ? "bg-green-100 text-green-700" :
+                      p.status === "CHANGING" ? "bg-orange-100 text-orange-700" :
+                      "bg-slate-100 text-slate-500"
+                    }`}>
+                      {p.status === "APPROVED" ? "承認済" : p.status === "CHANGING" ? "変更中" : p.status === "PENDING_APPROVAL" ? "承認待" : "新規"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── 部品ヘッダーエリア ── */}
         <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
