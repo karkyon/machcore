@@ -105,6 +105,7 @@ export default function RecordPage() {
   const [workToken,        setWorkToken]       = useState("");
   const [authUsers,        setAuthUsers]       = useState<UserInfo[]>([]);
   const [selOpId,          setSelOpId]         = useState<number | null>(null);
+  const [selOpName,        setSelOpName]        = useState("");
   const [password,         setPassword]        = useState("");
   const [authError,        setAuthError]       = useState("");
   const [authLoading,      setAuthLoading]     = useState(false);
@@ -128,6 +129,13 @@ export default function RecordPage() {
   // 担当者複数選択
   const [setupOps,    setSetupOps]    = useState<number[]>([]);
   const [prodOps,     setProdOps]     = useState<number[]>([]);
+  const [setupTimeMode,   setSetupTimeMode]   = useState<"hm"|"datetime">("hm");
+  const [prodTimeMode,    setProdTimeMode]    = useState<"hm"|"datetime">("hm");
+  const [setupStart,  setSetupStart]  = useState("");
+  const [setupEnd,    setSetupEnd]    = useState("");
+  const [prodStart,   setProdStart]   = useState("");
+  const [prodEnd,     setProdEnd]     = useState("");
+  const [setupInterruption, setSetupInterruption] = useState(0);
 
   // タイマー
   const [elapsed, setElapsed] = useState(0);
@@ -186,6 +194,7 @@ export default function RecordPage() {
         operator_id: selOpId, password, session_type: "work_record", nc_program_id: ncId,
       });
       setWorkToken(res.data.access_token);
+      setSelOpName(res.data.operator?.name ?? "");
       setIsAuthenticated(true);
       setShowAuth(false);
       setPassword("");
@@ -195,7 +204,7 @@ export default function RecordPage() {
 
   const endSession = async () => {
     if (workToken) { try { await authApi.endWorkSession(workToken); } catch {} }
-    setIsAuthenticated(false); setWorkToken(""); setSelOpId(null);
+    setIsAuthenticated(false); setWorkToken(""); setSelOpId(null); setSelOpName("");
   };
 
   const resetForm = useCallback((ncData?: NcDetail | null) => {
@@ -204,6 +213,9 @@ export default function RecordPage() {
     setSetupH(0); setSetupM(0); setMachH(0); setMachM(0);
     setCycleM(0); setCycleS(0); setQuantity(""); setInterruption(0);
     setSetupOps([]); setProdOps([]);
+    setSetupTimeMode("hm"); setProdTimeMode("hm");
+    setSetupStart(""); setSetupEnd(""); setProdStart(""); setProdEnd("");
+    setSetupInterruption(0);
     if (ncData?.machine?.id) setMachineId(ncData.machine.id);
     else setMachineId(null);
   }, []);
@@ -231,11 +243,15 @@ export default function RecordPage() {
     setSaving(true);
     try {
       const base = {
-        setup_time_min:         (setupH*60+setupM) || undefined,
-        machining_time_min:     (machH*60+machM)   || undefined,
+        setup_time_min:         setupTimeMode==="datetime" && setupStart && setupEnd
+          ? Math.max(0, Math.round((new Date(setupEnd).getTime()-new Date(setupStart).getTime())/60000) - setupInterruption)
+          : (setupH*60+setupM) || undefined,
+        interruption_time_min:  setupTimeMode==="datetime" ? (setupInterruption || undefined) : (interruption || undefined),
+        machining_time_min:     prodTimeMode==="datetime" && prodStart && prodEnd
+          ? Math.max(0, Math.round((new Date(prodEnd).getTime()-new Date(prodStart).getTime())/60000) - (interruption||0))
+          : (machH*60+machM) || undefined,
         cycle_time_sec:         (cycleM*60+cycleS) || undefined,
         quantity:               quantity !== "" ? Number(quantity) : undefined,
-        interruption_time_min:  interruption || undefined,
         work_type:              workType,
         note:                   note || undefined,
         machine_id:             machineId ?? undefined,
@@ -275,7 +291,7 @@ export default function RecordPage() {
         {isAuthenticated && (
           <div className="ml-auto flex items-center gap-3">
             <span className="text-xs bg-amber-500 text-white px-2.5 py-1 rounded-full font-bold animate-pulse">
-              ● 作業中 {fmtTime(elapsed)}
+              ● {selOpName} 作業中 {fmtTime(elapsed)}
             </span>
             <button onClick={() => endSession()} className="text-xs text-slate-400 hover:text-white">セッション終了</button>
           </div>
@@ -359,7 +375,7 @@ export default function RecordPage() {
               <div>
                 <label className="text-xs font-bold text-slate-500 block mb-2">種別 *</label>
                 <div className="flex gap-2 flex-wrap">
-                  {["量産","試作","変更","新規登録"].map(t => (
+                  {["量産","試作"].map(t => (
                     <button key={t} type="button" onClick={() => setWorkType(t)}
                       className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${workType === t ? "bg-sky-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
                       {t}
@@ -380,17 +396,71 @@ export default function RecordPage() {
 
             {/* 段取セクション */}
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 space-y-3">
-              <div className="text-sm font-bold text-blue-700 border-b border-blue-200 pb-2">🔧 段取</div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">段取時間</label>
-                  <TimeInput h={setupH} m={setupM} onH={setSetupH} onM={setSetupM} />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">段取担当者（複数可）</label>
-                  <MultiUserSelect users={allUsers} selected={setupOps} onChange={setSetupOps} placeholder="担当者を選択..." />
+              <div className="flex items-center justify-between border-b border-blue-200 pb-2">
+                <span className="text-sm font-bold text-blue-700">🔧 段取</span>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-500">入力方法:</span>
+                  <button type="button" onClick={() => setSetupTimeMode("hm")}
+                    className={`px-2 py-0.5 rounded font-bold transition-colors ${setupTimeMode==="hm" ? "bg-blue-600 text-white" : "bg-white text-slate-500 border border-slate-300"}`}>
+                    h/m入力
+                  </button>
+                  <button type="button" onClick={() => setSetupTimeMode("datetime")}
+                    className={`px-2 py-0.5 rounded font-bold transition-colors ${setupTimeMode==="datetime" ? "bg-blue-600 text-white" : "bg-white text-slate-500 border border-slate-300"}`}>
+                    開始/終了日時
+                  </button>
                 </div>
               </div>
+              {setupTimeMode === "hm" ? (
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">段取時間</label>
+                    <TimeInput h={setupH} m={setupM} onH={setSetupH} onM={setSetupM} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">中断時間</label>
+                    <div className="flex items-center gap-1">
+                      <NumInput value={setupInterruption} onChange={setSetupInterruption} className="w-16" />
+                      <span className="text-xs text-slate-400">分</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">段取担当者（複数可）</label>
+                    <MultiUserSelect users={allUsers} selected={setupOps} onChange={setSetupOps} placeholder="担当者を選択..." />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">段取開始日時</label>
+                      <input type="datetime-local" value={setupStart} onChange={e => setSetupStart(e.target.value)}
+                        className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">段取終了日時</label>
+                      <input type="datetime-local" value={setupEnd} onChange={e => setSetupEnd(e.target.value)}
+                        className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" />
+                    </div>
+                  </div>
+                  {setupStart && setupEnd && (() => {
+                    const mins = Math.round((new Date(setupEnd).getTime() - new Date(setupStart).getTime()) / 60000);
+                    return mins > 0 ? <p className="text-xs text-blue-600 font-bold">→ 段取時間: {Math.floor(mins/60)}h {mins%60}m（{mins}分）</p> : null;
+                  })()}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">中断時間（分）</label>
+                      <div className="flex items-center gap-1">
+                        <NumInput value={setupInterruption} onChange={setSetupInterruption} className="w-16" />
+                        <span className="text-xs text-slate-400">分</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">段取担当者（複数可）</label>
+                      <MultiUserSelect users={allUsers} selected={setupOps} onChange={setSetupOps} placeholder="担当者を選択..." />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 量産セクション */}
@@ -417,13 +487,6 @@ export default function RecordPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">サイクルタイム</label>
-                  <div className="flex items-center gap-1">
-                    <NumInput value={cycleM} onChange={setCycleM} /><span className="text-xs text-slate-400">m</span>
-                    <NumInput value={cycleS} onChange={setCycleS} min={0} max={59} /><span className="text-xs text-slate-400">s</span>
-                  </div>
-                </div>
-                <div>
                   <label className="text-xs font-bold text-slate-500 block mb-1">中断時間</label>
                   <div className="flex items-center gap-1">
                     <NumInput value={interruption} onChange={setInterruption} className="w-16" />
@@ -438,7 +501,7 @@ export default function RecordPage() {
               <label className="text-xs font-bold text-slate-500 block mb-2">備考</label>
               <textarea value={note} onChange={e => setNote(e.target.value)} maxLength={1000} rows={3}
                 className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300 resize-none"
-                placeholder="問題点・注意事項・特記事項（誤入力は「取消:理由」と記入）" />
+                placeholder="問題点・注意事項・特記事項" />
               <div className="text-right text-xs text-slate-400 mt-1">{note.length} / 1000</div>
             </div>
 
