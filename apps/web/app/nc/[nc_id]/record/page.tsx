@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useParams, useRouter } from "next/navigation";
 import {
   ncApi, workRecordsApi, machinesApi, usersApi, authApi,
@@ -91,6 +92,7 @@ export default function RecordPage() {
   const params    = useParams();
   const router    = useRouter();
   const ncId      = Number(params.nc_id);
+  const [searchParams] = useSearchParams ? [useSearchParams()] : [null as any];
 
   const [nc,       setNc]       = useState<NcDetail | null>(null);
   const [setupSheets, setSetupSheets] = useState<SetupSheetLog[]>([]);
@@ -164,6 +166,37 @@ export default function RecordPage() {
   }, [ncId]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // ?edit=ID がある場合、データ取得後に編集モードで開く
+  useEffect(() => {
+    const editId = typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("edit")
+      : null;
+    if (!editId || loading) return;
+    const id = parseInt(editId);
+    if (!id) return;
+    // work_record を直接APIから取得してフォームにセット
+    import("axios").then(({ default: axios }) => {
+      axios.get(`/api/nc/${ncId}/work-records/${id}`).then(res => {
+        const r = res.data;
+        const sm = r.setup_time_min ?? 0;
+        setSetupH(Math.floor(sm/60)); setSetupM(sm%60);
+        const mm = r.machining_time_min ?? 0;
+        setMachH(Math.floor(mm/60)); setMachM(mm%60);
+        const cs = r.cycle_time_sec ?? 0;
+        setCycleM(Math.floor(cs/60)); setCycleS(cs%60);
+        setQuantity(r.quantity ?? "");
+        setInterruption(r.interruption_time_min ?? 0);
+        setWorkType(r.work_type ?? "量産");
+        setNote(r.note ?? "");
+        if (r.machine_id) setMachineId(r.machine_id);
+        setSetupOps(Array.isArray(r.setup_operator_ids) ? r.setup_operator_ids : []);
+        setProdOps(Array.isArray(r.production_operator_ids) ? r.production_operator_ids : []);
+        setEditRecordId(id);
+        if (!isAuthenticated) setShowAuth(true);
+      }).catch(() => {});
+    });
+  }, [loading, ncId, isAuthenticated]);
 
   // タイマー
   useEffect(() => {
@@ -264,6 +297,10 @@ export default function RecordPage() {
       } else {
         const res = await workRecordsApi.create(ncId, base as CreateWorkRecordBody, workToken);
         if (!res.data?.id) throw new Error();
+        // 段取シート回収済みマーク
+        if (selectedSheet && workToken) {
+          try { await ncApi.collectSetupSheet(ncId, selectedSheet.id, workToken); } catch {}
+        }
         await endSession();
         showToast("✅ 作業記録を登録しました");
         setTimeout(() => router.push(`/nc/${ncId}`), 1200);
