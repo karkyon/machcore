@@ -19,7 +19,7 @@ module.exports = {
     {
       name:    'machcore-web',
       script:  'node_modules/.bin/next',
-      args:    'start -p 3010',
+      args:    'start -p 3010 -H 0.0.0.0',
       cwd:     '/home/karkyon/projects/machcore/apps/web',
       instances: 1,
       autorestart: true,

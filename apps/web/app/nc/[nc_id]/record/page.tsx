@@ -279,28 +279,72 @@ export default function RecordPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* ヘッダー */}
-      <header className="bg-slate-900 text-white px-4 py-2.5 flex items-center gap-3 shrink-0">
-        <button onClick={() => router.push(`/nc/${ncId}`)} className="text-slate-400 hover:text-white text-sm">← NC詳細</button>
-        <div className="flex items-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          <span className="font-bold text-sm">作業記録</span>
-        </div>
-        <div className="text-xs text-slate-400">{nc.part?.drawingNo} | {nc.part?.name}</div>
-        {isAuthenticated && (
-          <div className="ml-auto flex items-center gap-3">
-            <span className="text-xs bg-amber-500 text-white px-2.5 py-1 rounded-full font-bold animate-pulse">
-              ● {selOpName} 作業中 {fmtTime(elapsed)}
+      {/* グローバルヘッダー */}
+      <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
+        <button onClick={() => router.push(`/nc/${ncId}`)} className="text-slate-400 hover:text-white text-xs transition-colors">← NC詳細</button>
+        <span className="text-slate-600">|</span>
+        <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
+        <span className="text-slate-400 text-xs">|</span>
+        <span className="text-sm font-medium">⏱ 作業記録</span>
+        <span className="ml-auto">
+          {isAuthenticated ? (
+            <span className="text-[11px] bg-amber-600 text-white px-3 py-1 rounded font-bold animate-pulse">
+              作業中: {selOpName}　{fmtTime(elapsed)}
             </span>
-            <button onClick={() => endSession()} className="text-xs text-slate-400 hover:text-white">セッション終了</button>
-          </div>
-        )}
-        {!isAuthenticated && (
-          <button onClick={() => setShowAuth(true)} className="ml-auto text-xs bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded">
-            ⏱ 作業記録を入力
-          </button>
-        )}
+          ) : (
+            <span className="text-[11px] text-slate-400 bg-slate-700 px-2 py-1 rounded">🔒 認証待ち</span>
+          )}
+        </span>
       </header>
+
+      {/* 部品情報エリア */}
+      <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
+        <div className="flex items-center gap-3 mb-1">
+          <span className="font-mono text-sky-600 font-bold text-lg">{nc.part?.drawingNo}</span>
+          <span className="text-[11px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded font-mono font-bold">L{nc.processL}</span>
+          <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+            nc.status === "APPROVED" ? "bg-green-100 text-green-700" :
+            nc.status === "PENDING_APPROVAL" ? "bg-yellow-100 text-yellow-700" :
+            nc.status === "CHANGING" ? "bg-orange-100 text-orange-700" :
+            "bg-slate-100 text-slate-600"
+          }`}>{
+            nc.status === "APPROVED" ? "承認済" :
+            nc.status === "PENDING_APPROVAL" ? "承認待ち" :
+            nc.status === "CHANGING" ? "変更中" : "新規"
+          }</span>
+          <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {nc.version}</span>
+        </div>
+        <div className="text-sm text-slate-700 font-medium mb-1">{nc.part?.name}</div>
+        <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
+          <span>NC_id: {nc.id}</span>
+          <span>部品ID: {nc.part?.partId}</span>
+          {nc.part?.clientName && <span>納入先: {nc.part.clientName}</span>}
+        </div>
+      </div>
+
+      {/* タブナビ */}
+      <nav className="bg-slate-800 px-5 flex gap-0 shrink-0 border-t border-slate-700">
+        <button onClick={() => router.push(`/nc/${ncId}`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          NC詳細
+        </button>
+        <button onClick={() => router.push(`/nc/${ncId}/edit`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          変更・登録
+        </button>
+        <button onClick={() => router.push(`/nc/${ncId}/print`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          段取シート
+        </button>
+        <button onClick={() => router.push(`/nc/${ncId}/record`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-sky-400 text-sky-400 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          作業記録
+        </button>
+      </nav>
 
       <div className="flex flex-1 min-h-0">
         {/* 左ペイン: 過去記録一覧 */}

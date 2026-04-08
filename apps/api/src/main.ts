@@ -29,7 +29,11 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: process.env.WEB_URL || 'http://localhost:3010',
+    origin: [
+      process.env.WEB_URL || 'http://localhost:3010',
+      'http://192.168.1.11:3010',
+      /^http:\/\/192\.168\.1\.\d+:\d+$/,
+    ],
     credentials: true,
   });
 
