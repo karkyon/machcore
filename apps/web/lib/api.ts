@@ -444,3 +444,210 @@ export const adminLogsApi = {
     '/admin/logs', { params }
   ),
 };
+
+// ══════════════════════════════════════════════════════════════
+// MC システム 型定義・API
+// ══════════════════════════════════════════════════════════════
+
+export type McStatus = 'NEW' | 'PENDING_APPROVAL' | 'APPROVED' | 'CHANGING';
+
+export type McSearchResult = {
+  mc_id:            number;
+  machining_id:     number;
+  drawing_no:       string;
+  part_name:        string;
+  client_name:      string | null;
+  machine_code:     string | null;
+  machine_name:     string | null;
+  version:          string;
+  status:           McStatus;
+  o_number:         string | null;
+  cycle_time_sec:   number | null;
+  common_part_code: string | null;
+};
+
+export type McTooling = {
+  id:              number;
+  sortOrder:       number;
+  toolNo:          string;
+  toolName:        string | null;
+  diameter:        string | null;
+  lengthOffsetNo:  string | null;
+  diaOffsetNo:     string | null;
+  toolType:        string | null;
+  note:            string | null;
+  rawProgramLine:  string | null;
+};
+
+export type McWorkOffset = {
+  id:         number;
+  gCode:      string;
+  xOffset:    string | null;
+  yOffset:    string | null;
+  zOffset:    string | null;
+  aOffset:    string | null;
+  rOffset:    string | null;
+  note:       string | null;
+};
+
+export type McIndexProgram = {
+  id:        number;
+  sortOrder: number;
+  axis0:     string | null;
+  axis1:     string | null;
+  axis2:     string | null;
+  note:      string | null;
+};
+
+export type McCommonGroupItem = {
+  id:      number;
+  version: string;
+  status:  McStatus;
+  part: { drawingNo: string; name: string; clientName: string | null };
+};
+
+export type McDetail = {
+  id:             number;
+  machiningId:    number;
+  status:         McStatus;
+  version:        string;
+  oNumber:        string | null;
+  clampNote:      string | null;
+  cycleTimeSec:   number | null;
+  machiningQty:   number | null;
+  commonPartCode: string | null;
+  note:           string | null;
+  registeredAt:   string;
+  approvedAt:     string | null;
+  part:    { drawingNo: string; name: string; clientName: string | null };
+  machine: { machineCode: string; machineName: string } | null;
+  registrar: { name: string };
+  approver:  { name: string } | null;
+  tooling:      McTooling[];
+  workOffsets:  McWorkOffset[];
+  indexPrograms: McIndexProgram[];
+  files:        McFile[];
+  commonGroup:  McCommonGroupItem[];
+};
+
+export type McFile = {
+  id:            number;
+  file_type:     'PHOTO' | 'DRAWING' | 'PROGRAM' | 'OTHER';
+  original_name: string;
+  mime_type:     string;
+  file_size:     number;
+  file_path:     string;
+  thumbnail_path: string | null;
+  uploaded_by:   string | null;
+  uploaded_at:   string;
+};
+
+export type McWorkRecord = {
+  id:               number;
+  work_date:        string;
+  work_type:        string | null;
+  operator_name:    string | null;
+  machine_code:     string | null;
+  setup_time_min:   number | null;
+  machining_time_min: number | null;
+  cycle_time_sec:   number | null;
+  quantity:         number | null;
+  setup_work_count: number | null;
+  started_at:       string | null;
+  checked_at:       string | null;
+  finished_at:      string | null;
+  interrupt_setup_min: number | null;
+  interrupt_work_min:  number | null;
+  note:             string | null;
+};
+
+export type McChangeHistory = {
+  id:            number;
+  changedAt:     string;
+  changeType:    string;
+  operatorId:    number;
+  versionBefore: string | null;
+  versionAfter:  string | null;
+  content:       string | null;
+  operator:      { name: string } | null;
+};
+
+export type McSetupSheetLog = {
+  id:          number;
+  printedAt:   string;
+  version:     string | null;
+  operator:    { name: string } | null;
+};
+
+export type CreateMcWorkRecordBody = {
+  setup_time_min?:     number;
+  machining_time_min?: number;
+  cycle_time_sec?:     number;
+  quantity?:           number;
+  setup_work_count?:   number;
+  started_at?:         string;
+  checked_at?:         string;
+  finished_at?:        string;
+  interrupt_setup_min?: number;
+  interrupt_work_min?:  number;
+  work_type?:          string;
+  note?:               string;
+  machine_id?:         number;
+};
+
+export type McPrintOptions = {
+  include_tooling?:        boolean;
+  include_clamp?:          boolean;
+  include_drawings?:       boolean;
+  include_work_offsets?:   boolean;
+  include_index_programs?: boolean;
+};
+
+export const mcApi = {
+  search: (key: string, q: string, params?: { client_name?: string; machine_id?: number }) =>
+    api.get<{ total: number; rows: McSearchResult[] }>('/mc/search', {
+      params: { key, q, limit: 100, ...params },
+    }),
+  recent:       () => api.get<any[]>('/mc/recent'),
+  findOne:      (mcId: number) => api.get<McDetail>(`/mc/${mcId}`),
+  commonGroup:  (machiningId: number) => api.get<McCommonGroupItem[]>(`/mc/common-group/${machiningId}`),
+  create:       (body: any, token: string) =>
+    api.post<{ mc_id: number; message: string }>('/mc', body, { headers: { Authorization: `Bearer ${token}` } }),
+  update:       (mcId: number, body: any, token: string) =>
+    api.put<{ mc_id: number; message: string }>(`/mc/${mcId}`, body, { headers: { Authorization: `Bearer ${token}` } }),
+  getTooling:   (mcId: number) => api.get<McTooling[]>(`/mc/${mcId}/tooling`),
+  saveTooling:  (mcId: number, items: any[], token: string) =>
+    api.put(`/mc/${mcId}/tooling`, { items }, { headers: { Authorization: `Bearer ${token}` } }),
+  parseTooling: (mcId: number, text: string, token: string) =>
+    api.post<{ count: number; items: any[] }>(`/mc/${mcId}/tooling/parse`, { text }, { headers: { Authorization: `Bearer ${token}` } }),
+  getWorkOffsets:   (mcId: number) => api.get<McWorkOffset[]>(`/mc/${mcId}/work-offsets`),
+  saveWorkOffsets:  (mcId: number, items: any[], token: string) =>
+    api.put(`/mc/${mcId}/work-offsets`, { items }, { headers: { Authorization: `Bearer ${token}` } }),
+  getIndexPrograms:  (mcId: number) => api.get<McIndexProgram[]>(`/mc/${mcId}/index-programs`),
+  saveIndexPrograms: (mcId: number, items: any[], token: string) =>
+    api.put(`/mc/${mcId}/index-programs`, { items }, { headers: { Authorization: `Bearer ${token}` } }),
+  workRecords:   (mcId: number) => api.get<McWorkRecord[]>(`/mc/${mcId}/work-records`),
+  createWorkRecord: (mcId: number, body: CreateMcWorkRecordBody, token: string) =>
+    api.post<{ id: number; message: string }>(`/mc/${mcId}/work-records`, body, { headers: { Authorization: `Bearer ${token}` } }),
+  changeHistory:   (mcId: number) => api.get<McChangeHistory[]>(`/mc/${mcId}/change-history`),
+  setupSheetLogs:  (mcId: number) => api.get<McSetupSheetLog[]>(`/mc/${mcId}/setup-sheet-logs`),
+  listFiles:       (mcId: number) => api.get<McFile[]>(`/mc/${mcId}/files`),
+  getPrintData:    (mcId: number) => api.get<McDetail>(`/mc/${mcId}/print-data`),
+  timecards:       (machineId: number, workDate: string) =>
+    api.get<any[]>('/mc/timecards', { params: { machine_id: machineId, work_date: workDate } }),
+  createTimecard:  (body: any, token: string) =>
+    api.post('/mc/timecards', body, { headers: { Authorization: `Bearer ${token}` } }),
+};
+
+export const mcFilesApi = {
+  upload: (mcId: number, file: File, token: string) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('mc_program_id', String(mcId));
+    return api.post<{ id: number; message: string }>('/files/upload', fd, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  },
+  delete: (fileId: number, token: string) =>
+    api.delete(`/files/${fileId}`, { headers: { Authorization: `Bearer ${token}` } }),
+};
