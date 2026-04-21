@@ -64,8 +64,8 @@ export default function McSearchPage() {
       <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
         <span className="font-mono text-teal-400 font-bold text-sm">MachCore</span>
         <span className="text-slate-400 text-xs">|</span>
-        <button onClick={() => router.push("/nc/search")} className="text-xs border border-sky-600 hover:border-sky-400 text-sky-400 hover:text-white hover:bg-sky-700 px-2.5 py-1 rounded font-medium transition-all">⇄ NC</button>
-        <span className="text-sm font-medium text-teal-300">MC マシニング管理</span>
+        <button onClick={() => router.push("/nc/search")} className="text-xs bg-white text-slate-800 hover:bg-slate-100 border border-slate-400 px-2.5 py-1 rounded font-medium transition-all shrink-0">⇄ NC</button>
+        <span className="text-sm font-medium text-teal-300">MC マシニング管理システム</span>
         <span className="ml-auto text-[10px] text-slate-400 bg-slate-700 px-2 py-0.5 rounded">認証不要</span>
       </header>
 

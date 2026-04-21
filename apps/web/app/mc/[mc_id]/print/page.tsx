@@ -119,10 +119,10 @@ export default function McPrintPage() {
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="bg-slate-800 text-white px-5 py-2 flex items-center gap-3 shrink-0">
         <button onClick={() => router.push("/mc/search")} className="text-teal-400 font-bold text-sm font-mono">MachCore MC</button>
+        <button onClick={() => router.push("/nc/search")} className="text-xs bg-white text-slate-800 hover:bg-slate-100 border border-slate-400 px-2.5 py-1 rounded font-medium transition-all shrink-0">⇄ NC</button>
         <span className="text-slate-600">›</span>
         <span className="text-xs text-slate-300 truncate">{d.part.drawingNo} / 段取シート</span>
-        <button onClick={() => router.push("/nc/search")} className="text-xs border border-sky-600 hover:border-sky-400 text-sky-400 hover:text-white hover:bg-sky-700 px-2.5 py-1 rounded font-medium transition-all">⇄ NC</button>
-        {isAuthenticated && operator && (
+                {isAuthenticated && operator && (
           <span className="ml-auto text-[11px] bg-red-600 text-white px-2 py-0.5 rounded font-bold animate-pulse">
             作業中: {operator.name} {fmtElapsed(elapsed)}
           </span>

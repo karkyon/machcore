@@ -118,9 +118,9 @@ export default function SearchPage() {
         )}
         <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
         <span className="text-slate-400 text-xs">|</span>
-        <span className="text-sm font-medium">{adminInfo?.companyName ?? "NC 旋盤プログラム管理システム"}</span>
+        <button onClick={() => router.push("/mc/search")} className="text-xs bg-white text-slate-800 hover:bg-slate-100 border border-slate-400 px-2.5 py-1 rounded font-medium transition-all shrink-0">⇄ MC</button>
+        <span className="text-sm font-medium">{adminInfo?.companyName ?? "NC 旋盤管理システム"}</span>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => router.push("/mc/search")} className="text-xs border border-teal-600 hover:border-teal-400 text-teal-400 hover:text-white hover:bg-teal-700 px-2.5 py-1 rounded font-medium transition-all">⇄ MC</button>
           <span className="text-[10px] text-slate-400 bg-slate-700 px-2 py-0.5 rounded">認証不要</span>
           {isAdmin ? (
             <div className="flex items-center gap-2 pl-2 border-l border-slate-700">

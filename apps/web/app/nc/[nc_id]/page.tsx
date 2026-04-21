@@ -232,8 +232,9 @@ export default function NcDetailPage() {
           <span className="text-slate-600">|</span>
           <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
           <span className="text-slate-400 text-xs">|</span>
+          <button onClick={() => router.push("/mc/search")} className="text-xs bg-white text-slate-800 hover:bg-slate-100 border border-slate-400 px-2.5 py-1 rounded font-medium transition-all shrink-0">⇄ MC</button>
           <span className="text-sm font-medium">NC 詳細</span>
-          <button onClick={() => router.push("/mc/search")} className="ml-auto text-[10px] bg-teal-800 hover:bg-teal-600 text-teal-300 hover:text-white px-2 py-0.5 rounded font-bold transition-colors">MC →</button>
+
 
         </header>
 
