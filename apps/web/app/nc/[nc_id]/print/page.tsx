@@ -200,6 +200,7 @@ export default function PrintPage() {
           <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
           <span className="text-slate-400 text-xs">|</span>
           <span className="text-sm font-medium flex items-center gap-1.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート</span>
+          <button onClick={() => router.push("/mc/search")} className="text-[10px] bg-teal-800 hover:bg-teal-600 text-teal-300 hover:text-white px-2 py-0.5 rounded font-bold transition-colors">MC →</button>
           <span className="ml-auto">
             {isAuthenticated && operator ? (
               <span className="text-[11px] bg-amber-600 text-white px-3 py-1 rounded font-bold">

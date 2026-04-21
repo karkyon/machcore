@@ -120,6 +120,7 @@ export default function SearchPage() {
         <span className="text-slate-400 text-xs">|</span>
         <span className="text-sm font-medium">{adminInfo?.companyName ?? "NC 旋盤プログラム管理システム"}</span>
         <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => router.push("/mc/search")} className="text-[10px] bg-teal-800 hover:bg-teal-600 text-teal-300 hover:text-white px-2 py-0.5 rounded font-bold transition-colors">MC →</button>
           <span className="text-[10px] text-slate-400 bg-slate-700 px-2 py-0.5 rounded">認証不要</span>
           {isAdmin ? (
             <div className="flex items-center gap-2 pl-2 border-l border-slate-700">

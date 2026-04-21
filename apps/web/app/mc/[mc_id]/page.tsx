@@ -133,6 +133,7 @@ export default function McDetailPage() {
         <button onClick={() => router.push("/mc/search")} className="text-teal-400 font-bold text-sm font-mono hover:text-teal-300">MachCore MC</button>
         <span className="text-slate-600">›</span>
         <span className="text-xs text-slate-300 truncate">{d.part.drawingNo} / {d.part.name}</span>
+        <button onClick={() => router.push("/nc/search")} className="text-[10px] bg-sky-800 hover:bg-sky-600 text-sky-300 hover:text-white px-2 py-0.5 rounded font-bold transition-colors">← NC</button>
         <span className="ml-auto flex items-center gap-3">
           {isAuthenticated && operator ? (
             <>

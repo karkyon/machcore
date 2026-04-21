@@ -127,6 +127,7 @@ function McRecordPageInner() {
         <button onClick={() => router.push("/mc/search")} className="text-teal-400 font-bold text-sm font-mono">MachCore MC</button>
         <span className="text-slate-600">›</span>
         <span className="text-xs text-slate-300">MCID:{mcId} / 作業記録</span>
+        <button onClick={() => router.push("/nc/search")} className="text-[10px] bg-sky-800 hover:bg-sky-600 text-sky-300 hover:text-white px-2 py-0.5 rounded font-bold transition-colors">← NC</button>
         {isAuthenticated && operator && (
           <span className="ml-auto text-[11px] bg-red-600 text-white px-2 py-0.5 rounded font-bold animate-pulse">
             作業中: {operator.name} {fmtElapsed(elapsed)}
