@@ -43,10 +43,6 @@ enum SessionType {
   SETUP_PRINT
   WORK_RECORD
   USB_DOWNLOAD
-  MC_EDIT
-  MC_SETUP_PRINT
-  MC_WORK_RECORD
-  MC_USB_DOWNLOAD
   @@map("session_type")
 }
 
@@ -65,13 +61,6 @@ enum ActionType {
   LOGOUT
   SESSION_START
   SESSION_END
-  MC_VIEW
-  MC_EDIT_START
-  MC_EDIT_SAVE
-  MC_APPROVE
-  MC_SETUP_PRINT
-  MC_WORK_RECORD
-  MC_USB_DOWNLOAD
   @@map("action_type")
 }
 
@@ -94,12 +83,6 @@ model User {
   operationLogs      OperationLog[]
   workSessions       WorkSession[]
   uploadedFiles      NcFile[]
-  registeredMcPrograms McProgram[]      @relation("McRegisteredBy")
-  approvedMcPrograms   McProgram[]      @relation("McApprovedBy")
-  mcChangeHistories    McChangeHistory[]
-  mcSetupSheetLogs     McSetupSheetLog[]
-  mcUploadedFiles      McFile[]
-  timecards            MachineTimecard[]
   @@map("users")
 }
 
@@ -113,12 +96,8 @@ model Machine {
   isActive    Boolean  @default(true)          @map("is_active")
   createdAt   DateTime @default(now())         @map("created_at")
   updatedAt   DateTime @updatedAt              @map("updated_at")
-  systemType  SystemType  @default(NC)  @map("system_type")
-  mcSpecs     Json?                     @map("mc_specs")
   ncPrograms  NcProgram[]
   workRecords WorkRecord[]
-  mcPrograms  McProgram[]
-  timecards   MachineTimecard[]
   @@map("machines")
 }
 
@@ -132,7 +111,6 @@ model Part {
   isActive   Boolean   @default(true)          @map("is_active")
   syncedAt   DateTime?                         @map("synced_at")
   ncPrograms    NcProgram[]
-  mcPrograms    McProgram[]
   specialSheets SpecialSheet[]
   @@index([drawingNo])
   @@index([name])
@@ -261,8 +239,7 @@ model ChangeHistory {
 
 model WorkRecord {
   id               Int      @id @default(autoincrement())
-  ncProgramId      Int?                      @map("nc_program_id")
-  mcProgramId      Int?                      @map("mc_program_id")
+  ncProgramId      Int                       @map("nc_program_id")
   operatorId       Int                       @map("operator_id")
   machineId        Int?                      @map("machine_id")
   workDate         DateTime @db.Date         @map("work_date")
@@ -273,22 +250,14 @@ model WorkRecord {
   workType         String?  @db.VarChar(20)  @map("work_type")
   cycleTimeSec     Int?                      @map("cycle_time_sec")
   interruptionTimeMin Int?                   @map("interruption_time_min")
-  startedAt        DateTime?                 @map("started_at")
-  checkedAt        DateTime?                 @map("checked_at")
-  finishedAt       DateTime?                 @map("finished_at")
-  interruptSetupMin Int?                     @map("interrupt_setup_min")
-  interruptWorkMin  Int?                     @map("interrupt_work_min")
-  setupWorkCount    Int?                     @map("setup_work_count")
   sessionId        String?  @db.VarChar(36)  @map("session_id")
   setupOperatorIds        Json?              @default("[]") @map("setup_operator_ids")
   productionOperatorIds   Json?              @default("[]") @map("production_operator_ids")
   createdAt        DateTime @default(now())  @map("created_at")
-  ncProgram        NcProgram? @relation(fields: [ncProgramId], references: [id])
-  mcProgram        McProgram? @relation(fields: [mcProgramId], references: [id])
-  operator         User       @relation(fields: [operatorId],  references: [id])
-  machine          Machine?   @relation(fields: [machineId],   references: [id])
+  ncProgram        NcProgram @relation(fields: [ncProgramId], references: [id])
+  operator         User      @relation(fields: [operatorId],  references: [id])
+  machine          Machine?  @relation(fields: [machineId],   references: [id])
   @@index([ncProgramId, workDate])
-  @@index([mcProgramId, workDate])
   @@index([operatorId, workDate])
   @@map("work_records")
 }
@@ -318,12 +287,9 @@ model OperationLog {
   userAgent   String?    @db.VarChar(500) @map("user_agent")
   metadata    Json?
   createdAt   DateTime   @default(now())  @map("created_at")
-  mcProgramId Int?                        @map("mc_program_id")
-  user        User?      @relation(fields: [userId],       references: [id])
-  ncProgram   NcProgram? @relation(fields: [ncProgramId],  references: [id])
-  mcProgram   McProgram? @relation(fields: [mcProgramId],  references: [id])
+  user        User?      @relation(fields: [userId],      references: [id])
+  ncProgram   NcProgram? @relation(fields: [ncProgramId], references: [id])
   @@index([ncProgramId, createdAt])
-  @@index([mcProgramId, createdAt])
   @@index([userId, createdAt])
   @@index([actionType, createdAt])
   @@map("operation_logs")
@@ -332,215 +298,15 @@ model OperationLog {
 model WorkSession {
   id          String      @id @default(uuid())
   userId      Int                         @map("user_id")
-  ncProgramId Int?                        @map("nc_program_id")
-  mcProgramId Int?                        @map("mc_program_id")
+  ncProgramId Int                         @map("nc_program_id")
   sessionType SessionType                 @map("session_type")
   startedAt   DateTime    @default(now()) @map("started_at")
   endedAt     DateTime?                   @map("ended_at")
   isActive    Boolean     @default(true)  @map("is_active")
   expiresAt   DateTime                    @map("expires_at")
-  user        User        @relation(fields: [userId],       references: [id])
-  ncProgram   NcProgram?  @relation(fields: [ncProgramId],  references: [id])
-  mcProgram   McProgram?  @relation(fields: [mcProgramId],  references: [id])
+  user        User        @relation(fields: [userId],      references: [id])
+  ncProgram   NcProgram   @relation(fields: [ncProgramId], references: [id])
   @@index([ncProgramId, isActive])
-  @@index([mcProgramId, isActive])
   @@index([userId, isActive])
   @@map("work_sessions")
-}
-
-// ============================================================
-// MC システム追加 Enum
-// ============================================================
-
-enum SystemType {
-  NC
-  MC
-  BOTH
-  @@map("system_type")
-}
-
-enum McProgramStatus {
-  NEW
-  PENDING_APPROVAL
-  APPROVED
-  CHANGING
-  @@map("mc_program_status")
-}
-
-// ============================================================
-// MC システム新規モデル
-// ============================================================
-
-model McProgram {
-  id             Int             @id @default(autoincrement())
-  partId         Int                                          @map("part_id")
-  machiningId    Int                                          @map("machining_id")
-  machineId      Int?                                         @map("machine_id")
-  status         McProgramStatus @default(NEW)
-  version        String          @default("1.0001") @db.VarChar(10)
-  oNumber        String?         @db.VarChar(50)             @map("o_number")
-  clampNote      String?         @db.Text                    @map("clamp_note")
-  cycleTimeSec   Int?                                         @map("cycle_time_sec")
-  machiningQty   Int?            @default(1)                 @map("machining_qty")
-  commonPartCode String?         @db.VarChar(20)             @map("common_part_code")
-  note           String?         @db.Text
-  registeredBy   Int                                         @map("registered_by")
-  approvedBy     Int?                                        @map("approved_by")
-  registeredAt   DateTime        @default(now())             @map("registered_at")
-  approvedAt     DateTime?                                   @map("approved_at")
-  legacyMcid     Int?                                        @map("legacy_mcid")
-  legacyKakoid   Int?                                        @map("legacy_kakoid")
-  createdAt      DateTime        @default(now())             @map("created_at")
-  updatedAt      DateTime        @updatedAt                  @map("updated_at")
-
-  part           Part              @relation(fields: [partId],      references: [id])
-  machine        Machine?          @relation(fields: [machineId],   references: [id])
-  registrar      User              @relation("McRegisteredBy", fields: [registeredBy], references: [id])
-  approver       User?             @relation("McApprovedBy",  fields: [approvedBy],   references: [id])
-  tooling        McTooling[]
-  workOffsets    McWorkOffset[]
-  indexPrograms  McIndexProgram[]
-  files          McFile[]
-  changeHistory  McChangeHistory[]
-  workRecords    WorkRecord[]
-  setupSheetLogs McSetupSheetLog[]
-  workSessions   WorkSession[]
-  operationLogs  OperationLog[]
-
-  @@index([machiningId])
-  @@index([partId])
-  @@index([status])
-  @@index([legacyMcid])
-  @@map("mc_programs")
-}
-
-model McTooling {
-  id              Int      @id @default(autoincrement())
-  mcProgramId     Int                          @map("mc_program_id")
-  sortOrder       Int      @db.SmallInt        @map("sort_order")
-  toolNo          String   @db.VarChar(10)     @map("tool_no")
-  toolName        String?  @db.VarChar(100)    @map("tool_name")
-  diameter        Decimal? @db.Decimal(8, 3)
-  lengthOffsetNo  String?  @db.VarChar(10)     @map("length_offset_no")
-  diaOffsetNo     String?  @db.VarChar(10)     @map("dia_offset_no")
-  toolType        String?  @db.VarChar(50)     @map("tool_type")
-  note            String?  @db.Text
-  rawProgramLine  String?  @db.Text            @map("raw_program_line")
-  createdAt       DateTime @default(now())     @map("created_at")
-  updatedAt       DateTime @updatedAt          @map("updated_at")
-
-  mcProgram McProgram @relation(fields: [mcProgramId], references: [id], onDelete: Cascade)
-
-  @@index([mcProgramId, sortOrder])
-  @@map("mc_tooling")
-}
-
-model McWorkOffset {
-  id          Int      @id @default(autoincrement())
-  mcProgramId Int                          @map("mc_program_id")
-  gCode       String   @db.VarChar(10)     @map("g_code")
-  xOffset     Decimal? @db.Decimal(12, 3)  @map("x_offset")
-  yOffset     Decimal? @db.Decimal(12, 3)  @map("y_offset")
-  zOffset     Decimal? @db.Decimal(12, 3)  @map("z_offset")
-  aOffset     Decimal? @db.Decimal(12, 3)  @map("a_offset")
-  rOffset     Decimal? @db.Decimal(12, 3)  @map("r_offset")
-  note        String?  @db.VarChar(100)
-  createdAt   DateTime @default(now())     @map("created_at")
-  updatedAt   DateTime @updatedAt          @map("updated_at")
-
-  mcProgram McProgram @relation(fields: [mcProgramId], references: [id], onDelete: Cascade)
-
-  @@unique([mcProgramId, gCode])
-  @@map("mc_work_offsets")
-}
-
-model McIndexProgram {
-  id          Int      @id @default(autoincrement())
-  mcProgramId Int                          @map("mc_program_id")
-  sortOrder   Int      @db.SmallInt        @map("sort_order")
-  axis0       String?  @db.VarChar(100)    @map("axis_0")
-  axis1       String?  @db.VarChar(100)    @map("axis_1")
-  axis2       String?  @db.VarChar(100)    @map("axis_2")
-  note        String?  @db.Text
-  createdAt   DateTime @default(now())     @map("created_at")
-  updatedAt   DateTime @updatedAt          @map("updated_at")
-
-  mcProgram McProgram @relation(fields: [mcProgramId], references: [id], onDelete: Cascade)
-
-  @@index([mcProgramId, sortOrder])
-  @@map("mc_index_programs")
-}
-
-model MachineTimecard {
-  id         Int      @id @default(autoincrement())
-  machineId  Int                          @map("machine_id")
-  operatorId Int                          @map("operator_id")
-  workDate   DateTime @db.Date            @map("work_date")
-  startTime  DateTime @db.Time(0)         @map("start_time")
-  endTime    DateTime @db.Time(0)         @map("end_time")
-  note       String?  @db.VarChar(200)
-  createdAt  DateTime @default(now())     @map("created_at")
-
-  machine  Machine @relation(fields: [machineId],  references: [id])
-  operator User    @relation(fields: [operatorId], references: [id])
-
-  @@index([machineId, workDate])
-  @@index([workDate])
-  @@map("machine_timecards")
-}
-
-model McFile {
-  id            Int      @id @default(autoincrement())
-  mcProgramId   Int                          @map("mc_program_id")
-  fileType      FileType @default(OTHER)     @map("file_type")
-  originalName  String   @db.VarChar(255)   @map("original_name")
-  storedName    String   @db.VarChar(255)   @map("stored_name")
-  mimeType      String   @db.VarChar(100)   @map("mime_type")
-  filePath      String   @db.VarChar(500)   @map("file_path")
-  thumbnailPath String?  @db.VarChar(500)   @map("thumbnail_path")
-  fileSize      Int                         @map("file_size")
-  uploadedBy    Int                         @map("uploaded_by")
-  uploadedAt    DateTime @default(now())    @map("uploaded_at")
-
-  mcProgram McProgram @relation(fields: [mcProgramId], references: [id], onDelete: Cascade)
-  uploader  User      @relation(fields: [uploadedBy],  references: [id])
-
-  @@index([mcProgramId, fileType])
-  @@map("mc_files")
-}
-
-model McChangeHistory {
-  id            Int        @id @default(autoincrement())
-  mcProgramId   Int                          @map("mc_program_id")
-  changeType    ChangeType                   @map("change_type")
-  operatorId    Int                          @map("operator_id")
-  versionBefore String?    @db.VarChar(10)   @map("version_before")
-  versionAfter  String?    @db.VarChar(10)   @map("version_after")
-  content       String?    @db.Text
-  fieldChanges  Json?                        @map("field_changes")
-  changedAt     DateTime   @default(now())   @map("changed_at")
-  legacyHistId  Int?                         @map("legacy_hist_id")
-
-  mcProgram McProgram @relation(fields: [mcProgramId], references: [id])
-  operator  User      @relation(fields: [operatorId],  references: [id])
-
-  @@index([mcProgramId, changedAt])
-  @@index([legacyHistId])
-  @@map("mc_change_history")
-}
-
-model McSetupSheetLog {
-  id          Int      @id @default(autoincrement())
-  mcProgramId Int                          @map("mc_program_id")
-  operatorId  Int                          @map("operator_id")
-  printedAt   DateTime @default(now())     @map("printed_at")
-  version     String?  @db.VarChar(10)
-  pdfPath     String?  @db.VarChar(500)    @map("pdf_path")
-  sessionId   String?  @db.VarChar(36)     @map("session_id")
-
-  mcProgram McProgram @relation(fields: [mcProgramId], references: [id])
-  operator  User      @relation(fields: [operatorId],  references: [id])
-
-  @@index([mcProgramId, printedAt])
-  @@map("mc_setup_sheet_logs")
 }
