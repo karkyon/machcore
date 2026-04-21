@@ -326,6 +326,7 @@ export default function RecordPage() {
         <span className="text-slate-600">|</span>
         <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
         <span className="text-slate-400 text-xs">|</span>
+        <button onClick={() => router.push("/mc/search")} className="text-xs bg-white text-slate-800 hover:bg-slate-100 border border-slate-400 px-2.5 py-1 rounded font-medium transition-all shrink-0">⇄ MC</button>
         <span className="text-sm font-medium">⏱ 作業記録</span>
         <span className="ml-auto">
           {isAuthenticated ? (
