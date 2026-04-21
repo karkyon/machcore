@@ -1,7 +1,8 @@
 import {
   Controller, Get, Post, Put, Param, Query,
-  ParseIntPipe, Body, UseGuards, Req,
+  ParseIntPipe, Body, UseGuards, Req, Res,
 } from '@nestjs/common';
+import type { FastifyReply } from 'fastify';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -13,6 +14,7 @@ import { CreateMcWorkRecordDto } from './dto/create-mc-work-record.dto';
 import { SaveToolingDto } from './dto/save-tooling.dto';
 import { SaveWorkOffsetsDto } from './dto/save-work-offsets.dto';
 import { SaveIndexProgramsDto } from './dto/save-index-programs.dto';
+import { PrintMcDto } from './dto/print-mc.dto';
 
 @Controller('mc')
 export class McController {
@@ -69,12 +71,6 @@ export class McController {
     @Req() req: any,
   ) {
     return this.mc.update(id, dto, req.user.id);
-  }
-
-  // ── 段取シートデータ ────────────────────────
-  @Get(':mc_id/print-data')
-  getPrintData(@Param('mc_id', ParseIntPipe) id: number) {
-    return this.mc.getPrintData(id);
   }
 
   // ── ツーリング ──────────────────────────────
@@ -169,6 +165,46 @@ export class McController {
   @Get(':mc_id/files')
   listFiles(@Param('mc_id', ParseIntPipe) id: number) {
     return this.mc.listFiles(id);
+  }
+
+  // ── 段取シートPDF / 印刷 ───────────────────────
+  @Get(':mc_id/print-data')
+  getPrintData(@Param('mc_id', ParseIntPipe) id: number) {
+    return this.mc.getPrintData(id);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Post(':mc_id/print')
+  async generatePrint(
+    @Param('mc_id', ParseIntPipe) id: number,
+    @Body() dto: PrintMcDto,
+    @Req() req: any,
+    @Res() reply: FastifyReply,
+  ) {
+    const pdf = await this.mc.generateSetupSheetPdf(id, req.user.id, dto);
+    this.opLog.log({
+      actionType:   'MC_SETUP_PRINT',
+      userId:       req.user?.sub,
+      mcProgramId:  id,
+      sessionId:    req.user?.session_id,
+      ipAddress:    req.ip,
+    });
+    reply.header('Content-Type',        'application/pdf');
+    reply.header('Content-Disposition', `inline; filename="mc-setup-sheet-${id}.pdf"`);
+    reply.header('Content-Length',      String(pdf.length));
+    return reply.send(pdf);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Post(':mc_id/direct-print')
+  async directPrint(
+    @Param('mc_id', ParseIntPipe) id: number,
+    @Body() dto: PrintMcDto,
+    @Req() req: any,
+  ) {
+    return this.mc.directPrint(id, req.user.id, dto);
   }
 
   // ── 機械タイムカード ────────────────────────
