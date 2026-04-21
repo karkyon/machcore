@@ -5,9 +5,12 @@ export interface LogCtx {
   actionType:   'VIEW' | 'SEARCH' | 'EDIT_START' | 'EDIT_SAVE' | 'APPROVE'
               | 'SETUP_PRINT' | 'WORK_RECORD' | 'USB_DOWNLOAD'
               | 'FILE_UPLOAD' | 'FILE_DELETE' | 'LOGIN' | 'LOGOUT'
-              | 'SESSION_START' | 'SESSION_END';
+              | 'SESSION_START' | 'SESSION_END'
+              | 'MC_VIEW' | 'MC_EDIT_START' | 'MC_EDIT_SAVE' | 'MC_APPROVE'
+              | 'MC_SETUP_PRINT' | 'MC_WORK_RECORD' | 'MC_USB_DOWNLOAD';
   userId?:      number;
   ncProgramId?: number;
+  mcProgramId?: number;
   sessionId?:   string;
   ipAddress?:   string;
   userAgent?:   string;
@@ -25,6 +28,7 @@ export class OperationLogService {
         actionType:  ctx.actionType as any,
         userId:      ctx.userId      ?? undefined,
         ncProgramId: ctx.ncProgramId ?? undefined,
+        mcProgramId: ctx.mcProgramId ?? undefined,
         sessionId:   ctx.sessionId   ?? undefined,
         ipAddress:   ctx.ipAddress   ?? undefined,
         userAgent:   ctx.userAgent   ?? undefined,
