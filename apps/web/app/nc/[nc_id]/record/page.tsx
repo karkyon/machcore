@@ -324,7 +324,7 @@ export default function RecordPage() {
       <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
         <button onClick={() => router.push(`/nc/${ncId}`)} className="text-slate-400 hover:text-white text-xs transition-colors">← NC詳細</button>
         <span className="text-slate-600">|</span>
-        <span className="font-mono text-sky-400 font-bold text-sm">MachCore</span>
+        <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
         <span className="text-slate-400 text-xs">|</span>
         <span className="text-sm font-medium">⏱ 作業記録</span>
         <span className="ml-auto">
