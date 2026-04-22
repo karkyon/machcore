@@ -150,20 +150,29 @@ function McRecordPageInner() {
         </span>
       </header>
 
-      <nav className="bg-slate-700 px-5 flex gap-0 shrink-0">
-        {[
-          { href: `/mc/${mcId}`,        label: "MC詳細",    active: false },
-          { href: `/mc/${mcId}/edit`,   label: "変更・登録", active: false },
-          { href: `/mc/${mcId}/print`,  label: "段取シート", active: false },
-          { href: `/mc/${mcId}/record`, label: "作業記録",  active: true  },
-        ].map(tab => (
-          <button key={tab.href} onClick={() => router.push(tab.href)}
-            className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
-              tab.active ? "border-teal-400 text-teal-300" : "border-transparent text-slate-400 hover:text-white"}`}>
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+      {/* タブナビ */}
+      <nav className="bg-slate-800 px-5 flex gap-0 shrink-0 border-t border-slate-700">
+        <button onClick={() => router.push(`/mc/${mcId}`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          MC詳細
+        </button>
+        <button onClick={() => router.push(`/mc/${mcId}/edit`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          変更・登録
+        </button>
+        <button onClick={() => router.push(`/mc/${mcId}/print`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          段取シート
+        </button>
+        <button onClick={() => router.push(`/mc/${mcId}/record`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-teal-400 text-teal-400 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          作業記録
+        </button>
+      </nav>      </nav>
 
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* 上: 過去記録 */}

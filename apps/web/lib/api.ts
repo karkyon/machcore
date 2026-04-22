@@ -519,7 +519,7 @@ export type McDetail = {
   note:           string | null;
   registeredAt:   string;
   approvedAt:     string | null;
-  part:    { drawingNo: string; name: string; clientName: string | null };
+  part:    { drawingNo: string; name: string; clientName: string | null; partId: string | null };
   machine: { machineCode: string; machineName: string } | null;
   registrar: { name: string };
   approver:  { name: string } | null;

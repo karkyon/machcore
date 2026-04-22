@@ -198,13 +198,12 @@ export default function McEditPage() {
         <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
           <div className="flex items-center gap-3 mb-1">
             <span className="font-mono text-teal-600 font-bold text-lg">{d.part.drawingNo}</span>
-            {(d as any).mcProcessNo != null && (
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-600 text-white">MC{(d as any).mcProcessNo}</span>
-            )}
+            {d.machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{d.machine.machineCode}</span>}
             <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-              d.status === "APPROVED" ? "bg-emerald-100 text-emerald-700" :
+              d.status === "APPROVED"         ? "bg-emerald-100 text-emerald-700" :
               d.status === "PENDING_APPROVAL" ? "bg-amber-100 text-amber-700" :
-              d.status === "CHANGING" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
+              d.status === "CHANGING"         ? "bg-red-100 text-red-700" :
+                                                "bg-blue-100 text-blue-700"
             }`}>{
               d.status === "APPROVED" ? "承認済" : d.status === "PENDING_APPROVAL" ? "未承認" :
               d.status === "CHANGING" ? "変更中" : "新規"
@@ -215,6 +214,7 @@ export default function McEditPage() {
           <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
             <span>MCID: {d.id}</span>
             <span>加工ID: {d.machiningId}</span>
+            {d.part.partId && <span>部品ID: {d.part.partId}</span>}
             {d.part.clientName && <span>納入先: {d.part.clientName}</span>}
           </div>
         </div>
@@ -224,7 +224,7 @@ export default function McEditPage() {
       <nav className="bg-slate-800 px-5 flex gap-0 shrink-0 border-t border-slate-700">
         <button onClick={() => router.push(`/mc/${mcId}`)}
           className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           MC詳細
         </button>
         <button onClick={() => router.push(`/mc/${mcId}/edit`)}
