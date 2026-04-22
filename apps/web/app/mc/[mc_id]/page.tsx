@@ -226,7 +226,12 @@ export default function McDetailPage() {
       <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
         <div className="flex items-center gap-3 mb-1">
           <span className="font-mono text-teal-600 font-bold text-lg">{d.part.drawingNo}</span>
-          <span className={`text-[11px] px-2 py-0.5 rounded font-bold ${STATUS_COLOR[d.status] ?? "bg-slate-100 text-slate-600"}`}>{STATUS_LABEL[d.status] ?? d.status}</span>
+          <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+            d.status === "APPROVED"          ? "bg-emerald-100 text-emerald-700" :
+            d.status === "PENDING_APPROVAL"  ? "bg-amber-100 text-amber-700" :
+            d.status === "CHANGING"          ? "bg-red-100 text-red-700" :
+                                               "bg-blue-100 text-blue-700"
+          }`}>{STATUS_LABEL[d.status] ?? d.status}</span>
           <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
         </div>
         <div className="text-sm text-slate-700 font-medium mb-1">{d.part.name}</div>
@@ -242,7 +247,7 @@ export default function McDetailPage() {
       <nav className="bg-slate-800 px-5 flex gap-0 shrink-0 border-t border-slate-700">
         <button onClick={() => router.push(`/mc/${mcId}`)}
           className="px-4 py-2 text-xs font-medium border-b-2 border-teal-400 text-teal-400 transition-colors flex items-center gap-1.5">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           MC詳細
         </button>
         <button onClick={() => router.push(`/mc/${mcId}/edit`)}
