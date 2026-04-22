@@ -12,11 +12,31 @@
 #   --skip-nc  : NC旋盤データのインポートをスキップ
 #   --skip-mc  : MCマシニングデータのインポートをスキップ
 #   --truncate : 既存データを全削除してから再インポート（本番移行時）
+#   --phase N  : 指定フェーズのみ実行 (1-6)
 #
 # 前提条件:
 #   pip3 install pymssql psycopg2-binary --break-system-packages
 #   PostgreSQL側にmc_migration.sqlが適用済みであること
 #   machines テーブルにMC機械が登録済みであること
+#   mc_tooling.tool_no が nullable であること:
+#     ALTER TABLE mc_tooling ALTER COLUMN tool_no DROP NOT NULL;
+#
+# フェーズ構成:
+#   Phase 0: スキーマ整合確認 (必須カラム + nullable確認)
+#   Phase 1: mc_programs    — ACC_MC × ACC_マシニング (約15,681件想定)
+#   Phase 2: mc_tooling     — ACC_ツーリング (約127,235件想定)
+#   Phase 3: RC同期         — ツーリング件数 → mc_programs.rc
+#   Phase 4: mc_work_offsets — ACC_ワークオフセット
+#   Phase 5: mc_index_programs — ACC_インデックスプログラム
+#   Phase 6: mc_change_history — ACC_変更履歴
+#
+# 重要な実装メモ (開発時の調査結果):
+#   - ACC_マシニング実カラム名: Version(英字), 機械ID(int), 入力日付, パス1/パス2, 担当者ID
+#   - ACC_MC.MCID がユニークキー (9,539), 加工IDは共通加工で複数MCIDが共有 (7,895)
+#   - mc_tooling の加工ID紐づけは legacy_kakoid ベースで解決
+#   - SP_Sheet(機械ID=1)はPGに存在しないためmachine_id=NULLになる (正常)
+#   - tool_no(Nカラム)はNULLデータが多数存在するためNOT NULL制約を外す必要あり
+#   - fetchall()は大量データで遅延するためfetchmany(500)を使用
 # =============================================================================
 
 import sys
@@ -80,7 +100,7 @@ def build_maps(sc, pc):
 
     # parts: part_id(文字列) → id
     pc.execute("SELECT id, part_id FROM parts")
-    parts_map = {r[0]: r[1] for r in pc.fetchall()}   # "1482" → 30
+    parts_map = {r[1]: r[0] for r in pc.fetchall()}   # "1482" → 30
     log.info(f"  parts: {len(parts_map)}件")
 
     # machines: machine_code → id (全system_type)
@@ -234,14 +254,17 @@ def import_mc_tooling(sc, pc, dry_run=False, truncate=False):
     if truncate and not dry_run:
         pc.execute("TRUNCATE TABLE mc_tooling")
 
-    # machining_id → mc_programs.id マップ
-    pc.execute("SELECT id, machining_id, legacy_mcid FROM mc_programs")
-    rows_pg = pc.fetchall()
-    # legacy_mcid → mc_programs.id (MCID単位でユニーク)
-    mcid_map = {r[2]: r[0] for r in rows_pg if r[2] is not None}
-    log.info(f"  mc_programs マップ: {len(mcid_map)}件")
+    # ── マップ構築: legacy_kakoid(加工ID) → mc_programs.id ──────────────
+    # ツーリングはACC_ツーリング.加工ID = ACC_マシニング.加工ID で紐づく。
+    # mc_programsのlegacy_kakoidに加工IDが格納されている。
+    # 同一加工IDに複数のMCIDが存在する（共通加工）場合は先頭のmc_programs.idを使用。
+    pc.execute("SELECT id, legacy_kakoid FROM mc_programs WHERE legacy_kakoid IS NOT NULL")
+    kakoid_map = {}
+    for r in pc.fetchall():
+        kakoid_map.setdefault(r[1], r[0])  # 同一kakoidは最初のidを採用
+    log.info(f"  kakoidマップ: {len(kakoid_map)}件")
 
-    # ACC_ツーリングのカラム確認
+    # ── ACC_ツーリング カラム動的確認 ──────────────────────────────────
     sc.execute("""
         SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'ACC_ツーリング'
@@ -250,14 +273,16 @@ def import_mc_tooling(sc, pc, dry_run=False, truncate=False):
     cols = [r[0] for r in sc.fetchall()]
     log.info(f"  ACC_ツーリング カラム: {cols}")
 
-    # カラム存在確認
-    has_d_value = 'D値' in cols
-    has_sub     = 'SUB' in cols
+    # カラム存在フラグ
+    has_d_value  = 'D値' in cols
+    has_sub      = 'SUB' in cols
+    has_tool_col = 'ツール' in cols   # tool_type相当
 
-    # SELECT文を動的構築
-    select_cols = "加工ID, N, 工具, T, H, D, コメント, 順番"
-    if has_d_value: select_cols += ", D値"
-    if has_sub:     select_cols += ", SUB"
+    # SELECT文を動的構築（ツーリングIDを先頭に）
+    select_cols = "ツーリングID, 加工ID, 順番, N, 工具, T, H, D, コメント"
+    if has_d_value:  select_cols += ", D値"
+    if has_sub:      select_cols += ", SUB"
+    if has_tool_col: select_cols += ", ツール"
 
     sc.execute(f"""
         SELECT {select_cols}
@@ -265,39 +290,54 @@ def import_mc_tooling(sc, pc, dry_run=False, truncate=False):
         ORDER BY 加工ID, 順番
     """)
 
+    # ── tool_no は nullable (本番DBでALTER済み) ──────────────────────
+    # DB側: ALTER TABLE mc_tooling ALTER COLUMN tool_no DROP NOT NULL;
+    # Prisma: toolNo String? に変更済み
     INSERT_SQL = """
         INSERT INTO mc_tooling (
             mc_program_id, sort_order, tool_no, tool_name,
             t_no, length_offset_no, dia_offset_no,
-            d_value_content, sub_pg_no, note
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            d_value_content, sub_pg_no, note, tool_type,
+            created_at, updated_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
         ON CONFLICT DO NOTHING
     """
 
     inserted = skipped = errors = 0
-    BATCH = 1000
+    BATCH = 500
 
     while True:
         rows = sc.fetchmany(BATCH)
         if not rows: break
 
         for row in rows:
-            kako_id = row[0]
-            n_val   = safe_str(row[1], 20)
-            tool    = safe_str(row[2], 100)
-            t_val   = safe_str(row[3], 10)
-            h_val   = safe_str(row[4], 10)
-            d_val   = safe_str(row[5], 10)
-            comment = safe_str(row[6], 500)
-            seq     = safe_int(row[7]) or 0
-            d_value = safe_str(row[8], 50) if has_d_value and len(row) > 8 else None
-            sub_pg  = safe_str(row[9], 20) if has_sub and len(row) > 9 else None
+            idx = 0
+            tid      = row[idx]; idx += 1
+            kako_id  = row[idx]; idx += 1
+            junban   = row[idx]; idx += 1
+            n_val    = safe_str(row[idx], 20);  idx += 1
+            tool     = safe_str(row[idx], 100); idx += 1
+            t_val    = safe_str(row[idx], 10);  idx += 1
+            h_val    = safe_str(row[idx], 10);  idx += 1
+            d_val    = safe_str(row[idx], 10);  idx += 1
+            comment  = safe_str(row[idx], 500); idx += 1
+            d_value  = safe_str(row[idx], 50)  if has_d_value  else None; idx += (1 if has_d_value  else 0)
+            sub_pg   = safe_str(row[idx], 20)  if has_sub      else None; idx += (1 if has_sub      else 0)
+            tool_typ = safe_str(row[idx], 50)  if has_tool_col else None
 
-            # mc_programs.id を machining_id から解決
-            # ツーリングは加工ID単位なので、同じ加工IDを持つMCIDのうち先頭1件を使う
-            # (toolingは加工プログラム本体に紐づくため、どのMCIDでも同一内容)
-            # MCID=加工IDの正規レコードを優先
-            mc_prog_id = mcid_map.get(kako_id)  # legacy_mcid=加工IDのケース
+            try:
+                seq = int(float(junban)) if junban is not None else 0
+            except:
+                seq = 0
+
+            # D値をfloat→文字列変換
+            if d_value is not None:
+                try:
+                    d_value = str(round(float(d_value), 3))
+                except:
+                    pass
+
+            mc_prog_id = kakoid_map.get(kako_id)
             if mc_prog_id is None:
                 skipped += 1
                 continue
@@ -309,9 +349,11 @@ def import_mc_tooling(sc, pc, dry_run=False, truncate=False):
             pc.execute("SAVEPOINT sp")
             try:
                 pc.execute(INSERT_SQL, (
-                    mc_prog_id, seq, n_val or '', tool,
+                    mc_prog_id, seq,
+                    n_val,      # tool_no — NULL許容
+                    tool,
                     t_val, h_val, d_val,
-                    d_value, sub_pg, comment,
+                    d_value, sub_pg, comment, tool_typ,
                 ))
                 pc.execute("RELEASE SAVEPOINT sp")
                 inserted += 1
@@ -319,7 +361,7 @@ def import_mc_tooling(sc, pc, dry_run=False, truncate=False):
                 pc.execute("ROLLBACK TO SAVEPOINT sp")
                 errors += 1
                 if errors <= 5:
-                    log.error(f"  ERROR 加工ID={kako_id} seq={seq}: {e}")
+                    log.error(f"  ERROR tid={tid} 加工ID={kako_id} seq={seq}: {e}")
 
         if not dry_run:
             pc.connection.commit()
@@ -619,7 +661,7 @@ def verify_schema(pc):
         'mc_programs': ['mc_process_no', 'folder1', 'folder2', 'file_name',
                         'rc', 'has_index_program', 'has_work_offset',
                         'legacy_mcid', 'legacy_kakoid'],
-        'mc_tooling':  ['t_no', 'd_value_content', 'sub_pg_no'],
+        'mc_tooling':  ['t_no', 'd_value_content', 'sub_pg_no', 'tool_type'],
     }
     all_ok = True
     for table, cols in required.items():
@@ -634,6 +676,20 @@ def verify_schema(pc):
                 all_ok = False
             else:
                 log.info(f"  ✅ {table}.{col}")
+
+    # tool_no の nullable 確認
+    pc.execute("""
+        SELECT is_nullable FROM information_schema.columns
+        WHERE table_name = 'mc_tooling' AND column_name = 'tool_no'
+    """)
+    r = pc.fetchone()
+    if r and r[0] == 'YES':
+        log.info("  ✅ mc_tooling.tool_no: nullable (正常)")
+    else:
+        log.error("  ❌ mc_tooling.tool_no が NOT NULL のままです")
+        log.error("     ALTER TABLE mc_tooling ALTER COLUMN tool_no DROP NOT NULL; を実行してください")
+        all_ok = False
+
     return all_ok
 
 

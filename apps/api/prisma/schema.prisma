@@ -424,7 +424,7 @@ model McTooling {
   id              Int      @id @default(autoincrement())
   mcProgramId     Int                          @map("mc_program_id")
   sortOrder       Int      @db.SmallInt        @map("sort_order")
-  toolNo          String   @db.VarChar(20)     @map("tool_no")
+  toolNo          String?  @db.VarChar(20)     @map("tool_no")
   toolName        String?  @db.VarChar(100)    @map("tool_name")
   tNo             String?  @db.VarChar(10)      @map("t_no")
   dValueContent   String?  @db.VarChar(50)      @map("d_value_content")
