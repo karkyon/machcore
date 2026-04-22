@@ -390,6 +390,12 @@ model McProgram {
   approvedAt     DateTime?                                   @map("approved_at")
   legacyMcid     Int?                                        @map("legacy_mcid")
   legacyKakoid   Int?                                        @map("legacy_kakoid")
+  mcProcessNo     Int?            @db.SmallInt                @map("mc_process_no")
+  folder1         String?         @db.VarChar(50)             @map("folder1")
+  folder2         String?         @db.VarChar(50)             @map("folder2")
+  fileName        String?         @db.VarChar(50)             @map("file_name")
+  hasIndexProgram Boolean         @default(false)             @map("has_index_program")
+  hasWorkOffset   Boolean         @default(false)             @map("has_work_offset")
   createdAt      DateTime        @default(now())             @map("created_at")
   updatedAt      DateTime        @updatedAt                  @map("updated_at")
 
