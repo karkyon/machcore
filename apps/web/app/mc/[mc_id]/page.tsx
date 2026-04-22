@@ -29,6 +29,10 @@ export default function McDetailPage() {
   const router = useRouter();
 
   const [detail,    setDetail]    = useState<McDetail | null>(null);
+  const [floatOpen,  setFloatOpen]  = useState(true);
+  const [floatPos,   setFloatPos]   = useState({ x: 900, y: 120 });
+  const [dragging,   setDragging]   = useState(false);
+  const dragStart    = useRef<{ mx: number; my: number; px: number; py: number } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [mainTab,   setMainTab]   = useState("mc");
   const [histTab,   setHistTab]   = useState("change");
@@ -110,6 +114,15 @@ export default function McDetailPage() {
   const fmtElapsed = (s: number) =>
     `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!dragging || !dragStart.current) return;
+    setFloatPos({
+      x: Math.max(0, dragStart.current.px + e.clientX - dragStart.current.mx),
+      y: Math.max(0, dragStart.current.py + e.clientY - dragStart.current.my),
+    });
+  };
+  const onMouseUp = () => { setDragging(false); dragStart.current = null; };
+
   if (loadError) return (
     <div className="h-screen flex items-center justify-center text-red-500">
       <div className="text-center"><p className="text-2xl mb-2">⚠️</p><p>{loadError}</p>
@@ -127,14 +140,18 @@ export default function McDetailPage() {
   const d = detail;
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50">
+    <div className="h-screen flex flex-col bg-slate-50" onMouseMove={onMouseMove} onMouseUp={onMouseUp}>
       {/* ヘッダー */}
       <header className="bg-slate-800 text-white px-5 py-2 flex items-center gap-3 shrink-0">
-        <button onClick={() => router.push("/mc/search")} className="text-teal-400 font-bold text-base font-mono hover:text-teal-300">MachCore MC</button>
+        <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
+        <span className="text-slate-400 text-xs">|</span>
         <button onClick={() => router.push("/nc/search")} className="text-xs bg-white text-slate-800 hover:bg-slate-100 border border-slate-400 px-2.5 py-1 rounded font-medium transition-all shrink-0">⇄ NC</button>
-        <span className="text-slate-600">›</span>
-        <span className="text-xs text-slate-300 truncate">{d.part.drawingNo} / {d.part.name}</span>
-                <span className="ml-auto flex items-center gap-3">
+        <span className="text-sm font-medium text-white">MC 詳細</span>
+        <span className="ml-auto flex items-center gap-3">
+          <button onClick={() => router.push("/mc/search")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-500 rounded-lg text-xs font-bold text-white transition-colors">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+            部品検索へ戻る
+          </button>
           {isAuthenticated && operator ? (
             <>
               <span className="text-[11px] bg-red-600 text-white px-2 py-0.5 rounded font-bold animate-pulse">
@@ -153,24 +170,64 @@ export default function McDetailPage() {
           </button>
         </span>
       </header>
+        {/* ── フローティング工程切り替えパネル ── */}
+        {d && d.commonGroup && d.commonGroup.length > 1 && (
+          <div
+            style={{ position: "fixed", left: floatPos.x, top: floatPos.y, zIndex: 100, userSelect: "none" }}
+            className="shadow-2xl rounded-xl overflow-hidden border border-slate-700 w-52"
+          >
+            <div
+              className="bg-slate-800 text-white px-3 py-1.5 flex items-center gap-2 cursor-move"
+              onMouseDown={e => {
+                setDragging(true);
+                dragStart.current = { mx: e.clientX, my: e.clientY, px: floatPos.x, py: floatPos.y };
+              }}
+            >
+              <span className="text-[10px] font-bold text-slate-300 flex-1">⚙ 工程切り替え</span>
+              <button
+                onMouseDown={e => e.stopPropagation()}
+                onClick={() => setFloatOpen(v => !v)}
+                className="text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-0.5 rounded font-bold text-slate-200"
+              >
+                {floatOpen ? "CLOSE" : "OPEN"}
+              </button>
+            </div>
+            {floatOpen && (
+              <div className="bg-white">
+                {d.commonGroup.map(g => (
+                  <button
+                    key={g.id}
+                    onClick={() => router.push(`/mc/${g.id}`)}
+                    className={`w-full text-left px-3 py-2 text-xs border-b border-slate-100 flex items-center gap-2 transition-colors ${
+                      g.id === d.id
+                        ? "bg-teal-50 border-l-2 border-l-teal-400"
+                        : "hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${g.id === d.id ? "bg-teal-500 text-white" : "bg-slate-100 text-slate-600"}`}>
+                      {g.id}
+                    </span>
+                    <span className="font-mono text-slate-600 truncate flex-1">{g.part.drawingNo}</span>
+                    <span className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                      g.status === "APPROVED" ? "bg-green-100 text-green-700" :
+                      g.status === "CHANGING" ? "bg-orange-100 text-orange-700" :
+                      "bg-slate-100 text-slate-500"
+                    }`}>
+                      {g.status === "APPROVED" ? "承認済" : g.status === "CHANGING" ? "変更中" : g.status === "PENDING_APPROVAL" ? "承認待" : "新規"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
       {/* 部品ヘッダー */}
       <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
         <div className="flex items-center gap-3 mb-1">
           <span className="font-mono text-teal-600 font-bold text-lg">{d.part.drawingNo}</span>
-          <span className={`text-[11px] px-2 py-0.5 rounded font-bold ${STATUS_COLOR[d.status] ?? "bg-slate-100 text-slate-600"}`}>
-            {STATUS_LABEL[d.status] ?? d.status}
-          </span>
-          {d.commonGroup.length > 1 && (
-            <span className="text-[11px] bg-pink-100 text-pink-700 px-2 py-0.5 rounded font-bold">共通加工 {d.commonGroup.length}部品</span>
-          )}
-          <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver.{d.version}</span>
-          <div className="ml-auto flex gap-2">
-            <button onClick={() => router.push(`/mc/${mcId}/edit`)}
-              className="text-xs bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg font-bold">変更・登録</button>
-            <button onClick={() => router.push(`/mc/${mcId}/print`)}
-              className="text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg font-bold">段取シート</button>
-          </div>
+          <span className={`text-[11px] px-2 py-0.5 rounded font-bold ${STATUS_COLOR[d.status] ?? "bg-slate-100 text-slate-600"}`}>{STATUS_LABEL[d.status] ?? d.status}</span>
+          <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
         </div>
         <div className="text-sm text-slate-700 font-medium mb-1">{d.part.name}</div>
         <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
@@ -182,19 +239,27 @@ export default function McDetailPage() {
       </div>
 
       {/* ナビタブ */}
-      <nav className="bg-slate-700 px-5 flex gap-0 shrink-0">
-        {[
-          { href: `/mc/${mcId}`,        label: "MC詳細",    active: true  },
-          { href: `/mc/${mcId}/edit`,   label: "変更・登録", active: false },
-          { href: `/mc/${mcId}/print`,  label: "段取シート", active: false },
-          { href: `/mc/${mcId}/record`, label: "作業記録",  active: false },
-        ].map(tab => (
-          <button key={tab.href} onClick={() => router.push(tab.href)}
-            className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
-              tab.active ? "border-teal-400 text-teal-300" : "border-transparent text-slate-400 hover:text-white hover:border-slate-400"}`}>
-            {tab.label}
-          </button>
-        ))}
+      <nav className="bg-slate-800 px-5 flex gap-0 shrink-0 border-t border-slate-700">
+        <button onClick={() => router.push(`/mc/${mcId}`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-teal-400 text-teal-400 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          MC詳細
+        </button>
+        <button onClick={() => router.push(`/mc/${mcId}/edit`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          変更・登録
+        </button>
+        <button onClick={() => router.push(`/mc/${mcId}/print`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          段取シート
+        </button>
+        <button onClick={() => router.push(`/mc/${mcId}/record`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          作業記録
+        </button>
       </nav>
 
       {/* コンテンツタブ */}

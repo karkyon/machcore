@@ -3,13 +3,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { mcApi, machinesApi, McSearchResult, Machine } from "@/lib/api";
 
-const SEARCH_KEYS = [
-  { value: "drawing_no", label: "図面番号" },
-  { value: "part_name",  label: "部品名称" },
-  { value: "mcid",       label: "MCID" },
-  { value: "machining_id", label: "加工ID" },
-];
-
 const STATUS_LABEL: Record<string, string> = {
   NEW: "新規", PENDING_APPROVAL: "未承認", APPROVED: "承認済", CHANGING: "変更中",
 };
@@ -17,50 +10,61 @@ const STATUS_COLOR: Record<string, string> = {
   NEW: "bg-blue-100 text-blue-700", PENDING_APPROVAL: "bg-amber-100 text-amber-700",
   APPROVED: "bg-emerald-100 text-emerald-700", CHANGING: "bg-red-100 text-red-700",
 };
-
+type McPartGroup = { drawing_no: string; part_name: string; part_id: string | null; client_name: string | null; rows: McSearchResult[]; };
+function groupByPart(results: McSearchResult[]): McPartGroup[] {
+  const map = new Map<string, McPartGroup>();
+  for (const r of results) {
+    if (!map.has(r.drawing_no)) map.set(r.drawing_no, { drawing_no: r.drawing_no, part_name: r.part_name, part_id: (r as any).part_id ?? null, client_name: r.client_name ?? null, rows: [] });
+    map.get(r.drawing_no)!.rows.push(r);
+  }
+  return Array.from(map.values());
+}
 export default function McSearchPage() {
   const router = useRouter();
-  const [key,      setKey]      = useState("drawing_no");
-  const [q,        setQ]        = useState("");
+  const [mcIdInput,      setMcIdInput]      = useState("");
+  const [partIdInput,    setPartIdInput]    = useState("");
+  const [drawingNoInput, setDrawingNoInput] = useState("");
+  const [nameInput,      setNameInput]      = useState("");
+  const [clientInput,    setClientInput]    = useState("");
+  const [machineInput,   setMachineInput]   = useState("");
   const [loading,  setLoading]  = useState(false);
   const [results,  setResults]  = useState<McSearchResult[]>([]);
   const [total,    setTotal]    = useState<number | null>(null);
-  const [selected, setSelected] = useState<number | null>(null);
   const [recent,   setRecent]   = useState<any[]>([]);
-  const [machines, setMachines] = useState<Machine[]>([]);
-  const [machineInput, setMachineInput] = useState("");
-  const [clientInput,  setClientInput]  = useState("");
+  const [selected, setSelected] = useState<number | null>(null);
+  const [clientNames, setClientNames] = useState<string[]>([]);
 
   useEffect(() => {
     mcApi.recent().then(r => setRecent(r.data ?? [])).catch(() => {});
-    machinesApi.list().then(r => setMachines((r.data ?? []).filter((m: Machine) => m.isActive))).catch(() => {});
+    fetch("/api/nc/client-names").then(r => r.json()).then(setClientNames).catch(() => {});
   }, []);
 
   const handleSearch = useCallback(async () => {
+    let searchKey = "drawing_no", searchQ = "";
+    if (mcIdInput.trim())           { searchKey = "mcid";       searchQ = mcIdInput.trim(); }
+    else if (partIdInput.trim())    { searchKey = "part_id";    searchQ = partIdInput.trim(); }
+    else if (drawingNoInput.trim()) { searchKey = "drawing_no"; searchQ = drawingNoInput.trim(); }
+    else if (nameInput.trim())      { searchKey = "part_name";  searchQ = nameInput.trim(); }
     setLoading(true); setSelected(null);
     try {
-      const res = await mcApi.search(key, q, {
+      const res = await mcApi.search(searchKey, searchQ, {
         client_name: clientInput || undefined,
-        machine_id:  machineInput ? parseInt(machineInput) : undefined,
       });
       const d = (res as any).data ?? res;
-      setResults(d.rows ?? []);
-      setTotal(d.total ?? 0);
+      setResults(d.rows ?? []); setTotal(d.total ?? 0);
     } catch { setResults([]); setTotal(0); }
-    finally  { setLoading(false); }
-  }, [key, q, clientInput, machineInput]);
+    finally { setLoading(false); }
+  }, [mcIdInput, partIdInput, drawingNoInput, nameInput, clientInput, machineInput]);
 
   const handleSelect = (mcId: number) => { setSelected(mcId); router.push(`/mc/${mcId}`); };
-
+  const groups = groupByPart(results);
   const fmtCycle = (sec: number | null) => {
-    if (!sec) return "";
-    const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
-    return `${h}H ${String(m).padStart(2,"0")}M ${String(s).padStart(2,"0")}S`;
+    if (!sec) return null;
+    return `${Math.floor(sec/3600)}H ${String(Math.floor((sec%3600)/60)).padStart(2,"0")}M`;
   };
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
-      {/* ヘッダー */}
       <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
         <span className="text-slate-400 text-xs">|</span>
@@ -68,133 +72,120 @@ export default function McSearchPage() {
         <span className="text-base font-medium text-white">MC マシニング管理システム</span>
         <span className="ml-auto text-[10px] text-slate-400 bg-slate-700 px-2 py-0.5 rounded">認証不要</span>
       </header>
-
       <div className="flex flex-1 min-h-0">
-        {/* 左: 検索フォーム */}
-        <aside className="w-[260px] shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-slate-700">MC 部品検索</h2>
-              <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-bold">認証不要</span>
+        <aside className="w-[240px] shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
+          <div className="p-4 space-y-2">
+            <h2 className="text-sm font-bold text-slate-700">MC 部品検索</h2>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide pt-1">ID 直接指定</div>
+            <div>
+              <label className="text-sm font-bold text-slate-700 block mb-1">MC ID</label>
+              <input type="number" value={mcIdInput} onChange={e => setMcIdInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="例: 1792" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
             </div>
-            <div className="space-y-3">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">検索キー</label>
-                <select value={key} onChange={e => setKey(e.target.value)}
-                  className="w-full border border-teal-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-400">
-                  {SEARCH_KEYS.map(k => <option key={k.value} value={k.value}>{k.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">検索文字列</label>
-                <input type="text" value={q} onChange={e => setQ(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleSearch()}
-                  placeholder="空欄 = 全件表示"
-                  className="w-full border border-teal-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
-              </div>
-              <div>
-                <label className="text-xs text-slate-500 block mb-1">機械</label>
-                <select value={machineInput} onChange={e => setMachineInput(e.target.value)}
-                  className="w-full border border-teal-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-400">
-                  <option value="">— すべて —</option>
-                  {machines.map(m => <option key={m.id} value={String(m.id)}>{m.machineCode}</option>)}
-                </select>
+            <div>
+              <label className="text-sm font-bold text-slate-700 block mb-1">部品ID</label>
+              <input type="number" value={partIdInput} onChange={e => setPartIdInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="例: 3807" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+              <div className="text-[10px] text-slate-400 mt-0.5">※複数工程は別行で表示</div>
+            </div>
+            <div className="border-t border-slate-100 pt-2">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">テキスト条件</div>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-sm font-bold text-slate-700 block mb-1">図面番号</label>
+                  <input type="text" value={drawingNoInput} onChange={e => setDrawingNoInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="F58384A03" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+                </div>
+                <div>
+                  <label className="text-sm font-bold text-slate-700 block mb-1">名称</label>
+                  <input type="text" value={nameInput} onChange={e => setNameInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="部品名称の一部" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+                </div>
+                <div>
+                  <label className="text-sm font-bold text-slate-700 block mb-1">納入先</label>
+                  <select value={clientInput} onChange={e => setClientInput(e.target.value)} className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-400">
+                    <option value="">— すべて —</option>
+                    {clientNames.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-bold text-slate-700 block mb-1">主機種型式</label>
+                  <input type="text" value={machineInput} onChange={e => setMachineInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="例: MC10" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+                </div>
               </div>
             </div>
-            <div className="pt-3 space-y-2">
-              <button onClick={handleSearch} disabled={loading}
-                className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-bold py-2 rounded-lg text-sm transition-colors">
-                {loading ? "検索中..." : "🔍 検索"}
-              </button>
-              {results.length > 0 && (
-                <button onClick={() => { setQ(""); setResults([]); setTotal(null); }}
-                  className="w-full border border-slate-200 text-slate-500 hover:bg-slate-50 py-1.5 rounded-lg text-xs">クリア</button>
-              )}
-            </div>
-            {total !== null && (
-              <div className="mt-3 text-xs text-slate-500 bg-slate-50 rounded p-2">
-                {total > 0 ? <span><b className="text-slate-700">{total}</b> 件ヒット</span>
-                           : <span className="text-red-500">0件（条件を変更してください）</span>}
-              </div>
-            )}
-            {/* 最近のアクセス */}
-            {recent.length > 0 && (
-              <div className="mt-4">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">最近のアクセス</div>
-                {recent.slice(0, 5).map((r, i) => (
-                  <div key={i} onClick={() => handleSelect(r.mc_id)}
-                    className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-slate-50 text-[11px]">
-                    <span className="font-mono text-teal-600 font-bold w-10">{r.mc_id}</span>
-                    <span className="text-slate-600 truncate">{r.part_name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <button onClick={handleSearch} disabled={loading} className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 text-white py-2 rounded-lg text-sm font-bold transition-colors mt-1">{loading ? "検索中..." : "● 検索"}</button>
+            {results.length > 0 && <button onClick={() => { setMcIdInput(""); setPartIdInput(""); setDrawingNoInput(""); setNameInput(""); setClientInput(""); setMachineInput(""); setResults([]); setTotal(null); }} className="w-full border border-slate-200 text-slate-500 hover:bg-slate-50 py-1.5 rounded-lg text-xs">クリア</button>}
+            {total !== null && <div className="text-xs text-slate-500 bg-slate-50 rounded p-2">{total > 0 ? <span><b className="text-slate-700">{total}</b> 件ヒット</span> : <span className="text-red-500">0件（条件を変更してください）</span>}</div>}
+            {recent.length > 0 && <div className="pt-2 border-t border-slate-100">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">最近のアクセス</div>
+              {recent.slice(0,5).map((r: any,i) => (
+                <div key={i} onClick={() => handleSelect(r.mc_id)} className="flex items-center gap-2 py-1.5 px-1 rounded cursor-pointer hover:bg-slate-50 text-[11px]">
+                  <span className="font-mono text-teal-600 font-bold w-16 shrink-0">MCID:{r.mc_id}</span>
+                  <span className="text-slate-600 truncate">{r.part_name ?? r.drawing_no}</span>
+                </div>
+              ))}
+            </div>}
           </div>
         </aside>
-
-        {/* 中: 検索結果 */}
-        <main className="w-[420px] shrink-0 border-r border-slate-200 flex flex-col overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 bg-white shrink-0 flex items-center justify-between">
+        <main className="w-[460px] shrink-0 border-r border-slate-200 flex flex-col overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-slate-100 bg-white shrink-0 flex items-center justify-between">
             <span className="text-sm font-bold text-slate-700">検索結果</span>
             {total !== null && total > 0 && <span className="text-xs text-slate-400">{total}件</span>}
           </div>
           <div className="flex-1 overflow-y-auto">
-            {results.length === 0 && total === null && (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
-                <div className="text-4xl">🔍</div>
-                <p className="text-sm">左の検索フォームから検索してください</p>
-              </div>
-            )}
-            {results.map(r => (
-              <div key={r.mc_id} onClick={() => handleSelect(r.mc_id)}
-                className={`px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${
-                  selected === r.mc_id ? "bg-teal-50 border-l-4 border-l-teal-400 pl-3" : "hover:bg-slate-50"}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono text-teal-600 font-bold text-xs">MCID:{r.mc_id}</span>
-                  <span className="font-mono text-slate-600 text-xs">{r.drawing_no}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${STATUS_COLOR[r.status] ?? "bg-slate-100 text-slate-600"}`}>
-                    {STATUS_LABEL[r.status] ?? r.status}
-                  </span>
-                  {r.common_part_code && (
-                    <span className="text-[10px] bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-bold">共通</span>
-                  )}
-                  <span className="ml-auto font-mono text-[10px] text-slate-400">Ver.{r.version}</span>
+            {results.length === 0 && total === null && <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2"><div className="text-4xl">🔍</div><p className="text-sm">左の検索フォームから検索してください</p></div>}
+            {groups.map((g, gi) => (
+              <div key={gi} className="border-b-2 border-slate-300">
+                <div className="px-4 py-2 bg-green-50 flex items-center gap-3 border-b border-slate-200">
+                  <span className="font-mono text-slate-800 font-bold text-sm">{g.drawing_no}</span>
+                  <span className="text-slate-700 font-medium text-sm truncate flex-1">{g.part_name}</span>
+                  {g.part_id && <span className="text-slate-500 text-xs shrink-0">/ {g.part_id}</span>}
+                  {g.client_name && <span className="text-slate-400 text-xs shrink-0 truncate max-w-[120px]">{g.client_name}</span>}
                 </div>
-                <div className="text-sm text-slate-700 mb-1">{r.part_name}</div>
-                <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                  {r.machine_code && <span>🔧 {r.machine_code}</span>}
-                  {r.client_name  && <span>🏭 {r.client_name}</span>}
-                  {r.cycle_time_sec && <span>⏱ {fmtCycle(r.cycle_time_sec)}</span>}
-                  <span className="ml-auto font-mono">加工ID:{r.machining_id}</span>
-                </div>
+                {g.rows.map((r, ri) => (
+                  <div key={r.mc_id} onClick={() => handleSelect(r.mc_id)}
+                    className={`px-4 py-2 flex items-center gap-3 cursor-pointer transition-colors border-b border-dashed border-slate-200 ${selected===r.mc_id ? "bg-teal-50" : "hover:bg-slate-50"}`}>
+                    <span className="w-6 h-6 rounded bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">{ri+1}</span>
+                    <span className="font-mono text-xs text-slate-600 shrink-0">MCID : {r.mc_id}</span>
+                    {r.machine_code && <span className="text-sm text-slate-700 font-medium shrink-0">{r.machine_code}</span>}
+                    <span className="text-xs text-slate-400 shrink-0">加工ID:{r.machining_id}</span>
+                    <span className="ml-auto flex items-center gap-2">
+                      {fmtCycle(r.cycle_time_sec) && <span className="text-xs text-slate-400">⏱ {fmtCycle(r.cycle_time_sec)}</span>}
+                      {r.version && <span className="text-xs text-slate-400">Ver. {r.version}</span>}
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${STATUS_COLOR[r.status]??"bg-slate-100 text-slate-600"}`}>{STATUS_LABEL[r.status]??r.status}</span>
+                    </span>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
         </main>
-
-        {/* 右: ガイド */}
-        <aside className="flex-1 flex flex-col overflow-hidden bg-white">
-          <div className="px-4 py-3 border-b border-slate-100 shrink-0">
-            <span className="text-sm font-bold text-slate-700">操作ガイド</span>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="space-y-3 text-xs text-slate-500">
-              <div className="bg-teal-50 rounded-lg p-3 border border-teal-100">
-                <p className="font-bold text-teal-700 mb-1">🔧 MC システムへようこそ</p>
-                <p>マシニングセンタ（MC）のNCプログラム・ツーリング・作業記録を管理します。</p>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-3">
-                <p className="font-bold text-slate-600 mb-1">検索のヒント</p>
-                <ul className="space-y-1 text-slate-400">
-                  <li>• 図面番号・部品名称・MCID・加工IDで検索可能</li>
-                  <li>• 加工IDが同じ = 共通加工（複数部品が同プログラムを使用）</li>
-                  <li>• 空欄のまま検索 = 全件表示</li>
-                </ul>
-              </div>
+        <section className="flex-1 overflow-y-auto p-5">
+          {recent.length > 0 ? (<>
+            <h3 className="text-sm font-bold text-slate-600 mb-3">最近のアクセス <span className="font-normal text-slate-400 text-xs">直近5件</span></h3>
+            <div className="space-y-2">
+              {recent.map((r: any,i) => (
+                <div key={i} onClick={() => handleSelect(r.mc_id)} className="bg-white border border-slate-200 rounded-lg px-4 py-3 cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="font-mono text-teal-600 font-bold text-sm">{r.drawing_no}</span>
+                      <span className="font-mono text-[10px] text-slate-400">MCID:{r.mc_id}</span>
+                    </div>
+                    <div className="text-xs text-slate-500 truncate">{r.part_name}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {r.operator_name && <div className="text-[11px] text-slate-500">👤 {r.operator_name}</div>}
+                    {r.accessed_at && <div className="text-[10px] text-slate-400">{new Date(r.accessed_at).toLocaleString("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</div>}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        </aside>
+          </>) : (<div className="bg-white border border-slate-200 rounded-lg p-5">
+            <h3 className="text-sm font-bold text-slate-700 mb-2">⚙ MC システムへようこそ</h3>
+            <div className="text-xs text-slate-500 space-y-1">
+              <div>• 図面番号・部品名称・MCID・加工IDで検索可能</div>
+              <div>• 加工IDが同じ = 共通加工</div>
+              <div>• 空欄のまま検索 = 全件表示</div>
+            </div>
+          </div>)}
+        </section>
       </div>
     </div>
   );

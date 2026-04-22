@@ -148,18 +148,31 @@ export default function McEditPage() {
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       {/* ヘッダー */}
-      <header className="bg-slate-800 text-white px-5 py-2 flex items-center gap-3 shrink-0">
-        <button onClick={() => router.push("/mc/search")} className="text-teal-400 font-bold text-base font-mono">MachCore MC</button>
+      <header className="bg-slate-800 text-white px-5 py-2.5 flex items-center gap-3 shrink-0">
+        <button
+          onClick={() => router.push(`/mc/${mcId}`)}
+          className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-white transition-colors shrink-0"
+        >
+          <span className="w-5 h-5 rounded-full bg-teal-500 flex items-center justify-center shrink-0">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          </span>
+          MC詳細
+        </button>
+        <span className="text-slate-600">|</span>
+        <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
+        <span className="text-slate-400 text-xs">|</span>
         <button onClick={() => router.push("/nc/search")} className="text-xs bg-white text-slate-800 hover:bg-slate-100 border border-slate-400 px-2.5 py-1 rounded font-medium transition-all shrink-0">⇄ NC</button>
-        <span className="text-slate-600">›</span>
-        <span className="text-xs text-slate-300 truncate">{d.part.drawingNo} / 変更・登録</span>
-                {isAuthenticated && operator && (
-          <span className="ml-auto flex items-center gap-3">
+        <span className="text-sm font-medium flex items-center gap-1.5">変更・登録</span>
+        <span className="ml-auto">
+          {isAuthenticated && operator && (
             <span className="text-[11px] bg-red-600 text-white px-2 py-0.5 rounded font-bold animate-pulse">
               作業中: {operator.name} {fmtElapsed(elapsed)}
             </span>
-          </span>
-        )}
+          )}
+          {!isAuthenticated && (
+            <span className="text-[11px] bg-slate-600 text-white px-2 py-0.5 rounded">🔒 認証待ち</span>
+          )}
+        </span>
       </header>
 
       {/* セッションバナー */}
@@ -180,42 +193,86 @@ export default function McEditPage() {
         </div>
       )}
 
-      {/* 部品ヘッダー */}
-      <div className="bg-white border-b border-slate-200 px-5 py-2.5 shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-teal-600 font-bold">{d.part.drawingNo}</span>
-          <span className="text-sm text-slate-700">{d.part.name}</span>
-          <span className="font-mono text-[11px] text-slate-400">MCID:{d.id} / 加工ID:{d.machiningId} / Ver.{d.version}</span>
+      {/* 部品情報エリア */}
+      {d && (
+        <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
+          <div className="flex items-center gap-3 mb-1">
+            <span className="font-mono text-teal-600 font-bold text-lg">{d.part.drawingNo}</span>
+            {(d as any).mcProcessNo != null && (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-600 text-white">MC{(d as any).mcProcessNo}</span>
+            )}
+            <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+              d.status === "APPROVED" ? "bg-emerald-100 text-emerald-700" :
+              d.status === "PENDING_APPROVAL" ? "bg-amber-100 text-amber-700" :
+              d.status === "CHANGING" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
+            }`}>{
+              d.status === "APPROVED" ? "承認済" : d.status === "PENDING_APPROVAL" ? "未承認" :
+              d.status === "CHANGING" ? "変更中" : "新規"
+            }</span>
+            <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
+          </div>
+          <div className="text-sm text-slate-700 font-medium mb-1">{d.part.name}</div>
+          <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
+            <span>MCID: {d.id}</span>
+            <span>加工ID: {d.machiningId}</span>
+            {d.part.clientName && <span>納入先: {d.part.clientName}</span>}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* ナビタブ */}
-      <nav className="bg-slate-700 px-5 flex gap-0 shrink-0">
-        {[
-          { href: `/mc/${mcId}`,        label: "MC詳細",    active: false },
-          { href: `/mc/${mcId}/edit`,   label: "変更・登録", active: true  },
-          { href: `/mc/${mcId}/print`,  label: "段取シート", active: false },
-          { href: `/mc/${mcId}/record`, label: "作業記録",  active: false },
-        ].map(tab => (
-          <button key={tab.href} onClick={() => router.push(tab.href)}
-            className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
-              tab.active ? "border-teal-400 text-teal-300" : "border-transparent text-slate-400 hover:text-white"}`}>
-            {tab.label}
-          </button>
-        ))}
+      {/* タブナビ */}
+      <nav className="bg-slate-800 px-5 flex gap-0 shrink-0 border-t border-slate-700">
+        <button onClick={() => router.push(`/mc/${mcId}`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          MC詳細
+        </button>
+        <button onClick={() => router.push(`/mc/${mcId}/edit`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-teal-400 text-teal-400 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          変更・登録
+        </button>
+        <button onClick={() => router.push(`/mc/${mcId}/print`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          段取シート
+        </button>
+        <button onClick={() => router.push(`/mc/${mcId}/record`)}
+          className="px-4 py-2 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          作業記録
+        </button>
       </nav>
 
       {/* ロック状態 */}
-      {!isAuthenticated && (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-sm w-full text-center">
-            <div className="text-5xl mb-4">🔒</div>
-            <h2 className="text-slate-700 font-bold mb-2">変更・登録には認証が必要です</h2>
-            <p className="text-slate-400 text-sm mb-6">担当者を選択してパスワードを入力してください</p>
-            <button onClick={() => setAuthOpen(true)}
-              className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm">
-              この作業を開始する
+      {!isAuthenticated && detail && (
+        <div className="flex-1 flex items-center justify-center bg-slate-100">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-md w-full text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-red-50 border-2 border-red-200 flex items-center justify-center mx-auto">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div>
+              <h2 className="text-slate-700 font-bold text-lg mb-1">変更・登録 — 作業開始前</h2>
+              <p className="text-slate-400 text-sm">現在のデータを確認しています。変更・登録を行うには担当者の確認（パスワード）が必要です。</p>
+            </div>
+            <div className="border border-slate-200 rounded-xl overflow-hidden text-sm">
+              <div className="grid grid-cols-3 divide-x divide-slate-200">
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">機械</div><div className="font-bold">{detail.machine?.machineCode ?? "—"}</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">主Oナンバ</div><div className="font-mono font-bold">{detail.oNumber ?? "—"}</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">サイクルタイム</div><div className="font-bold">{detail.cycleTimeSec != null ? `${Math.floor(detail.cycleTimeSec/60)} 分` : "—"}</div></div>
+              </div>
+              {detail.clampNote && (
+                <div className="p-2.5 border-t border-slate-200 text-left"><div className="text-slate-400 text-xs mb-1">備考</div><div className="text-slate-600 text-xs">{detail.clampNote.slice(0,60)}{detail.clampNote.length > 60 ? "…" : ""}</div></div>
+              )}
+            </div>
+            <button
+              onClick={() => setAuthOpen(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl text-sm transition-colors mx-auto"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              この作業を開始する（担当者確認）
             </button>
+            <div className="text-xs text-slate-400">担当者の選択とパスワード確認後に編集できます</div>
           </div>
         </div>
       )}

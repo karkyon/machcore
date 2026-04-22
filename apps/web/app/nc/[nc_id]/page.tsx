@@ -42,7 +42,7 @@ export default function NcDetailPage() {
   const [loadError,   setLoadError]   = useState<string | null>(null);
   const [processes,   setProcesses]   = useState<ProcessEntry[]>([]);
   const [floatOpen,   setFloatOpen]   = useState(true);
-  const [floatPos,    setFloatPos]    = useState({ x: 16, y: 120 });
+  const [floatPos,    setFloatPos]    = useState({ x: 900, y: 120 });
   const [dragging,    setDragging]    = useState(false);
   const dragStart     = useRef<{ mx: number; my: number; px: number; py: number } | null>(null);
 
@@ -223,17 +223,16 @@ export default function NcDetailPage() {
 
         {/* ── ヘッダー ── */}
         <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
-          <button
-            onClick={() => router.push("/nc/search")}
-            className="text-slate-400 hover:text-white text-xs transition-colors"
-          >
-            ← 検索結果
-          </button>
-          <span className="text-slate-600">|</span>
           <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
           <span className="text-slate-400 text-xs">|</span>
           <button onClick={() => router.push("/mc/search")} className="text-xs bg-white text-slate-800 hover:bg-slate-100 border border-slate-400 px-2.5 py-1 rounded font-medium transition-all shrink-0">⇄ MC</button>
           <span className="text-sm font-medium">NC 詳細</span>
+          <span className="ml-auto">
+            <button onClick={() => router.push("/nc/search")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 rounded-lg text-xs font-bold text-white transition-colors">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+              部品検索へ戻る
+            </button>
+          </span>
 
 
         </header>
