@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 # =============================================================================
-# MachCore 本番移行スクリプト — NC + MC 全データ一括コンバート＆インポート
+# MachCore 本番移行スクリプト — MC 全データ一括コンバート＆インポート
 # =============================================================================
 # 対象: SQL Server (192.168.1.9/imotomc) → PostgreSQL (machcore_dev)
 #
 # 実行方法:
-#   python3 scripts/mc_full_import.py [--dry-run] [--skip-nc] [--skip-mc]
+#   python3 scripts/mc_full_import.py [--dry-run] [--truncate] [--phase N]
 #
 # オプション:
 #   --dry-run  : DBへの書き込みを行わず検証のみ実施
-#   --skip-nc  : NC旋盤データのインポートをスキップ
-#   --skip-mc  : MCマシニングデータのインポートをスキップ
 #   --truncate : 既存データを全削除してから再インポート（本番移行時）
 #   --phase N  : 指定フェーズのみ実行 (1-6)
 #
@@ -18,25 +16,33 @@
 #   pip3 install pymssql psycopg2-binary --break-system-packages
 #   PostgreSQL側にmc_migration.sqlが適用済みであること
 #   machines テーブルにMC機械が登録済みであること
-#   mc_tooling.tool_no が nullable であること:
+#   mc_tooling.tool_no が nullable であること（Phase 0で自動チェック）:
 #     ALTER TABLE mc_tooling ALTER COLUMN tool_no DROP NOT NULL;
 #
 # フェーズ構成:
-#   Phase 0: スキーマ整合確認 (必須カラム + nullable確認)
-#   Phase 1: mc_programs    — ACC_MC × ACC_マシニング (約15,681件想定)
-#   Phase 2: mc_tooling     — ACC_ツーリング (約127,235件想定)
-#   Phase 3: RC同期         — ツーリング件数 → mc_programs.rc
-#   Phase 4: mc_work_offsets — ACC_ワークオフセット
-#   Phase 5: mc_index_programs — ACC_インデックスプログラム
-#   Phase 6: mc_change_history — ACC_変更履歴
+#   Phase 0: スキーマ整合確認 (必須カラム + tool_no nullable確認)
+#   Phase 1: mc_programs      — ACC_MC × ACC_マシニング (約15,681件)
+#   Phase 2: mc_tooling       — ACC_ツーリング (約127,235件)
+#   Phase 3: RC同期           — ツーリング件数 → mc_programs.rc
+#   Phase 4: mc_work_offsets  — ACC_ワークオフセット (約5,134件)
+#   Phase 5: mc_index_programs — ACC_インデックスプログラム (約7,213件)
+#   Phase 6: mc_change_history — ACC_変更履歴 (約60,259件)
 #
-# 重要な実装メモ (開発時の調査結果):
-#   - ACC_マシニング実カラム名: Version(英字), 機械ID(int), 入力日付, パス1/パス2, 担当者ID
-#   - ACC_MC.MCID がユニークキー (9,539), 加工IDは共通加工で複数MCIDが共有 (7,895)
-#   - mc_tooling の加工ID紐づけは legacy_kakoid ベースで解決
-#   - SP_Sheet(機械ID=1)はPGに存在しないためmachine_id=NULLになる (正常)
-#   - tool_no(Nカラム)はNULLデータが多数存在するためNOT NULL制約を外す必要あり
-#   - fetchall()は大量データで遅延するためfetchmany(500)を使用
+# 実テーブルカラム名メモ (開発時調査結果):
+#   ACC_マシニング : Version(英字), 機械ID(int), 入力日付, パス1/パス2, 担当者ID
+#   ACC_ツーリング : ツーリングID, 加工ID, 順番, N, 工具, T, H, D, コメント, D値, SUB, ツール
+#   ACC_ワークオフセット: G, X, Y, Z, A, R, 加工ID, WOD_ID
+#   ACC_インデックスプログラム: STEP_N, 第1軸, 第2軸, 加工ID, IP_ID (第3軸なし)
+#   ACC_変更履歴  : MCID, 加工ID, 内容, 内容区分ID, 内容区分, Ver, 作成, 作成日, ...
+#                   ※「変更ID」カラムは存在しない
+#
+# 重要な実装メモ:
+#   - ACC_MC.MCID がユニークキー(9,539), 加工IDは共通加工で複数MCIDが共有(7,895)
+#   - mc_tooling/work_offsets/index_programs は legacy_kakoid ベースで mc_programs を解決
+#   - mc_change_history は legacy_mcid 優先 → legacy_kakoid フォールバック
+#   - SP_Sheet(機械ID=1)はPGに存在しないため machine_id=NULL (正常)
+#   - tool_no(Nカラム)にNULLデータが多数存在するため NOT NULL制約を外す必要あり
+#   - fetchall()は大量データで遅延するため fetchmany(500) を使用
 # =============================================================================
 
 import sys
@@ -254,17 +260,16 @@ def import_mc_tooling(sc, pc, dry_run=False, truncate=False):
     if truncate and not dry_run:
         pc.execute("TRUNCATE TABLE mc_tooling")
 
-    # ── マップ構築: legacy_kakoid(加工ID) → mc_programs.id ──────────────
-    # ツーリングはACC_ツーリング.加工ID = ACC_マシニング.加工ID で紐づく。
-    # mc_programsのlegacy_kakoidに加工IDが格納されている。
-    # 同一加工IDに複数のMCIDが存在する（共通加工）場合は先頭のmc_programs.idを使用。
+    # ── マップ: legacy_kakoid(加工ID) → mc_programs.id ──────────────────
+    # ツーリングはACC_ツーリング.加工ID = legacy_kakoid で紐づく。
+    # 同一加工IDに複数MCIDが存在する（共通加工）場合は先頭のidを使用。
     pc.execute("SELECT id, legacy_kakoid FROM mc_programs WHERE legacy_kakoid IS NOT NULL")
     kakoid_map = {}
     for r in pc.fetchall():
-        kakoid_map.setdefault(r[1], r[0])  # 同一kakoidは最初のidを採用
+        kakoid_map.setdefault(r[1], r[0])
     log.info(f"  kakoidマップ: {len(kakoid_map)}件")
 
-    # ── ACC_ツーリング カラム動的確認 ──────────────────────────────────
+    # ── ACC_ツーリング カラム動的確認 ────────────────────────────────────
     sc.execute("""
         SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'ACC_ツーリング'
@@ -273,12 +278,11 @@ def import_mc_tooling(sc, pc, dry_run=False, truncate=False):
     cols = [r[0] for r in sc.fetchall()]
     log.info(f"  ACC_ツーリング カラム: {cols}")
 
-    # カラム存在フラグ
     has_d_value  = 'D値' in cols
     has_sub      = 'SUB' in cols
-    has_tool_col = 'ツール' in cols   # tool_type相当
+    has_tool_col = 'ツール' in cols
 
-    # SELECT文を動的構築（ツーリングIDを先頭に）
+    # ツーリングIDを先頭に含めてエラー追跡を容易にする
     select_cols = "ツーリングID, 加工ID, 順番, N, 工具, T, H, D, コメント"
     if has_d_value:  select_cols += ", D値"
     if has_sub:      select_cols += ", SUB"
@@ -290,9 +294,7 @@ def import_mc_tooling(sc, pc, dry_run=False, truncate=False):
         ORDER BY 加工ID, 順番
     """)
 
-    # ── tool_no は nullable (本番DBでALTER済み) ──────────────────────
-    # DB側: ALTER TABLE mc_tooling ALTER COLUMN tool_no DROP NOT NULL;
-    # Prisma: toolNo String? に変更済み
+    # tool_no はNULL許容（本番DB事前にALTER必須）
     INSERT_SQL = """
         INSERT INTO mc_tooling (
             mc_program_id, sort_order, tool_no, tool_name,
@@ -330,7 +332,6 @@ def import_mc_tooling(sc, pc, dry_run=False, truncate=False):
             except:
                 seq = 0
 
-            # D値をfloat→文字列変換
             if d_value is not None:
                 try:
                     d_value = str(round(float(d_value), 3))
@@ -350,9 +351,8 @@ def import_mc_tooling(sc, pc, dry_run=False, truncate=False):
             try:
                 pc.execute(INSERT_SQL, (
                     mc_prog_id, seq,
-                    n_val,      # tool_no — NULL許容
-                    tool,
-                    t_val, h_val, d_val,
+                    n_val,  # tool_no — NULL許容
+                    tool, t_val, h_val, d_val,
                     d_value, sub_pg, comment, tool_typ,
                 ))
                 pc.execute("RELEASE SAVEPOINT sp")
@@ -399,7 +399,6 @@ def sync_rc(pc, dry_run=False):
 def import_mc_work_offsets(sc, pc, dry_run=False, truncate=False):
     log.info("=== PHASE 4: mc_work_offsets インポート ===")
 
-    # テーブル存在確認
     sc.execute("""
         SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
         WHERE TABLE_NAME = 'ACC_ワークオフセット'
@@ -411,12 +410,11 @@ def import_mc_work_offsets(sc, pc, dry_run=False, truncate=False):
     if truncate and not dry_run:
         pc.execute("TRUNCATE TABLE mc_work_offsets")
 
-    # machining_id → mc_programs.id
-    pc.execute("SELECT id, machining_id FROM mc_programs")
-    machining_map = {}
+    # ── マップ: legacy_kakoid → mc_programs.id ───────────────────────────
+    pc.execute("SELECT id, legacy_kakoid FROM mc_programs WHERE legacy_kakoid IS NOT NULL")
+    kakoid_map = {}
     for r in pc.fetchall():
-        if r[1] not in machining_map:
-            machining_map[r[1]] = r[0]
+        kakoid_map.setdefault(r[1], r[0])
 
     sc.execute("""
         SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
@@ -426,24 +424,25 @@ def import_mc_work_offsets(sc, pc, dry_run=False, truncate=False):
     cols = [r[0] for r in sc.fetchall()]
     log.info(f"  ACC_ワークオフセット カラム: {cols}")
 
-    sc.execute("SELECT * FROM [imotomc].[dbo].[ACC_ワークオフセット] ORDER BY 加工ID")
+    # 実カラム: G, X, Y, Z, A, R, 加工ID, WOD_ID
+    sc.execute("SELECT G, X, Y, Z, A, R, 加工ID FROM [imotomc].[dbo].[ACC_ワークオフセット] ORDER BY 加工ID")
 
     INSERT_SQL = """
-        INSERT INTO mc_work_offsets (mc_program_id, g_code, x_offset, y_offset, z_offset, note)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO mc_work_offsets (
+            mc_program_id, g_code, x_offset, y_offset, z_offset, a_offset, r_offset,
+            created_at, updated_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
         ON CONFLICT (mc_program_id, g_code) DO NOTHING
     """
 
     inserted = skipped = errors = 0
-    sc_cols = [d[0] for d in sc.description]
 
     while True:
         rows = sc.fetchmany(500)
         if not rows: break
         for row in rows:
-            r = dict(zip(sc_cols, row))
-            kako_id = r.get('加工ID')
-            mc_prog_id = machining_map.get(kako_id)
+            g, x, y, z, a, r, kako_id = row
+            mc_prog_id = kakoid_map.get(kako_id)
             if mc_prog_id is None:
                 skipped += 1
                 continue
@@ -456,11 +455,8 @@ def import_mc_work_offsets(sc, pc, dry_run=False, truncate=False):
             try:
                 pc.execute(INSERT_SQL, (
                     mc_prog_id,
-                    safe_str(r.get('Gコード') or r.get('G_CODE') or r.get('G'), 10),
-                    r.get('X') or r.get('X_OFFSET'),
-                    r.get('Y') or r.get('Y_OFFSET'),
-                    r.get('Z') or r.get('Z_OFFSET'),
-                    safe_str(r.get('備考') or r.get('コメント'), 100),
+                    str(g)[:10] if g else 'G54',
+                    x, y, z, a, r,
                 ))
                 pc.execute("RELEASE SAVEPOINT sp")
                 inserted += 1
@@ -488,54 +484,55 @@ def import_mc_index_programs(sc, pc, dry_run=False, truncate=False):
         WHERE TABLE_NAME = 'ACC_インデックスプログラム'
     """)
     if sc.fetchone()[0] == 0:
-        sc.execute("""
-            SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_NAME = 'ACC_インデックス'
-        """)
-        if sc.fetchone()[0] == 0:
-            log.warning("  ACC_インデックスプログラム/ACC_インデックス テーブルなし、スキップ")
-            return 0
+        log.warning("  ACC_インデックスプログラム テーブルなし、スキップ")
+        return 0
 
     if truncate and not dry_run:
         pc.execute("TRUNCATE TABLE mc_index_programs")
 
-    pc.execute("SELECT id, machining_id FROM mc_programs")
-    machining_map = {}
+    # ── マップ: legacy_kakoid → mc_programs.id ───────────────────────────
+    pc.execute("SELECT id, legacy_kakoid FROM mc_programs WHERE legacy_kakoid IS NOT NULL")
+    kakoid_map = {}
     for r in pc.fetchall():
-        if r[1] not in machining_map:
-            machining_map[r[1]] = r[0]
+        kakoid_map.setdefault(r[1], r[0])
 
-    # テーブル名確定
-    tname = 'ACC_インデックスプログラム'
-    sc.execute(f"""
+    sc.execute("""
         SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = '{tname}'
+        WHERE TABLE_NAME = 'ACC_インデックスプログラム'
         ORDER BY ORDINAL_POSITION
     """)
     cols = [r[0] for r in sc.fetchall()]
-    log.info(f"  {tname} カラム: {cols}")
+    log.info(f"  ACC_インデックスプログラム カラム: {cols}")
 
-    sc.execute(f"SELECT * FROM [imotomc].[dbo].[{tname}] ORDER BY 加工ID")
+    # 実カラム: STEP_N, 第1軸, 第2軸, 加工ID, IP_ID (第3軸なし)
+    sc.execute("""
+        SELECT STEP_N, 第1軸, 第2軸, 加工ID
+        FROM [imotomc].[dbo].[ACC_インデックスプログラム]
+        ORDER BY 加工ID, STEP_N
+    """)
 
     INSERT_SQL = """
-        INSERT INTO mc_index_programs (mc_program_id, sort_order, axis_0, axis_1, axis_2, note)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO mc_index_programs (mc_program_id, sort_order, axis_0, axis_1, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, NOW(), NOW())
         ON CONFLICT DO NOTHING
     """
 
     inserted = skipped = errors = 0
-    sc_cols = [d[0] for d in sc.description]
 
     while True:
         rows = sc.fetchmany(500)
         if not rows: break
         for row in rows:
-            r = dict(zip(sc_cols, row))
-            kako_id = r.get('加工ID')
-            mc_prog_id = machining_map.get(kako_id)
+            step_n, axis1, axis2, kako_id = row
+            mc_prog_id = kakoid_map.get(kako_id)
             if mc_prog_id is None:
                 skipped += 1
                 continue
+
+            try:
+                sort = int(float(step_n)) if step_n is not None else 0
+            except:
+                sort = 0
 
             if dry_run:
                 inserted += 1
@@ -543,13 +540,10 @@ def import_mc_index_programs(sc, pc, dry_run=False, truncate=False):
 
             pc.execute("SAVEPOINT sp")
             try:
-                sort = safe_int(r.get('順番') or r.get('No') or r.get('INDEX_NO')) or 0
                 pc.execute(INSERT_SQL, (
                     mc_prog_id, sort,
-                    safe_str(r.get('0度') or r.get('AXIS0'), 100),
-                    safe_str(r.get('90度') or r.get('AXIS1'), 100),
-                    safe_str(r.get('180度') or r.get('AXIS2'), 100),
-                    safe_str(r.get('備考') or r.get('コメント'), 500),
+                    safe_str(axis1, 100),
+                    safe_str(axis2, 100),
                 ))
                 pc.execute("RELEASE SAVEPOINT sp")
                 inserted += 1
@@ -583,9 +577,14 @@ def import_mc_change_history(sc, pc, maps, dry_run=False, truncate=False):
     if truncate and not dry_run:
         pc.execute("TRUNCATE TABLE mc_change_history")
 
-    # legacy_mcid → mc_programs.id
+    # ── マップ: legacy_mcid → id (優先) + legacy_kakoid → id (フォールバック) ──
     pc.execute("SELECT id, legacy_mcid FROM mc_programs WHERE legacy_mcid IS NOT NULL")
-    legacy_map = {r[1]: r[0] for r in pc.fetchall()}
+    mcid_map = {r[1]: r[0] for r in pc.fetchall()}
+
+    pc.execute("SELECT id, legacy_kakoid FROM mc_programs WHERE legacy_kakoid IS NOT NULL")
+    kakoid_map = {}
+    for r in pc.fetchall():
+        kakoid_map.setdefault(r[1], r[0])
 
     sc.execute("""
         SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
@@ -595,35 +594,36 @@ def import_mc_change_history(sc, pc, maps, dry_run=False, truncate=False):
     cols = [r[0] for r in sc.fetchall()]
     log.info(f"  ACC_変更履歴 カラム: {cols}")
 
-    sc.execute("SELECT * FROM [imotomc].[dbo].[ACC_変更履歴] ORDER BY 変更ID")
+    # 実カラム: MCID, 加工ID, 内容, 内容区分ID, 内容区分, Ver, 作成, 作成日, ...
+    # 変更IDカラムは存在しないため ORDER BY は加工ID
+    sc.execute("""
+        SELECT MCID, 加工ID, 内容, Ver, 作成日
+        FROM [imotomc].[dbo].[ACC_変更履歴]
+        ORDER BY 加工ID
+    """)
 
     INSERT_SQL = """
         INSERT INTO mc_change_history (
             mc_program_id, change_type, operator_id,
-            version_before, version_after, content, changed_at, legacy_hist_id
-        ) VALUES (%s, %s, %s, %s, %s, %s, COALESCE(%s::timestamp, NOW()), %s)
+            version_after, content, changed_at
+        ) VALUES (%s, 'MIGRATION', %s, %s, %s, COALESCE(%s::timestamp, NOW()))
         ON CONFLICT DO NOTHING
     """
 
     inserted = skipped = errors = 0
-    sc_cols = [d[0] for d in sc.description]
 
     while True:
         rows = sc.fetchmany(500)
         if not rows: break
         for row in rows:
-            r = dict(zip(sc_cols, row))
-            mcid = r.get('MCID') or r.get('MC_ID')
-            mc_prog_id = legacy_map.get(mcid)
+            mcid, kako_id, naiyou, ver, sakusei_bi = row
+            # MCIDで先に引き、なければkakoidで引く
+            mc_prog_id = mcid_map.get(mcid) or kakoid_map.get(kako_id)
             if mc_prog_id is None:
                 skipped += 1
                 continue
 
-            change_type = 'MIGRATION'
-            content = safe_str(r.get('変更内容') or r.get('備考'), 1000)
-            changed_at = str(r.get('変更日') or r.get('入力日付') or '')
-            changed_at = f"{changed_at} 00:00:00" if changed_at and len(changed_at) == 10 else None
-            hist_id = safe_int(r.get('変更ID'))
+            reg_at = f"{sakusei_bi} 00:00:00" if sakusei_bi and len(str(sakusei_bi)) == 10 else None
 
             if dry_run:
                 inserted += 1
@@ -632,10 +632,10 @@ def import_mc_change_history(sc, pc, maps, dry_run=False, truncate=False):
             pc.execute("SAVEPOINT sp")
             try:
                 pc.execute(INSERT_SQL, (
-                    mc_prog_id, change_type, maps['admin_id'],
-                    safe_str(r.get('変更前Ver'), 10),
-                    safe_str(r.get('変更後Ver') or r.get('Version'), 10),
-                    content, changed_at, hist_id,
+                    mc_prog_id, maps['admin_id'],
+                    safe_str(ver, 10),
+                    safe_str(naiyou, 2000),
+                    reg_at,
                 ))
                 pc.execute("RELEASE SAVEPOINT sp")
                 inserted += 1
@@ -656,7 +656,7 @@ def import_mc_change_history(sc, pc, maps, dry_run=False, truncate=False):
 # PHASE 7: スキーマ追加カラム整合確認
 # =============================================================================
 def verify_schema(pc):
-    log.info("=== PHASE 7: スキーマ整合確認 ===")
+    log.info("=== PHASE 0: スキーマ整合確認 ===")
     required = {
         'mc_programs': ['mc_process_no', 'folder1', 'folder2', 'file_name',
                         'rc', 'has_index_program', 'has_work_offset',
@@ -687,7 +687,7 @@ def verify_schema(pc):
         log.info("  ✅ mc_tooling.tool_no: nullable (正常)")
     else:
         log.error("  ❌ mc_tooling.tool_no が NOT NULL のままです")
-        log.error("     ALTER TABLE mc_tooling ALTER COLUMN tool_no DROP NOT NULL; を実行してください")
+        log.error("     事前に実行: ALTER TABLE mc_tooling ALTER COLUMN tool_no DROP NOT NULL;")
         all_ok = False
 
     return all_ok
@@ -699,8 +699,8 @@ def verify_schema(pc):
 def print_summary(pc):
     log.info("=== 最終サマリー ===")
     queries = [
-        ("mc_programs", "SELECT COUNT(*) FROM mc_programs"),
-        ("mc_tooling",  "SELECT COUNT(*) FROM mc_tooling"),
+        ("mc_programs",       "SELECT COUNT(*) FROM mc_programs"),
+        ("mc_tooling",        "SELECT COUNT(*) FROM mc_tooling"),
         ("mc_work_offsets",   "SELECT COUNT(*) FROM mc_work_offsets"),
         ("mc_index_programs", "SELECT COUNT(*) FROM mc_index_programs"),
         ("mc_change_history", "SELECT COUNT(*) FROM mc_change_history"),
@@ -712,6 +712,18 @@ def print_summary(pc):
             log.info(f"  {name:<25}: {cnt:>7,}件")
         except Exception as e:
             log.warning(f"  {name}: {e}")
+
+    # has_work_offset / has_index_program フラグ更新
+    pc.execute("""
+        UPDATE mc_programs SET has_work_offset = true
+        WHERE id IN (SELECT DISTINCT mc_program_id FROM mc_work_offsets)
+    """)
+    pc.execute("""
+        UPDATE mc_programs SET has_index_program = true
+        WHERE id IN (SELECT DISTINCT mc_program_id FROM mc_index_programs)
+    """)
+    pc.connection.commit()
+    log.info("  has_work_offset / has_index_program フラグ更新完了")
 
     # 機械別内訳
     pc.execute("""
