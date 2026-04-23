@@ -167,7 +167,7 @@ export default function McPrintPage() {
           {d.part.partId && <span>部品ID: {d.part.partId}</span>}
           {d.part.clientName && <span>納入先: {d.part.clientName}</span>}
         </div>
-      </div></div>
+      </div>
 
       {/* タブナビ */}
       <nav className="bg-slate-800 px-5 flex gap-0 shrink-0 border-t border-slate-700">
