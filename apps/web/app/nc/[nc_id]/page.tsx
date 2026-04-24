@@ -238,6 +238,7 @@ export default function NcDetailPage() {
         </header>
 
         {/* ── フローティング工程切り替えパネル ── */}
+        {(() => { console.log('[NC Float] processes:', processes.length, 'floatOpen:', floatOpen, 'pos:', floatPos); return null; })()}
         {processes.length > 1 && (
           <div
             style={{ position: "fixed", left: floatPos.x, top: floatPos.y, zIndex: 100, userSelect: "none" }}

@@ -61,7 +61,12 @@ export default function McDetailPage() {
 
   useEffect(() => {
     if (!mcId) return;
-    mcApi.findOne(mcId).then(r => setDetail((r as any).data ?? r)).catch(e => setLoadError(e.message));
+    mcApi.findOne(mcId).then(r => {
+      const data = (r as any).data ?? r;
+      console.log('[MC Float] commonGroup:', data.commonGroup?.length, data.commonGroup);
+      setDetail(data);
+    }).catch(e => { console.error('[MC Float] findOne error:', e); setLoadError(e.message); });
+    // dummy to skip original r)).catch(e => setLoadError(e.message));
   }, [mcId]);
 
   useEffect(() => {
@@ -172,7 +177,8 @@ export default function McDetailPage() {
         </span>
       </header>
         {/* ── フローティング工程切り替えパネル ── */}
-        {d && d.commonGroup && d.commonGroup.length > 1 && (
+        {d && (() => { console.log('[MC Float] render check - commonGroup:', d.commonGroup?.length); return null; })()}
+        {d && d.commonGroup && d.commonGroup.length >= 1 && (
           <div
             style={{ position: "fixed", left: floatPos.x, top: floatPos.y, zIndex: 100, userSelect: "none" }}
             className="shadow-2xl rounded-xl overflow-hidden border border-slate-700 w-52"
