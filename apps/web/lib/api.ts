@@ -604,7 +604,7 @@ export type McPrintOptions = {
 };
 
 export const mcApi = {
-  search: (key: string, q: string, params?: { client_name?: string; machine_id?: number }) =>
+  search: (key: string, q: string, params?: { client_name?: string; machine_id?: number; machine_code?: string }) =>
     api.get<{ total: number; rows: McSearchResult[] }>('/mc/search', {
       params: { key, q, limit: 100, ...params },
     }),
