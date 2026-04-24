@@ -24,6 +24,7 @@ export class McService {
     offset = 0,
     clientName?: string,
     machineId?: number,
+    machineCode?: string,
   ) {
     const where: any = {};
     if (q && q.trim()) {
@@ -34,6 +35,8 @@ export class McService {
       } else if (key === 'machining_id') {
         const n = parseInt(kw);
         if (!isNaN(n)) where.machiningId = n;
+      } else if (key === 'part_id') {
+        where.part = { partId: kw };
       } else if (key === 'drawing_no') {
         where.part = { drawingNo: { contains: kw, mode: 'insensitive' } };
       } else if (key === 'part_name') {
@@ -47,6 +50,7 @@ export class McService {
     }
     if (clientName) where.part = { ...where.part, clientName: { contains: clientName, mode: 'insensitive' } };
     if (machineId)  where.machineId = machineId;
+    if (machineCode) where.machine = { machineCode: { contains: machineCode, mode: 'insensitive' } };
 
     const [rows, total] = await Promise.all([
       this.prisma.mcProgram.findMany({

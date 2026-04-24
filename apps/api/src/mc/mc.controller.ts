@@ -26,15 +26,16 @@ export class McController {
   // ── 検索・一覧 ──────────────────────────────
   @Get('search')
   search(
-    @Query('key')         key:        string,
-    @Query('q')           q:          string,
-    @Query('limit')       limit:      string,
-    @Query('offset')      offset:     string,
-    @Query('client_name') clientName: string,
-    @Query('machine_id')  machineId:  string,
+    @Query('key')          key:         string,
+    @Query('q')            q:           string,
+    @Query('limit')        limit:       string,
+    @Query('offset')       offset:      string,
+    @Query('client_name')  clientName:  string,
+    @Query('machine_id')   machineId:   string,
+    @Query('machine_code') machineCode: string,
   ) {
     return this.mc.search(key, q, parseInt(limit) || 50, parseInt(offset) || 0,
-      clientName, machineId ? parseInt(machineId) : undefined);
+      clientName, machineId ? parseInt(machineId) : undefined, machineCode || undefined);
   }
 
   @Get('recent')

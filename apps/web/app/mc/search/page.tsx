@@ -27,6 +27,7 @@ export default function McSearchPage() {
   const [nameInput,      setNameInput]      = useState("");
   const [clientInput,    setClientInput]    = useState("");
   const [machineInput,   setMachineInput]   = useState("");
+  const [machiningIdInput, setMachiningIdInput] = useState("");
   const [loading,  setLoading]  = useState(false);
   const [results,  setResults]  = useState<McSearchResult[]>([]);
   const [total,    setTotal]    = useState<number | null>(null);
@@ -41,20 +42,22 @@ export default function McSearchPage() {
 
   const handleSearch = useCallback(async () => {
     let searchKey = "drawing_no", searchQ = "";
-    if (mcIdInput.trim())           { searchKey = "mcid";       searchQ = mcIdInput.trim(); }
-    else if (partIdInput.trim())    { searchKey = "part_id";    searchQ = partIdInput.trim(); }
-    else if (drawingNoInput.trim()) { searchKey = "drawing_no"; searchQ = drawingNoInput.trim(); }
-    else if (nameInput.trim())      { searchKey = "part_name";  searchQ = nameInput.trim(); }
+    if (mcIdInput.trim())           { searchKey = "mcid";         searchQ = mcIdInput.trim(); }
+    else if (machiningIdInput.trim()){ searchKey = "machining_id"; searchQ = machiningIdInput.trim(); }
+    else if (partIdInput.trim())    { searchKey = "part_id";      searchQ = partIdInput.trim(); }
+    else if (drawingNoInput.trim()) { searchKey = "drawing_no";   searchQ = drawingNoInput.trim(); }
+    else if (nameInput.trim())      { searchKey = "part_name";    searchQ = nameInput.trim(); }
     setLoading(true); setSelected(null);
     try {
       const res = await mcApi.search(searchKey, searchQ, {
         client_name: clientInput || undefined,
+        machine_code: machineInput || undefined,
       });
       const d = (res as any).data ?? res;
       setResults(d.rows ?? []); setTotal(d.total ?? 0);
     } catch { setResults([]); setTotal(0); }
     finally { setLoading(false); }
-  }, [mcIdInput, partIdInput, drawingNoInput, nameInput, clientInput, machineInput]);
+  }, [mcIdInput, machiningIdInput, partIdInput, drawingNoInput, nameInput, clientInput, machineInput]);
 
   const handleSelect = (mcId: number) => { setSelected(mcId); router.push(`/mc/${mcId}`); };
   const groups = groupByPart(results);
@@ -80,6 +83,10 @@ export default function McSearchPage() {
             <div>
               <label className="text-sm font-bold text-slate-700 block mb-1">MC ID</label>
               <input type="number" value={mcIdInput} onChange={e => setMcIdInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="例: 1792" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+            </div>
+            <div>
+              <label className="text-sm font-bold text-slate-700 block mb-1">加工ID</label>
+              <input type="number" value={machiningIdInput} onChange={e => setMachiningIdInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="例: 7874" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
             </div>
             <div>
               <label className="text-sm font-bold text-slate-700 block mb-1">部品ID</label>
@@ -111,7 +118,7 @@ export default function McSearchPage() {
               </div>
             </div>
             <button onClick={handleSearch} disabled={loading} className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 text-white py-2 rounded-lg text-sm font-bold transition-colors mt-1">{loading ? "検索中..." : "● 検索"}</button>
-            {results.length > 0 && <button onClick={() => { setMcIdInput(""); setPartIdInput(""); setDrawingNoInput(""); setNameInput(""); setClientInput(""); setMachineInput(""); setResults([]); setTotal(null); }} className="w-full border border-slate-200 text-slate-500 hover:bg-slate-50 py-1.5 rounded-lg text-xs">クリア</button>}
+            {results.length > 0 && <button onClick={() => { setMcIdInput(""); setMachiningIdInput(""); setPartIdInput(""); setDrawingNoInput(""); setNameInput(""); setClientInput(""); setMachineInput(""); setResults([]); setTotal(null); }} className="w-full border border-slate-200 text-slate-500 hover:bg-slate-50 py-1.5 rounded-lg text-xs">クリア</button>}
             {total !== null && <div className="text-xs text-slate-500 bg-slate-50 rounded p-2">{total > 0 ? <span><b className="text-slate-700">{total}</b> 件ヒット</span> : <span className="text-red-500">0件（条件を変更してください）</span>}</div>}
             {recent.length > 0 && <div className="pt-2 border-t border-slate-100">
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">最近のアクセス</div>
