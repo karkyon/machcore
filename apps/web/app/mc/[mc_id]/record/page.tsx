@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { mcApi, machinesApi, usersApi, McWorkRecord, Machine, UserInfo } from "@/lib/api";
+import { mcApi, machinesApi, usersApi, McDetail, McWorkRecord, Machine, UserInfo } from "@/lib/api";
+import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 
@@ -31,6 +32,7 @@ function McRecordPageInner() {
   const searchParams = useSearchParams();
   const editRecordId = searchParams.get("edit") ? parseInt(searchParams.get("edit")!) : null;
 
+  const [detail,   setDetail]   = useState<McDetail | null>(null);
   const [records,  setRecords]  = useState<McWorkRecord[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [users,    setUsers]    = useState<UserInfo[]>([]);
@@ -64,6 +66,7 @@ function McRecordPageInner() {
   const fmtMin = (min: number | null) => min != null ? `${Math.floor(min/60)}H ${String(min%60).padStart(2,"0")}M` : "—";
 
   useEffect(() => {
+    mcApi.findOne(mcId).then(r => setDetail((r as any).data ?? r)).catch(() => {});
     mcApi.workRecords(mcId).then(r => setRecords((r as any).data ?? [])).catch(() => {});
     machinesApi.list().then(r => setMachines((r as any).data ?? [])).catch(() => {});
     usersApi.list().then(r => setUsers((r as any).data ?? [])).catch(() => {});
@@ -150,6 +153,27 @@ function McRecordPageInner() {
         </span>
       </header>
 
+      {/* 部品情報エリア */}
+      {detail && (
+        <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
+          <div className="flex items-center gap-3 mb-1">
+            <span className="font-mono text-teal-600 font-bold text-lg">{detail.part.drawingNo}</span>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700 font-mono">
+              加工ID: {detail.machiningId}
+            </span>
+            <StatusBadge status={detail.status} />
+            <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {detail.version}</span>
+          </div>
+          <div className="text-sm text-slate-700 font-medium mb-1">{detail.part.name}</div>
+          <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
+            <span>MCID: {detail.id}</span>
+            <span>加工ID: {detail.machiningId}</span>
+            {detail.part.partId && <span>部品ID: {detail.part.partId}</span>}
+            {detail.part.clientName && <span>納入先: {detail.part.clientName}</span>}
+          </div>
+        </div>
+      )}
+
       {/* タブナビ */}
       <nav className="bg-slate-800 px-5 flex gap-0 shrink-0 border-t border-slate-700">
         <button onClick={() => router.push(`/mc/${mcId}`)}
@@ -172,7 +196,7 @@ function McRecordPageInner() {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
           作業記録
         </button>
-      </nav>      </nav>
+      </nav>
 
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* 上: 過去記録 */}

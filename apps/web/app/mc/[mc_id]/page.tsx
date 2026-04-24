@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, McDetail, McTooling, McWorkOffset, McIndexProgram,
          McFile, McChangeHistory, McSetupSheetLog, McWorkRecord } from "@/lib/api";
+import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 
@@ -231,12 +232,7 @@ export default function McDetailPage() {
               {d.machine.machineCode}
             </span>
           )}
-          <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-            d.status === "APPROVED"         ? "bg-emerald-100 text-emerald-700" :
-            d.status === "PENDING_APPROVAL" ? "bg-amber-100 text-amber-700" :
-            d.status === "CHANGING"         ? "bg-red-100 text-red-700" :
-                                              "bg-blue-100 text-blue-700"
-          }`}>{STATUS_LABEL[d.status] ?? d.status}</span>
+          <StatusBadge status={d.status} />
           <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
         </div>
         <div className="text-sm text-slate-700 font-medium mb-1">{d.part.name}</div>
@@ -288,7 +284,7 @@ export default function McDetailPage() {
 
         {/* ─── マシニングデータ ─── */}
         {mainTab === "mc" && (
-          <div className="max-w-3xl mx-auto space-y-5">
+          <div className="max-w-3xl space-y-5">
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 px-4 py-2 border-b border-slate-200">
                 <span className="text-xs font-bold text-slate-600">基本情報</span>

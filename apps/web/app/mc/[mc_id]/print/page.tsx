@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, McDetail } from "@/lib/api";
+import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 
@@ -149,15 +150,7 @@ export default function McPrintPage() {
         <div className="flex items-center gap-3 mb-1">
           <span className="font-mono text-teal-600 font-bold text-lg">{d.part.drawingNo}</span>
           {d.machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{d.machine.machineCode}</span>}
-          <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-            d.status === "APPROVED"         ? "bg-emerald-100 text-emerald-700" :
-            d.status === "PENDING_APPROVAL" ? "bg-amber-100 text-amber-700" :
-            d.status === "CHANGING"         ? "bg-red-100 text-red-700" :
-                                              "bg-blue-100 text-blue-700"
-          }`}>{
-            d.status === "APPROVED" ? "承認済" : d.status === "PENDING_APPROVAL" ? "未承認" :
-            d.status === "CHANGING" ? "変更中" : "新規"
-          }</span>
+          <StatusBadge status={d.status} />
           <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
         </div>
         <div className="text-sm text-slate-700 font-medium mb-1">{d.part.name}</div>
@@ -191,7 +184,7 @@ export default function McPrintPage() {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
           作業記録
         </button>
-      </nav>      </nav>
+      </nav>
 
       {isAuthenticated && operator && (
         <div className="bg-red-600 text-white px-5 py-1.5 flex items-center gap-3 text-xs shrink-0">
