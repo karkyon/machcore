@@ -221,23 +221,6 @@ export default function McEditPage() {
         </button>
       </nav>
 
-      {/* セッションバナー */}
-      {isAuthenticated && operator && (
-        <div className="bg-red-600 text-white px-5 py-1.5 flex items-center justify-between text-xs shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="w-2 h-2 bg-red-300 rounded-full animate-pulse" />
-            <span>編集セッション: {operator.name}</span>
-          </div>
-          <div className="flex gap-3">
-            <button onClick={() => { logout(); router.push(`/mc/${mcId}`); }}
-              className="text-red-200 hover:text-white">キャンセル</button>
-            <button onClick={handleSave} disabled={saving}
-              className="bg-white text-red-700 px-3 py-0.5 rounded font-bold hover:bg-red-50 disabled:opacity-50">
-              {saving ? "保存中..." : "作業完了（登録）"}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 部品情報エリア */}
       {d && (
@@ -281,6 +264,25 @@ export default function McEditPage() {
           作業記録
         </button>
       </nav>
+
+      {/* セッションバナー */}
+      {isAuthenticated && operator && (
+        <div className="bg-red-600 text-white px-5 py-1.5 flex items-center justify-between text-xs shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="w-2 h-2 bg-red-300 rounded-full animate-pulse" />
+            <span>編集セッション: {operator.name}</span>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={() => { logout(); router.push(`/mc/${mcId}`); }}
+              className="text-red-200 hover:text-white">キャンセル</button>
+            <button onClick={handleSave} disabled={saving}
+              className="bg-white text-red-700 px-3 py-0.5 rounded font-bold hover:bg-red-50 disabled:opacity-50">
+              {saving ? "保存中..." : "作業完了（登録）"}
+            </button>
+          </div>
+        </div>
+      )}
+
 
       {/* ロック状態 */}
       {!isAuthenticated && detail && (
