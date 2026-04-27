@@ -1,4 +1,4 @@
-import { IsInt, IsString, IsOptional, IsNotEmpty, Min, MaxLength } from 'class-validator';
+import { IsInt, IsString, IsOptional, Min, MaxLength } from 'class-validator';
 
 export class CreateMcDto {
   @IsInt()
@@ -9,6 +9,12 @@ export class CreateMcDto {
 
   @IsOptional() @IsInt()
   machine_id?: number;
+
+  @IsOptional() @IsInt() @Min(0)
+  mc_process_no?: number;
+
+  @IsOptional() @IsString() @MaxLength(50)
+  file_name?: string;
 
   @IsOptional() @IsString() @MaxLength(50)
   o_number?: string;

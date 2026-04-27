@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Param, Query,
+  Controller, Get, Post, Put, Delete, Param, Query,
   ParseIntPipe, Body, UseGuards, Req, Res,
 } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
@@ -8,6 +8,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { OperationLogService } from '../common/operation-log.service';
 import { McService } from './mc.service';
+import { McFilesService } from './mc-files.service';
 import { CreateMcDto } from './dto/create-mc.dto';
 import { UpdateMcDto } from './dto/update-mc.dto';
 import { CreateMcWorkRecordDto } from './dto/create-mc-work-record.dto';
@@ -19,8 +20,9 @@ import { PrintMcDto } from './dto/print-mc.dto';
 @Controller('mc')
 export class McController {
   constructor(
-    private readonly mc:    McService,
-    private readonly opLog: OperationLogService,
+    private readonly mc:      McService,
+    private readonly mcFiles: McFilesService,
+    private readonly opLog:   OperationLogService,
   ) {}
 
   // ── 検索・一覧 ──────────────────────────────
@@ -165,7 +167,35 @@ export class McController {
   // ── ファイル一覧 ────────────────────────────
   @Get(':mc_id/files')
   listFiles(@Param('mc_id', ParseIntPipe) id: number) {
-    return this.mc.listFiles(id);
+    return this.mcFiles.listFiles(id);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Post(':mc_id/files/upload')
+  async uploadFile(@Param('mc_id', ParseIntPipe) id: number, @Req() req: any) {
+    const data = await req.file();
+    if (!data) throw new Error('ファイルがありません');
+    const buf = await data.toBuffer();
+    const pgRole = (data.fields?.pg_role?.value ?? undefined) as 'MAIN' | 'SUB' | undefined;
+    return this.mcFiles.upload(id, req.user.id, { filename: data.filename, mimetype: data.mimetype, data: buf }, pgRole);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Post(':mc_id/files/:file_id/replace')
+  async replaceFile(@Param('mc_id', ParseIntPipe) mcId: number, @Param('file_id', ParseIntPipe) fileId: number, @Req() req: any) {
+    const data = await req.file();
+    if (!data) throw new Error('ファイルがありません');
+    const buf = await data.toBuffer();
+    return this.mcFiles.replace(mcId, fileId, req.user.id, { filename: data.filename, mimetype: data.mimetype, data: buf });
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Delete(':mc_id/files/:file_id')
+  deleteFile(@Param('mc_id', ParseIntPipe) mcId: number, @Param('file_id', ParseIntPipe) fileId: number) {
+    return this.mcFiles.delete(mcId, fileId);
   }
 
   // ── 段取シートPDF / 印刷 ───────────────────────

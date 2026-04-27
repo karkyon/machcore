@@ -159,6 +159,8 @@ export class McService {
         data: {
           partId:        dto.part_id,
           machiningId:   dto.machining_id,
+          mcProcessNo:   dto.mc_process_no   ?? null,
+          fileName:      dto.file_name       ?? null,
           machineId:     dto.machine_id     ?? null,
           oNumber:       dto.o_number       ?? null,
           clampNote:     dto.clamp_note     ?? null,
