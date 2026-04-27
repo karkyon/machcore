@@ -2,7 +2,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { mcApi, machinesApi, Machine } from "@/lib/api";
-import AuthModal from "@/components/nc/AuthModal";
+import AuthModal from "@/components/auth/AuthModal";
+import { useAuth } from "@/contexts/AuthContext";
 
 type PartResult = {
   id: number;
@@ -14,6 +15,7 @@ type PartResult = {
 
 export default function McNewPage() {
   const router = useRouter();
+  const { token: authToken, operator: authOperator } = useAuth();
 
   const [searchQ,      setSearchQ]      = useState("");
   const [searchType,   setSearchType]   = useState<"drawing_no"|"part_id"|"part_name">("drawing_no");
@@ -30,8 +32,6 @@ export default function McNewPage() {
   const [machines,     setMachines]     = useState<Machine[]>([]);
 
   const [authOpen,  setAuthOpen]  = useState(false);
-  const [token,     setToken]     = useState<string | null>(null);
-  const [operator,  setOperator]  = useState<{ id: number; name: string } | null>(null);
 
   const [saving,    setSaving]    = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -67,12 +67,10 @@ export default function McNewPage() {
     finally { setPartLoading(false); }
   }, [searchQ, searchType]);
 
-  const handleAuthSuccess = (t: string, op: { id: number; name: string }) => {
-    setToken(t); setOperator(op); setAuthOpen(false);
-  };
+  const handleAuthSuccess = () => { setAuthOpen(false); };
 
   const handleSubmit = async () => {
-    if (!token) { setAuthOpen(true); return; }
+    if (!authToken) { setAuthOpen(true); return; }
     if (!selectedPart) { setSaveError("部品を選択してください"); return; }
     if (!machiningId.trim()) { setSaveError("加工IDを入力してください"); return; }
     const machIdNum = parseInt(machiningId);
@@ -87,7 +85,7 @@ export default function McNewPage() {
       if (machiningQty) body.machining_qty = parseInt(machiningQty);
       if (note)         body.note          = note;
 
-      const res  = await mcApi.create(body, token);
+      const res  = await mcApi.create(body, authToken!);
       const d    = (res as any).data ?? res;
       router.push(`/mc/${d.mc_id}/print`);
     } catch (e: any) {
@@ -96,7 +94,7 @@ export default function McNewPage() {
     } finally { setSaving(false); }
   };
 
-  const canSubmit = !!(token && selectedPart && machiningId.trim());
+  const canSubmit = !!(authToken && selectedPart && machiningId.trim());
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
@@ -110,8 +108,8 @@ export default function McNewPage() {
         <span className="text-slate-400 text-xs">|</span>
         <span className="text-sm font-medium">MC 新規登録（仮登録）</span>
         <span className="ml-auto">
-          {operator
-            ? <span className="text-[11px] bg-teal-700 text-white px-2.5 py-1 rounded font-bold">✓ 認証済: {operator.name}</span>
+          {authOperator
+            ? <span className="text-[11px] bg-teal-700 text-white px-2.5 py-1 rounded font-bold">✓ 認証済: {authOperator.name}</span>
             : <button onClick={() => setAuthOpen(true)} className="text-[11px] bg-amber-600 hover:bg-amber-500 text-white px-2.5 py-1 rounded font-bold transition-colors">🔒 要認証 — クリックして認証</button>
           }
         </span>
@@ -224,7 +222,7 @@ export default function McNewPage() {
           )}
 
           <div className="mt-4 max-w-xl flex gap-3">
-            {!token ? (
+            {!authToken ? (
               <button onClick={() => setAuthOpen(true)}
                 className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
                 🔒 先に認証してください
@@ -256,7 +254,7 @@ export default function McNewPage() {
           isOpen={true}
           ncProgramId={0}
           sessionType="edit"
-          onSuccess={(t, op) => handleAuthSuccess(t, op)}
+          onSuccess={() => handleAuthSuccess()}
           onCancel={() => setAuthOpen(false)}
         />
       )}
