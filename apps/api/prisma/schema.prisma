@@ -508,6 +508,10 @@ model McFile {
   filePath      String   @db.VarChar(500)   @map("file_path")
   thumbnailPath String?  @db.VarChar(500)   @map("thumbnail_path")
   fileSize      Int                         @map("file_size")
+  pgRole        String?  @db.VarChar(10)    @map("pg_role")
+  sortOrder     Int      @default(0)        @map("sort_order")
+  isDeleted     Boolean  @default(false)    @map("is_deleted")
+  deletedAt     DateTime?                   @map("deleted_at")
   uploadedBy    Int                         @map("uploaded_by")
   uploadedAt    DateTime @default(now())    @map("uploaded_at")
 
