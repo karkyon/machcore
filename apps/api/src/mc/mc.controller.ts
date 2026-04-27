@@ -49,19 +49,19 @@ export class McController {
     return this.mc.getCommonGroup(machiningId);
   }
 
-  // ── MC詳細 ──────────────────────────────────
-  @Get(':mc_id')
-  findOne(@Param('mc_id', ParseIntPipe) id: number) {
-    this.opLog.log({ actionType: 'MC_VIEW', mcProgramId: id });
-    return this.mc.findOne(id);
-  }
-
   // ── 新規登録 ────────────────────────────────
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Post()
   create(@Body() dto: CreateMcDto, @Req() req: any) {
     return this.mc.create(dto, req.user.id);
+  }
+
+  // ── MC詳細 ──────────────────────────────────
+  @Get(':mc_id')
+  findOne(@Param('mc_id', ParseIntPipe) id: number) {
+    this.opLog.log({ actionType: 'MC_VIEW', mcProgramId: id });
+    return this.mc.findOne(id);
   }
 
   // ── 更新 ────────────────────────────────────

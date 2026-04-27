@@ -68,6 +68,7 @@ export class McService {
       total, limit, offset,
       rows: rows.map(r => ({
         mc_id:         r.id,
+          part_db_id:    r.partId,
         machining_id:  r.machiningId,
         drawing_no:    r.part.drawingNo,
         part_name:     r.part.name,
