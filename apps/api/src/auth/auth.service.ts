@@ -58,7 +58,7 @@ export class AuthService {
     const session = await this.prisma.workSession.create({
       data: {
         userId:      user.id,
-        ncProgramId: body.nc_program_id,
+        ncProgramId: body.nc_program_id || null,
         sessionType: body.session_type.toUpperCase() as any,
         expiresAt,
       },
