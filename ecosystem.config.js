@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name:    'machcore-api',
-      script:  'dist/main.js',
+      script:  'dist/src/main.js',
       cwd:     '/home/karkyon/projects/machcore/apps/api',
       exec_mode: 'fork',
       instances: 1,
