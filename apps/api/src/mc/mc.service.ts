@@ -31,7 +31,7 @@ export class McService {
       const kw = q.trim();
       if (key === 'mcid') {
         const n = parseInt(kw);
-        if (!isNaN(n)) where.id = n;
+        if (!isNaN(n)) where.legacyMcid = n;
       } else if (key === 'machining_id') {
         const n = parseInt(kw);
         if (!isNaN(n)) where.machiningId = n;
@@ -68,6 +68,7 @@ export class McService {
       total, limit, offset,
       rows: rows.map(r => ({
         mc_id:         r.id,
+        legacy_mcid:   r.legacyMcid ?? null,
           part_db_id:    r.partId,
         machining_id:  r.machiningId,
         drawing_no:    r.part.drawingNo,
@@ -97,7 +98,7 @@ export class McService {
         user:      { select: { name: true } },
         mcProgram: {
           select: {
-            id: true, version: true, status: true, oNumber: true,
+            id: true, legacyMcid: true, version: true, status: true, oNumber: true,
             part:    { select: { drawingNo: true, name: true } },
             machine: { select: { machineCode: true } },
           },
@@ -106,6 +107,7 @@ export class McService {
     });
     return logs.map(l => ({
       mc_id:        l.mcProgram?.id,
+      legacy_mcid:  l.mcProgram?.legacyMcid ?? null,
       drawing_no:   l.mcProgram?.part.drawingNo,
       part_name:    l.mcProgram?.part.name,
       machine_code: l.mcProgram?.machine?.machineCode,

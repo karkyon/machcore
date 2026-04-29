@@ -81,7 +81,7 @@ export default function McSearchPage() {
             <h2 className="text-sm font-bold text-slate-700">MC 部品検索</h2>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide pt-1">ID 直接指定</div>
             <div>
-              <label className="text-sm font-bold text-slate-700 block mb-1">MC ID</label>
+              <label className="text-sm font-bold text-slate-700 block mb-1">MC ID <span className="text-[10px] text-slate-400 font-normal">(旧MCID)</span></label>
               <input type="number" value={mcIdInput} onChange={e => setMcIdInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="例: 1792" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
             </div>
             <div>
@@ -124,7 +124,7 @@ export default function McSearchPage() {
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">最近のアクセス</div>
               {recent.slice(0,5).map((r: any,i) => (
                 <div key={i} onClick={() => handleSelect(r.mc_id)} className="flex items-center gap-2 py-1.5 px-1 rounded cursor-pointer hover:bg-slate-50 text-[11px]">
-                  <span className="font-mono text-teal-600 font-bold w-16 shrink-0">MCID:{r.mc_id}</span>
+                  <span className="font-mono text-teal-600 font-bold w-16 shrink-0">MCID:{r.legacy_mcid ?? r.mc_id}</span>
                   <span className="text-slate-600 truncate">{r.part_name ?? r.drawing_no}</span>
                 </div>
               ))}
@@ -150,7 +150,7 @@ export default function McSearchPage() {
                   <div key={r.mc_id} onClick={() => handleSelect(r.mc_id)}
                     className={`px-4 py-2 flex items-center gap-3 cursor-pointer transition-colors border-b border-dashed border-slate-200 ${selected===r.mc_id ? "bg-teal-50" : "hover:bg-slate-50"}`}>
                     <span className="w-6 h-6 rounded bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">{ri+1}</span>
-                    <span className="font-mono text-xs text-slate-600 shrink-0">MCID : {r.mc_id}</span>
+                    <span className="font-mono text-xs text-slate-600 shrink-0">MCID : {r.legacy_mcid ?? r.mc_id}</span>
                     {r.machine_code && <span className="text-sm text-slate-700 font-medium shrink-0">{r.machine_code}</span>}
                     <span className="text-xs text-slate-400 shrink-0">加工ID:{r.machining_id}</span>
                     <span className="ml-auto flex items-center gap-2">

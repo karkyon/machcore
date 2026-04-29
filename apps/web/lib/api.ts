@@ -453,6 +453,7 @@ export type McStatus = 'NEW' | 'PENDING_APPROVAL' | 'APPROVED' | 'CHANGING';
 
 export type McSearchResult = {
   mc_id:            number;
+  legacy_mcid:      number | null;
   machining_id:     number;
   drawing_no:       string;
   part_name:        string;
@@ -517,6 +518,7 @@ export type McDetail = {
   machiningQty:   number | null;
   commonPartCode: string | null;
   note:           string | null;
+  legacyMcid:     number | null;
   registeredAt:   string;
   approvedAt:     string | null;
   part:    { drawingNo: string; name: string; clientName: string | null; partId: string | null };

@@ -187,7 +187,7 @@ export default function McEditPage() {
           </div>
           <div className="text-sm text-slate-700 font-medium mb-1">{d.part.name}</div>
           <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
-            <span>MCID: {d.id}</span>
+            <span>MCID: {d.legacyMcid ?? d.id}</span>
             <span>加工ID: {d.machiningId}</span>
             {d.part.partId && <span>部品ID: {d.part.partId}</span>}
             {d.part.clientName && <span>納入先: {d.part.clientName}</span>}
