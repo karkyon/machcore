@@ -501,11 +501,12 @@ export type McIndexProgram = {
 };
 
 export type McCommonGroupItem = {
-  id:         number;
-  legacyMcid: number | null;
-  version: string;
-  status:  McStatus;
-  part: { drawingNo: string; name: string; clientName: string | null };
+  id:           number;
+  legacyMcid:   number | null;
+  machiningId:  number;
+  version:      string;
+  status:       McStatus;
+  part: { drawingNo: string; name: string; clientName: string | null; partId: string | null };
 };
 
 export type McDetail = {

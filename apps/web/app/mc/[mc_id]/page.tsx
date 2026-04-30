@@ -319,8 +319,10 @@ export default function McDetailPage() {
                       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
                         g.id === d.id ? "bg-teal-50 border border-teal-200" : "bg-white"}`}>
                       <span className="font-mono text-teal-600 font-bold text-xs">MCID:{g.legacyMcid ?? g.id}</span>
-                      <span className="font-mono text-slate-600 text-xs">{g.part.drawingNo}</span>
+                      {g.part.partId && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-mono shrink-0">部品ID:{g.part.partId}</span>}
+                      <span className="font-mono text-slate-700 font-bold text-xs">{g.part.drawingNo}</span>
                       <span className="text-slate-600 text-xs">{g.part.name}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">加工ID:{g.machiningId}</span>
                       <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded font-bold ${STATUS_COLOR[g.status] ?? ""}`}>
                         {STATUS_LABEL[g.status] ?? g.status}
                       </span>
