@@ -277,7 +277,7 @@ def import_mc_programs(sc, pc, maps, dry_run=False, truncate=False):
             %s, %s, %s,
             NOW(), NOW()
         )
-        ON CONFLICT (legacy_mcid) DO NOTHING
+        ON CONFLICT DO NOTHING
     """
 
     sc.execute("""
