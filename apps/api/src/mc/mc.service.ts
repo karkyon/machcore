@@ -57,7 +57,7 @@ export class McService {
         where, skip: offset, take: limit,
         orderBy: { id: 'asc' },
         include: {
-          part:    { select: { drawingNo: true, name: true, clientName: true } },
+          part:    { select: { drawingNo: true, name: true, clientName: true, partId: true } },
           machine: { select: { machineCode: true, machineName: true } },
         },
       }),
@@ -69,7 +69,8 @@ export class McService {
       rows: rows.map(r => ({
         mc_id:         r.id,
         legacy_mcid:   r.legacyMcid ?? null,
-          part_db_id:    r.partId,
+        part_id:       r.part.partId ?? null,
+        part_db_id:    r.partId,
         machining_id:  r.machiningId,
         drawing_no:    r.part.drawingNo,
         part_name:     r.part.name,
