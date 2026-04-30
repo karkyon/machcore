@@ -501,7 +501,8 @@ export type McIndexProgram = {
 };
 
 export type McCommonGroupItem = {
-  id:      number;
+  id:         number;
+  legacyMcid: number | null;
   version: string;
   status:  McStatus;
   part: { drawingNo: string; name: string; clientName: string | null };

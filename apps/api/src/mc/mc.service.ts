@@ -142,7 +142,7 @@ export class McService {
       where:   { machiningId: r.machiningId },
       orderBy: { id: 'asc' },
       select: {
-        id: true, version: true, status: true,
+        id: true, legacyMcid: true, version: true, status: true,
         part: { select: { drawingNo: true, name: true, clientName: true } },
       },
     });

@@ -212,7 +212,7 @@ export default function McDetailPage() {
                     }`}
                   >
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${g.id === d.id ? "bg-teal-500 text-white" : "bg-slate-100 text-slate-600"}`}>
-                      {g.id}
+                      {g.legacyMcid ?? g.id}
                     </span>
                     <span className="font-mono text-slate-600 truncate flex-1">{g.part.drawingNo}</span>
                     <span className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded ${
@@ -318,7 +318,7 @@ export default function McDetailPage() {
                     <div key={g.id} onClick={() => g.id !== d.id && router.push(`/mc/${g.id}`)}
                       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
                         g.id === d.id ? "bg-teal-50 border border-teal-200" : "hover:bg-slate-50 cursor-pointer"}`}>
-                      <span className="font-mono text-teal-600 font-bold text-xs">MCID:{g.id}</span>
+                      <span className="font-mono text-teal-600 font-bold text-xs">MCID:{g.legacyMcid ?? g.id}</span>
                       <span className="font-mono text-slate-600 text-xs">{g.part.drawingNo}</span>
                       <span className="text-slate-600 text-xs">{g.part.name}</span>
                       <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded font-bold ${STATUS_COLOR[g.status] ?? ""}`}>
