@@ -141,9 +141,9 @@ export default function McSearchPage() {
             {groups.map((g, gi) => (
               <div key={gi} className="border-b-2 border-slate-300">
                 <div className="px-4 py-2 bg-green-50 flex items-center gap-3 border-b border-slate-200">
+                  {g.part_id && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-violet-100 text-violet-700 font-mono shrink-0">部品ID:{g.part_id}</span>}
                   <span className="font-mono text-slate-800 font-bold text-sm">{g.drawing_no}</span>
                   <span className="text-slate-700 font-medium text-sm truncate flex-1">{g.part_name}</span>
-                  {g.part_id && <span className="text-slate-500 text-xs shrink-0">/ {g.part_id}</span>}
                   {g.client_name && <span className="text-slate-400 text-xs shrink-0 truncate max-w-[120px]">{g.client_name}</span>}
                 </div>
                 {g.rows.map((r, ri) => (
