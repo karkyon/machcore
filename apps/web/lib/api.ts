@@ -530,7 +530,18 @@ export type McDetail = {
   workOffsets:  McWorkOffset[];
   indexPrograms: McIndexProgram[];
   files:        McFile[];
+  processes:    McProcessItem[];
   commonGroup:  McCommonGroupItem[];
+};
+
+export type McProcessItem = {
+  id:           number;
+  legacyMcid:   number | null;
+  machiningId:  number;
+  mcProcessNo:  number | null;
+  version:      string;
+  status:       McStatus;
+  machine:      { machineCode: string } | null;
 };
 
 export type McFile = {

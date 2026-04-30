@@ -137,7 +137,19 @@ export class McService {
     });
     if (!r) throw new NotFoundException(`MC_id ${id} が存在しません`);
 
-    // 共通加工グループ（同一machining_idを持つ全レコード）
+    // 同一部品の全工程（フローティングパネル用）
+    // part.partId（部品ID文字列）で絞ることで移行バグの影響を受けない
+    const processes = await this.prisma.mcProgram.findMany({
+      where:   { part: { partId: r.part.partId } },
+      orderBy: { id: 'asc' },
+      select: {
+        id: true, legacyMcid: true, machiningId: true, mcProcessNo: true,
+        version: true, status: true,
+        machine: { select: { machineCode: true } },
+      },
+    });
+
+    // 共通加工グループ（同一machiningId＝参照表示のみ）
     const commonGroup = await this.prisma.mcProgram.findMany({
       where:   { machiningId: r.machiningId },
       orderBy: { id: 'asc' },
@@ -147,7 +159,7 @@ export class McService {
       },
     });
 
-    return { ...r, commonGroup };
+    return { ...r, processes, commonGroup };
   }
 
   // ══════════════════════════════════════════

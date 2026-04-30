@@ -177,8 +177,8 @@ export default function McDetailPage() {
         </span>
       </header>
         {/* ── フローティング工程切り替えパネル ── */}
-        {d && (() => { console.log('[MC Float] render check - commonGroup:', d.commonGroup?.length); return null; })()}
-        {d && d.commonGroup && d.commonGroup.length >= 1 && (
+        {d && (() => { console.log('[MC Float] render check - processes:', d.processes?.length); return null; })()}
+        {d && d.processes && d.processes.length > 1 && (
           <div
             style={{ position: "fixed", left: floatPos.x, top: floatPos.y, zIndex: 100, userSelect: "none" }}
             className="shadow-2xl rounded-xl overflow-hidden border border-slate-700 w-52"
@@ -201,7 +201,7 @@ export default function McDetailPage() {
             </div>
             {floatOpen && (
               <div className="bg-white">
-                {d.commonGroup.map(g => (
+                {d.processes.map(g => (
                   <button
                     key={g.id}
                     onClick={() => router.push(`/mc/${g.id}`)}
@@ -214,7 +214,7 @@ export default function McDetailPage() {
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${g.id === d.id ? "bg-teal-500 text-white" : "bg-slate-100 text-slate-600"}`}>
                       {g.legacyMcid ?? g.id}
                     </span>
-                    <span className="font-mono text-slate-600 truncate flex-1">{g.part.drawingNo}</span>
+                    <span className="font-mono text-slate-600 truncate flex-1">{g.machine?.machineCode ?? "—"}</span>
                     <span className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded ${
                       g.status === "APPROVED" ? "bg-green-100 text-green-700" :
                       g.status === "CHANGING" ? "bg-orange-100 text-orange-700" :
@@ -315,9 +315,9 @@ export default function McDetailPage() {
                 </div>
                 <div className="p-2">
                   {d.commonGroup.map(g => (
-                    <div key={g.id} onClick={() => g.id !== d.id && router.push(`/mc/${g.id}`)}
+                    <div key={g.id}
                       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
-                        g.id === d.id ? "bg-teal-50 border border-teal-200" : "hover:bg-slate-50 cursor-pointer"}`}>
+                        g.id === d.id ? "bg-teal-50 border border-teal-200" : "bg-white"}`}>
                       <span className="font-mono text-teal-600 font-bold text-xs">MCID:{g.legacyMcid ?? g.id}</span>
                       <span className="font-mono text-slate-600 text-xs">{g.part.drawingNo}</span>
                       <span className="text-slate-600 text-xs">{g.part.name}</span>
