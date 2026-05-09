@@ -693,6 +693,7 @@ function RecordPageInner() {
         </div>
       )}
     </div>
+  </div>
   );
 }
 
