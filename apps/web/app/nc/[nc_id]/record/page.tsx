@@ -92,7 +92,7 @@ function RecordPageInner() {
   const params    = useParams();
   const router    = useRouter();
   const ncId      = Number(params.nc_id);
-  const [searchParams] = useSearchParams ? [useSearchParams()] : [null as any];
+  const searchParams = useSearchParams();
 
   const [nc,       setNc]       = useState<NcDetail | null>(null);
   const [setupSheets, setSetupSheets] = useState<SetupSheetLog[]>([]);
