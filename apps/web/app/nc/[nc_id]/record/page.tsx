@@ -88,7 +88,7 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
 }
 
 // ─── メインページ ──────────────────────────────────────────────
-export default function RecordPage() {
+function RecordPageInner() {
   const params    = useParams();
   const router    = useRouter();
   const ncId      = Number(params.nc_id);
@@ -694,5 +694,13 @@ export default function RecordPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function RecordPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen text-slate-400">読み込み中…</div>}>
+      <RecordPageInner />
+    </Suspense>
   );
 }
