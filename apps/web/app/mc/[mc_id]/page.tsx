@@ -275,7 +275,7 @@ export default function McDetailPage() {
       </nav>
 
       {/* コンテンツタブ */}
-      <div className="bg-white border-b border-slate-200 px-4 flex gap-0 shrink-0">
+      <div className="bg-[#f4f7fb] border-b border-[#d0d8e4] px-4 flex gap-1.5 shrink-0 pt-2 items-end">
         {MAIN_TABS.map(tab => (
           <button key={tab.key} onClick={() => setMainTab(tab.key)}
             className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
