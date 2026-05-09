@@ -538,7 +538,7 @@ export default function McDetailPage() {
 
       {/* 認証モーダル */}
       {authOpen && (
-        <AuthModal isOpen={true} ncProgramId={mcId} sessionType={authType}
+        <AuthModal isOpen={true} ncProgramId={mcId} mcProgramId={mcId} sessionType={authType}
           onSuccess={() => setAuthOpen(false)}
           onCancel={() => setAuthOpen(false)} />
       )}

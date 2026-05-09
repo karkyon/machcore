@@ -348,7 +348,7 @@ function McRecordPageInner() {
       </div>
 
       {authOpen && (
-        <AuthModal isOpen={true} ncProgramId={mcId} sessionType="work_record" onSuccess={() => setAuthOpen(false)} onCancel={() => setAuthOpen(false)} />
+        <AuthModal isOpen={true} ncProgramId={mcId} mcProgramId={mcId} sessionType="work_record" onSuccess={() => setAuthOpen(false)} onCancel={() => setAuthOpen(false)} />
       )}
 
       {toast && (

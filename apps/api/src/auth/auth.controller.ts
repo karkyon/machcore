@@ -13,6 +13,7 @@ export class AuthController {
     password: string;
     session_type: string;
     nc_program_id: number;
+    mc_program_id?: number;
   }) {
     return this.authService.createWorkSession(body);
   }

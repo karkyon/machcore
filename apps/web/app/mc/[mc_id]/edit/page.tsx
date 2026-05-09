@@ -476,7 +476,7 @@ export default function McEditPage() {
 
       {/* 認証モーダル */}
       {authOpen && (
-        <AuthModal isOpen={true} ncProgramId={mcId} sessionType="edit" onSuccess={() => setAuthOpen(false)} onCancel={() => setAuthOpen(false)} />
+        <AuthModal isOpen={true} ncProgramId={mcId} mcProgramId={mcId} sessionType="edit" onSuccess={() => setAuthOpen(false)} onCancel={() => setAuthOpen(false)} />
       )}
 
       {toast && (

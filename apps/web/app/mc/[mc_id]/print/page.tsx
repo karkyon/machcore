@@ -269,7 +269,7 @@ export default function McPrintPage() {
       </div>
 
       {authOpen && (
-        <AuthModal isOpen={true} ncProgramId={mcId} sessionType="setup_print" onSuccess={() => setAuthOpen(false)} onCancel={() => setAuthOpen(false)} />
+        <AuthModal isOpen={true} ncProgramId={mcId} mcProgramId={mcId} sessionType="setup_print" onSuccess={() => setAuthOpen(false)} onCancel={() => setAuthOpen(false)} />
       )}
 
       {toast && (

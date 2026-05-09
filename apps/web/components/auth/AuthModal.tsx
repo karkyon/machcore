@@ -38,6 +38,7 @@ export default function AuthModal({ isOpen, sessionType, ncProgramId, onSuccess,
         password,
         session_type: sessionType,
         nc_program_id: ncProgramId,
+        mc_program_id: mcProgramId,
       });
       login(res.data);
       onSuccess();
