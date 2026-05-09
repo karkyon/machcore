@@ -649,7 +649,6 @@ export default function RecordPage() {
         </div>
       </div>
 
-          </div>
       {/* 認証モーダル */}
       {showAuth && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
