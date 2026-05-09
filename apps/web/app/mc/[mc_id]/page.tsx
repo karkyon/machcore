@@ -150,8 +150,6 @@ export default function McDetailPage() {
       {/* ヘッダー */}
       <header className="bg-slate-800 text-white px-5 py-2 flex items-center gap-3 shrink-0">
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
-        <span className="text-slate-400 text-xs">|</span>
-        <button onClick={() => router.push("/nc/search")} className="text-xs bg-white text-slate-800 hover:bg-slate-100 border border-slate-400 px-2.5 py-1 rounded font-medium transition-all shrink-0">⇄ NC</button>
         <span className="text-sm font-medium text-white">MC 詳細</span>
         <span className="ml-auto flex items-center gap-3">
           <button onClick={() => router.push("/mc/search")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-500 rounded-lg text-xs font-bold text-white transition-colors">

@@ -130,8 +130,6 @@ export default function McPrintPage() {
         </button>
         <span className="text-slate-600">|</span>
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
-        <span className="text-slate-400 text-xs">|</span>
-        <button onClick={() => router.push("/nc/search")} className="text-xs bg-white text-slate-800 hover:bg-slate-100 border border-slate-400 px-2.5 py-1 rounded font-medium transition-all shrink-0">⇄ NC</button>
         <span className="text-sm font-medium flex items-center gap-1.5">段取シート</span>
         <span className="ml-auto">
           {isAuthenticated && operator && (
