@@ -19,7 +19,7 @@ cd "$ROOT/apps/web" && $PNPX tsc --noEmit
 echo "✅ Web OK"
 
 echo "[3/4] pm2 restart machcore-api..."
-$PM2 restart machcore-api
+$PM2 restart machcore-api machcore-web
 sleep 5
 
 echo "[4/4] 疎通確認..."
