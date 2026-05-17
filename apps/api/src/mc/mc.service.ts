@@ -744,7 +744,7 @@ export class McService {
     const commonGroupHtml = (data.commonGroup?.length > 1)
       ? `<div style="margin-top:6px;padding:4px 8px;background:#fef3c7;border:1px solid #fbbf24;border-radius:4px;font-size:8pt;">
           <strong>共通加工</strong>（加工ID: ${data.machiningId}）：
-          ${data.commonGroup.map((g: any) => `MCID ${g.id} / ${g.part?.drawingNo ?? ''} ${g.part?.name ?? ''}`).join('　')}
+          ${data.commonGroup.map((g: any) => `MCID ${g.legacyMcid ?? g.id} / ${g.part?.drawingNo ?? ''} ${g.part?.name ?? ''}`).join('　')}
          </div>` : '';
 
     const cycleDisp = (() => {
