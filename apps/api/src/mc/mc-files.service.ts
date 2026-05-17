@@ -1,3 +1,4 @@
+// apps/api/src/mc/mc-files.service.ts
 import {
   Injectable, NotFoundException,
 } from '@nestjs/common';
@@ -9,6 +10,16 @@ import sharp from 'sharp';
 const PROGRAM_EXTS = new Set(['.mpf', '.spf', '.nc', '.cnc', '.min', '.prg', '']);
 
 type PgRole = 'MAIN' | 'SUB' | null;
+
+// ================================================================
+// フラットディレクトリ設計
+//   PG:      {base}/mc_files/pg/{machining_id}[.ext]
+//               ※重複時: 既存を {machining_id}.bak_{timestamp}[.ext] にリネーム退避
+//   写真:    {base}/mc_files/photos/{machining_id}-{n}.jpg
+//               ※n は既存最大連番+1
+//   図:      {base}/mc_files/drawings/{machining_id}-{n}.*
+//               ※n は既存最大連番+1
+// ================================================================
 
 @Injectable()
 export class McFilesService {
@@ -23,6 +34,20 @@ export class McFilesService {
     if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
   }
 
+  /** フラットディレクトリ内で {prefix}-{n}.* の最大 n を返す */
+  private maxSeq(dir: string, prefix: string): number {
+    if (!fs.existsSync(dir)) return 0;
+    let max = 0;
+    for (const f of fs.readdirSync(dir)) {
+      const base = path.basename(f, path.extname(f));
+      if (base.startsWith(`${prefix}-`)) {
+        const n = parseInt(base.slice(prefix.length + 1), 10);
+        if (!isNaN(n) && n > max) max = n;
+      }
+    }
+    return max;
+  }
+
   private isProgramFile(originalName: string, buf: Buffer): boolean {
     const ext = path.extname(originalName).toLowerCase();
     if (PROGRAM_EXTS.has(ext)) return true;
@@ -35,14 +60,6 @@ export class McFilesService {
     const ext = path.extname(originalName).toLowerCase();
     if (ext === '.spf') return 'SUB';
     return 'MAIN';
-  }
-
-  private async nextSubSortOrder(mcProgramId: number): Promise<number> {
-    const maxRow = await this.prisma.$queryRaw<[{max: number|null}]>`
-      SELECT MAX(sort_order) as max FROM mc_files
-      WHERE mc_program_id = ${mcProgramId} AND pg_role = 'SUB' AND is_deleted = false
-    `;
-    return (maxRow[0]?.max ?? 0) + 1;
   }
 
   async listFiles(mcProgramId: number) {
@@ -93,35 +110,49 @@ export class McFilesService {
       ? pgRoleOverride
       : (fileTypeEnum === 'PROGRAM' ? this.detectPgRole(file.filename, file.data) : null);
 
-    let subDir: string;
+    // ── フラットパス決定 ──────────────────────────────────────
+    let flatDir: string;
     let storedName: string;
+    let sortOrder = 0;
 
     if (fileTypeEnum === 'PROGRAM') {
-      subDir = path.join(basePath, 'mc_files', String(machId), 'pg');
-      if (pgRole === 'SUB') {
-        const n = await this.nextSubSortOrder(mcProgramId);
-        storedName = `${machId}-${n}${ext}`;
-      } else {
-        storedName = `${machId}${ext}`;
+      flatDir = path.join(basePath, 'mc_files', 'pg');
+      storedName = `${machId}${ext}`;
+
+      // 既存ファイルがある場合は .bak_{timestamp} にリネーム退避
+      const dest = path.join(flatDir, storedName);
+      this.ensureDir(flatDir);
+      if (fs.existsSync(dest)) {
+        const ts = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+        const bakName = `${machId}.bak_${ts}${ext}`;
+        fs.renameSync(dest, path.join(flatDir, bakName));
       }
+
     } else if (fileTypeEnum === 'DRAWING') {
-      subDir = path.join(basePath, 'mc_files', String(machId), 'drawings');
-      const cnt = await this.prisma.mcFile.count({ where: { mcProgramId, fileType: 'DRAWING', isDeleted: false } });
-      storedName = `${machId}-${cnt + 1}${ext}`;
+      flatDir = path.join(basePath, 'mc_files', 'drawings');
+      const n = this.maxSeq(flatDir, String(machId)) + 1;
+      storedName = `${machId}-${n}${ext}`;
+
+    } else if (fileTypeEnum === 'PHOTO') {
+      flatDir = path.join(basePath, 'mc_files', 'photos');
+      const n = this.maxSeq(flatDir, String(machId)) + 1;
+      storedName = `${machId}-${n}${ext}`;
+
     } else {
-      subDir = path.join(basePath, 'mc_files', String(machId), 'photos');
-      const cnt = await this.prisma.mcFile.count({ where: { mcProgramId, fileType: 'PHOTO', isDeleted: false } });
-      storedName = `${machId}-${cnt + 1}${ext}`;
+      // OTHER
+      flatDir = path.join(basePath, 'mc_files', 'others');
+      storedName = `${machId}-${Date.now()}${ext}`;
     }
 
-    this.ensureDir(subDir);
-    const filePath = path.join(subDir, storedName);
+    this.ensureDir(flatDir);
+    const filePath = path.join(flatDir, storedName);
     fs.writeFileSync(filePath, file.data);
 
+    // サムネイル生成（写真・図のみ）
     let thumbnailPath: string | null = null;
-    if (isImage) {
+    if (isImage && fileTypeEnum !== 'PROGRAM') {
       try {
-        const thumbDir = path.join(subDir, 'thumbnails');
+        const thumbDir  = path.join(basePath, 'mc_files', 'thumbnails');
         this.ensureDir(thumbDir);
         const thumbName = `thumb_${path.basename(storedName, ext)}.jpg`;
         const thumbFull = path.join(thumbDir, thumbName);
@@ -129,8 +160,6 @@ export class McFilesService {
         thumbnailPath = thumbFull;
       } catch { /* ignore */ }
     }
-
-    const sortOrder = pgRole === 'SUB' ? await this.nextSubSortOrder(mcProgramId) : 0;
 
     const record = await this.prisma.mcFile.create({
       data: {
@@ -160,16 +189,14 @@ export class McFilesService {
     if (!old || old.mcProgramId !== mcProgramId) throw new NotFoundException('ファイルが存在しません');
 
     const basePath = await this.getBasePath();
-    const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcProgramId } });
-    const machId = mc!.machiningId;
 
+    // 旧ファイルをトラッシュへ退避
     if (fs.existsSync(old.filePath)) {
-      const ts = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-      const trashDir = path.join(basePath, 'mc_files', String(machId), 'trash');
+      const ts      = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+      const trashDir = path.join(basePath, 'mc_files', 'trash');
       this.ensureDir(trashDir);
-      const ext2 = path.extname(old.storedName);
-      const trashName = `${path.basename(old.storedName, ext2)}_${ts}${ext2}`;
-      fs.renameSync(old.filePath, path.join(trashDir, trashName));
+      const ext2    = path.extname(old.storedName);
+      fs.renameSync(old.filePath, path.join(trashDir, `${path.basename(old.storedName, ext2)}_${ts}${ext2}`));
     }
     await this.prisma.mcFile.update({
       where: { id: fileId },
@@ -183,16 +210,13 @@ export class McFilesService {
     if (!rec || rec.mcProgramId !== mcProgramId) throw new NotFoundException('ファイルが存在しません');
 
     const basePath = await this.getBasePath();
-    const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcProgramId } });
-    const machId = mc!.machiningId;
 
     if (fs.existsSync(rec.filePath)) {
-      const ts = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-      const trashDir = path.join(basePath, 'mc_files', String(machId), 'trash');
+      const ts      = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+      const trashDir = path.join(basePath, 'mc_files', 'trash');
       this.ensureDir(trashDir);
-      const ext2 = path.extname(rec.storedName);
-      const trashName = `${path.basename(rec.storedName, ext2)}_${ts}${ext2}`;
-      fs.renameSync(rec.filePath, path.join(trashDir, trashName));
+      const ext2    = path.extname(rec.storedName);
+      fs.renameSync(rec.filePath, path.join(trashDir, `${path.basename(rec.storedName, ext2)}_${ts}${ext2}`));
     }
     await this.prisma.mcFile.update({
       where: { id: fileId },
