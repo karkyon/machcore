@@ -130,6 +130,7 @@ model Part {
   name       String    @db.VarChar(100)
   clientId   Int?                              @map("client_id")
   clientName String?   @db.VarChar(100)        @map("client_name")
+  mainModel  String?   @db.VarChar(100)        @map("main_model")
   isActive   Boolean   @default(true)          @map("is_active")
   syncedAt   DateTime?                         @map("synced_at")
   ncPrograms    NcProgram[]

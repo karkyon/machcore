@@ -145,18 +145,27 @@ export default function McPrintPage() {
 
       {/* 部品情報エリア */}
       <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
-        <div className="flex items-center gap-3 mb-1">
-          <span className="font-mono text-teal-600 font-bold text-lg">{d.part.drawingNo}</span>
-          {d.machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{d.machine.machineCode}</span>}
-          <StatusBadge status={d.status} />
-          <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
+        <div className="flex items-center gap-3 flex-wrap mb-1.5">
+          <span className="font-mono text-teal-600 font-bold text-2xl leading-none">{d.part.drawingNo}</span>
+          <span className="text-slate-300 text-xl font-light">/</span>
+          <span className="font-bold text-slate-800 text-xl leading-none">{d.part.name}</span>
+          {(d.part as any).mainModel && <>
+            <span className="text-slate-300 text-xl font-light">/</span>
+            <span className="text-slate-500 text-lg font-medium leading-none">{(d.part as any).mainModel}</span>
+          </>}
+          <div className="flex items-center gap-2 ml-2">
+            {d.machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{d.machine.machineCode}</span>}
+            <StatusBadge status={d.status} />
+            <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
+          </div>
         </div>
-        <div className="text-sm text-slate-700 font-medium mb-1">{d.part.name}</div>
-        <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
-          <span>MCID: {d.legacyMcid ?? d.id}</span>
-          <span>加工ID: {d.machiningId}</span>
-          {d.part.partId && <span>部品ID: {d.part.partId}</span>}
-          {d.part.clientName && <span>納入先: {d.part.clientName}</span>}
+        <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
+          {(d as any)?.mcProcessNo != null && <span className="font-bold text-teal-700 text-sm">工程No: {(d as any).mcProcessNo}</span>}
+          <span className="text-slate-400">|</span>
+          <span>MCID: <span className="text-slate-700">{d.legacyMcid ?? d.id}</span></span>
+          <span className="text-slate-400">|</span>
+          <span>加工ID: <span className="text-slate-700">{d.machiningId}</span></span>
+          {d.part.partId && <><span className="text-slate-400">|</span><span>部品ID: <span className="text-slate-700">{d.part.partId}</span></span></>}
         </div>
       </div>
 

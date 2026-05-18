@@ -531,7 +531,7 @@ export type McDetail = {
   pgFolderName:   string | null;
   pgCreatedBy:    number | null;
   pgUpdatedAt:    string | null;
-  part:    { drawingNo: string; name: string; clientName: string | null; partId: string | null };
+  part:    { drawingNo: string; name: string; clientName: string | null; partId: string | null; mainModel: string | null };
   machine: { machineCode: string; machineName: string } | null;
   registrar: { name: string };
   approver:  { name: string } | null;

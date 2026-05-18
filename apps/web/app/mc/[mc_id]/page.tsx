@@ -287,38 +287,49 @@ export default function McDetailPage() {
 
       {/* 部品ヘッダー */}
       <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
-        <div className="flex items-center gap-3 mb-1">
-          <span className="font-mono text-teal-600 font-bold text-lg">{d.part.drawingNo}</span>
-          {d.machine && (
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">
-              {d.machine.machineCode}
-            </span>
-          )}
-          <StatusBadge status={d.status} />
-          <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
-          {isAuthenticated && operator?.role === "ADMIN" && d.status !== "APPROVED" && (
-            <button
-              onClick={async () => {
-                if (!token) return;
-                if (!window.confirm(`承認しますか？\nMCID: ${d.legacyMcid ?? d.id}  Ver. ${d.version}`)) return;
-                try {
-                  await mcApi.approve(d.id, token);
-                  const r = await mcApi.findOne(d.id);
-                  setDetail((r as any).data ?? r);
-                } catch { alert("承認に失敗しました"); }
-              }}
-              className="ml-2 text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
-            >
-              ✓ 承認
-            </button>
-          )}
+        {/* 1行目: 図面番号 / 名称 / 納入先 + バッジ群 */}
+        <div className="flex items-center gap-3 flex-wrap mb-1.5">
+          <span className="font-mono text-teal-600 font-bold text-2xl leading-none">{d.part.drawingNo}</span>
+          <span className="text-slate-300 text-xl font-light">/</span>
+          <span className="font-bold text-slate-800 text-xl leading-none">{d.part.name}</span>
+          {(d.part as any).mainModel && <>
+            <span className="text-slate-300 text-xl font-light">/</span>
+            <span className="text-slate-500 text-lg font-medium leading-none">{(d.part as any).mainModel}</span>
+          </>}
+          <div className="flex items-center gap-2 ml-2">
+            {d.machine && (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">
+                {d.machine.machineCode}
+              </span>
+            )}
+            <StatusBadge status={d.status} />
+            <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
+            {isAuthenticated && operator?.role === "ADMIN" && d.status !== "APPROVED" && (
+              <button
+                onClick={async () => {
+                  if (!token) return;
+                  if (!window.confirm(`承認しますか？\nMCID: ${d.legacyMcid ?? d.id}  Ver. ${d.version}`)) return;
+                  try {
+                    await mcApi.approve(d.id, token);
+                    const r = await mcApi.findOne(d.id);
+                    setDetail((r as any).data ?? r);
+                  } catch { alert("承認に失敗しました"); }
+                }}
+                className="text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+              >
+                ✓ 承認
+              </button>
+            )}
+          </div>
         </div>
-        <div className="text-sm text-slate-700 font-medium mb-1">{d.part.name}</div>
-        <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
-          <span>MCID: {d.legacyMcid ?? d.id}</span>
-          <span>加工ID: {d.machiningId}</span>
-          {d.part.partId && <span>部品ID: {d.part.partId}</span>}
-          {d.part.clientName && <span>納入先: {d.part.clientName}</span>}
+        {/* 2行目: ID情報 */}
+        <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
+          {d.mcProcessNo != null && <span className="font-bold text-teal-700 text-sm">工程No: {d.mcProcessNo}</span>}
+          <span className="text-slate-400">|</span>
+          <span>MCID: <span className="text-slate-700">{d.legacyMcid ?? d.id}</span></span>
+          <span className="text-slate-400">|</span>
+          <span>加工ID: <span className="text-slate-700">{d.machiningId}</span></span>
+          {d.part.partId && <><span className="text-slate-400">|</span><span>部品ID: <span className="text-slate-700">{d.part.partId}</span></span></>}
         </div>
       </div>
 
@@ -366,76 +377,95 @@ export default function McDetailPage() {
               <div className="bg-slate-50 px-4 py-2 border-b border-slate-200">
                 <span className="text-xs font-bold text-slate-600">基本情報</span>
               </div>
-              <div className="p-4 space-y-3 text-sm">
-                {/* 行1: 工程No・バージョン・機械 */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <span className="text-slate-400 text-xs block mb-0.5">MC工程No</span>
-                    <span className="font-mono font-bold text-teal-700 text-base">{d.mcProcessNo ?? "—"}</span>
+              <div className="divide-y divide-slate-100">
+                {/* ── 行1: 工程No・バージョン・機械 ── */}
+                <div className="grid grid-cols-3 divide-x divide-slate-100">
+                  <div className="px-4 py-3 bg-slate-50">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">MC工程No</div>
+                    <div className="font-mono font-bold text-teal-700 text-xl leading-none">{d.mcProcessNo ?? "—"}</div>
                   </div>
-                  <div>
-                    <span className="text-slate-400 text-xs block mb-0.5">バージョン</span>
-                    <span className="font-mono font-bold text-slate-800">{d.version}</span>
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">バージョン</div>
+                    <div className="font-mono font-bold text-slate-800 text-base">{d.version}</div>
                   </div>
-                  <div>
-                    <span className="text-slate-400 text-xs block mb-0.5">機械</span>
-                    <span className="font-medium">{d.machine?.machineName ?? d.machine?.machineCode ?? "—"}</span>
-                  </div>
-                </div>
-                {/* 行2: 主Oナンバ・サイクルタイム・加工個数 */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <span className="text-slate-400 text-xs block mb-0.5">主Oナンバ</span>
-                    <span className="font-mono font-medium">{d.oNumber ?? "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-xs block mb-0.5">サイクルタイム/1P</span>
-                    <span className="font-medium">{fmtCycle(d.cycleTimeSec)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-xs block mb-0.5">加工個数/1サイクル</span>
-                    <span className="font-medium">{d.machiningQty ?? 1} 個</span>
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">機械</div>
+                    <div className="font-medium text-slate-800">{d.machine?.machineName ?? d.machine?.machineCode ?? "—"}</div>
                   </div>
                 </div>
-                {/* 行3: 共通部品コード */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* ── 行2: Oナンバ・サイクルタイム・加工個数 ── */}
+                <div className="grid grid-cols-3 divide-x divide-slate-100">
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">主Oナンバ</div>
+                    <div className="font-mono font-semibold text-slate-800">{d.oNumber ?? "—"}</div>
+                  </div>
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">サイクルタイム/1P</div>
+                    <div className="font-mono font-semibold text-slate-800">{fmtCycle(d.cycleTimeSec)}</div>
+                  </div>
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">加工個数/1サイクル</div>
+                    <div className="font-semibold text-slate-800">{d.machiningQty ?? 1} 個</div>
+                  </div>
+                </div>
+                {/* ── 行3: 共通部品コード + バッジ群 ── */}
+                <div className="px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">
                   <div>
-                    <span className="text-slate-400 text-xs block mb-0.5">共通部品コード</span>
-                    <span className="font-mono">{d.commonPartCode ?? "—"}</span>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">共通部品コード</div>
+                    <div className="font-mono text-slate-700">{d.commonPartCode ?? "—"}</div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 ml-auto">
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${(d.rc ?? 0) > 0 ? "bg-teal-50 text-teal-700 border-teal-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>
+                      RC <span className="text-sm">{d.rc ?? 0}</span>
+                    </span>
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${d.hasIndexProgram ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>
+                      IP {d.hasIndexProgram ? "有" : "無"}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${d.hasWorkOffset ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>
+                      WD {d.hasWorkOffset ? "有" : "無"}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${d.files.filter(f => f.file_type === "PHOTO").length > 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>
+                      写真 {d.files.filter(f => f.file_type === "PHOTO").length}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${d.files.filter(f => f.file_type === "DRAWING").length > 0 ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>
+                      図 {d.files.filter(f => f.file_type === "DRAWING").length}
+                    </span>
                   </div>
                 </div>
-                {/* 行4: ステータスバッジ群 */}
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400 text-xs">RC</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${(d.rc ?? 0) > 0 ? "bg-teal-100 text-teal-700" : "bg-slate-100 text-slate-400"}`}>{d.rc ?? 0}件</span>
+                {/* ── 行4: 作成・承認情報 ── */}
+                <div className="grid grid-cols-2 divide-x divide-slate-100">
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">作成日</div>
+                    <div className="font-mono text-slate-800">{fmtDate(d.registeredAt)}</div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400 text-xs">IP</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.hasIndexProgram ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-400"}`}>{d.hasIndexProgram ? "有" : "無"}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400 text-xs">WD</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.hasWorkOffset ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-400"}`}>{d.hasWorkOffset ? "有" : "無"}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400 text-xs">写真</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.files.filter(f => f.file_type === "PHOTO").length > 0 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-400"}`}>{d.files.filter(f => f.file_type === "PHOTO").length}枚</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400 text-xs">図</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.files.filter(f => f.file_type === "DRAWING").length > 0 ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-400"}`}>{d.files.filter(f => f.file_type === "DRAWING").length}枚</span>
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">作成者</div>
+                    <div className="text-slate-800">{d.registrar?.name ?? "—"}</div>
                   </div>
                 </div>
-                {/* 行5: 登録・承認情報 */}
-                <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-100">
-                  <div><span className="text-slate-400 text-xs block mb-0.5">作成日（登録日）</span><span>{fmtDate(d.registeredAt)}</span></div>
-                  <div><span className="text-slate-400 text-xs block mb-0.5">作成者</span><span>{d.registrar?.name ?? "—"}</span></div>
-                  <div><span className="text-slate-400 text-xs block mb-0.5">承認日</span><span>{d.approvedAt ? fmtDate(d.approvedAt) : "—"}</span></div>
-                  <div><span className="text-slate-400 text-xs block mb-0.5">承認者</span><span className={d.approver ? "text-emerald-700 font-medium" : "text-slate-400"}>{d.approver?.name ?? "未承認"}</span></div>
+                <div className="grid grid-cols-2 divide-x divide-slate-100">
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">承認日</div>
+                    <div className="font-mono text-slate-800">{d.approvedAt ? fmtDate(d.approvedAt) : "—"}</div>
+                  </div>
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">承認者</div>
+                    <div className={d.approver ? "text-emerald-700 font-bold" : "text-slate-400"}>{d.approver?.name ?? "未承認"}</div>
+                  </div>
                 </div>
-                {d.clampNote && <div className="border-t border-slate-100 pt-2"><span className="text-slate-400 text-xs block mb-0.5">クランプ</span><span className="whitespace-pre-wrap">{d.clampNote}</span></div>}
-                {d.note && <div className="border-t border-slate-100 pt-2"><span className="text-slate-400 text-xs block mb-0.5">備考</span><span className="whitespace-pre-wrap text-slate-600">{d.note}</span></div>}
+                {/* ── クランプ・備考 ── */}
+                {d.clampNote && (
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">クランプ</div>
+                    <div className="whitespace-pre-wrap text-slate-700 text-sm">{d.clampNote}</div>
+                  </div>
+                )}
+                {d.note && (
+                  <div className="px-4 py-3 bg-amber-50">
+                    <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">備考</div>
+                    <div className="whitespace-pre-wrap text-slate-700 text-sm">{d.note}</div>
+                  </div>
+                )}
               </div>
             </div>
 
