@@ -12,13 +12,19 @@ const PROGRAM_EXTS = new Set(['.mpf', '.spf', '.nc', '.cnc', '.min', '.prg', '']
 type PgRole = 'MAIN' | 'SUB' | null;
 
 // ================================================================
-// フラットディレクトリ設計
-//   PG:      {base}/mc_files/pg/{machining_id}[.ext]
-//               ※重複時: 既存を {machining_id}.bak_{timestamp}[.ext] にリネーム退避
+// ディレクトリ設計
+//   PG ケース1（単一ファイル）:
+//     {base}/mc_files/pg/{machining_id}        拡張子なし
+//     {base}/mc_files/pg/{machining_id}.mpf    拡張子あり
+//     ※ファイル名 = machining_id + オリジナル拡張子
+//
+//   PG ケース2（フォルダ構成・複数ファイル）:
+//     {base}/mc_files/pg/{machining_id}/MAIN.mpf
+//     {base}/mc_files/pg/{machining_id}/SUB1.spf
+//     ※フォルダ名 = machining_id、中のファイル名はオリジナルのまま維持
+//
 //   写真:    {base}/mc_files/photos/{machining_id}-{n}.jpg
-//               ※n は既存最大連番+1
 //   図:      {base}/mc_files/drawings/{machining_id}-{n}.*
-//               ※n は既存最大連番+1
 // ================================================================
 
 @Injectable()
@@ -85,16 +91,17 @@ export class McFilesService {
   }
 
   async upload(
-    mcProgramId: number,
-    uploadedBy:  number,
-    file: { filename: string; mimetype: string; data: Buffer },
+    mcProgramId:    number,
+    uploadedBy:     number,
+    file:           { filename: string; mimetype: string; data: Buffer },
     pgRoleOverride?: PgRole,
+    isFolderUpload?: boolean,  // true=ケース2（フォルダ構成）、false/undefined=ケース1（単一）
   ) {
     const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcProgramId } });
     if (!mc) throw new NotFoundException(`MC_id ${mcProgramId} が存在しません`);
 
     const basePath = await this.getBasePath();
-    const machId   = mc.machiningId;
+    const machId   = mc.machiningId;  // 加工ID（旧システムの machining_id）
     const ext      = path.extname(file.filename).toLowerCase();
 
     const isProgram = this.isProgramFile(file.filename, file.data);
@@ -110,22 +117,30 @@ export class McFilesService {
       ? pgRoleOverride
       : (fileTypeEnum === 'PROGRAM' ? this.detectPgRole(file.filename, file.data) : null);
 
-    // ── フラットパス決定 ──────────────────────────────────────
+    // ── パス決定 ──────────────────────────────────────────────
     let flatDir: string;
     let storedName: string;
     let sortOrder = 0;
 
     if (fileTypeEnum === 'PROGRAM') {
-      flatDir = path.join(basePath, 'mc_files', 'pg');
-      storedName = `${machId}${ext}`;
+      if (isFolderUpload) {
+        // ケース2: フォルダ構成 → {base}/mc_files/pg/{machining_id}/{original_filename}
+        flatDir    = path.join(basePath, 'mc_files', 'pg', String(machId));
+        storedName = file.filename;  // オリジナルのまま維持
+      } else {
+        // ケース1: 単一ファイル → {base}/mc_files/pg/{machining_id}[.ext]
+        flatDir    = path.join(basePath, 'mc_files', 'pg');
+        storedName = `${machId}${ext}`;  // ファイル名=加工ID+拡張子
+      }
 
-      // 既存ファイルがある場合は .bak_{timestamp} にリネーム退避
+      // 同名ファイルが既存の場合は .bak_{timestamp} にリネーム退避
       const dest = path.join(flatDir, storedName);
       this.ensureDir(flatDir);
       if (fs.existsSync(dest)) {
-        const ts = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-        const bakName = `${machId}.bak_${ts}${ext}`;
-        fs.renameSync(dest, path.join(flatDir, bakName));
+        const ts      = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+        const bakExt  = path.extname(storedName);
+        const bakBase = path.basename(storedName, bakExt);
+        fs.renameSync(dest, path.join(flatDir, `${bakBase}.bak_${ts}${bakExt}`));
       }
 
     } else if (fileTypeEnum === 'DRAWING') {
@@ -203,6 +218,94 @@ export class McFilesService {
       data:  { isDeleted: true, deletedAt: new Date() },
     });
     return this.upload(mcProgramId, uploadedBy, file, old.pgRole as PgRole);
+  }
+
+
+  // ── PGファイル読み込み（インラインビューア用）──────────────────
+  // MAINプログラムを優先、なければ最新PROGRAMを返す
+  async getPgFile(mcProgramId: number): Promise<{
+    content: string; encoding: string; originalName: string; fileCount: number;
+  }> {
+    const mainRec = await this.prisma.mcFile.findFirst({
+      where:   { mcProgramId, fileType: 'PROGRAM', pgRole: 'MAIN', isDeleted: false },
+      orderBy: { uploadedAt: 'desc' },
+    });
+    const rec = mainRec ?? await this.prisma.mcFile.findFirst({
+      where:   { mcProgramId, fileType: 'PROGRAM', isDeleted: false },
+      orderBy: { uploadedAt: 'desc' },
+    });
+    if (!rec || !fs.existsSync(rec.filePath)) {
+      throw new NotFoundException('PGファイルが存在しません');
+    }
+    const totalCount = await this.prisma.mcFile.count({
+      where: { mcProgramId, fileType: 'PROGRAM', isDeleted: false },
+    });
+    const buf = fs.readFileSync(rec.filePath);
+    let content: string;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const iconv = require('iconv-lite') as typeof import('iconv-lite');
+      content = iconv.decode(buf, 'Shift_JIS');
+    } catch {
+      content = buf.toString('utf8');
+    }
+    return { content, encoding: 'UTF-8', originalName: rec.originalName, fileCount: totalCount };
+  }
+
+  // ── PGファイルダウンロード（USB書き出し用）──────────────────────
+  // ケース1（単一）: 単体ファイルをそのままDL
+  // ケース2（フォルダ構成）: フォルダ内全ファイルをZIPでDL
+  async downloadPgFile(mcProgramId: number): Promise<{
+    buffer: Buffer; fileName: string; mimeType: string;
+  }> {
+    const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcProgramId } });
+    if (!mc) throw new NotFoundException('MCプログラムが存在しません');
+
+    const recs = await this.prisma.mcFile.findMany({
+      where:   { mcProgramId, fileType: 'PROGRAM', isDeleted: false },
+      orderBy: [{ pgRole: 'asc' }, { uploadedAt: 'asc' }],
+    });
+    if (recs.length === 0) throw new NotFoundException('PGファイルが存在しません');
+
+    if (recs.length === 1) {
+      // ケース1: 単一ファイル → そのままDL
+      const rec = recs[0];
+      if (!fs.existsSync(rec.filePath)) throw new NotFoundException('PGファイルが見つかりません');
+      return {
+        buffer:   fs.readFileSync(rec.filePath),
+        fileName: rec.storedName,       // {machining_id}[.ext]
+        mimeType: 'application/octet-stream',
+      };
+    }
+
+    // ケース2: 複数ファイル → ZIPでDL（ZIP名={machining_id}.zip）
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const archiver = require('archiver');
+    const { PassThrough } = require('stream');
+    const archive  = archiver('zip', { zlib: { level: 6 } });
+    const chunks: Buffer[] = [];
+    const pt = new PassThrough();
+    pt.on('data', (chunk: Buffer) => chunks.push(chunk));
+
+    await new Promise<void>((resolve, reject) => {
+      pt.on('end', resolve);
+      pt.on('error', reject);
+      archive.on('error', reject);
+      archive.pipe(pt);
+      for (const rec of recs) {
+        if (fs.existsSync(rec.filePath)) {
+          // フォルダ内のオリジナルファイル名でZIPに格納
+          archive.file(rec.filePath, { name: rec.originalName });
+        }
+      }
+      archive.finalize();
+    });
+
+    return {
+      buffer:   Buffer.concat(chunks),
+      fileName: `${mc.machiningId}.zip`,
+      mimeType: 'application/zip',
+    };
   }
 
   async delete(mcProgramId: number, fileId: number) {

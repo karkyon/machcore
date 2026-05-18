@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { mcApi, McDetail, McTooling, McWorkOffset, McIndexProgram,
+import { mcApi, mcFilesApi, McDetail, McTooling, McWorkOffset, McIndexProgram,
          McFile, McChangeHistory, McSetupSheetLog, McWorkRecord } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -55,6 +55,14 @@ export default function McDetailPage() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [toast, setToast] = useState<string | null>(null);
+  // PGビューア
+  const [pgContent,    setPgContent]    = useState<string | null>(null);
+  const [pgOrigName,   setPgOrigName]   = useState<string>("");
+  const [pgFileCount,  setPgFileCount]  = useState(0);
+  const [pgViewerOpen, setPgViewerOpen] = useState(false);
+  const [pgLoading,    setPgLoading]    = useState(false);
+  // PGアップロード
+  const [pgUploading,  setPgUploading]  = useState(false);
   const showToast = useCallback((msg: string) => {
     setToast(msg); setTimeout(() => setToast(null), 3000);
   }, []);
@@ -95,15 +103,65 @@ export default function McDetailPage() {
     }
   }, [mainTab, histTab, mcId]);
 
-  // USB pending
+  // USB pending -> PGファイルダウンロード
   useEffect(() => {
     if (isAuthenticated && pendingUsb && token) {
       setPendingUsb(false);
-      showToast("USB書き出し機能は今後実装予定です");
+      const a = document.createElement('a');
+      a.href = `/api/mc/${mcId}/pg-download`;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast("PGファイルをダウンロードしました");
     }
-  }, [isAuthenticated, pendingUsb, token]);
+  }, [isAuthenticated, pendingUsb, token, mcId]);
 
   const openAuth = (type: string) => { setAuthType(type); setAuthOpen(true); };
+
+  // PGビューアを開く（MAINプログラムをテキスト表示）
+  const openPgViewer = async () => {
+    if (pgContent !== null) { setPgViewerOpen(true); return; }
+    setPgLoading(true);
+    try {
+      const r = await mcApi.getPgFile(mcId);
+      const data = (r as any).data ?? r;
+      setPgContent(data.content ?? "");
+      setPgOrigName(data.originalName ?? "");
+      setPgFileCount(data.fileCount ?? 1);
+      setPgViewerOpen(true);
+    } catch {
+      showToast("PGファイルが見つかりません");
+    } finally {
+      setPgLoading(false);
+    }
+  };
+
+  // PGファイルアップロード
+  const handlePgUpload = async (files: FileList, isFolderUpload: boolean) => {
+    if (!token) { openAuth("edit"); return; }
+    if (files.length === 0) return;
+    setPgUploading(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const fd = new FormData();
+        fd.append('file', files[i]);
+        fd.append('is_folder_upload', String(isFolderUpload));
+        await fetch(`/api/mc/${mcId}/files/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        });
+      }
+      // キャッシュクリア → 再ビューア時に再取得
+      setPgContent(null);
+      showToast(`PGファイルを${files.length}件アップロードしました`);
+    } catch {
+      showToast("アップロードに失敗しました");
+    } finally {
+      setPgUploading(false);
+    }
+  };
 
   const fmtDate = (s: string | null | undefined) => {
     if (!s) return "—";
@@ -533,6 +591,49 @@ export default function McDetailPage() {
         )}
 
       </div>
+
+      {/* PGビューアモーダル */}
+      {pgViewerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-white rounded-xl shadow-2xl w-[90vw] max-w-5xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="font-bold text-slate-800">加工プログラム</span>
+                {pgOrigName && (
+                  <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded">
+                    {pgOrigName}
+                  </span>
+                )}
+                {pgFileCount > 1 && (
+                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+                    計{pgFileCount}ファイル（MAINを表示中）
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/api/mc/${mcId}/pg-download`}
+                  download
+                  className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition-colors"
+                >
+                  💾 USBへ書き出し{pgFileCount > 1 ? "（ZIP）" : ""}
+                </a>
+                <button
+                  onClick={() => setPgViewerOpen(false)}
+                  className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg transition-colors"
+                >
+                  閉じる
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-4 bg-slate-900 rounded-b-xl">
+              <pre className="font-mono text-xs text-green-300 whitespace-pre leading-relaxed select-all">
+                {pgContent ?? ""}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 認証モーダル */}
       {authOpen && (

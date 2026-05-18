@@ -648,6 +648,7 @@ export const mcApi = {
   setupSheetLogs:  (mcId: number) => api.get<McSetupSheetLog[]>(`/mc/${mcId}/setup-sheet-logs`),
   listFiles:       (mcId: number) => api.get<McFile[]>(`/mc/${mcId}/files`),
   getPrintData:    (mcId: number) => api.get<McDetail>(`/mc/${mcId}/print-data`),
+  getPgFile:       (mcId: number) => api.get<{ content: string; encoding: string; originalName: string; fileCount: number }>(`/mc/${mcId}/pg-file`),
   timecards:       (machineId: number, workDate: string) =>
     api.get<any[]>('/mc/timecards', { params: { machine_id: machineId, work_date: workDate } }),
   createTimecard:  (body: any, token: string) =>

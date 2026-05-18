@@ -164,6 +164,29 @@ export class McController {
     return this.mc.setupSheetLogs(id);
   }
 
+  // ── PGファイル閲覧・ダウンロード ───────────────────────────────
+  /** PGファイルをテキストで返す（インラインビューア用） */
+  @Get(':mc_id/pg-file')
+  getPgFile(@Param('mc_id', ParseIntPipe) id: number) {
+    return this.mcFiles.getPgFile(id);
+  }
+
+  /** PGファイルをダウンロード（USB書き出し用）
+   *  単一ファイル → octet-stream
+   *  複数ファイル → zip
+   */
+  @Get(':mc_id/pg-download')
+  async downloadPgFile(
+    @Param('mc_id', ParseIntPipe) id: number,
+    @Res() reply: FastifyReply,
+  ) {
+    const { buffer, fileName, mimeType } = await this.mcFiles.downloadPgFile(id);
+    reply.header('Content-Type',        mimeType);
+    reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+    reply.header('Content-Length',      String(buffer.length));
+    return reply.send(buffer);
+  }
+
   // ── ファイル一覧 ────────────────────────────
   @Get(':mc_id/files')
   listFiles(@Param('mc_id', ParseIntPipe) id: number) {
@@ -176,9 +199,10 @@ export class McController {
   async uploadFile(@Param('mc_id', ParseIntPipe) id: number, @Req() req: any) {
     const data = await req.file();
     if (!data) throw new Error('ファイルがありません');
-    const buf = await data.toBuffer();
+    const buf            = await data.toBuffer();
+    const isFolderUpload = (data.fields?.is_folder_upload?.value === 'true');
     const pgRole = (data.fields?.pg_role?.value ?? undefined) as 'MAIN' | 'SUB' | undefined;
-    return this.mcFiles.upload(id, req.user.id, { filename: data.filename, mimetype: data.mimetype, data: buf }, pgRole);
+    return this.mcFiles.upload(id, req.user.id, { filename: data.filename, mimetype: data.mimetype, data: buf }, pgRole, isFolderUpload);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
