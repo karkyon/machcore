@@ -296,6 +296,22 @@ export default function McDetailPage() {
           )}
           <StatusBadge status={d.status} />
           <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
+          {isAuthenticated && operator?.role === "ADMIN" && d.status !== "APPROVED" && (
+            <button
+              onClick={async () => {
+                if (!token) return;
+                if (!window.confirm(`承認しますか？\nMCID: ${d.legacyMcid ?? d.id}  Ver. ${d.version}`)) return;
+                try {
+                  await mcApi.approve(d.id, token);
+                  const r = await mcApi.findOne(d.id);
+                  setDetail((r as any).data ?? r);
+                } catch { alert("承認に失敗しました"); }
+              }}
+              className="ml-2 text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+            >
+              ✓ 承認
+            </button>
+          )}
         </div>
         <div className="text-sm text-slate-700 font-medium mb-1">{d.part.name}</div>
         <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
@@ -350,15 +366,76 @@ export default function McDetailPage() {
               <div className="bg-slate-50 px-4 py-2 border-b border-slate-200">
                 <span className="text-xs font-bold text-slate-600">基本情報</span>
               </div>
-              <div className="p-4 grid grid-cols-2 gap-4 text-sm">
-                <div><span className="text-slate-400 text-xs block mb-0.5">機械</span><span className="font-medium">{d.machine?.machineName ?? d.machine?.machineCode ?? "—"}</span></div>
-                <div><span className="text-slate-400 text-xs block mb-0.5">主Oナンバ</span><span className="font-mono font-medium">{d.oNumber ?? "—"}</span></div>
-                <div><span className="text-slate-400 text-xs block mb-0.5">サイクルタイム/1P</span><span className="font-medium">{fmtCycle(d.cycleTimeSec)}</span></div>
-                <div><span className="text-slate-400 text-xs block mb-0.5">加工個数/1サイクル</span><span className="font-medium">{d.machiningQty ?? 1} 個</span></div>
-                <div><span className="text-slate-400 text-xs block mb-0.5">共通部品コード</span><span className="font-mono">{d.commonPartCode ?? "—"}</span></div>
-                <div><span className="text-slate-400 text-xs block mb-0.5">登録日</span><span>{fmtDate(d.registeredAt)}</span></div>
-                {d.clampNote && <div className="col-span-2"><span className="text-slate-400 text-xs block mb-0.5">クランプ</span><span className="whitespace-pre-wrap">{d.clampNote}</span></div>}
-                {d.note && <div className="col-span-2"><span className="text-slate-400 text-xs block mb-0.5">備考</span><span className="whitespace-pre-wrap text-slate-600">{d.note}</span></div>}
+              <div className="p-4 space-y-3 text-sm">
+                {/* 行1: 工程No・バージョン・機械 */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <span className="text-slate-400 text-xs block mb-0.5">MC工程No</span>
+                    <span className="font-mono font-bold text-teal-700 text-base">{d.mcProcessNo ?? "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-xs block mb-0.5">バージョン</span>
+                    <span className="font-mono font-bold text-slate-800">{d.version}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-xs block mb-0.5">機械</span>
+                    <span className="font-medium">{d.machine?.machineName ?? d.machine?.machineCode ?? "—"}</span>
+                  </div>
+                </div>
+                {/* 行2: 主Oナンバ・サイクルタイム・加工個数 */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <span className="text-slate-400 text-xs block mb-0.5">主Oナンバ</span>
+                    <span className="font-mono font-medium">{d.oNumber ?? "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-xs block mb-0.5">サイクルタイム/1P</span>
+                    <span className="font-medium">{fmtCycle(d.cycleTimeSec)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-xs block mb-0.5">加工個数/1サイクル</span>
+                    <span className="font-medium">{d.machiningQty ?? 1} 個</span>
+                  </div>
+                </div>
+                {/* 行3: 共通部品コード */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-slate-400 text-xs block mb-0.5">共通部品コード</span>
+                    <span className="font-mono">{d.commonPartCode ?? "—"}</span>
+                  </div>
+                </div>
+                {/* 行4: ステータスバッジ群 */}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-400 text-xs">RC</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${(d.rc ?? 0) > 0 ? "bg-teal-100 text-teal-700" : "bg-slate-100 text-slate-400"}`}>{d.rc ?? 0}件</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-400 text-xs">IP</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.hasIndexProgram ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-400"}`}>{d.hasIndexProgram ? "有" : "無"}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-400 text-xs">WD</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.hasWorkOffset ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-400"}`}>{d.hasWorkOffset ? "有" : "無"}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-400 text-xs">写真</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.files.filter(f => f.file_type === "PHOTO").length > 0 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-400"}`}>{d.files.filter(f => f.file_type === "PHOTO").length}枚</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-400 text-xs">図</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.files.filter(f => f.file_type === "DRAWING").length > 0 ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-400"}`}>{d.files.filter(f => f.file_type === "DRAWING").length}枚</span>
+                  </div>
+                </div>
+                {/* 行5: 登録・承認情報 */}
+                <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-100">
+                  <div><span className="text-slate-400 text-xs block mb-0.5">作成日（登録日）</span><span>{fmtDate(d.registeredAt)}</span></div>
+                  <div><span className="text-slate-400 text-xs block mb-0.5">作成者</span><span>{d.registrar?.name ?? "—"}</span></div>
+                  <div><span className="text-slate-400 text-xs block mb-0.5">承認日</span><span>{d.approvedAt ? fmtDate(d.approvedAt) : "—"}</span></div>
+                  <div><span className="text-slate-400 text-xs block mb-0.5">承認者</span><span className={d.approver ? "text-emerald-700 font-medium" : "text-slate-400"}>{d.approver?.name ?? "未承認"}</span></div>
+                </div>
+                {d.clampNote && <div className="border-t border-slate-100 pt-2"><span className="text-slate-400 text-xs block mb-0.5">クランプ</span><span className="whitespace-pre-wrap">{d.clampNote}</span></div>}
+                {d.note && <div className="border-t border-slate-100 pt-2"><span className="text-slate-400 text-xs block mb-0.5">備考</span><span className="whitespace-pre-wrap text-slate-600">{d.note}</span></div>}
               </div>
             </div>
 

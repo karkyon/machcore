@@ -521,12 +521,21 @@ export type McDetail = {
   commonPartCode: string | null;
   note:           string | null;
   legacyMcid:     number | null;
+  mcProcessNo:    number | null;
   registeredAt:   string;
   approvedAt:     string | null;
+  rc:             number;
+  hasIndexProgram: boolean;
+  hasWorkOffset:   boolean;
+  pgIsFolder:     boolean;
+  pgFolderName:   string | null;
+  pgCreatedBy:    number | null;
+  pgUpdatedAt:    string | null;
   part:    { drawingNo: string; name: string; clientName: string | null; partId: string | null };
   machine: { machineCode: string; machineName: string } | null;
   registrar: { name: string };
   approver:  { name: string } | null;
+  pgCreator: { name: string } | null;
   tooling:      McTooling[];
   workOffsets:  McWorkOffset[];
   indexPrograms: McIndexProgram[];
@@ -628,6 +637,10 @@ export const mcApi = {
   commonGroup:  (machiningId: number) => api.get<McCommonGroupItem[]>(`/mc/common-group/${machiningId}`),
   create:       (body: any, token: string) =>
     api.post<{ mc_id: number; message: string }>('/mc', body, { headers: { Authorization: `Bearer ${token}` } }),
+  approve:      (mcId: number, token: string) =>
+    api.post<{ mc_id: number; message: string; version: string }>(
+      `/mc/${mcId}/approve`, {}, { headers: { Authorization: `Bearer ${token}` } }
+    ),
   update:       (mcId: number, body: any, token: string) =>
     api.put<{ mc_id: number; message: string }>(`/mc/${mcId}`, body, { headers: { Authorization: `Bearer ${token}` } }),
   getTooling:   (mcId: number) => api.get<McTooling[]>(`/mc/${mcId}/tooling`),

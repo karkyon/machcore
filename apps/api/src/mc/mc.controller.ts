@@ -64,6 +64,17 @@ export class McController {
     return this.mc.findOne(id);
   }
 
+  // ── 承認 ─────────────────────────────────────
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post(':mc_id/approve')
+  approve(
+    @Param('mc_id', ParseIntPipe) id: number,
+    @Req() req: any,
+  ) {
+    return this.mc.approve(id, req.user.id);
+  }
+
   // ── 更新 ────────────────────────────────────
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('OPERATOR', 'ADMIN')

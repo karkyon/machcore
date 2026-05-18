@@ -99,6 +99,7 @@ model User {
   mcChangeHistories    McChangeHistory[]
   mcSetupSheetLogs     McSetupSheetLog[]
   mcUploadedFiles      McFile[]
+  mcPgCreatedPrograms  McProgram[]   @relation("McPgCreatedBy")
   timecards            MachineTimecard[]
   @@map("users")
 }
@@ -396,6 +397,11 @@ model McProgram {
   fileName        String?         @db.VarChar(50)             @map("file_name")
   hasIndexProgram Boolean         @default(false)             @map("has_index_program")
   hasWorkOffset   Boolean         @default(false)             @map("has_work_offset")
+  rc              Int             @default(0)
+  pgIsFolder      Boolean         @default(false)             @map("pg_is_folder")
+  pgFolderName    String?         @db.VarChar(100)            @map("pg_folder_name")
+  pgCreatedBy     Int?                                        @map("pg_created_by")
+  pgUpdatedAt     DateTime?                                   @map("pg_updated_at")
   createdAt      DateTime        @default(now())             @map("created_at")
   updatedAt      DateTime        @updatedAt                  @map("updated_at")
 
@@ -403,6 +409,7 @@ model McProgram {
   machine        Machine?          @relation(fields: [machineId],   references: [id])
   registrar      User              @relation("McRegisteredBy", fields: [registeredBy], references: [id])
   approver       User?             @relation("McApprovedBy",  fields: [approvedBy],   references: [id])
+  pgCreator      User?             @relation("McPgCreatedBy",  fields: [pgCreatedBy],  references: [id])
   tooling        McTooling[]
   workOffsets    McWorkOffset[]
   indexPrograms  McIndexProgram[]

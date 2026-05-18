@@ -249,6 +249,46 @@ export class McService {
   }
 
   // ══════════════════════════════════════════
+  // MC-06: 承認
+  // ══════════════════════════════════════════
+  async approve(id: number, operatorId: number) {
+    const mc = await this.prisma.mcProgram.findUnique({ where: { id } });
+    if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
+    if (mc.status === 'APPROVED') {
+      throw new Error('既に承認済みです');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      await tx.mcProgram.update({
+        where: { id },
+        data: {
+          status:     'APPROVED',
+          approvedBy: operatorId,
+          approvedAt: new Date(),
+        },
+      });
+      await tx.mcChangeHistory.create({
+        data: {
+          mcProgramId:   id,
+          changeType:    'APPROVAL',
+          operatorId,
+          versionBefore: mc.version,
+          versionAfter:  mc.version,
+          content:       '承認',
+        },
+      });
+      await tx.operationLog.create({
+        data: {
+          userId:      operatorId,
+          mcProgramId: id,
+          actionType:  'MC_APPROVE',
+          metadata:    { action: 'approve', version: mc.version },
+        },
+      });
+      return { mc_id: id, message: '承認しました', version: mc.version };
+    });
+  }
+
+  // ══════════════════════════════════════════
   // ツーリングデータ
   // ══════════════════════════════════════════
   async getTooling(mcId: number) {
