@@ -155,6 +155,9 @@ export default function McDetailPage() {
       }
       // キャッシュクリア → 再ビューア時に再取得
       setPgContent(null);
+      // 詳細再取得 (pg_updated_at / pgCreator 更新反映)
+      const refreshed = await mcApi.findOne(mcId);
+      setDetail((refreshed as any).data ?? refreshed);
       showToast(`PGファイルを${files.length}件アップロードしました`);
     } catch {
       showToast("アップロードに失敗しました");
@@ -454,6 +457,21 @@ export default function McDetailPage() {
                   </div>
                 </div>
                 {/* ── クランプ・備考 ── */}
+                {/* ── PG作成者・Save Date ── */}
+                {(d.pgCreator || d.pgUpdatedAt) && (
+                  <div className="grid grid-cols-2 divide-x divide-slate-100">
+                    <div className="px-4 py-3">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">PG作成者</div>
+                      <div className="text-slate-800">{d.pgCreator?.name ?? "—"}</div>
+                    </div>
+                    <div className="px-4 py-3">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Save Date</div>
+                      <div className="font-mono text-slate-800">
+                        {d.pgUpdatedAt ? new Date(d.pgUpdatedAt).toLocaleString("ja-JP", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" }) : "—"}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {d.clampNote && (
                   <div className="px-4 py-3">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">クランプ</div>

@@ -212,8 +212,18 @@ export class McController {
     if (!data) throw new Error('ファイルがありません');
     const buf            = await data.toBuffer();
     const isFolderUpload = (data.fields?.is_folder_upload?.value === 'true');
+    const pgCreatedBy    = data.fields?.pg_created_by?.value
+                             ? parseInt(data.fields.pg_created_by.value, 10)
+                             : req.user.id;
     const pgRole = (data.fields?.pg_role?.value ?? undefined) as 'MAIN' | 'SUB' | undefined;
-    return this.mcFiles.upload(id, req.user.id, { filename: data.filename, mimetype: data.mimetype, data: buf }, pgRole, isFolderUpload);
+    const result = await this.mcFiles.upload(id, req.user.id, { filename: data.filename, mimetype: data.mimetype, data: buf }, pgRole, isFolderUpload);
+    // PROGRAMファイルの場合 pg_created_by / pg_updated_at を自動更新
+    const PROGRAM_EXTS = new Set(['.min','.spf','.mpf','.nc','.cnc','.tap','.prg','.gcode','.g','.txt']);
+    const fileExt = ('.' + (data.filename.split('.').pop()?.toLowerCase() ?? ''));
+    if (PROGRAM_EXTS.has(fileExt)) {
+      await this.mc.updatePgMeta(id, pgCreatedBy);
+    }
+    return result;
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)

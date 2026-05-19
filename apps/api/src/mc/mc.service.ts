@@ -289,6 +289,16 @@ export class McService {
   }
 
   // ══════════════════════════════════════════
+  // PGメタ更新
+  // ══════════════════════════════════════════
+  async updatePgMeta(id: number, pgCreatedBy: number) {
+    return this.prisma.mcProgram.update({
+      where: { id },
+      data:  { pgCreatedBy, pgUpdatedAt: new Date() },
+    });
+  }
+
+  // ══════════════════════════════════════════
   // ツーリングデータ
   // ══════════════════════════════════════════
   async getTooling(mcId: number) {
@@ -320,6 +330,11 @@ export class McService {
           })),
         });
       }
+      // RC自動更新（ツーリング件数をmc_programsに反映）
+      await tx.mcProgram.update({
+        where: { id: mcId },
+        data:  { rc: dto.items.length },
+      });
       await tx.operationLog.create({
         data: { userId: operatorId, mcProgramId: mcId, actionType: 'MC_EDIT_SAVE', metadata: { action: 'save_tooling' } },
       });
