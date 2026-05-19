@@ -223,3 +223,89 @@ pm2 logs machcore-web --lines 20    # Webログ
 - `NC_機能仕様書_v2.pdf` — 全画面・API仕様
 - `NCシステム_技術スタック資料_v2.pdf` — 技術選定根拠
 - `MachCore_作業引継ぎ資料_v*.docx` — 作業進捗・引継ぎ
+
+---
+
+## MCシステム データ移行手順
+
+### 概要
+
+旧ACCESS/SQL Serverシステム（imotomc/imotodb）からMachCore PostgreSQLへの完全移行スクリプト。
+
+**実行コマンド（全フェーズ一括）:**
+```bash
+# 事前確認: SMBマウント確認
+mount | grep mcfiles   # //192.168.1.9/d1 → /mnt/mcfiles
+mount | grep ncfiles   # //192.168.1.9/d2/NC → /mnt/ncfiles
+
+# マウントが切れている場合
+sudo mount -t cifs //192.168.1.9/d1 /mnt/mcfiles -o username=machcore,password=RTW65b,vers=2.0,uid=karkyon,gid=karkyon,file_mode=0644,dir_mode=0755
+
+# 全フェーズ実行（既存データ全破棄→完全再インポート）
+python3 ~/projects/machcore/scripts/mc_full_import.py --phase 0 2>&1 | tee /tmp/mc_import_full.log
+
+# 個別フェーズ実行
+python3 ~/projects/machcore/scripts/mc_full_import.py --phase 1  # mc_programs + parts
+python3 ~/projects/machcore/scripts/mc_full_import.py --phase 7  # ファイルのみ
+
+# 検証のみ（DBへの書き込みなし）
+python3 ~/projects/machcore/scripts/mc_full_import.py --dry-run --phase 1
+```
+
+### ソースDB接続情報
+
+| DB | サーバ | 用途 |
+|----|--------|------|
+| imotomc | 192.168.1.9 (SA/RTW65b) | マシニング・ツーリング・変更履歴 |
+| imotodb | 192.168.1.9 (SA/RTW65b) | 部品マスタ・得意先マスタ |
+
+### フェーズ詳細
+
+| Phase | 処理内容 | 旧テーブル | 新テーブル | 件数目安 |
+|-------|---------|-----------|-----------|---------|
+| 1 | mc_programs + parts同期 | ACC_MC × ACC_マシニング + v_旧部品マスタ | mc_programs, parts | 9,547件 |
+| 2 | ツーリングデータ | ACC_ツーリング | mc_tooling | 151,216件 |
+| 3 | RC自動集計 | — | mc_programs.rc | — |
+| 4 | ワークオフセット | ACC_ワークオフセット | mc_work_offsets | 6,657件 |
+| 5 | インデックスプログラム | ACC_インデックスプログラム | mc_index_programs | 8,940件 |
+| 6 | 変更履歴 | ACC_変更履歴 | mc_change_history | 60,354件 |
+| 7 | 図・写真・プログラムファイル | /mnt/mcfiles/MC/{図,写真,ﾌﾟﾛｸﾞﾗﾑ} | mc_files + /mnt/ncfiles/mc_files/ | 約31,000件 |
+| 8 | RC/IP/WD更新 | — | mc_programs | — |
+
+### ファイル移行詳細
+
+| 種別 | 元ディレクトリ | コピー先① | コピー先② | 命名規則 |
+|------|--------------|----------|----------|---------|
+| 図(DRAWING) | /mnt/mcfiles/MC/図/ | /mnt/mcfiles/MC/files/Drawings/ | /mnt/ncfiles/mc_files/drawings/ | {machining_id}-{n}.tif |
+| 写真(PHOTO) | /mnt/mcfiles/MC/写真/ | /mnt/mcfiles/MC/files/Pictures/ | /mnt/ncfiles/mc_files/photos/ | {machining_id}-{n}.jpg |
+| プログラム(PROGRAM) | /mnt/mcfiles/MC/ﾌﾟﾛｸﾞﾗﾑ/{機種}/{サブ}/ | /mnt/mcfiles/MC/files/Programs/{machining_id}/ | /mnt/ncfiles/mc_files/pg/{machining_id}/ | 元ファイル名そのまま |
+
+全ファイルのパス・ファイル名・machining_idとの紐付けは `mc_files` テーブルに記録。
+
+### DBスキーマ補足
+
+- `mc_work_offsets.g_code`: VARCHAR(50)（旧DB同一加工IDに同一Gコード複数存在のためUNIQUE制約なし）
+- `mc_index_programs.axis_0`: STEP_N値（`///`はコメントを表す文字列、異常値ではない）
+- `mc_programs.registered_at`: NOT NULL（旧DBにNULLの場合はNOW()でフォールバック）
+
+### 本番環境移行時の変更箇所
+
+`scripts/mc_full_import.py` の以下を変更：
+```python
+SS_MC_SERVER = "192.168.1.1"   # 192.168.1.9 → 192.168.1.1
+SMB_MC_ROOT  = Path("/mnt/mcfiles/MC")  # マウント先を本番サーバに変更
+```
+
+また `/etc/fstab` のマウントを本番サーバIP（192.168.1.1）に変更。
+
+### 実行時間目安
+
+| 環境 | 全フェーズ所要時間 |
+|------|-----------------|
+| omega-dev2 (開発) | 約60〜70分（ファイルコピー込み） |
+
+### ログ確認
+
+```bash
+tail -f ~/projects/machcore/logs/mc_full_import.log
+```

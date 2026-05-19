@@ -395,16 +395,19 @@ export class McService {
     if (!mc) throw new NotFoundException(`MC_id ${mcId} が存在しません`);
 
     return this.prisma.$transaction(async (tx) => {
-      for (const item of dto.items) {
-        await tx.mcWorkOffset.upsert({
-          where:  { mcProgramId_gCode: { mcProgramId: mcId, gCode: item.g_code } },
-          update: { xOffset: item.x_offset ?? null, yOffset: item.y_offset ?? null,
-                    zOffset: item.z_offset ?? null, aOffset: item.a_offset ?? null,
-                    rOffset: item.r_offset ?? null, note: item.note ?? null },
-          create: { mcProgramId: mcId, gCode: item.g_code,
-                    xOffset: item.x_offset ?? null, yOffset: item.y_offset ?? null,
-                    zOffset: item.z_offset ?? null, aOffset: item.a_offset ?? null,
-                    rOffset: item.r_offset ?? null, note: item.note ?? null },
+      await tx.mcWorkOffset.deleteMany({ where: { mcProgramId: mcId } });
+      if (dto.items.length > 0) {
+        await tx.mcWorkOffset.createMany({
+          data: dto.items.map(item => ({
+            mcProgramId: mcId,
+            gCode:       item.g_code,
+            xOffset:     item.x_offset ?? null,
+            yOffset:     item.y_offset ?? null,
+            zOffset:     item.z_offset ?? null,
+            aOffset:     item.a_offset ?? null,
+            rOffset:     item.r_offset ?? null,
+            note:        item.note ?? null,
+          })),
         });
       }
       await tx.operationLog.create({
