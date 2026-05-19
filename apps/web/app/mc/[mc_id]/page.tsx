@@ -292,9 +292,9 @@ export default function McDetailPage() {
           <span className="font-mono text-teal-600 font-bold text-2xl leading-none">{d.part.drawingNo}</span>
           <span className="text-slate-300 text-xl font-light">/</span>
           <span className="font-bold text-slate-800 text-xl leading-none">{d.part.name}</span>
-          {(d.part as any).mainModel && <>
+          {d.part.mainModel && <>
             <span className="text-slate-300 text-xl font-light">/</span>
-            <span className="text-slate-500 text-lg font-medium leading-none">{(d.part as any).mainModel}</span>
+            <span className="text-slate-500 text-lg font-medium leading-none">{d.part.mainModel}</span>
           </>}
           <div className="flex items-center gap-2 ml-2">
             {d.machine && (
