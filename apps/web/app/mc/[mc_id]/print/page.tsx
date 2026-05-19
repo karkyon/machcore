@@ -267,7 +267,7 @@ export default function McPrintPage() {
                 </button>
                 <button onClick={handleDirectPrint} disabled={directPrinting}
                   className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3 rounded-xl text-sm">
-                  {directPrinting ? "送信中..." : "🖨 RICOH IM C3510 に直接印刷"}
+                  {directPrinting ? "送信中..." : "🖨 プリンタに直接印刷"}
                 </button>
               </div>
             </div>

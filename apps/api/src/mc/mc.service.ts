@@ -754,6 +754,11 @@ export class McService {
 
     const now    = new Date();
     const fmtNow = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const fmtDate = (d: string | null | undefined) => {
+      if (!d) return '';
+      try { const dt = new Date(d); return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`; }
+      catch { return String(d); }
+    };
 
     const statusLabel: Record<string, string> = {
       NEW: '新規', PENDING_APPROVAL: '未承認', APPROVED: '承認済', CHANGING: '変更中',
@@ -866,10 +871,15 @@ ${commonGroupHtml}
   <div class="info-cell"><span class="info-key">部品名称</span><span class="info-val">${data.part?.name ?? ''}</span></div>
   <div class="info-cell"><span class="info-key">図面番号</span><span class="info-val">${data.part?.drawingNo ?? ''}</span></div>
   <div class="info-cell"><span class="info-key">機械</span><span class="info-val">${data.machine?.machineName ?? data.machine?.machineCode ?? ''}</span></div>
+  <div class="info-cell"><span class="info-key">MC工程No</span><span class="info-val mono">${data.mcProcessNo ?? ''}</span></div>
   <div class="info-cell"><span class="info-key">主Oナンバ</span><span class="info-val mono">${data.oNumber ?? ''}</span></div>
   <div class="info-cell"><span class="info-key">CT/1P</span><span class="info-val">${cycleDisp}</span></div>
   <div class="info-cell"><span class="info-key">加工個数/1S</span><span class="info-val">${data.machiningQty ?? 1}</span></div>
-  ${includeClamp ? `<div class="info-cell" style="grid-column:1/-1;"><span class="info-key">クランプ</span><span class="info-val">${data.clampNote ?? ''}</span></div>` : ''}
+  <div class="info-cell"><span class="info-key">作成者</span><span class="info-val">${data.creator?.name ?? ''}</span></div>
+  <div class="info-cell"><span class="info-key">作成日</span><span class="info-val mono">${data.sheetCreatedAt ? fmtDate(data.sheetCreatedAt) : ''}</span></div>
+  <div class="info-cell"><span class="info-key">PG作成者</span><span class="info-val">${data.pgCreator?.name ?? ''}</span></div>
+  <div class="info-cell"><span class="info-key">Save Date</span><span class="info-val mono">${data.pgUpdatedAt ? fmtDate(data.pgUpdatedAt) : ''}</span></div>
+  ${includeClamp ? `<div class="info-cell" style="grid-column:1/-1;"><span class="info-key">クランプ</span><span class="info-val" style="white-space:pre-wrap;">${data.clampNote ?? ''}</span></div>` : ''}
 </div>
 
 ${includeTooling ? `<div class="sh">ツーリングリスト</div>
@@ -892,9 +902,10 @@ ${includeIndexPrograms ? `<div class="sh" style="page-break-before:auto;">イン
 
 ${drawingsHtml}
 
-<div style="margin-top:10px;font-size:8pt;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:4px;">
-  登録: ${data.registrar?.name ?? ''} / 承認: ${data.approver?.name ?? '未承認'}
-  ${data.note ? `<br>備考: ${data.note}` : ''}
+<div style="margin-top:10px;font-size:8pt;color:#64748b;border-top:1px solid #e2e8f0;padding-top:4px;display:flex;flex-wrap:wrap;gap:12px;">
+  <span>入力: ${data.registrar?.name ?? ''} (${fmtDate(data.registeredAt)})</span>
+  <span>承認: ${data.approver?.name ?? '未承認'}${data.approvedAt ? ' (' + fmtDate(data.approvedAt) + ')' : ''}</span>
+  ${data.note ? `<span style="color:#475569;">備考: ${data.note}</span>` : ''}
 </div>
 </body>
 </html>`;
