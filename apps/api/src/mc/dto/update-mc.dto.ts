@@ -21,4 +21,10 @@ export class UpdateMcDto {
 
   @IsOptional() @IsString() @MaxLength(2000)
   note?: string;
+
+  @IsOptional() @IsInt()
+  creator_id?: number | null;
+
+  @IsOptional() @IsString()
+  sheet_created_at?: string | null;
 }

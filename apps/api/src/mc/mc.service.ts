@@ -130,6 +130,8 @@ export class McService {
         machine:   true,
         registrar: { select: { id: true, name: true } },
         approver:  { select: { id: true, name: true } },
+        pgCreator: { select: { id: true, name: true } },
+        creator:   { select: { id: true, name: true } },
         tooling:   { orderBy: { sortOrder: 'asc' } },
         workOffsets: { orderBy: { gCode: 'asc' } },
         indexPrograms: { orderBy: { sortOrder: 'asc' } },
@@ -227,6 +229,10 @@ export class McService {
           machiningQty:  dto.machining_qty  !== undefined ? dto.machining_qty  : mc.machiningQty,
           commonPartCode: dto.common_part_code !== undefined ? dto.common_part_code : mc.commonPartCode,
           note:          dto.note           !== undefined ? dto.note           : mc.note,
+          creatorId:     dto.creator_id      !== undefined ? dto.creator_id      : mc.creatorId,
+          sheetCreatedAt: dto.sheet_created_at !== undefined
+            ? (dto.sheet_created_at ? new Date(dto.sheet_created_at) : null)
+            : mc.sheetCreatedAt,
           version:       newVersion,
           status:        'CHANGING',
         },

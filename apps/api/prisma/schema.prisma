@@ -100,6 +100,7 @@ model User {
   mcSetupSheetLogs     McSetupSheetLog[]
   mcUploadedFiles      McFile[]
   mcPgCreatedPrograms  McProgram[]   @relation("McPgCreatedBy")
+  mcCreatedPrograms    McProgram[]   @relation("McCreatedBy")
   timecards            MachineTimecard[]
   @@map("users")
 }
@@ -403,6 +404,8 @@ model McProgram {
   pgFolderName    String?         @db.VarChar(100)            @map("pg_folder_name")
   pgCreatedBy     Int?                                        @map("pg_created_by")
   pgUpdatedAt     DateTime?                                   @map("pg_updated_at")
+  creatorId       Int?                                        @map("creator_id")
+  sheetCreatedAt  DateTime?       @db.Date                    @map("sheet_created_at")
   createdAt      DateTime        @default(now())             @map("created_at")
   updatedAt      DateTime        @updatedAt                  @map("updated_at")
 
@@ -411,6 +414,7 @@ model McProgram {
   registrar      User              @relation("McRegisteredBy", fields: [registeredBy], references: [id])
   approver       User?             @relation("McApprovedBy",  fields: [approvedBy],   references: [id])
   pgCreator      User?             @relation("McPgCreatedBy",  fields: [pgCreatedBy],  references: [id])
+  creator        User?             @relation("McCreatedBy",     fields: [creatorId],    references: [id])
   tooling        McTooling[]
   workOffsets    McWorkOffset[]
   indexPrograms  McIndexProgram[]

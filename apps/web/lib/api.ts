@@ -536,6 +536,9 @@ export type McDetail = {
   registrar: { name: string };
   approver:  { name: string } | null;
   pgCreator: { name: string } | null;
+  creatorId:      number | null;
+  sheetCreatedAt: string | null;
+  creator:        { name: string } | null;
   tooling:      McTooling[];
   workOffsets:  McWorkOffset[];
   indexPrograms: McIndexProgram[];

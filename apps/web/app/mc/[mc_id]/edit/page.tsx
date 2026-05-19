@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { mcApi, machinesApi, McDetail, Machine } from "@/lib/api";
+import { mcApi, machinesApi, usersApi, McDetail, Machine, UserInfo } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
@@ -31,6 +31,9 @@ export default function McEditPage() {
   const [cycleS,       setCycleS]       = useState(0);
   const [machiningQty, setMachiningQty] = useState(1);
   const [note,         setNote]         = useState("");
+  const [creatorId,    setCreatorId]    = useState<string>("");
+  const [sheetCreatedAt, setSheetCreatedAt] = useState<string>("");
+  const [users,        setUsers]        = useState<UserInfo[]>([]);
 
   // ツーリング
   const [toolingRows, setToolingRows] = useState<any[]>([]);
@@ -64,11 +67,14 @@ export default function McEditPage() {
         setCycleM(Math.floor((d.cycleTimeSec % 3600) / 60));
         setCycleS(d.cycleTimeSec % 60);
       }
+      setCreatorId(d.creatorId ? String(d.creatorId) : "");
+      setSheetCreatedAt(d.sheetCreatedAt ? d.sheetCreatedAt.slice(0, 10) : "");
       setToolingRows(d.tooling ?? []);
       setOffsetRows(d.workOffsets ?? []);
       setIndexRows(d.indexPrograms ?? []);
     }).catch(() => {});
     machinesApi.list().then(r => setMachines((r as any).data ?? [])).catch(() => {});
+    usersApi.list().then(r => setUsers((r as any).data ?? [])).catch(() => {});
   }, [mcId]);
 
   useEffect(() => {
@@ -96,6 +102,8 @@ export default function McEditPage() {
         cycle_time_sec: cycleTimeSec > 0 ? cycleTimeSec : undefined,
         machining_qty:  machiningQty,
         note:           note || undefined,
+        creator_id:     creatorId ? parseInt(creatorId) : null,
+        sheet_created_at: sheetCreatedAt || null,
       }, token);
       // ツーリング保存
       if (toolingRows.length > 0) {
@@ -345,6 +353,24 @@ export default function McEditPage() {
                   <label className="text-xs font-bold text-slate-500 block mb-1">備考</label>
                   <textarea value={note} onChange={e => setNote(e.target.value)} rows={3}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none resize-none" />
+                </div>
+                {/* 作成者・作成日 */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">作成者（段取シート作成者）</label>
+                    <select value={creatorId} onChange={e => setCreatorId(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
+                      <option value="">— 選択 —</option>
+                      {users.filter(u => u.isActive).map(u => (
+                        <option key={u.id} value={String(u.id)}>{u.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">作成日（シート作成日）</label>
+                    <input type="date" value={sheetCreatedAt} onChange={e => setSheetCreatedAt(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
+                  </div>
                 </div>
               </div>
             )}
