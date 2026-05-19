@@ -1,814 +1,796 @@
 #!/usr/bin/env python3
-# =============================================================================
-# MachCore 本番移行スクリプト — MC 全データ一括コンバート＆インポート
-# =============================================================================
-# 対象: SQL Server (192.168.1.9/imotomc) → PostgreSQL (machcore_dev)
-#
-# 実行方法:
-#   python3 scripts/mc_full_import.py [--dry-run] [--truncate] [--phase N]
-#
-# オプション:
-#   --dry-run  : DBへの書き込みを行わず検証のみ実施
-#   --truncate : 既存データを全削除してから再インポート（本番移行時）
-#   --phase N  : 指定フェーズのみ実行 (1-6)
-#
-# 前提条件:
-#   pip3 install pymssql psycopg2-binary --break-system-packages
-#   PostgreSQL側にmc_migration.sqlが適用済みであること
-#   machines テーブルにMC機械が登録済みであること
-#   mc_tooling.tool_no が nullable であること（Phase 0で自動チェック）:
-#     ALTER TABLE mc_tooling ALTER COLUMN tool_no DROP NOT NULL;
-#
-# フェーズ構成:
-#   Phase 0: スキーマ整合確認 (必須カラム + tool_no nullable確認)
-#   Phase 1: mc_programs      — ACC_MC × ACC_マシニング (約15,681件)
-#   Phase 2: mc_tooling       — ACC_ツーリング (約127,235件)
-#   Phase 3: RC同期           — ツーリング件数 → mc_programs.rc
-#   Phase 4: mc_work_offsets  — ACC_ワークオフセット (約5,134件)
-#   Phase 5: mc_index_programs — ACC_インデックスプログラム (約7,213件)
-#   Phase 6: mc_change_history — ACC_変更履歴 (約60,259件)
-#
-# 実テーブルカラム名メモ (開発時調査結果):
-#   ACC_マシニング : Version(英字), 機械ID(int), 入力日付, パス1/パス2, 担当者ID
-#   ACC_ツーリング : ツーリングID, 加工ID, 順番, N, 工具, T, H, D, コメント, D値, SUB, ツール
-#   ACC_ワークオフセット: G, X, Y, Z, A, R, 加工ID, WOD_ID
-#   ACC_インデックスプログラム: STEP_N, 第1軸, 第2軸, 加工ID, IP_ID (第3軸なし)
-#   ACC_変更履歴  : MCID, 加工ID, 内容, 内容区分ID, 内容区分, Ver, 作成, 作成日, ...
-#                   ※「変更ID」カラムは存在しない
-#
-# 重要な実装メモ:
-#   - ACC_MC.MCID がユニークキー(9,539), 加工IDは共通加工で複数MCIDが共有(7,895)
-#   - mc_tooling/work_offsets/index_programs は legacy_kakoid ベースで mc_programs を解決
-#   - mc_change_history は legacy_mcid 優先 → legacy_kakoid フォールバック
-#   - SP_Sheet(機械ID=1)はPGに存在しないため machine_id=NULL (正常)
-#   - tool_no(Nカラム)にNULLデータが多数存在するため NOT NULL制約を外す必要あり
-#   - fetchall()は大量データで遅延するため fetchmany(500) を使用
-# =============================================================================
+# coding: utf-8
+"""
+MachCore MC完全移行スクリプト (mc_full_import.py)
+=================================================
+実行方法:
+  python3 mc_full_import.py [--phase N] [--dry-run]
 
-import sys
-import argparse
-import logging
+フェーズ:
+  0 = 全フェーズ一括実行（本番用）
+  1 = mc_programs基本データ移行
+  2 = mc_tooling移行
+  3 = RC同期
+  4 = mc_work_offsets移行
+  5 = mc_index_programs移行
+  6 = mc_change_history移行
+  7 = 図・写真・プログラムファイル移行
+  8 = drawing_count/photo_count更新
+
+ソースDB: imotomc (192.168.1.9)
+  - ACC_MC          : 部品ID, MCID, 加工ID
+  - ACC_マシニング   : 加工ID, Version, MC工程No, パス1, パス2, ファイル名...
+  - ACC_ツーリング   : 加工ID, 順番, 工具名, T, H, D, D値, SUB, コメント...
+  - ACC_ワークオフセット / ACC_インデックスプログラム / ACC_変更履歴
+部品/得意先: imotodb (192.168.1.9)
+  - v_旧部品マスタ  : 部品ID, 図面番号, 名称, 主機種型式, 納入先ID
+  - v_旧得意先マスタ : 納入先ID, 会社名
+"""
+
+import sys, os, re, shutil, argparse, traceback
+from pathlib import Path
 from datetime import datetime
 
-import pymssql
-import psycopg2
-import psycopg2.extras
-
-# =============================================================================
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 設定
-# =============================================================================
-SS_CONFIG = dict(server='192.168.1.9', user='sa', password='RTW65b',
-                 database='imotomc', tds_version='7.4')
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PG_DSN       = "host=localhost port=5440 dbname=machcore_dev user=machcore password=machcore_pass_change_me"
+SS_MC_SERVER = "192.168.1.9"
+SS_MC_USER   = "sa"
+SS_MC_PASS   = "RTW65b"
+SS_MC_DB     = "imotomc"    # マシニングデータ
+SS_PB_DB     = "imotodb"    # 部品・得意先マスタ
+ADMIN_ID     = 22           # ADMIN001 users.id
 
-PG_DSN = ("host=localhost port=5440 dbname=machcore_dev "
-          "user=machcore password=machcore_pass_change_me")
+# ファイルパス
+SMB_MC_ROOT  = Path("/mnt/mcfiles/MC")
+SRC_DRAW     = SMB_MC_ROOT / "図"
+SRC_PHOTO    = SMB_MC_ROOT / "写真"
+SRC_PRG      = SMB_MC_ROOT / "ﾌﾟﾛｸﾞﾗﾑ"
+DST_ROOT     = Path("/mnt/mcfiles/MC/files")
+DST_DRAW     = DST_ROOT / "Drawings"
+DST_PHOTO    = DST_ROOT / "Pictures"
+DST_PRG      = DST_ROOT / "Programs"
+UPLOAD_BASE  = Path("/mnt/ncfiles/mc_files")
+UPLOAD_DRAW  = UPLOAD_BASE / "drawings"
+UPLOAD_PHOTO = UPLOAD_BASE / "photos"
+UPLOAD_PG    = UPLOAD_BASE / "pg"
+LOG_FILE     = Path("/home/karkyon/projects/machcore/logs/mc_full_import.log")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler(f'/tmp/mc_import_{datetime.now():%Y%m%d_%H%M%S}.log')
-    ]
-)
-log = logging.getLogger(__name__)
-
-# =============================================================================
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ユーティリティ
-# =============================================================================
-def safe_str(v, maxlen=None):
-    if v is None: return None
-    s = str(v).strip()
-    if not s: return None
-    return s[:maxlen] if maxlen else s
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+_log_fh = open(LOG_FILE, "a", encoding="utf-8")
 
-def safe_int(v):
-    if v is None: return None
-    try: return int(v)
-    except: return None
+def log(msg, level="INFO"):
+    ts   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{ts}] [{level}] {msg}"
+    print(line)
+    _log_fh.write(line + "\n")
+    _log_fh.flush()
 
-def safe_float(v):
-    if v is None: return 0.0
-    try: return float(v)
-    except: return 0.0
+def section(title):
+    bar = "=" * 60
+    log(f"\n{bar}\n  {title}\n{bar}")
 
-def safe_bool_umu(v):
-    """有無フィールド → boolean"""
-    if v is None: return False
-    return str(v).strip() not in ('', '無', 'None')
+def ensure_dirs(*dirs):
+    for d in dirs:
+        Path(d).mkdir(parents=True, exist_ok=True)
 
+def pg_connect():
+    import psycopg2
+    return psycopg2.connect(PG_DSN)
 
-# =============================================================================
-# PHASE 0: 事前マップ構築
-# =============================================================================
-def build_maps(sc, pc):
-    log.info("=== PHASE 0: 事前マップ構築 ===")
+def ss_connect(db):
+    import pymssql
+    return pymssql.connect(server=SS_MC_SERVER, user=SS_MC_USER,
+                           password=SS_MC_PASS, database=db, tds_version='7.4')
 
-    # parts: part_id(文字列) → id
-    pc.execute("SELECT id, part_id FROM parts")
-    parts_map = {r[1]: r[0] for r in pc.fetchall()}   # "1482" → 30
-    log.info(f"  parts: {len(parts_map)}件")
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PHASE 1: mc_programs 基本データ移行
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def phase1(pg, dry_run=False):
+    section("PHASE 1: mc_programs 基本データ移行")
+    mc  = ss_connect(SS_MC_DB)   # imotomc
+    pb  = ss_connect(SS_PB_DB)   # imotodb
+    mcc = mc.cursor()
+    pbc = pb.cursor()
+    pgc = pg.cursor()
 
-    # machines: machine_code → id (全system_type)
-    pc.execute("SELECT id, machine_code FROM machines")
-    machine_code_map = {r[1]: r[0] for r in pc.fetchall()}
-    log.info(f"  machines: {len(machine_code_map)}件")
+    # 既存データ全破棄
+    if not dry_run:
+        log("既存データ全破棄...")
+        pgc.execute("DELETE FROM mc_files")
+        pgc.execute("DELETE FROM mc_change_history")
+        pgc.execute("DELETE FROM mc_index_programs")
+        pgc.execute("DELETE FROM mc_work_offsets")
+        pgc.execute("DELETE FROM mc_tooling")
+        pgc.execute("DELETE FROM mc_setup_sheet_logs")
+        pgc.execute("DELETE FROM operation_logs WHERE mc_program_id IS NOT NULL")
+        pgc.execute("DELETE FROM work_sessions WHERE mc_program_id IS NOT NULL")
+        pgc.execute("DELETE FROM mc_programs")
+        pg.commit()
+        log("全破棄完了")
 
-    # SQL Server: ACC_機械.機械ID → 機械名
-    sc.execute("SELECT 機械ID, 機械名 FROM [imotomc].[dbo].[ACC_機械]")
-    ss_machine_name = {r[0]: r[1] for r in sc.fetchall()}
+    # 部品マスタ (imotodb.v_旧部品マスタ)
+    pbc.execute("SELECT 部品ID, 図面番号, 名称, 主機種型式, 納入先ID FROM v_旧部品マスタ")
+    buhin_rows = pbc.fetchall()
+    log(f"部品マスタ取得: {len(buhin_rows)}件")
 
-    def resolve_mc_machine(ss_id):
-        if ss_id is None: return None
-        name = ss_machine_name.get(ss_id)
-        return machine_code_map.get(name) if name else None
+    # 得意先マスタ (imotodb.v_旧得意先マスタ)
+    pbc.execute("SELECT 納入先ID, 会社名 FROM v_旧得意先マスタ")
+    client_map = {r[0]: r[1] for r in pbc.fetchall()}
 
-    # users: ADMIN001のid
-    pc.execute("SELECT id FROM users WHERE employee_code = 'ADMIN001'")
-    admin_id = pc.fetchone()[0]
-    log.info(f"  admin_id: {admin_id}")
+    # parts テーブルへ upsert
+    pgc.execute("SELECT id, part_id FROM parts")
+    parts_map = {r[1]: r[0] for r in pgc.fetchall()}  # part_id文字列 → DB id
 
-    # NC旋盤: machines (system_type='NC') machine_code → id
-    pc.execute("SELECT id, machine_code FROM machines WHERE system_type = 'NC'")
-    nc_machine_map = {r[1]: r[0] for r in pc.fetchall()}
-    log.info(f"  NC machines: {len(nc_machine_map)}件")
+    parts_inserted = 0
+    for buhin_id, drawing_no, name, main_model, client_id in buhin_rows:
+        pid_str    = str(buhin_id)
+        client_name = client_map.get(client_id, "")
+        if pid_str not in parts_map:
+            if not dry_run:
+                pgc.execute("""
+                    INSERT INTO parts (part_id, drawing_no, name, main_model, client_name, is_active, created_at, updated_at)
+                    VALUES (%s,%s,%s,%s,%s,true,NOW(),NOW())
+                    ON CONFLICT (part_id) DO UPDATE SET
+                        drawing_no=EXCLUDED.drawing_no, name=EXCLUDED.name,
+                        main_model=EXCLUDED.main_model, client_name=EXCLUDED.client_name
+                    RETURNING id
+                """, (pid_str, drawing_no or "", name or "", main_model, client_name))
+                new_id = pgc.fetchone()[0]
+                parts_map[pid_str] = new_id
+                parts_inserted += 1
+        else:
+            if not dry_run:
+                pgc.execute("""
+                    UPDATE parts SET drawing_no=%s, name=%s, main_model=%s, client_name=%s
+                    WHERE part_id=%s
+                """, (drawing_no or "", name or "", main_model, client_name, pid_str))
+    if not dry_run:
+        pg.commit()
+    log(f"parts同期完了: 新規={parts_inserted}件, 総数={len(parts_map)}件")
 
-    return {
-        'parts': parts_map,
-        'machine_code': machine_code_map,
-        'nc_machine': nc_machine_map,
-        'ss_machine_name': ss_machine_name,
-        'resolve_mc_machine': resolve_mc_machine,
-        'admin_id': admin_id,
-    }
+    # 機械マスタ
+    pgc.execute("SELECT id, machine_code FROM machines WHERE system_type='MC'")
+    machines_map = {r[1]: r[0] for r in pgc.fetchall()}
 
+    # ユーザーマスタ
+    pgc.execute("SELECT id, name FROM users")
+    users_by_id  = {}
+    users_by_name = {}
+    for uid, uname in pgc.fetchall():
+        users_by_id[uid]    = uname
+        users_by_name[uname] = uid
 
-# =============================================================================
-# PHASE 1: mc_programs インポート (ACC_MC × ACC_マシニング)
-# =============================================================================
-def import_mc_programs(sc, pc, maps, dry_run=False, truncate=False):
-    log.info("=== PHASE 1: mc_programs インポート ===")
+    # 機械IDマスタ (imotomc)
+    mcc.execute("SELECT 機械ID, 機械名 FROM ACC_機械")
+    ss_machine_map = {}
+    for mid, mname in mcc.fetchall():
+        # 機械名→MachCoreのmachine_code変換
+        code = str(mname).strip()
+        if code in machines_map:
+            ss_machine_map[mid] = machines_map[code]
+        else:
+            # "MC1"等に変換試行
+            mc_code = f"MC{code}" if not code.startswith("MC") else code
+            ss_machine_map[mid] = machines_map.get(mc_code)
 
-    if truncate and not dry_run:
-        log.warning("  mc_programs TRUNCATE (CASCADE)...")
-        pc.execute("TRUNCATE TABLE mc_programs CASCADE")
-        pc.execute("ROLLBACK TO SAVEPOINT sp") if False else None
-
-    INSERT_SQL = """
-        INSERT INTO mc_programs (
-            part_id, machining_id, machine_id, status, version,
-            o_number, clamp_note, cycle_time_sec, machining_qty,
-            note, registered_by, registered_at,
-            legacy_mcid, legacy_kakoid,
-            mc_process_no, folder1, folder2, file_name,
-            rc, has_index_program, has_work_offset,
-            created_at, updated_at
-        ) VALUES (
-            %s, %s, %s, 'APPROVED', %s,
-            %s, %s, %s, %s,
-            %s, %s, COALESCE(%s::timestamp, NOW()),
-            %s, %s,
-            %s, %s, %s, %s,
-            %s, %s, %s,
-            NOW(), NOW()
-        )
-        ON CONFLICT DO NOTHING
-    """
-
-    sc.execute("""
-        SELECT mc.MCID, mc.部品ID, mc.加工ID,
-               m.Version, m.MC工程No, m.メインPGNo, m.機械ID,
-               m.加工時間H, m.加工時間M, m.加工時間S, m.加工個数,
-               m.クランプ, m.備考, m.担当者ID, m.入力日付, m.RC,
-               m.パス1, m.パス2, m.ファイル名, m.IP有無, m.WD有無
-        FROM [imotomc].[dbo].[ACC_MC] mc
-        INNER JOIN [imotomc].[dbo].[ACC_マシニング] m ON mc.加工ID = m.加工ID
+    # ACC_MC × ACC_マシニング JOIN で全データ取得
+    mcc.execute("""
+        SELECT
+            mc.部品ID, mc.MCID, mc.加工ID,
+            m.Version, m.[MC工程No], m.パス1, m.パス2, m.ファイル名,
+            m.メインPGNo, m.機械ID, m.加工時間H, m.加工時間M, m.加工時間S,
+            m.加工個数, m.クランプ, m.備考,
+            m.担当者ID, m.IP有無, m.WD有無,
+            m.写真枚数, m.RC, m.図枚数,
+            m.作成者ID, m.PG担当者ID,
+            m.入力日付, m.登録日付
+        FROM ACC_MC mc
+        INNER JOIN ACC_マシニング m ON mc.加工ID = m.加工ID AND mc.MCID = m.MCID
         WHERE m.削除区分 = 0
         ORDER BY mc.MCID
     """)
+    rows = mcc.fetchall()
+    log(f"旧DBマシニング取得: {len(rows)}件")
 
-    inserted = skipped = errors = 0
-    BATCH = 500
+    ok = skip = err = 0
+    for row in rows:
+        try:
+            (buhin_id, mcid, kakoid,
+             version, process_no, path1, path2, file_name,
+             main_pg_no, machine_id_ss, time_h, time_m, time_s,
+             qty, clamp, note,
+             tanto_id, ip_umu, wd_umu,
+             photo_cnt, rc, draw_cnt,
+             sakusha_id, pg_tanto_id,
+             input_date, reg_date) = row
 
-    while True:
-        rows = sc.fetchmany(BATCH)
-        if not rows: break
+            part_db_id = parts_map.get(str(buhin_id))
+            if not part_db_id:
+                skip += 1; continue
 
-        for row in rows:
-            (mcid, buhin_id, kako_id,
-             version, mc_process_no, main_pgno, kikai_id,
-             h, m_val, s_val, qty,
-             clamp, note, tanto_id, nyuryoku_bi, rc,
-             path1, path2, filename, ip_umu, wd_umu) = row
+            # 機械
+            machine_db_id = ss_machine_map.get(machine_id_ss)
 
-            pg_part_id = maps['parts'].get(str(buhin_id))
-            if pg_part_id is None:
-                skipped += 1
-                continue
+            # 加工時間→秒
+            ct_sec = None
+            if time_h is not None or time_m is not None or time_s is not None:
+                ct_sec = int(time_h or 0)*3600 + int(time_m or 0)*60 + int(time_s or 0)
 
-            pg_machine_id = maps['resolve_mc_machine'](kikai_id)
-            cycle_sec = int(safe_float(h)*3600 + safe_float(m_val)*60 + safe_float(s_val)) or None
-            mq = safe_int(qty) or 1
-            rc_val = safe_int(rc)
-            reg_at = f"{nyuryoku_bi} 00:00:00" if nyuryoku_bi else None
-            has_ip = safe_bool_umu(ip_umu)
-            has_wd = safe_bool_umu(wd_umu)
-            try: proc_no = int(mc_process_no) if mc_process_no is not None else None
-            except: proc_no = None
+            # IP/WD
+            has_ip = str(ip_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
+            has_wd = str(wd_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
 
-            if dry_run:
-                inserted += 1
-                continue
+            # 担当者（旧DBのIDはPGのusers.idと対応しないためADMINで統一）
+            reg_id  = ADMIN_ID
+            cr_id   = None
+            pg_id   = None
 
-            pc.execute("SAVEPOINT sp")
-            try:
-                pc.execute(INSERT_SQL, (
-                    pg_part_id, kako_id, pg_machine_id,
-                    safe_str(version) or '1.0001',
-                    safe_str(main_pgno, 50),
-                    safe_str(clamp, 2000),
-                    cycle_sec, mq,
-                    safe_str(note, 2000),
-                    maps['admin_id'], reg_at,
-                    mcid, kako_id,
-                    proc_no,
-                    safe_str(path1, 50), safe_str(path2, 50), safe_str(filename, 50),
-                    rc_val, has_ip, has_wd,
-                ))
-                pc.execute("RELEASE SAVEPOINT sp")
-                inserted += 1
-            except Exception as e:
-                pc.execute("ROLLBACK TO SAVEPOINT sp")
-                errors += 1
-                if errors <= 5:
-                    log.error(f"  ERROR MCID={mcid}: {e}")
-
-        if not dry_run:
-            pc.connection.commit()
-        log.info(f"  ... 挿入={inserted}, スキップ={skipped}, エラー={errors}")
-
-    log.info(f"PHASE 1 完了: 挿入={inserted}, スキップ={skipped}, エラー={errors}")
-    return inserted
-
-
-# =============================================================================
-# PHASE 2: mc_tooling インポート (ACC_ツーリング)
-# =============================================================================
-def import_mc_tooling(sc, pc, dry_run=False, truncate=False):
-    log.info("=== PHASE 2: mc_tooling インポート ===")
-
-    if truncate and not dry_run:
-        pc.execute("TRUNCATE TABLE mc_tooling")
-
-    # ── マップ: legacy_kakoid(加工ID) → mc_programs.id ──────────────────
-    # ツーリングはACC_ツーリング.加工ID = legacy_kakoid で紐づく。
-    # 同一加工IDに複数MCIDが存在する（共通加工）場合は先頭のidを使用。
-    pc.execute("SELECT id, legacy_kakoid FROM mc_programs WHERE legacy_kakoid IS NOT NULL")
-    kakoid_map = {}
-    for r in pc.fetchall():
-        kakoid_map.setdefault(r[1], r[0])
-    log.info(f"  kakoidマップ: {len(kakoid_map)}件")
-
-    # ── ACC_ツーリング カラム動的確認 ────────────────────────────────────
-    sc.execute("""
-        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'ACC_ツーリング'
-        ORDER BY ORDINAL_POSITION
-    """)
-    cols = [r[0] for r in sc.fetchall()]
-    log.info(f"  ACC_ツーリング カラム: {cols}")
-
-    has_d_value  = 'D値' in cols
-    has_sub      = 'SUB' in cols
-    has_tool_col = 'ツール' in cols
-
-    # ツーリングIDを先頭に含めてエラー追跡を容易にする
-    select_cols = "ツーリングID, 加工ID, 順番, N, 工具, T, H, D, コメント"
-    if has_d_value:  select_cols += ", D値"
-    if has_sub:      select_cols += ", SUB"
-    if has_tool_col: select_cols += ", ツール"
-
-    sc.execute(f"""
-        SELECT {select_cols}
-        FROM [imotomc].[dbo].[ACC_ツーリング]
-        ORDER BY 加工ID, 順番
-    """)
-
-    # tool_no はNULL許容（本番DB事前にALTER必須）
-    INSERT_SQL = """
-        INSERT INTO mc_tooling (
-            mc_program_id, sort_order, tool_no, tool_name,
-            t_no, length_offset_no, dia_offset_no,
-            d_value_content, sub_pg_no, note, tool_type,
-            created_at, updated_at
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
-        ON CONFLICT DO NOTHING
-    """
-
-    inserted = skipped = errors = 0
-    BATCH = 500
-
-    while True:
-        rows = sc.fetchmany(BATCH)
-        if not rows: break
-
-        for row in rows:
-            idx = 0
-            tid      = row[idx]; idx += 1
-            kako_id  = row[idx]; idx += 1
-            junban   = row[idx]; idx += 1
-            n_val    = safe_str(row[idx], 20);  idx += 1
-            tool     = safe_str(row[idx], 100); idx += 1
-            t_val    = safe_str(row[idx], 10);  idx += 1
-            h_val    = safe_str(row[idx], 10);  idx += 1
-            d_val    = safe_str(row[idx], 10);  idx += 1
-            comment  = safe_str(row[idx], 500); idx += 1
-            d_value  = safe_str(row[idx], 50)  if has_d_value  else None; idx += (1 if has_d_value  else 0)
-            sub_pg   = safe_str(row[idx], 20)  if has_sub      else None; idx += (1 if has_sub      else 0)
-            tool_typ = safe_str(row[idx], 50)  if has_tool_col else None
-
-            try:
-                seq = int(float(junban)) if junban is not None else 0
-            except:
-                seq = 0
-
-            if d_value is not None:
-                try:
-                    d_value = str(round(float(d_value), 3))
-                except:
-                    pass
-
-            mc_prog_id = kakoid_map.get(kako_id)
-            if mc_prog_id is None:
-                skipped += 1
-                continue
+            # バージョン
+            ver_str = str(version or "1.0001")
 
             if dry_run:
-                inserted += 1
-                continue
+                ok += 1; continue
 
-            pc.execute("SAVEPOINT sp")
-            try:
-                pc.execute(INSERT_SQL, (
-                    mc_prog_id, seq,
-                    n_val,  # tool_no — NULL許容
-                    tool, t_val, h_val, d_val,
-                    d_value, sub_pg, comment, tool_typ,
-                ))
-                pc.execute("RELEASE SAVEPOINT sp")
-                inserted += 1
-            except Exception as e:
-                pc.execute("ROLLBACK TO SAVEPOINT sp")
-                errors += 1
-                if errors <= 5:
-                    log.error(f"  ERROR tid={tid} 加工ID={kako_id} seq={seq}: {e}")
+            pgc.execute("""
+                INSERT INTO mc_programs (
+                    part_id, machining_id, mc_process_no, version, status,
+                    machine_id, o_number, cycle_time_sec, machining_qty,
+                    clamp_note, note,
+                    folder1, folder2, file_name,
+                    rc, has_index_program, has_work_offset,
+                    registered_by, creator_id, pg_created_by,
+                    registered_at,
+                    legacy_mcid, legacy_kakoid,
+                    created_at, updated_at
+                ) VALUES (
+                    %s,%s,%s,%s,'APPROVED',
+                    %s,%s,%s,%s,
+                    %s,%s,
+                    %s,%s,%s,
+                    %s,%s,%s,
+                    %s,%s,%s,
+                    %s,
+                    %s,%s,
+                    NOW(),NOW()
+                )
+            """, (
+                part_db_id, kakoid, process_no, ver_str,
+                machine_db_id, main_pg_no, ct_sec, qty or 1,
+                clamp, note,
+                str(path1) if path1 is not None else None,
+                str(path2) if path2 is not None else None,
+                str(file_name) if file_name else None,
+                int(rc or 0), has_ip, has_wd,
+                reg_id, cr_id, pg_id,
+                input_date or reg_date or datetime.now(),
+                mcid, kakoid,
+            ))
+            ok += 1
+            if ok % 1000 == 0:
+                pg.commit()
+                log(f"  {ok}件挿入中... skip={skip} err={err}")
+        except Exception as e:
+            err += 1
+            if not dry_run: pg.rollback()
+            if err <= 10: log(f"  ERR MCID={row[1]}: {e}", "WARN")
 
-        if not dry_run:
-            pc.connection.commit()
-        log.info(f"  ... 挿入={inserted}, スキップ={skipped}, エラー={errors}")
+    if not dry_run: pg.commit()
+    pgc.execute("SELECT COUNT(*) FROM mc_programs")
+    log(f"PHASE1完了: ok={ok} skip={skip} err={err} DB総数={pgc.fetchone()[0]}")
+    mc.close(); pb.close()
 
-    log.info(f"PHASE 2 完了: 挿入={inserted}, スキップ={skipped}, エラー={errors}")
-    return inserted
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PHASE 2: mc_tooling 移行
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def phase2(pg, dry_run=False):
+    section("PHASE 2: mc_tooling移行")
+    mc  = ss_connect(SS_MC_DB)
+    mcc = mc.cursor()
+    pgc = pg.cursor()
 
+    # legacy_kakoid → mc_program_id マップ（同一加工IDに複数mc_programがある場合は全て）
+    pgc.execute("SELECT id, legacy_kakoid FROM mc_programs")
+    kakoid_map: dict[int, list[int]] = {}
+    for mc_id, kk in pgc.fetchall():
+        kakoid_map.setdefault(kk, []).append(mc_id)
 
-# =============================================================================
-# PHASE 3: RC同期 (mc_tooling件数 → mc_programs.rc)
-# =============================================================================
-def sync_rc(pc, dry_run=False):
-    log.info("=== PHASE 3: RC同期 ===")
-    if dry_run:
-        log.info("  [dry-run] スキップ")
-        return
-    pc.execute("""
-        UPDATE mc_programs mp
-        SET rc = sub.cnt
-        FROM (
-            SELECT mc_program_id, COUNT(*) AS cnt
-            FROM mc_tooling
-            GROUP BY mc_program_id
-        ) sub
-        WHERE mp.id = sub.mc_program_id
+    mcc.execute("""
+        SELECT 加工ID, 順番, 工具名, T, H, D, D値, SUB, コメント, 備考, ツーリングID
+        FROM ACC_ツーリング
+        ORDER BY 加工ID, ツーリングID
     """)
-    pc.connection.commit()
-    log.info("  RC同期完了")
+    rows = mcc.fetchall()
+    log(f"ACC_ツーリング取得: {len(rows)}件")
 
+    ok = skip = err = 0
+    for row in rows:
+        try:
+            kakoid, order, tool_name, t_no, h_no, d_no, d_val, sub_pg, comment, note, tooling_id = row
+            mc_ids = kakoid_map.get(kakoid, [])
+            if not mc_ids: skip += 1; continue
+            if not dry_run:
+                for mc_id in mc_ids:
+                    pgc.execute("""
+                        INSERT INTO mc_tooling (
+                            mc_program_id, sort_order, tool_name, t_no,
+                            length_offset_no, dia_offset_no, d_value_content,
+                            sub_pg_no, note
+                        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """, (mc_id, int(order or 0), tool_name, str(t_no) if t_no else None,
+                          str(h_no) if h_no else None, str(d_no) if d_no else None,
+                          str(d_val) if d_val else None,
+                          str(sub_pg) if sub_pg else None,
+                          str(comment or note or "")))
+            ok += 1
+            if ok % 5000 == 0:
+                if not dry_run: pg.commit()
+                log(f"  {ok}件挿入中...")
+        except Exception as e:
+            err += 1
+            if not dry_run: pg.rollback()
+            if err <= 5: log(f"  ERR: {e}", "WARN")
 
-# =============================================================================
-# PHASE 4: mc_work_offsets インポート (ACC_ワークオフセット)
-# =============================================================================
-def import_mc_work_offsets(sc, pc, dry_run=False, truncate=False):
-    log.info("=== PHASE 4: mc_work_offsets インポート ===")
+    if not dry_run: pg.commit()
+    pgc.execute("SELECT COUNT(*) FROM mc_tooling")
+    log(f"PHASE2完了: ok={ok} skip={skip} err={err} DB総数={pgc.fetchone()[0]}")
+    mc.close()
 
-    sc.execute("""
-        SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_NAME = 'ACC_ワークオフセット'
-    """)
-    if sc.fetchone()[0] == 0:
-        log.warning("  ACC_ワークオフセット テーブルなし、スキップ")
-        return 0
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PHASE 3: RC同期
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def phase3(pg, dry_run=False):
+    section("PHASE 3: RC同期")
+    pgc = pg.cursor()
+    if not dry_run:
+        pgc.execute("""
+            UPDATE mc_programs p
+            SET rc = (SELECT COUNT(*) FROM mc_tooling t WHERE t.mc_program_id = p.id)
+        """)
+        pg.commit()
+    pgc.execute("SELECT SUM(rc) FROM mc_programs")
+    log(f"PHASE3完了: RC総計={pgc.fetchone()[0]}")
 
-    if truncate and not dry_run:
-        pc.execute("TRUNCATE TABLE mc_work_offsets")
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PHASE 4: mc_work_offsets 移行
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def phase4(pg, dry_run=False):
+    section("PHASE 4: mc_work_offsets移行")
+    mc  = ss_connect(SS_MC_DB)
+    mcc = mc.cursor()
+    pgc = pg.cursor()
 
-    # ── マップ: legacy_kakoid → mc_programs.id ───────────────────────────
-    pc.execute("SELECT id, legacy_kakoid FROM mc_programs WHERE legacy_kakoid IS NOT NULL")
-    kakoid_map = {}
-    for r in pc.fetchall():
-        kakoid_map.setdefault(r[1], r[0])
+    pgc.execute("SELECT id, legacy_kakoid FROM mc_programs")
+    kakoid_map: dict[int, list[int]] = {}
+    for mc_id, kk in pgc.fetchall():
+        kakoid_map.setdefault(kk, []).append(mc_id)
 
-    sc.execute("""
-        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'ACC_ワークオフセット'
-        ORDER BY ORDINAL_POSITION
-    """)
-    cols = [r[0] for r in sc.fetchall()]
-    log.info(f"  ACC_ワークオフセット カラム: {cols}")
+    # ACC_ワークオフセットのカラム確認して取得
+    try:
+        mcc.execute("SELECT TOP 1 * FROM ACC_ワークオフセット")
+        cols = [d[0] for d in mcc.description]
+        log(f"ACC_ワークオフセットカラム: {cols}")
+    except Exception as e:
+        log(f"ACC_ワークオフセット取得失敗: {e}", "WARN")
+        mc.close(); return
 
-    # 実カラム: G, X, Y, Z, A, R, 加工ID, WOD_ID
-    sc.execute("SELECT G, X, Y, Z, A, R, 加工ID FROM [imotomc].[dbo].[ACC_ワークオフセット] ORDER BY 加工ID")
+    mcc.execute("SELECT * FROM ACC_ワークオフセット ORDER BY 加工ID, WOD_ID")
+    rows = mcc.fetchall()
+    log(f"ACC_ワークオフセット取得: {len(rows)}件")
 
-    INSERT_SQL = """
-        INSERT INTO mc_work_offsets (
-            mc_program_id, g_code, x_offset, y_offset, z_offset, a_offset, r_offset,
-            created_at, updated_at
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
-        ON CONFLICT (mc_program_id, g_code) DO NOTHING
-    """
+    ok = skip = err = 0
+    for row in rows:
+        try:
+            row_dict = dict(zip(cols, row))
+            kakoid   = row_dict.get("加工ID")
+            mc_ids   = kakoid_map.get(kakoid, [])
+            if not mc_ids: skip += 1; continue
+            if not dry_run:
+                for mc_id in mc_ids:
+                    pgc.execute("""
+                        INSERT INTO mc_work_offsets
+                          (mc_program_id, g_code, x_offset, y_offset, z_offset, a_offset, r_offset, note)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                    """, (mc_id,
+                          str(row_dict.get("G") or ""),
+                          row_dict.get("X"), row_dict.get("Y"),
+                          row_dict.get("Z"), row_dict.get("A"),
+                          row_dict.get("R"), None))
+            ok += 1
+        except Exception as e:
+            err += 1
+            if not dry_run: pg.rollback()
+            if err <= 5: log(f"  ERR: {e}", "WARN")
 
-    inserted = skipped = errors = 0
+    if not dry_run: pg.commit()
+    pgc.execute("SELECT COUNT(*) FROM mc_work_offsets")
+    log(f"PHASE4完了: ok={ok} skip={skip} err={err} DB総数={pgc.fetchone()[0]}")
+    mc.close()
 
-    while True:
-        rows = sc.fetchmany(500)
-        if not rows: break
-        for row in rows:
-            g, x, y, z, a, r, kako_id = row
-            mc_prog_id = kakoid_map.get(kako_id)
-            if mc_prog_id is None:
-                skipped += 1
-                continue
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PHASE 5: mc_index_programs 移行
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def phase5(pg, dry_run=False):
+    section("PHASE 5: mc_index_programs移行")
+    mc  = ss_connect(SS_MC_DB)
+    mcc = mc.cursor()
+    pgc = pg.cursor()
 
-            if dry_run:
-                inserted += 1
-                continue
+    pgc.execute("SELECT id, legacy_kakoid FROM mc_programs")
+    kakoid_map: dict[int, list[int]] = {}
+    for mc_id, kk in pgc.fetchall():
+        kakoid_map.setdefault(kk, []).append(mc_id)
 
-            pc.execute("SAVEPOINT sp")
-            try:
-                pc.execute(INSERT_SQL, (
-                    mc_prog_id,
-                    str(g)[:10] if g else 'G54',
-                    x, y, z, a, r,
-                ))
-                pc.execute("RELEASE SAVEPOINT sp")
-                inserted += 1
-            except Exception as e:
-                pc.execute("ROLLBACK TO SAVEPOINT sp")
-                errors += 1
-                if errors <= 5:
-                    log.error(f"  ERROR 加工ID={kako_id}: {e}")
+    try:
+        mcc.execute("SELECT TOP 1 * FROM ACC_インデックスプログラム")
+        cols = [d[0] for d in mcc.description]
+        log(f"ACC_インデックスプログラムカラム: {cols}")
+    except Exception as e:
+        log(f"ACC_インデックスプログラム取得失敗: {e}", "WARN")
+        mc.close(); return
 
-        if not dry_run:
-            pc.connection.commit()
+    mcc.execute("SELECT * FROM ACC_インデックスプログラム ORDER BY 加工ID, IP_ID")
+    rows = mcc.fetchall()
+    log(f"ACC_インデックスプログラム取得: {len(rows)}件")
 
-    log.info(f"PHASE 4 完了: 挿入={inserted}, スキップ={skipped}, エラー={errors}")
-    return inserted
+    ok = skip = err = 0
+    for row in rows:
+        try:
+            row_dict = dict(zip(cols, row))
+            kakoid   = row_dict.get("加工ID")
+            mc_ids   = kakoid_map.get(kakoid, [])
+            if not mc_ids: skip += 1; continue
+            if not dry_run:
+                for mc_id in mc_ids:
+                    # STEP_Nは文字列（///はコメント）→ axis_0に格納、sort_orderはIP_ID昇順
+                    pgc.execute("""
+                        INSERT INTO mc_index_programs
+                          (mc_program_id, sort_order, axis_0, axis_1, axis_2, note)
+                        VALUES (%s,%s,%s,%s,%s,%s)
+                    """, (mc_id,
+                          int(row_dict.get("IP_ID") or 0),
+                          str(row_dict.get("STEP_N") or ""),
+                          row_dict.get("第1軸"),
+                          row_dict.get("第2軸"),
+                          None))
+            ok += 1
+        except Exception as e:
+            err += 1
+            if not dry_run: pg.rollback()
+            if err <= 5: log(f"  ERR: {e}", "WARN")
 
+    if not dry_run: pg.commit()
+    pgc.execute("SELECT COUNT(*) FROM mc_index_programs")
+    log(f"PHASE5完了: ok={ok} skip={skip} err={err} DB総数={pgc.fetchone()[0]}")
+    mc.close()
 
-# =============================================================================
-# PHASE 5: mc_index_programs インポート (ACC_インデックスプログラム)
-# =============================================================================
-def import_mc_index_programs(sc, pc, dry_run=False, truncate=False):
-    log.info("=== PHASE 5: mc_index_programs インポート ===")
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PHASE 6: mc_change_history 移行
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def phase6(pg, dry_run=False):
+    section("PHASE 6: mc_change_history移行")
+    mc  = ss_connect(SS_MC_DB)
+    mcc = mc.cursor()
+    pgc = pg.cursor()
 
-    sc.execute("""
-        SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_NAME = 'ACC_インデックスプログラム'
-    """)
-    if sc.fetchone()[0] == 0:
-        log.warning("  ACC_インデックスプログラム テーブルなし、スキップ")
-        return 0
+    pgc.execute("SELECT id, legacy_mcid FROM mc_programs")
+    mcid_map: dict[int, int] = {r[1]: r[0] for r in pgc.fetchall()}
 
-    if truncate and not dry_run:
-        pc.execute("TRUNCATE TABLE mc_index_programs")
+    pgc.execute("SELECT id, name FROM users")
+    users_map = {r[1]: r[0] for r in pgc.fetchall()}
 
-    # ── マップ: legacy_kakoid → mc_programs.id ───────────────────────────
-    pc.execute("SELECT id, legacy_kakoid FROM mc_programs WHERE legacy_kakoid IS NOT NULL")
-    kakoid_map = {}
-    for r in pc.fetchall():
-        kakoid_map.setdefault(r[1], r[0])
+    try:
+        mcc.execute("SELECT TOP 1 * FROM ACC_変更履歴")
+        cols = [d[0] for d in mcc.description]
+        log(f"ACC_変更履歴カラム: {cols}")
+    except Exception as e:
+        log(f"ACC_変更履歴取得失敗: {e}", "WARN")
+        mc.close(); return
 
-    sc.execute("""
-        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'ACC_インデックスプログラム'
-        ORDER BY ORDINAL_POSITION
-    """)
-    cols = [r[0] for r in sc.fetchall()]
-    log.info(f"  ACC_インデックスプログラム カラム: {cols}")
+    mcc.execute("SELECT * FROM ACC_変更履歴 ORDER BY MCID, 作成日")
+    rows = mcc.fetchall()
+    log(f"ACC_変更履歴取得: {len(rows)}件")
 
-    # 実カラム: STEP_N, 第1軸, 第2軸, 加工ID, IP_ID (第3軸なし)
-    sc.execute("""
-        SELECT STEP_N, 第1軸, 第2軸, 加工ID
-        FROM [imotomc].[dbo].[ACC_インデックスプログラム]
-        ORDER BY 加工ID, STEP_N
-    """)
-
-    INSERT_SQL = """
-        INSERT INTO mc_index_programs (mc_program_id, sort_order, axis_0, axis_1, created_at, updated_at)
-        VALUES (%s, %s, %s, %s, NOW(), NOW())
-        ON CONFLICT DO NOTHING
-    """
-
-    inserted = skipped = errors = 0
-
-    while True:
-        rows = sc.fetchmany(500)
-        if not rows: break
-        for row in rows:
-            step_n, axis1, axis2, kako_id = row
-            mc_prog_id = kakoid_map.get(kako_id)
-            if mc_prog_id is None:
-                skipped += 1
-                continue
-
-            try:
-                sort = int(float(step_n)) if step_n is not None else 0
-            except:
-                sort = 0
-
-            if dry_run:
-                inserted += 1
-                continue
-
-            pc.execute("SAVEPOINT sp")
-            try:
-                pc.execute(INSERT_SQL, (
-                    mc_prog_id, sort,
-                    safe_str(axis1, 100),
-                    safe_str(axis2, 100),
-                ))
-                pc.execute("RELEASE SAVEPOINT sp")
-                inserted += 1
-            except Exception as e:
-                pc.execute("ROLLBACK TO SAVEPOINT sp")
-                errors += 1
-                if errors <= 5:
-                    log.error(f"  ERROR 加工ID={kako_id}: {e}")
-
-        if not dry_run:
-            pc.connection.commit()
-
-    log.info(f"PHASE 5 完了: 挿入={inserted}, スキップ={skipped}, エラー={errors}")
-    return inserted
-
-
-# =============================================================================
-# PHASE 6: MC変更履歴 インポート (ACC_変更履歴 → mc_change_history)
-# =============================================================================
-def import_mc_change_history(sc, pc, maps, dry_run=False, truncate=False):
-    log.info("=== PHASE 6: MC変更履歴 インポート ===")
-
-    sc.execute("""
-        SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_NAME = 'ACC_変更履歴'
-    """)
-    if sc.fetchone()[0] == 0:
-        log.warning("  ACC_変更履歴 テーブルなし、スキップ")
-        return 0
-
-    if truncate and not dry_run:
-        pc.execute("TRUNCATE TABLE mc_change_history")
-
-    # ── マップ: legacy_mcid → id (優先) + legacy_kakoid → id (フォールバック) ──
-    pc.execute("SELECT id, legacy_mcid FROM mc_programs WHERE legacy_mcid IS NOT NULL")
-    mcid_map = {r[1]: r[0] for r in pc.fetchall()}
-
-    pc.execute("SELECT id, legacy_kakoid FROM mc_programs WHERE legacy_kakoid IS NOT NULL")
-    kakoid_map = {}
-    for r in pc.fetchall():
-        kakoid_map.setdefault(r[1], r[0])
-
-    sc.execute("""
-        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'ACC_変更履歴'
-        ORDER BY ORDINAL_POSITION
-    """)
-    cols = [r[0] for r in sc.fetchall()]
-    log.info(f"  ACC_変更履歴 カラム: {cols}")
-
-    # 実カラム: MCID, 加工ID, 内容, 内容区分ID, 内容区分, Ver, 作成, 作成日, ...
-    # 変更IDカラムは存在しないため ORDER BY は加工ID
-    sc.execute("""
-        SELECT MCID, 加工ID, 内容, Ver, 作成日
-        FROM [imotomc].[dbo].[ACC_変更履歴]
-        ORDER BY 加工ID
-    """)
-
-    INSERT_SQL = """
-        INSERT INTO mc_change_history (
-            mc_program_id, change_type, operator_id,
-            version_after, content, changed_at
-        ) VALUES (%s, 'MIGRATION', %s, %s, %s, COALESCE(%s::timestamp, NOW()))
-        ON CONFLICT DO NOTHING
-    """
-
-    inserted = skipped = errors = 0
-
-    while True:
-        rows = sc.fetchmany(500)
-        if not rows: break
-        for row in rows:
-            mcid, kako_id, naiyou, ver, sakusei_bi = row
-            # MCIDで先に引き、なければkakoidで引く
-            mc_prog_id = mcid_map.get(mcid) or kakoid_map.get(kako_id)
-            if mc_prog_id is None:
-                skipped += 1
-                continue
-
-            reg_at = f"{sakusei_bi} 00:00:00" if sakusei_bi and len(str(sakusei_bi)) == 10 else None
-
-            if dry_run:
-                inserted += 1
-                continue
-
-            pc.execute("SAVEPOINT sp")
-            try:
-                pc.execute(INSERT_SQL, (
-                    mc_prog_id, maps['admin_id'],
-                    safe_str(ver, 10),
-                    safe_str(naiyou, 2000),
-                    reg_at,
-                ))
-                pc.execute("RELEASE SAVEPOINT sp")
-                inserted += 1
-            except Exception as e:
-                pc.execute("ROLLBACK TO SAVEPOINT sp")
-                errors += 1
-                if errors <= 5:
-                    log.error(f"  ERROR MCID={mcid}: {e}")
-
-        if not dry_run:
-            pc.connection.commit()
-
-    log.info(f"PHASE 6 完了: 挿入={inserted}, スキップ={skipped}, エラー={errors}")
-    return inserted
-
-
-# =============================================================================
-# PHASE 7: スキーマ追加カラム整合確認
-# =============================================================================
-def verify_schema(pc):
-    log.info("=== PHASE 0: スキーマ整合確認 ===")
-    required = {
-        'mc_programs': ['mc_process_no', 'folder1', 'folder2', 'file_name',
-                        'rc', 'has_index_program', 'has_work_offset',
-                        'legacy_mcid', 'legacy_kakoid'],
-        'mc_tooling':  ['t_no', 'd_value_content', 'sub_pg_no', 'tool_type'],
+    change_type_map = {
+        "新規": "NEW_REGISTRATION", "新規登録": "NEW_REGISTRATION",
+        "変更": "CHANGE", "編集": "CHANGE",
+        "承認": "APPROVAL",
+        "削除": "CHANGE", "復元": "CHANGE",
     }
-    all_ok = True
-    for table, cols in required.items():
-        pc.execute("""
-            SELECT column_name FROM information_schema.columns
-            WHERE table_name = %s AND table_schema = 'public'
-        """, (table,))
-        existing = {r[0] for r in pc.fetchall()}
-        for col in cols:
-            if col not in existing:
-                log.error(f"  ❌ {table}.{col} が存在しません")
-                all_ok = False
-            else:
-                log.info(f"  ✅ {table}.{col}")
 
-    # tool_no の nullable 確認
-    pc.execute("""
-        SELECT is_nullable FROM information_schema.columns
-        WHERE table_name = 'mc_tooling' AND column_name = 'tool_no'
+    ok = skip = err = 0
+    for row in rows:
+        try:
+            row_dict  = dict(zip(cols, row))
+            mcid      = row_dict.get("MCID")
+            mc_db_id  = mcid_map.get(mcid)
+            if not mc_db_id: skip += 1; continue
+
+            operator  = str(row_dict.get("作成") or row_dict.get("ｵﾍﾟﾚｰﾀｰ") or "").strip()
+            op_id     = users_map.get(operator, ADMIN_ID)
+            ct        = change_type_map.get(str(row_dict.get("内容区分") or "").strip(), "CHANGE")
+            changed_at = row_dict.get("作成日") or row_dict.get("入力日")
+            content    = row_dict.get("内容")
+            ver_before = row_dict.get("Ver")
+            ver_after  = row_dict.get("Ver")
+            hist_id    = row_dict.get("加工ID")
+
+            if not dry_run:
+                pgc.execute("""
+                    INSERT INTO mc_change_history
+                      (mc_program_id, change_type, operator_id,
+                       version_before, version_after, content,
+                       changed_at, legacy_hist_id)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (mc_db_id, ct, op_id, ver_before, ver_after,
+                      content, changed_at, hist_id))
+            ok += 1
+            if ok % 10000 == 0:
+                if not dry_run: pg.commit()
+                log(f"  {ok}件挿入中...")
+        except Exception as e:
+            err += 1
+            if not dry_run: pg.rollback()
+            if err <= 5: log(f"  ERR: {e}", "WARN")
+
+    if not dry_run: pg.commit()
+    pgc.execute("SELECT COUNT(*) FROM mc_change_history")
+    log(f"PHASE6完了: ok={ok} skip={skip} err={err} DB総数={pgc.fetchone()[0]}")
+    mc.close()
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PHASE 7: 図・写真・プログラム ファイル移行
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def phase7(pg, dry_run=False):
+    section("PHASE 7: 図・写真・プログラム ファイル移行")
+
+    ensure_dirs(DST_DRAW, DST_PHOTO, DST_PRG,
+                UPLOAD_DRAW, UPLOAD_PHOTO, UPLOAD_PG)
+
+    pgc = pg.cursor()
+
+    if not dry_run:
+        pgc.execute("DELETE FROM mc_files")
+        pg.commit()
+        log("mc_files既存データ削除完了")
+
+    pgc.execute("SELECT id, machining_id FROM mc_programs")
+    machining_map: dict[int, list[int]] = {}
+    for mc_id, mach_id in pgc.fetchall():
+        machining_map.setdefault(mach_id, []).append(mc_id)
+    log(f"machining_id種類: {len(machining_map)}件")
+
+    # folder_map構築（プログラム用）
+    pgc.execute("""
+        SELECT DISTINCT folder1, folder2, file_name FROM mc_programs
+        WHERE file_name IS NOT NULL AND folder1 IS NOT NULL AND file_name != ''
     """)
-    r = pc.fetchone()
-    if r and r[0] == 'YES':
-        log.info("  ✅ mc_tooling.tool_no: nullable (正常)")
-    else:
-        log.error("  ❌ mc_tooling.tool_no が NOT NULL のままです")
-        log.error("     事前に実行: ALTER TABLE mc_tooling ALTER COLUMN tool_no DROP NOT NULL;")
-        all_ok = False
+    combos = pgc.fetchall()
 
-    return all_ok
+    log("プログラムファイルインデックス構築中...")
+    file_index: dict[str, list[Path]] = {}
+    if SRC_PRG.exists():
+        for top in SRC_PRG.iterdir():
+            if not top.is_dir(): continue
+            for sub in top.iterdir():
+                if sub.is_dir():
+                    for f in sub.iterdir():
+                        if f.is_file():
+                            file_index.setdefault(f.name, []).append(f)
+                elif sub.is_file():
+                    file_index.setdefault(sub.name, []).append(sub)
+    log(f"インデックス: {len(file_index)}種類")
 
+    folder_map: dict[tuple, Path] = {}
+    for folder1, folder2, file_name in combos:
+        key = (folder1, folder2)
+        if key in folder_map: continue
+        paths = file_index.get(file_name, [])
+        if paths:
+            folder_map[key] = paths[0].parent
 
-# =============================================================================
-# 最終サマリー
-# =============================================================================
-def print_summary(pc):
-    log.info("=== 最終サマリー ===")
-    queries = [
+    def insert_file(mc_id, ftype, orig, stored, mime, fpath, fsize, pg_role=None, sort_order=0):
+        if dry_run: return
+        pgc.execute("""
+            INSERT INTO mc_files
+              (mc_program_id, file_type, original_name, stored_name, mime_type,
+               file_path, thumbnail_path, file_size, pg_role, sort_order,
+               is_deleted, uploaded_by, uploaded_at)
+            VALUES (%s,%s,%s,%s,%s,%s,NULL,%s,%s,%s,false,%s,NOW())
+            ON CONFLICT DO NOTHING
+        """, (mc_id, ftype, orig, stored, mime, str(fpath),
+              fsize, pg_role, sort_order, ADMIN_ID))
+
+    # ── 7A: 図 ─────────────────────────────────────
+    log("\n--- 7A: 図 (Drawings) ---")
+    ok=skip=nomatch=err=0
+    processed = set()
+    src_dirs = [d for d in [UPLOAD_DRAW, DST_DRAW, SRC_DRAW] if d.exists()]
+    for src_dir in src_dirs:
+        files = sorted(f for f in src_dir.iterdir() if f.is_file())
+        log(f"  ソース: {src_dir} ({len(files)}件)")
+        for i, f in enumerate(files):
+            m = re.match(r'^(\d+)-(\d+)\.(tif|TIF|jpg|JPG|png|PNG)$', f.name)
+            if not m: skip+=1; continue
+            mach_id=int(m.group(1)); seq=int(m.group(2)); ext=f.suffix.lower()
+            stored = f"{mach_id}-{seq}{ext}"
+            if stored in processed: skip+=1; continue
+            if mach_id not in machining_map: nomatch+=1; continue
+            dst = UPLOAD_DRAW / stored
+            try:
+                if not dst.exists(): shutil.copy2(f, dst)
+                files_dst = DST_DRAW / stored
+                if not files_dst.exists() and src_dir != DST_DRAW:
+                    shutil.copy2(f, files_dst)
+                fsize = dst.stat().st_size
+                mime  = "image/tiff" if ext == ".tif" else "image/jpeg"
+                for mc_id in machining_map[mach_id]:
+                    insert_file(mc_id, "DRAWING", f.name, stored, mime, dst, fsize, sort_order=seq)
+                ok+=1; processed.add(stored)
+            except Exception as e:
+                err+=1
+                if err<=10: log(f"  ERR {f.name}: {e}", "WARN")
+            if (i+1)%1000==0:
+                if not dry_run: pg.commit()
+                log(f"    {i+1}/{len(files)} ok={ok} skip={skip} nomatch={nomatch} err={err}")
+    if not dry_run: pg.commit()
+    log(f"7A完了: ok={ok} skip={skip} nomatch={nomatch} err={err}")
+
+    # ── 7B: 写真 ────────────────────────────────────
+    log("\n--- 7B: 写真 (Pictures) ---")
+    ok=skip=nomatch=err=0
+    processed = set()
+    src_dirs = [d for d in [UPLOAD_PHOTO, DST_PHOTO, SRC_PHOTO] if d.exists()]
+    for src_dir in src_dirs:
+        files = sorted(f for f in src_dir.iterdir() if f.is_file())
+        log(f"  ソース: {src_dir} ({len(files)}件)")
+        for i, f in enumerate(files):
+            m = re.match(r'^(\d+)-(\d+)\.(jpg|jpeg|JPG|png|PNG)$', f.name)
+            if not m: skip+=1; continue
+            mach_id=int(m.group(1)); seq=int(m.group(2)); ext=f.suffix.lower()
+            stored = f"{mach_id}-{seq}{ext}"
+            if stored in processed: skip+=1; continue
+            if mach_id not in machining_map: nomatch+=1; continue
+            dst = UPLOAD_PHOTO / stored
+            try:
+                if not dst.exists(): shutil.copy2(f, dst)
+                files_dst = DST_PHOTO / stored
+                if not files_dst.exists() and src_dir != DST_PHOTO:
+                    shutil.copy2(f, files_dst)
+                fsize = dst.stat().st_size
+                for mc_id in machining_map[mach_id]:
+                    insert_file(mc_id, "PHOTO", f.name, stored, "image/jpeg", dst, fsize, sort_order=seq)
+                ok+=1; processed.add(stored)
+            except Exception as e:
+                err+=1
+                if err<=10: log(f"  ERR {f.name}: {e}", "WARN")
+            if (i+1)%1000==0:
+                if not dry_run: pg.commit()
+                log(f"    {i+1}/{len(files)} ok={ok} skip={skip} nomatch={nomatch} err={err}")
+    if not dry_run: pg.commit()
+    log(f"7B完了: ok={ok} skip={skip} nomatch={nomatch} err={err}")
+
+    # ── 7C: プログラム ──────────────────────────────
+    log("\n--- 7C: プログラム (Programs) ---")
+    ok=skip=nomatch=notfound=err=0
+    pgc.execute("""
+        SELECT id, machining_id, folder1, folder2, file_name
+        FROM mc_programs
+        WHERE file_name IS NOT NULL AND file_name != '' AND folder1 IS NOT NULL
+    """)
+    programs = pgc.fetchall()
+    log(f"  対象: {len(programs)}件")
+    for mc_id, mach_id, folder1, folder2, file_name in programs:
+        key     = (folder1, folder2)
+        src_dir = folder_map.get(key)
+        if not src_dir: nomatch+=1; continue
+        src_file = src_dir / file_name
+        if not src_file.exists() or not src_file.is_file(): notfound+=1; continue
+        dst_dir = UPLOAD_PG / str(mach_id)
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        dst_file = dst_dir / file_name
+        files_dir = DST_PRG / str(mach_id)
+        files_dir.mkdir(parents=True, exist_ok=True)
+        files_dst = files_dir / file_name
+        try:
+            if not dst_file.exists(): shutil.copy2(src_file, dst_file)
+            if not files_dst.exists(): shutil.copy2(src_file, files_dst)
+            fsize   = dst_file.stat().st_size
+            pg_role = "SUB" if str(file_name).lower().endswith(".spf") else "MAIN"
+            insert_file(mc_id, "PROGRAM", file_name, file_name, "text/plain",
+                        dst_file, fsize, pg_role=pg_role, sort_order=0)
+            ok+=1
+        except Exception as e:
+            err+=1
+            if err<=10: log(f"  ERR {mach_id}/{file_name}: {e}", "WARN")
+        if ok%500==0 and ok>0:
+            if not dry_run: pg.commit()
+            log(f"  {ok}件完了... nomatch={nomatch} notfound={notfound} err={err}")
+    if not dry_run: pg.commit()
+    log(f"7C完了: ok={ok} skip={skip} nomatch={nomatch} notfound={notfound} err={err}")
+
+    pgc.execute("SELECT file_type, COUNT(*) FROM mc_files GROUP BY file_type ORDER BY file_type")
+    log("\n--- mc_files 集計 ---")
+    for row in pgc.fetchall(): log(f"  {row[0]}: {row[1]}件")
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PHASE 8: カウント更新
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def phase8(pg, dry_run=False):
+    section("PHASE 8: RC/has_index_program/has_work_offset更新")
+    pgc = pg.cursor()
+    if not dry_run:
+        pgc.execute("""
+            UPDATE mc_programs p SET
+              rc = (SELECT COUNT(*) FROM mc_tooling t WHERE t.mc_program_id=p.id),
+              has_index_program = (EXISTS(SELECT 1 FROM mc_index_programs i WHERE i.mc_program_id=p.id)),
+              has_work_offset   = (EXISTS(SELECT 1 FROM mc_work_offsets w WHERE w.mc_program_id=p.id))
+        """)
+        pg.commit()
+    pgc.execute("SELECT SUM(rc) FROM mc_programs")
+    log(f"PHASE8完了: RC総計={pgc.fetchone()[0]}")
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 最終レポート
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def final_report(pg):
+    section("最終レポート")
+    pgc = pg.cursor()
+    items = [
         ("mc_programs",       "SELECT COUNT(*) FROM mc_programs"),
         ("mc_tooling",        "SELECT COUNT(*) FROM mc_tooling"),
         ("mc_work_offsets",   "SELECT COUNT(*) FROM mc_work_offsets"),
         ("mc_index_programs", "SELECT COUNT(*) FROM mc_index_programs"),
         ("mc_change_history", "SELECT COUNT(*) FROM mc_change_history"),
+        ("mc_files(DRAWING)", "SELECT COUNT(*) FROM mc_files WHERE file_type='DRAWING'"),
+        ("mc_files(PHOTO)",   "SELECT COUNT(*) FROM mc_files WHERE file_type='PHOTO'"),
+        ("mc_files(PROGRAM)", "SELECT COUNT(*) FROM mc_files WHERE file_type='PROGRAM'"),
+        ("parts",             "SELECT COUNT(*) FROM parts"),
     ]
-    for name, q in queries:
-        try:
-            pc.execute(q)
-            cnt = pc.fetchone()[0]
-            log.info(f"  {name:<25}: {cnt:>7,}件")
-        except Exception as e:
-            log.warning(f"  {name}: {e}")
+    for label, sql in items:
+        pgc.execute(sql)
+        log(f"  {label:25s}: {pgc.fetchone()[0]:>8,}件")
+    log(f"\nログ: {LOG_FILE}")
 
-    # has_work_offset / has_index_program フラグ更新
-    pc.execute("""
-        UPDATE mc_programs SET has_work_offset = true
-        WHERE id IN (SELECT DISTINCT mc_program_id FROM mc_work_offsets)
-    """)
-    pc.execute("""
-        UPDATE mc_programs SET has_index_program = true
-        WHERE id IN (SELECT DISTINCT mc_program_id FROM mc_index_programs)
-    """)
-    pc.connection.commit()
-    log.info("  has_work_offset / has_index_program フラグ更新完了")
-
-    # 機械別内訳
-    pc.execute("""
-        SELECT m.machine_code, COUNT(*) as cnt
-        FROM mc_programs mp
-        LEFT JOIN machines m ON mp.machine_id = m.id
-        GROUP BY m.machine_code
-        ORDER BY cnt DESC
-        LIMIT 10
-    """)
-    log.info("  --- 機械別件数（上位10）---")
-    for r in pc.fetchall():
-        log.info(f"    {(r[0] or 'NULL'):<15}: {r[1]:>5,}件")
-
-
-# =============================================================================
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # メイン
-# =============================================================================
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def main():
-    parser = argparse.ArgumentParser(description='MachCore MC全データ移行スクリプト')
-    parser.add_argument('--dry-run',   action='store_true', help='書き込みなし検証モード')
-    parser.add_argument('--skip-nc',   action='store_true', help='NC旋盤データスキップ')
-    parser.add_argument('--skip-mc',   action='store_true', help='MCマシニングデータスキップ')
-    parser.add_argument('--truncate',  action='store_true', help='既存データ削除後に再インポート')
-    parser.add_argument('--phase',     type=int, default=0, help='指定フェーズのみ実行 (1-6)')
+    parser = argparse.ArgumentParser(description="MachCore MC完全移行スクリプト")
+    parser.add_argument("--phase", type=int, default=0,
+                        help="実行フェーズ (0=全, 1-8=個別)")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="DBへの書き込みなし")
     args = parser.parse_args()
 
-    log.info("=" * 60)
-    log.info("  MachCore 本番移行スクリプト")
-    log.info(f"  実行日時: {datetime.now():%Y-%m-%d %H:%M:%S}")
-    log.info(f"  dry-run={args.dry_run}, truncate={args.truncate}")
-    log.info("=" * 60)
+    dry = args.dry_run
+    if dry: log("*** DRY RUN ***", "WARN")
 
-    if args.truncate and not args.dry_run:
-        ans = input("⚠️  既存データをTRUNCATEします。続行しますか？ (yes/no): ")
-        if ans.strip().lower() != 'yes':
-            log.info("中止しました")
-            sys.exit(0)
+    start = datetime.now()
+    log(f"開始: {start.strftime('%Y-%m-%d %H:%M:%S')} phase={args.phase} dry_run={dry}")
 
-    sql = pymssql.connect(**SS_CONFIG)
-    pg  = psycopg2.connect(PG_DSN)
-    sc  = sql.cursor()
-    pc  = pg.cursor()
-
+    pg = pg_connect()
     try:
-        # スキーマ確認
-        if not verify_schema(pc):
-            log.error("スキーマ不整合があります。mc_migration.sqlを先に実行してください")
-            sys.exit(1)
-
-        # マップ構築
-        maps = build_maps(sc, pc)
-
-        if not args.skip_mc:
-            if args.phase in (0, 1):
-                import_mc_programs(sc, pc, maps, args.dry_run, args.truncate)
-            if args.phase in (0, 2):
-                import_mc_tooling(sc, pc, args.dry_run, args.truncate)
-            if args.phase in (0, 3):
-                sync_rc(pc, args.dry_run)
-            if args.phase in (0, 4):
-                import_mc_work_offsets(sc, pc, args.dry_run, args.truncate)
-            if args.phase in (0, 5):
-                import_mc_index_programs(sc, pc, args.dry_run, args.truncate)
-            if args.phase in (0, 6):
-                import_mc_change_history(sc, pc, maps, args.dry_run, args.truncate)
-
-        if not args.dry_run:
-            pg.commit()
-
-        print_summary(pc)
-        log.info("=" * 60)
-        log.info("  🎉 移行完了！")
-        log.info("=" * 60)
-
-    except Exception as e:
-        log.exception(f"移行中に予期しないエラー: {e}")
-        pg.rollback()
-        sys.exit(1)
+        phases = {1:phase1, 2:phase2, 3:phase3, 4:phase4,
+                  5:phase5, 6:phase6, 7:phase7, 8:phase8}
+        run = list(range(1,9)) if args.phase == 0 else [args.phase]
+        for p in run:
+            try:
+                phases[p](pg, dry_run=dry)
+            except Exception as e:
+                log(f"PHASE {p} エラー: {e}", "ERROR")
+                log(traceback.format_exc(), "ERROR")
+                raise
+        final_report(pg)
     finally:
-        sc.close()
-        pc.close()
-        sql.close()
         pg.close()
+        elapsed = (datetime.now() - start).total_seconds()
+        log(f"\n総実行時間: {elapsed:.1f}秒 ({elapsed/60:.1f}分)")
+        _log_fh.close()
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

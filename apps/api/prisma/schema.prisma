@@ -471,7 +471,7 @@ model McWorkOffset {
 
   mcProgram McProgram @relation(fields: [mcProgramId], references: [id], onDelete: Cascade)
 
-  @@unique([mcProgramId, gCode])
+  // @@unique([mcProgramId, gCode])  // 旧DB同一加工IDに同一Gコード複数存在のため削除
   @@map("mc_work_offsets")
 }
 
