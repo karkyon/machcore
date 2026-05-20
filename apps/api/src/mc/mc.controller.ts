@@ -204,6 +204,27 @@ export class McController {
     return this.mcFiles.listFiles(id);
   }
 
+  // ── オリジナルファイル配信 ──
+  @Get(':mc_id/files/:file_id/serve')
+  async serveFile(
+    @Param('mc_id', ParseIntPipe) _mcId: number,
+    @Param('file_id', ParseIntPipe) fileId: number,
+    @Res() reply: FastifyReply,
+  ) {
+    const { filePath, mimeType, fileName } = await this.mcFiles.serveFile(fileId);
+    // TIFFはブラウザ非対応 → sharp でPNG変換
+    if (mimeType === 'image/tiff' || mimeType === 'image/tif') {
+      const sharp = (await import('sharp')).default;
+      const pngBuf = await sharp(filePath).png().toBuffer();
+      reply.header('Content-Type', 'image/png');
+      reply.header('Cache-Control', 'public, max-age=3600');
+      return reply.send(pngBuf);
+    }
+    reply.header('Content-Type', mimeType);
+    reply.header('Cache-Control', 'public, max-age=3600');
+    return reply.send(require('fs').createReadStream(filePath));
+  }
+
   // ── サムネイル配信（キャッシュ付きオンデマンド）──
   @Get(':mc_id/files/:file_id/thumb')
   async serveThumb(

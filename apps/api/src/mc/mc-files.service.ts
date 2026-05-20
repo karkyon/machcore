@@ -40,6 +40,14 @@ export class McFilesService {
     if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
   }
 
+  // ── MC オリジナルファイル配信 ──
+  async serveFile(fileId: number): Promise<{ filePath: string; mimeType: string; fileName: string }> {
+    const file = await this.prisma.mcFile.findUnique({ where: { id: fileId } });
+    if (!file) throw new Error(`mc_file ${fileId} が存在しません`);
+    if (!fs.existsSync(file.filePath)) throw new Error('ファイルが見つかりません');
+    return { filePath: file.filePath, mimeType: file.mimeType, fileName: file.originalName };
+  }
+
   // ── MC ファイルサムネイル配信（キャッシュ付きオンデマンド生成）──
   async serveThumb(fileId: number): Promise<{ filePath: string; mimeType: string }> {
     const file = await this.prisma.mcFile.findUnique({ where: { id: fileId } });
