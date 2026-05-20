@@ -783,15 +783,22 @@ export default function McDetailPage() {
       )}
 
       {/* 写真・図プレビューモーダル */}
-      {previewFile && (
+      {previewFile && (() => {
+        const imgFiles = d.files.filter((f: any) => f.file_type === "PHOTO" || f.file_type === "DRAWING");
+        const curIdx = imgFiles.findIndex((f: any) => f.id === previewFile.id);
+        const goPrev = () => { if (curIdx > 0) { setPreviewFile(imgFiles[curIdx - 1]); setPreviewZoom("fit"); } };
+        const goNext = () => { if (curIdx < imgFiles.length - 1) { setPreviewFile(imgFiles[curIdx + 1]); setPreviewZoom("fit"); } };
+        return (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-0"
           onClick={() => { setPreviewFile(null); setPreviewZoom("fit"); }}>
           <div className="bg-white flex flex-col w-screen h-screen"
             onClick={e => e.stopPropagation()}>
             {/* ヘッダー */}
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-slate-50 shrink-0 gap-2">
-              <p className="text-sm font-bold text-slate-700 truncate max-w-[40%]">{previewFile.original_name}</p>
-              {/* コントロール */}
+              <p className="text-sm font-bold text-slate-700 truncate max-w-[40%]">
+                {previewFile.original_name}
+                <span className="ml-2 text-xs text-slate-400 font-normal">{curIdx + 1} / {imgFiles.length}</span>
+              </p>
               <div className="flex items-center gap-1.5 shrink-0">
                 <button onClick={() => setPreviewZoom("fit")}
                   className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${previewZoom === "fit" ? "bg-teal-600 text-white border-teal-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
@@ -799,18 +806,22 @@ export default function McDetailPage() {
                 </button>
                 <button onClick={() => setPreviewZoom("real")}
                   className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${previewZoom === "real" ? "bg-teal-600 text-white border-teal-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
-                  実寸
+                  実寸(100%)
                 </button>
-                <button onClick={() => setPreviewZoom(z => typeof z === "number" ? Math.max(10, z - 20) : 80)}
-                  className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">－</button>
-                <span className="text-xs text-slate-500 w-10 text-center">
+                <button onClick={() => setPreviewZoom(z => {
+                  const cur = typeof z === "number" ? z : z === "real" ? 100 : 100;
+                  return Math.max(10, cur - 20);
+                })} className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">－</button>
+                <span className="text-xs text-slate-500 w-12 text-center font-mono">
                   {previewZoom === "fit" ? "FIT" : previewZoom === "real" ? "100%" : `${previewZoom}%`}
                 </span>
-                <button onClick={() => setPreviewZoom(z => typeof z === "number" ? Math.min(400, z + 20) : 120)}
-                  className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">＋</button>
+                <button onClick={() => setPreviewZoom(z => {
+                  const cur = typeof z === "number" ? z : z === "real" ? 100 : 100;
+                  return Math.min(400, cur + 20);
+                })} className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">＋</button>
                 <div className="w-px h-5 bg-slate-200 mx-1" />
                 <button onClick={() => {
-                  const w = window.open(""); 
+                  const w = window.open("");
                   if (w) { w.document.write(`<img src="/api/mc/${mcId}/files/${previewFile.id}/serve" onload="window.print();window.close()">`); }
                 }} className="px-2.5 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">🖨 印刷</button>
                 {isAuthenticated && (
@@ -823,24 +834,42 @@ export default function McDetailPage() {
                   className="ml-1 text-slate-400 hover:text-slate-700 text-lg px-1.5">✕</button>
               </div>
             </div>
-            {/* 画像エリア */}
-            <div className="flex-1 overflow-auto bg-slate-900 flex items-center justify-center p-4"
-              style={{ minHeight: "400px" }}>
-              <img
-                src={`/api/mc/${mcId}/files/${previewFile.id}/serve`}
-                alt={previewFile.original_name}
-                style={
-                  previewZoom === "fit"
-                    ? { maxWidth: "100%", maxHeight: "calc(100vh - 56px)", objectFit: "contain" }
-                    : previewZoom === "real"
-                    ? { width: "auto", height: "auto", maxWidth: "none" }
-                    : { width: `${previewZoom}%`, height: "auto", maxWidth: "none" }
-                }
-              />
+            {/* 画像エリア＋左右ナビ */}
+            <div className="flex-1 relative overflow-hidden bg-slate-900 flex items-center justify-center">
+              {/* 左矢印 */}
+              {curIdx > 0 && (
+                <button onClick={goPrev}
+                  className="absolute left-3 z-10 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white text-xl flex items-center justify-center transition-colors">
+                  ‹
+                </button>
+              )}
+              {/* 画像スクロールエリア */}
+              <div className="w-full h-full overflow-auto flex items-center justify-center">
+                <img
+                  key={previewFile.id}
+                  src={`/api/mc/${mcId}/files/${previewFile.id}/serve`}
+                  alt={previewFile.original_name}
+                  style={
+                    previewZoom === "fit"
+                      ? { maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }
+                      : previewZoom === "real"
+                      ? { width: "auto", height: "auto", maxWidth: "none", maxHeight: "none", display: "block" }
+                      : { width: `${previewZoom}vw`, height: "auto", maxWidth: "none", maxHeight: "none", display: "block" }
+                  }
+                />
+              </div>
+              {/* 右矢印 */}
+              {curIdx < imgFiles.length - 1 && (
+                <button onClick={goNext}
+                  className="absolute right-3 z-10 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white text-xl flex items-center justify-center transition-colors">
+                  ›
+                </button>
+              )}
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Toast */}
       {toast && (
