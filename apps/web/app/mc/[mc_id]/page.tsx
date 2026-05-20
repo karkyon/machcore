@@ -854,7 +854,7 @@ export default function McDetailPage() {
                       ? { maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }
                       : previewZoom === "real"
                       ? { width: "auto", height: "auto", maxWidth: "none", maxHeight: "none", display: "block" }
-                      : { width: `${previewZoom}vw`, height: "auto", maxWidth: "none", maxHeight: "none", display: "block" }
+                      : { transform: `scale(${previewZoom / 100})`, transformOrigin: "top left", display: "block" }
                   }
                 />
               </div>
