@@ -43,6 +43,8 @@ export default function McDetailPage() {
   const [works,   setWorks]   = useState<McWorkRecord[]   | null>(null);
   const [prints,  setPrints]  = useState<McSetupSheetLog[]| null>(null);
   const [histLoading, setHistLoading] = useState(false);
+  const [previewFile, setPreviewFile] = useState<typeof d.files[0] | null>(null);
+  const [previewZoom, setPreviewZoom] = useState<"fit" | "real" | number>("fit");
 
   // 認証
   const { operator, isAuthenticated, logout, token } = useAuth();
@@ -705,20 +707,17 @@ export default function McDetailPage() {
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-4">
-                {d.files.map(f => (
-                  <div key={f.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                {d.files.filter(f => f.file_type === "PHOTO" || f.file_type === "DRAWING").map(f => (
+                  <div key={f.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setPreviewFile(f)}>
                     <div className="aspect-square bg-slate-100 flex items-center justify-center overflow-hidden">
-                      {(f.file_type === "PHOTO" || f.file_type === "DRAWING") ? (
-                        <img
-                          src={`/api/mc/${mcId}/files/${f.id}/thumb`}
-                          alt={f.original_name}
-                          className="w-full h-full object-contain"
-                          loading="lazy"
-                          onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-                        />
-                      ) : (
-                        <span className="text-3xl">{f.file_type === "PROGRAM" ? "📄" : "📎"}</span>
-                      )}
+                      <img
+                        src={`/api/mc/${mcId}/files/${f.id}/thumb`}
+                        alt={f.original_name}
+                        className="w-full h-full object-contain"
+                        loading="lazy"
+                        onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
                     </div>
                     <div className="px-2 py-1.5">
                       <p className="text-[11px] text-slate-600 truncate">{f.original_name}</p>
@@ -781,6 +780,66 @@ export default function McDetailPage() {
         <AuthModal isOpen={true} ncProgramId={mcId} mcProgramId={mcId} sessionType={authType}
           onSuccess={() => setAuthOpen(false)}
           onCancel={() => setAuthOpen(false)} />
+      )}
+
+      {/* 写真・図プレビューモーダル */}
+      {previewFile && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-0"
+          onClick={() => { setPreviewFile(null); setPreviewZoom("fit"); }}>
+          <div className="bg-white flex flex-col w-screen h-screen"
+            onClick={e => e.stopPropagation()}>
+            {/* ヘッダー */}
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-slate-50 shrink-0 gap-2">
+              <p className="text-sm font-bold text-slate-700 truncate max-w-[40%]">{previewFile.original_name}</p>
+              {/* コントロール */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button onClick={() => setPreviewZoom("fit")}
+                  className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${previewZoom === "fit" ? "bg-teal-600 text-white border-teal-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
+                  画面内
+                </button>
+                <button onClick={() => setPreviewZoom("real")}
+                  className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${previewZoom === "real" ? "bg-teal-600 text-white border-teal-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
+                  実寸
+                </button>
+                <button onClick={() => setPreviewZoom(z => typeof z === "number" ? Math.max(10, z - 20) : 80)}
+                  className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">－</button>
+                <span className="text-xs text-slate-500 w-10 text-center">
+                  {previewZoom === "fit" ? "FIT" : previewZoom === "real" ? "100%" : `${previewZoom}%`}
+                </span>
+                <button onClick={() => setPreviewZoom(z => typeof z === "number" ? Math.min(400, z + 20) : 120)}
+                  className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">＋</button>
+                <div className="w-px h-5 bg-slate-200 mx-1" />
+                <button onClick={() => {
+                  const w = window.open(""); 
+                  if (w) { w.document.write(`<img src="/api/mc/${mcId}/files/${previewFile.id}/serve" onload="window.print();window.close()">`); }
+                }} className="px-2.5 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">🖨 印刷</button>
+                {isAuthenticated && (
+                  <a href={`/api/mc/${mcId}/files/${previewFile.id}/serve`} download={previewFile.original_name}
+                    className="px-2.5 py-1 text-xs font-bold rounded border bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100">
+                    ✏️ 編集用DL
+                  </a>
+                )}
+                <button onClick={() => { setPreviewFile(null); setPreviewZoom("fit"); }}
+                  className="ml-1 text-slate-400 hover:text-slate-700 text-lg px-1.5">✕</button>
+              </div>
+            </div>
+            {/* 画像エリア */}
+            <div className="flex-1 overflow-auto bg-slate-900 flex items-center justify-center p-4"
+              style={{ minHeight: "400px" }}>
+              <img
+                src={`/api/mc/${mcId}/files/${previewFile.id}/serve`}
+                alt={previewFile.original_name}
+                style={
+                  previewZoom === "fit"
+                    ? { maxWidth: "100%", maxHeight: "calc(100vh - 56px)", objectFit: "contain" }
+                    : previewZoom === "real"
+                    ? { width: "auto", height: "auto", maxWidth: "none" }
+                    : { width: `${previewZoom}%`, height: "auto", maxWidth: "none" }
+                }
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast */}
