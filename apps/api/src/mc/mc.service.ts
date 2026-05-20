@@ -162,7 +162,23 @@ export class McService {
       },
     });
 
-    return { ...r, processes, commonGroup };
+    return {
+      ...r,
+      files: r.files.map(f => ({
+        ...f,
+        file_type:      f.fileType,
+        original_name:  f.originalName,
+        stored_name:    f.storedName,
+        mime_type:      f.mimeType,
+        file_path:      f.filePath,
+        thumbnail_path: f.thumbnailPath,
+        file_size:      f.fileSize,
+        uploaded_by:    f.uploadedBy,
+        uploaded_at:    f.uploadedAt,
+      })),
+      processes,
+      commonGroup,
+    };
   }
 
   // ══════════════════════════════════════════
