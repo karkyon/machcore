@@ -293,14 +293,21 @@ def phase2(pg, dry_run=False):
     mcc = mc.cursor()
     pgc = pg.cursor()
 
-    # legacy_kakoid → mc_program_id マップ（同一加工IDに複数mc_programがある場合は全て）
-    pgc.execute("SELECT id, legacy_kakoid FROM mc_programs")
+    # 既存mc_toolingを全削除してから再挿入
+    if not dry_run:
+        pgc.execute("DELETE FROM mc_tooling")
+        pg.commit()
+        log("mc_tooling既存データ削除完了")
+
+    # machining_id → mc_program_id マップ（同一加工IDに複数mc_programがある場合は全て）
+    # ACC_ツーリングの「加工ID」= マシニングの「加工ID」= mc_programs.machining_id
+    pgc.execute("SELECT id, machining_id FROM mc_programs")
     kakoid_map: dict[int, list[int]] = {}
     for mc_id, kk in pgc.fetchall():
         kakoid_map.setdefault(kk, []).append(mc_id)
 
     mcc.execute("""
-        SELECT 加工ID, 順番, 工具名, T, H, D, D値, SUB, コメント, 備考, ツーリングID
+        SELECT 加工ID, 順番, N, 工具, T, H, D, D値, SUB, コメント, 工具名, ツーリングID
         FROM ACC_ツーリング
         ORDER BY 加工ID, ツーリングID
     """)
@@ -310,22 +317,32 @@ def phase2(pg, dry_run=False):
     ok = skip = err = 0
     for row in rows:
         try:
-            kakoid, order, tool_name, t_no, h_no, d_no, d_val, sub_pg, comment, note, tooling_id = row
+            kakoid, order, n_no, tool_name, t_no, h_no, d_no, d_val, sub_pg, comment, tool_name2, tooling_id = row
+            # 工具名: 「工具」列(切削条件/径)と「工具名」列(正式名)をマージ
+            tool_name_merged = str(tool_name or "").strip() or None
+            tool_name_full   = str(tool_name2 or "").strip() or None
+            n_no_str         = str(n_no or "").strip() or None
             mc_ids = kakoid_map.get(kakoid, [])
             if not mc_ids: skip += 1; continue
             if not dry_run:
                 for mc_id in mc_ids:
                     pgc.execute("""
                         INSERT INTO mc_tooling (
-                            mc_program_id, sort_order, tool_name, t_no,
+                            mc_program_id, sort_order, tool_no, tool_name, t_no,
                             length_offset_no, dia_offset_no, d_value_content,
-                            sub_pg_no, note
-                        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    """, (mc_id, int(order or 0), tool_name, str(t_no) if t_no else None,
-                          str(h_no) if h_no else None, str(d_no) if d_no else None,
-                          str(d_val) if d_val else None,
-                          str(sub_pg) if sub_pg else None,
-                          str(comment or note or "")))
+                            sub_pg_no, note, raw_program_line
+                        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """, (mc_id,
+                          int(float(order or 0)),
+                          n_no_str,
+                          tool_name_merged,
+                          str(t_no).strip() if t_no else None,
+                          str(h_no).strip() if h_no else None,
+                          str(d_no).strip() if d_no else None,
+                          str(d_val).strip() if d_val else None,
+                          str(sub_pg).strip() if sub_pg else None,
+                          str(comment).strip() if comment else None,
+                          tool_name_full))
             ok += 1
             if ok % 5000 == 0:
                 if not dry_run: pg.commit()
