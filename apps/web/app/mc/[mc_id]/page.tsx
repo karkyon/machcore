@@ -707,11 +707,17 @@ export default function McDetailPage() {
               <div className="grid grid-cols-3 gap-4">
                 {d.files.map(f => (
                   <div key={f.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="aspect-square bg-slate-100 flex items-center justify-center">
-                      {f.thumbnail_path ? (
-                        <img src={`/api/files/${f.id}/preview`} alt={f.original_name} className="w-full h-full object-contain" />
+                    <div className="aspect-square bg-slate-100 flex items-center justify-center overflow-hidden">
+                      {(f.file_type === "PHOTO" || f.file_type === "DRAWING") ? (
+                        <img
+                          src={`/api/mc/${mcId}/files/${f.id}/thumb`}
+                          alt={f.original_name}
+                          className="w-full h-full object-contain"
+                          loading="lazy"
+                          onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
                       ) : (
-                        <span className="text-3xl">{f.file_type === "PHOTO" ? "📷" : f.file_type === "DRAWING" ? "📐" : "📄"}</span>
+                        <span className="text-3xl">{f.file_type === "PROGRAM" ? "📄" : "📎"}</span>
                       )}
                     </div>
                     <div className="px-2 py-1.5">

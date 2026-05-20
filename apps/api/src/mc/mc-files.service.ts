@@ -40,6 +40,42 @@ export class McFilesService {
     if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
   }
 
+  // ── MC ファイルサムネイル配信（キャッシュ付きオンデマンド生成）──
+  async serveThumb(fileId: number): Promise<{ filePath: string; mimeType: string }> {
+    const file = await this.prisma.mcFile.findUnique({ where: { id: fileId } });
+    if (!file) throw new Error(`mc_file ${fileId} が存在しません`);
+
+    // 既存サムネがあれば即返す
+    if (file.thumbnailPath && fs.existsSync(file.thumbnailPath)) {
+      return { filePath: file.thumbnailPath, mimeType: 'image/jpeg' };
+    }
+
+    // オリジナルが存在しない場合はエラー
+    if (!fs.existsSync(file.filePath)) throw new Error('ファイルが見つかりません');
+
+    // サムネ生成
+    const basePath = await this.getBasePath();
+    const thumbDir = path.join(basePath, 'mc_files', 'thumbnails');
+    this.ensureDir(thumbDir);
+    const ext      = path.extname(file.storedName || file.filePath);
+    const baseName = path.basename(file.storedName || file.filePath, ext);
+    const thumbName = `thumb_${baseName}.jpg`;
+    const thumbFull = path.join(thumbDir, thumbName);
+
+    await sharp(file.filePath)
+      .resize(300, 300, { fit: 'inside' })
+      .jpeg({ quality: 80 })
+      .toFile(thumbFull);
+
+    // DB更新
+    await this.prisma.mcFile.update({
+      where: { id: fileId },
+      data:  { thumbnailPath: thumbFull },
+    });
+
+    return { filePath: thumbFull, mimeType: 'image/jpeg' };
+  }
+
   /** フラットディレクトリ内で {prefix}-{n}.* の最大 n を返す */
   private maxSeq(dir: string, prefix: string): number {
     if (!fs.existsSync(dir)) return 0;

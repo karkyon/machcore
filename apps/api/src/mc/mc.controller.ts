@@ -204,6 +204,19 @@ export class McController {
     return this.mcFiles.listFiles(id);
   }
 
+  // ── サムネイル配信（キャッシュ付きオンデマンド）──
+  @Get(':mc_id/files/:file_id/thumb')
+  async serveThumb(
+    @Param('mc_id', ParseIntPipe) _mcId: number,
+    @Param('file_id', ParseIntPipe) fileId: number,
+    @Res() reply: FastifyReply,
+  ) {
+    const { filePath, mimeType } = await this.mcFiles.serveThumb(fileId);
+    reply.header('Content-Type', mimeType);
+    reply.header('Cache-Control', 'public, max-age=86400');
+    return reply.send(require('fs').createReadStream(filePath));
+  }
+
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Post(':mc_id/files/upload')
