@@ -582,6 +582,54 @@ export class McService {
     });
   }
 
+  /** 段取シートバック: legacy_mcid で未回収シート一覧取得 */
+  async uncollectedByLegacy(legacyMcid: number) {
+    // legacyMcid に一致する mc_programs を取得（複数の工程がある場合あり）
+    const programs = await this.prisma.mcProgram.findMany({
+      where: { legacyMcid },
+      select: { id: true, machiningId: true, mcProcessNo: true,
+                part: { select: { drawingNo: true, name: true } } },
+    });
+    if (programs.length === 0) {
+      return { found: false, programs: [], sheets: [] };
+    }
+    const programIds = programs.map(p => p.id);
+    const sheets = await this.prisma.mcSetupSheetLog.findMany({
+      where:   { mcProgramId: { in: programIds }, workCollected: false },
+      orderBy: { printedAt: 'desc' },
+      include: { operator: { select: { name: true } } },
+    });
+    // 印刷タイプ判別: 最初のシート印刷かどうか（当該プログラムの印刷回数）
+    const allSheetCounts = await this.prisma.mcSetupSheetLog.groupBy({
+      by: ['mcProgramId'],
+      where: { mcProgramId: { in: programIds } },
+      _count: { id: true },
+    });
+    const countMap = new Map(allSheetCounts.map(r => [r.mcProgramId, r._count.id]));
+    return {
+      found:    true,
+      programs: programs.map(p => ({
+        mc_id:          p.id,
+        machining_id:   p.machiningId,
+        mc_process_no:  p.mcProcessNo,
+        drawing_no:     p.part.drawingNo,
+        part_name:      p.part.name,
+        total_sheets:   countMap.get(p.id) ?? 0,
+        // total_sheets=1 かつ uncollected → 新規（初回印刷）
+        // total_sheets>1 または 既収済みあり → リピート
+        sheet_type:     (countMap.get(p.id) ?? 0) <= 1 ? 'NEW' : 'REPEAT',
+      })),
+      sheets: sheets.map(s => ({
+        id:           s.id,
+        mc_id:        s.mcProgramId,
+        printed_at:   s.printedAt,
+        version:      s.version ?? null,
+        operator_name: s.operator?.name ?? null,
+        work_collected: s.workCollected,
+      })),
+    };
+  }
+
   /** SSL-MC-01: 段取シート回収済みマーク */
   async collectSetupSheet(logId: number) {
     await this.prisma.mcSetupSheetLog.update({

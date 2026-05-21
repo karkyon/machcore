@@ -181,6 +181,12 @@ export class McController {
     return this.mc.setupSheetLogs(id);
   }
 
+  /** 段取シートバック: legacy_mcid で未回収シート検索 */
+  @Get('uncollected-by-legacy/:legacy_mcid')
+  uncollectedByLegacy(@Param('legacy_mcid', ParseIntPipe) legacyMcid: number) {
+    return this.mc.uncollectedByLegacy(legacyMcid);
+  }
+
   /** 段取シート回収完了（work_collected=true） */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('OPERATOR', 'ADMIN')
