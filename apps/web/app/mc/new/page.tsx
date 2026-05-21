@@ -23,7 +23,8 @@ export default function McNewPage() {
   const [partLoading,  setPartLoading]  = useState(false);
   const [selectedPart, setSelectedPart] = useState<PartResult | null>(null);
 
-  const [machiningId,  setMachiningId]  = useState("");
+  const [machiningId,  setMachiningId]  = useState<number | null>(null);
+  const [nextIdLoading, setNextIdLoading] = useState(false);
   const [mcProcessNo,  setMcProcessNo]  = useState("");
   const [machineId,    setMachineId]    = useState("");
   const [oNumber,      setONumber]      = useState("");
@@ -41,6 +42,16 @@ export default function McNewPage() {
       const d = (r as any).data ?? r;
       setMachines(Array.isArray(d) ? d.filter((m: Machine) => m.isActive) : []);
     }).catch(() => {});
+  }, []);
+
+  // 次の加工ID候補を自動取得
+  useEffect(() => {
+    setNextIdLoading(true);
+    fetch("/api/mc/next-machining-id")
+      .then(r => r.json())
+      .then(d => { setMachiningId(d.next_machining_id ?? null); })
+      .catch(() => {})
+      .finally(() => setNextIdLoading(false));
   }, []);
 
   const handlePartSearch = useCallback(async () => {
@@ -72,13 +83,11 @@ export default function McNewPage() {
   const handleSubmit = async () => {
     if (!authToken) { setAuthOpen(true); return; }
     if (!selectedPart) { setSaveError("部品を選択してください"); return; }
-    if (!machiningId.trim()) { setSaveError("加工IDを入力してください"); return; }
-    const machIdNum = parseInt(machiningId);
-    if (isNaN(machIdNum)) { setSaveError("加工IDは数値で入力してください"); return; }
+    if (!machiningId) { setSaveError("加工IDを取得できませんでした"); return; }
 
     setSaving(true); setSaveError(null);
     try {
-      const body: Record<string, any> = { part_id: selectedPart.id, machining_id: machIdNum };
+      const body: Record<string, any> = { part_id: selectedPart.id, machining_id: machiningId };
       if (machineId)    body.machine_id    = parseInt(machineId);
       if (mcProcessNo)  body.mc_process_no = parseInt(mcProcessNo);
       if (oNumber)      body.o_number      = oNumber;
@@ -94,7 +103,7 @@ export default function McNewPage() {
     } finally { setSaving(false); }
   };
 
-  const canSubmit = !!(authToken && selectedPart && machiningId.trim());
+  const canSubmit = !!(authToken && selectedPart && machiningId);
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
@@ -170,16 +179,20 @@ export default function McNewPage() {
           <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">② 加工情報を入力</h2>
           <div className="grid grid-cols-2 gap-3 max-w-xl">
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">加工ID <span className="text-red-500">*</span></label>
-              <input type="number" value={machiningId} onChange={e => setMachiningId(e.target.value)}
-                placeholder="例: 7266"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
-              <p className="text-[10px] text-slate-400 mt-0.5">同一部品の追加工程は異なる値を使用</p>
+              <label className="text-xs font-bold text-slate-700 block mb-1">加工ID</label>
+              <div className="flex items-center gap-2 h-9">
+                {nextIdLoading ? (
+                  <span className="text-sm text-slate-400">取得中...</span>
+                ) : (
+                  <span className="font-mono text-lg font-bold text-teal-700">{machiningId ?? "—"}</span>
+                )}
+                <span className="text-[10px] text-slate-400">（自動採番）</span>
+              </div>
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">MC工程No.</label>
-              <input type="number" value={mcProcessNo} onChange={e => setMcProcessNo(e.target.value)}
-                placeholder="例: 1"
+              <label className="text-xs font-bold text-slate-700 block mb-1">工程No</label>
+              <input type="number" step="any" value={mcProcessNo} onChange={e => setMcProcessNo(e.target.value)}
+                placeholder="例: 1（負値・小数も可）"
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
             </div>
             <div>
@@ -188,7 +201,7 @@ export default function McNewPage() {
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
                 <option value="">-- 未設定 --</option>
                 {machines.map(m => (
-                  <option key={m.id} value={m.id}>{m.machineCode}　{m.machineName}</option>
+                  <option key={m.id} value={m.id}>{m.machineCode}</option>
                 ))}
               </select>
             </div>

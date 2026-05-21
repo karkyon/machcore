@@ -49,6 +49,12 @@ export class McController {
     return this.mc.getCommonGroup(machiningId);
   }
 
+  // ── 次の加工ID候補取得 ────────────────────────
+  @Get('next-machining-id')
+  async nextMachiningId() {
+    return this.mc.nextMachiningId();
+  }
+
   // ── 新規登録 ────────────────────────────────
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('OPERATOR', 'ADMIN')

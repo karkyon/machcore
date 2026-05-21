@@ -87,6 +87,15 @@ export class McService {
   }
 
   // ══════════════════════════════════════════
+  // MC-01b: 次の加工ID候補
+  // ══════════════════════════════════════════
+  async nextMachiningId() {
+    const agg = await this.prisma.mcProgram.aggregate({ _max: { machiningId: true } });
+    const next = (agg._max.machiningId ?? 0) + 1;
+    return { next_machining_id: next };
+  }
+
+  // ══════════════════════════════════════════
   // MC-02: 最近のアクセス
   // ══════════════════════════════════════════
   async recent() {
