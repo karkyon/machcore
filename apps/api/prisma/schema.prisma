@@ -569,3 +569,41 @@ model McSetupSheetLog {
   @@index([mcProgramId, printedAt])
   @@map("mc_setup_sheet_logs")
 }
+
+// ══════════════════════════════════════════
+// PDF帳票テンプレート管理
+// ══════════════════════════════════════════
+model PdfTemplate {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(500)
+  filePath    String   @db.VarChar(500)    @map("file_path")
+  pageNumber  Int      @default(1)         @map("page_number")
+  isActive    Boolean  @default(true)      @map("is_active")
+  createdAt   DateTime @default(now())     @map("created_at")
+  updatedAt   DateTime @updatedAt          @map("updated_at")
+
+  fields PdfFieldDefinition[]
+
+  @@map("pdf_templates")
+}
+
+model PdfFieldDefinition {
+  id           Int     @id @default(autoincrement())
+  templateId   Int                         @map("template_id")
+  fieldKey     String  @db.VarChar(100)    @map("field_key")
+  label        String  @db.VarChar(200)
+  x            Float
+  y            Float
+  fontSize     Float   @default(8.0)       @map("font_size")
+  dataSource   String  @db.VarChar(200)    @map("data_source")
+  pageNumber   Int     @default(1)         @map("page_number")
+  sortOrder    Int     @default(0)         @map("sort_order")
+  isActive     Boolean @default(true)      @map("is_active")
+  note         String? @db.VarChar(500)
+
+  template PdfTemplate @relation(fields: [templateId], references: [id])
+
+  @@index([templateId])
+  @@map("pdf_field_definitions")
+}

@@ -213,7 +213,7 @@ export class McService {
           note:          dto.note           ?? null,
           registeredBy:  operatorId,
           status:        'NEW',
-          version:       '1.0001',
+          version:       '0.0001',
         },
       });
       await tx.mcChangeHistory.create({
@@ -673,7 +673,7 @@ export class McService {
   }
 
   // ══════════════════════════════════════════
-  // 段取シートPDF生成（Puppeteer）
+  // 段取シートPDF生成（PDFKit直接描画）
   // ══════════════════════════════════════════
   async generateSetupSheetPdf(
     mcId: number,
@@ -687,57 +687,27 @@ export class McService {
     },
   ): Promise<Buffer> {
     const data = await this.getPrintData(mcId);
-    const puppeteer = (await import('puppeteer')).default;
-    const browser   = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-    });
-    try {
-      const page = await browser.newPage();
+    const PDFDocument = (await import('pdfkit')).default;
+    const FONT = '/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf';
 
-      // 図ファイルBase64変換
-      const drawingBase64s: string[] = [];
-      if (options.include_drawings === true && (data as any).files?.length > 0) {
-        const sharpLib = (await import('sharp')).default;
-        for (const f of ((data as any).files as any[]).slice(0, 3)) {
-          try {
-            const filePath: string = f.filePath ?? '';
-            if (!filePath || !fs.existsSync(filePath)) continue;
-            const buf  = fs.readFileSync(filePath);
-            const mime: string = f.mimeType ?? '';
-            if (mime.includes('tiff') || mime.includes('tif')) {
-              const imgBuf = await sharpLib(buf).png().toBuffer();
-              drawingBase64s.push('data:image/png;base64,' + imgBuf.toString('base64'));
-            } else if (!mime.includes('pdf')) {
-              drawingBase64s.push('data:' + mime + ';base64,' + buf.toString('base64'));
-            }
-          } catch { /* skip */ }
-        }
-      }
-
-      const html = this.buildSetupSheetHtml(data, { ...options, drawingBase64s });
-      await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
-
-      const pdfUint8 = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' },
-        displayHeaderFooter: true,
-        headerTemplate: '<span></span>',
-        footerTemplate: `<div style="font-size:8px;width:100%;text-align:center;color:#888;font-family:sans-serif;">
-          <span class="pageNumber"></span> / <span class="totalPages"></span></div>`,
-      });
-
-      const pdfBuffer = Buffer.from(pdfUint8);
-
+    return new Promise<Buffer>((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false });
+        const chunks: Buffer[] = [];
+        doc.on('data', (c: Buffer) => chunks.push(c));
+        doc.on('end',  () => resolve(Buffer.concat(chunks)));
+        doc.on('error', reject);
+        doc.registerFont('IPA', FONT);
+        this.buildP1(doc, data, options);
+        this.buildP2(doc, data);
+        doc.end();
+      } catch(e){ reject(e); }
+    }).then(async (buf) => {
       await this.prisma.mcSetupSheetLog.create({
         data: { mcProgramId: mcId, operatorId, version: (data as any).version ?? null },
       }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
-
-      return pdfBuffer;
-    } finally {
-      await browser.close();
-    }
+      return buf;
+    });
   }
 
   // ══════════════════════════════════════════
@@ -757,186 +727,582 @@ export class McService {
     const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true } });
     const printerName = setting?.printerName;
     if (!printerName) throw new Error('プリンタが設定されていません。管理者設定で設定してください。');
-
     const pdfBuffer = await this.generateSetupSheetPdf(mcId, operatorId, options);
     const tmpPath = `/tmp/machcore-mc-print-${mcId}-${Date.now()}.pdf`;
     fs.writeFileSync(tmpPath, pdfBuffer);
     try {
       execSync(`lp -d ${printerName} -o media=A4 -o fit-to-page "${tmpPath}"`, { timeout: 15000 });
     } finally {
-      try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+      try { fs.unlinkSync(tmpPath); } catch { /**/ }
     }
     return { message: `${printerName} に送信しました` };
   }
 
   // ══════════════════════════════════════════
-  // MC段取シートHTMLビルダー
+  // 修正フラグ（個別切り戻し用）
+  // True=修正版ON / False=修正前に戻す
   // ══════════════════════════════════════════
-  private buildSetupSheetHtml(data: any, opts: any): string {
-    const includeTooling       = opts.include_tooling        !== false;
-    const includeClamp         = opts.include_clamp          !== false;
-    const includeDrawings      = opts.include_drawings        === true;
-    const includeWorkOffsets   = opts.include_work_offsets    === true;
-    const includeIndexPrograms = opts.include_index_programs  === true;
-    const drawingBase64s: string[] = opts.drawingBase64s ?? [];
+  private FIX: Record<number,boolean> = {
+    2:  false,  // P1外枠
+    3:  true,   // 日付欄位置
+    4:  true,   // MC ID値フォント
+    5:  true,   // ヘッダーラベル列幅
+    6:  true,   // 納入先・名称値列
+    7:  true,   // インデックス/テールストック/治具列構成
+    8:  true,   // 備考縦結合
+    9:  true,   // ツーリングN列幅
+    11: true,   // ページ番号縦書き
+    13: true,   // P1全体外枠
+    14: true,   // P2写真枚数行
+    15: true,   // P2行1外枠
+    17: true,   // P2行3HM構成
+    18: true,   // タイムチャート時刻ラベル
+    19: true,   // グレーゾーン範囲
+    21: true,   // タイムチャート2セット目y位置
+    23: true,   // P2全体外枠
+  };
 
-    const now    = new Date();
-    const fmtNow = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const fmtDate = (d: string | null | undefined) => {
-      if (!d) return '';
-      try { const dt = new Date(d); return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`; }
-      catch { return String(d); }
+  // ══════════════════════════════════════════
+  // P1: WS000000完全再現
+  // ══════════════════════════════════════════
+  private buildP1(doc: any, data: any, opts: any): void {
+    const F  = 'IPA';
+    const FX = this.FIX;
+    doc.addPage({ size: 'A4', margin: 0 });
+    const d       = data as any;
+    const part    = d.part    ?? {};
+    const machine = d.machine ?? {};
+    const tooling = opts.include_tooling !== false ? (d.tooling ?? []) : [];
+
+    // 座標定数（画像解析値）
+    const ML  = 30.4;   // 左端
+    const PW  = 526.2;  // 印刷幅
+    const MR  = ML + PW; // 556.6
+
+    const lw0 = 0.5;    // 通常罫線
+    const lw1 = 1.0;    // 外枠罫線
+
+    const strokeN = () => doc.strokeColor('#000000').lineWidth(lw0);
+    const strokeB = () => doc.strokeColor('#000000').lineWidth(lw1);
+
+    // ── セル描画ヘルパー ──────────────────────
+    const cellR = (x:number,y:number,w:number,h:number) => { strokeN(); doc.rect(x,y,w,h).stroke(); };
+    const cellT = (x:number,y:number,w:number,h:number,t:string,fs:number,al:'left'|'center'='left') => {
+      if(!t) return;
+      doc.font(F).fontSize(fs).fillColor('#000000');
+      const ty = y+(h-fs*0.72)/2;
+      if(al==='center') doc.text(t,x,ty,{width:w,align:'center',lineBreak:false});
+      else doc.text(t,x+2,ty,{width:w-4,lineBreak:false});
+    };
+    const grayCell = (x:number,y:number,w:number,h:number,t:string,fs=6.0) => {
+      strokeN();
+      doc.rect(x,y,w,h).fillAndStroke('#e8e8e8','#000000');
+      doc.font(F).fontSize(fs).fillColor('#000000');
+      const ty = y+(h-fs*0.72)/2;
+      doc.text(t,x+1.5,ty,{width:w-3,lineBreak:false});
+    };
+    const labelVal = (x:number,y:number,lw:number,vw:number,h:number,
+                      label:string,val:string,lfs=6.0,vfs=7.0) => {
+      grayCell(x,y,lw,h,label,lfs);
+      cellR(x+lw,y,vw,h);
+      cellT(x+lw,y,vw,h,val,vfs);
     };
 
-    const statusLabel: Record<string, string> = {
-      NEW: '新規', PENDING_APPROVAL: '未承認', APPROVED: '承認済', CHANGING: '変更中',
-    };
-    const statusColor: Record<string, string> = {
-      NEW: '#1d4ed8', PENDING_APPROVAL: '#b45309', APPROVED: '#15803d', CHANGING: '#b91c1c',
-    };
+    // ─────────────────────────────────────────
+    // #2/#13: 全体外枠
+    // ─────────────────────────────────────────
+    // #13: P1外枠
+    if(FX[13]) {
+      strokeB();
+      doc.rect(ML, 39.7, PW, 759.3).stroke();
+    }
 
+    // ─────────────────────────────────────────
+    // タイトル行  y=39.7  h=28.6
+    // ─────────────────────────────────────────
+    const T_Y=39.7; const T_H=28.6;
+    const verVer = String(d.version??'1.0001'); const verDisp = verVer.replace(/^(\d+)\.(\d{4})$/,(_,a,b)=>a+'.'+b.slice(0,2)+' '+b.slice(2)); const verText = `新規段取シート　Ver. ${verDisp}`;
+    doc.font(F).fontSize(13.5).fillColor('#000000');
+    doc.text(verText, ML+4, T_Y+(T_H-13.5*0.72)/2, {lineBreak:false});
+
+    // #3: 日付欄（タイトル行内、参照に合わせた位置・幅）
+    const dateBoxX = FX[3] ? ML+220 : ML+PW*0.40;
+    const dateBoxW = FX[3] ? 55      : 80;
+    strokeN();
+    doc.rect(dateBoxX, T_Y, dateBoxW, T_H).stroke();
+    doc.font(F).fontSize(7).fillColor('#000000');
+    doc.text(' /  / ', dateBoxX+4, T_Y+(T_H-7*0.72)/2, {lineBreak:false});
+
+    // 承認ボックス（右端）
+    const apvX = MR-46.1;
+    strokeN(); doc.rect(apvX, T_Y, 46.1, T_H).stroke();
+    doc.font(F).fontSize(7).fillColor('#000000');
+    doc.text('承認', apvX+2, T_Y+(T_H-7*0.72)/2, {lineBreak:false});
+
+    // ─────────────────────────────────────────
+    // ID行  y=68.4  h=14.8
+    // ─────────────────────────────────────────
+    const ID_Y=68.4; const ID_H=14.8;
+    strokeN(); doc.rect(ML, ID_Y, PW, ID_H).stroke();
+
+    // 部品ID
+    labelVal(ML, ID_Y, 35, 171, ID_H, '部品ID', String(part.partId??d.partId??''));
+    // 加工ID
+    labelVal(235.9, ID_Y, 35, 70, ID_H, '加工 ID', String(d.machiningId??''));
+    // MC ID: #4=太字大きめフォント
+    const mcIdVfs = FX[4] ? 9.5 : 7.0;
+    labelVal(340.0, ID_Y, 35, 181.6, ID_H, 'MC ID', String(d.id??''), 6.0, mcIdVfs);
+
+    // ─────────────────────────────────────────
+    // ヘッダー情報グリッド  y=83.2
+    // col_boundaries(pt): CB[0..9]
+    // ─────────────────────────────────────────
+    // #5: ラベル列幅修正
+    // 参照: 左ラベル=「納入先」「名称」は17.5pt、他は可変
+    // 修正: 各行のラベル幅を参照に合わせる
+    const CB = [30.4, 117.9, 209.0, 282.6, 323.5, 332.3, 397.9, 406.0, 454.8, 554.7];
+    // #修正: 左ラベル幅5倍=87.5, 値幅1.3倍=91.1
+    const LBL_W  = 87.5;  // CB[0]→CB[1]相当(修正後)
+    const VAL_W  = 91.1;  // CB[1]→CB[2]相当(修正後)
+    const LBL_FS = 12.0;  // ラベルフォント
+    const VAL_FS = 14.0;  // 値フォント
+    const cw = (i:number) => CB[i+1]-CB[i];
+    const RH = 18.5;
+
+    // 参照のラベル幅（#5修正値）
+    const LW_LEFT  = FX[5] ? cw(0)  : cw(0);     // 17.5pt (変わらず正確)
+    const LW_MID1  = FX[5] ? 38.0   : 52.0;       // バイス等
+    const LW_MID2  = FX[5] ? 38.0   : 52.0;       // チャック等
+    const LW_RIGHT1= FX[5] ? 42.0   : 52.0;       // インデックス等
+
+    let hy = 83.2;
+
+    // 行0: 納入先 | 値(広) | 図面番号 | 値(右端まで)
+    // #6: 納入先の値列を右端（図面番号手前）まで
+    {
+      const h=RH;
+      grayCell(CB[0],hy,LBL_W,h,'納入先',LBL_FS);
+      // #6: 値幅
+      cellR(CB[0]+LBL_W,hy,VAL_W,h); cellT(CB[0]+LBL_W,hy,VAL_W,h,part.clientName??'',VAL_FS);
+      grayCell(CB[2],hy,38,h,'図面番号',6.0);
+      cellR(CB[2]+38,hy,CB[9]-CB[2]-38,h); cellT(CB[2]+38,hy,CB[9]-CB[2]-38,h,part.drawingNo??'',7.0);
+      hy+=h;
+    }
+    // 行1: 名称 | 値(広) | 主機種型式 | 値(右端まで)
+    {
+      const h=RH;
+      grayCell(CB[0],hy,LBL_W,h,'名 称',LBL_FS);
+      cellR(CB[0]+LBL_W,hy,VAL_W,h); cellT(CB[0]+LBL_W,hy,VAL_W,h,part.name??'',VAL_FS);
+      grayCell(CB[2],hy,38,h,'主機種・型式',5.5);
+      cellR(CB[2]+38,hy,CB[9]-CB[2]-38,h); cellT(CB[2]+38,hy,CB[9]-CB[2]-38,h,d.mainMachineType??'',7.0);
+      hy+=h;
+    }
+    // 行2: 工程No | バイス | インデックス(+値)
+    // #7: インデックス列を独立セルで
+    {
+      const h=RH;
+      grayCell(CB[0],hy,LBL_W,h,'工程 No',LBL_FS);
+      cellR(CB[0]+LBL_W,hy,VAL_W,h); cellT(CB[0]+LBL_W,hy,VAL_W,h,String(d.processNo??''),VAL_FS);
+      grayCell(CB[2],hy,LW_MID1,h,'バ イ ス');
+      cellR(CB[2]+LW_MID1,hy,CB[4]-CB[2]-LW_MID1,h); cellT(CB[2]+LW_MID1,hy,CB[4]-CB[2]-LW_MID1,h,d.vise??'',7.0);
+      if(FX[7]) {
+        grayCell(CB[4],hy,LW_RIGHT1,h,'インデックス',5.5);
+        cellR(CB[4]+LW_RIGHT1,hy,cw(5),h); cellT(CB[4]+LW_RIGHT1,hy,cw(5),h,d.index_??'',7.0);
+        cellR(CB[6],hy,cw(6)+cw(7)+cw(8),h);
+      } else {
+        grayCell(CB[4],hy,52,h,'インデックス',5.5);
+        cellR(CB[4]+52,hy,CB[9]-CB[4]-52,h);
+      }
+      hy+=h;
+    }
+    // 行3: フォルダ名 | 敷板 | テールストック | 治具(+値)
+    // #7: テールストック・治具を独立セルで
+    {
+      const h=RH;
+      grayCell(CB[0],hy,LBL_W,h,'フォルダ名',LBL_FS);
+      cellR(CB[0]+LBL_W,hy,VAL_W,h); cellT(CB[0]+LBL_W,hy,VAL_W,h,d.folderName??'',VAL_FS);
+      grayCell(CB[2],hy,LW_MID1,h,'敷 板');
+      cellR(CB[2]+LW_MID1,hy,CB[4]-CB[2]-LW_MID1,h); cellT(CB[2]+LW_MID1,hy,CB[4]-CB[2]-LW_MID1,h,d.kickPlate??'',7.0);
+      if(FX[7]) {
+        grayCell(CB[4],hy,LW_RIGHT1,h,'テールストック',5.0);
+        cellR(CB[4]+LW_RIGHT1,hy,cw(5),h); cellT(CB[4]+LW_RIGHT1,hy,cw(5),h,d.tailstock??'',7.0);
+        grayCell(CB[6],hy,cw(6),h,'治具',6.0);
+        cellR(CB[6]+cw(6),hy,cw(7)+cw(8),h); cellT(CB[6]+cw(6),hy,cw(7)+cw(8),h,d.jig??'',7.0);
+      } else {
+        grayCell(CB[4],hy,52,h,'テールストック',5.0);
+        cellR(CB[4]+52,hy,52,h);
+        grayCell(CB[6],hy,25,h,'治具',6.0);
+        cellR(CB[6]+25,hy,CB[9]-CB[6]-25,h);
+      }
+      hy+=h;
+    }
+    // 行4: ファイル名 | チャック1 | その他
+    {
+      const h=RH;
+      grayCell(CB[0],hy,LBL_W,h,'ファイル名',LBL_FS);
+      cellR(CB[0]+LBL_W,hy,VAL_W,h); cellT(CB[0]+LBL_W,hy,VAL_W,h,d.fileName??'',VAL_FS);
+      grayCell(CB[2],hy,LW_MID2,h,'チャック１',5.5);
+      cellR(CB[2]+LW_MID2,hy,CB[4]-CB[2]-LW_MID2,h); cellT(CB[2]+LW_MID2,hy,CB[4]-CB[2]-LW_MID2,h,d.chuck1??'',7.0);
+      grayCell(CB[4],hy,LW_RIGHT1,h,'その他',6.0);
+      cellR(CB[4]+LW_RIGHT1,hy,CB[9]-CB[4]-LW_RIGHT1,h); cellT(CB[4]+LW_RIGHT1,hy,CB[9]-CB[4]-LW_RIGHT1,h,d.other??'',7.0);
+      hy+=h;
+    }
+
+    // 行5～7の備考エリアy値を記録
+    const bikoStartY = hy;
+
+    // 行5: メインOナンバ | 爪1 | 備考(上端)
+    // #8: 備考は行5ラベルのみ、値エリアは縦結合
+    {
+      const h=RH;
+      grayCell(CB[0],hy,LBL_W,h,'メインOナンバ',LBL_FS);
+      cellR(CB[0]+LBL_W,hy,VAL_W,h); cellT(CB[0]+LBL_W,hy,VAL_W,h,d.mainONumber??'',VAL_FS);
+      grayCell(CB[2],hy,LW_MID2,h,'爪 1');
+      cellR(CB[2]+LW_MID2,hy,CB[4]-CB[2]-LW_MID2,h); cellT(CB[2]+LW_MID2,hy,CB[4]-CB[2]-LW_MID2,h,d.jaw1??'',7.0);
+      // 備考ラベル（行5だけ）
+      grayCell(CB[4],hy,cw(4),h,'備考',6.0);
+      // 備考値エリアはまだ描画しない（後で縦結合）
+      hy+=h;
+    }
+    // 行6: 機械 | チャック2 | (備考エリア継続)
+    {
+      const h=RH;
+      grayCell(CB[0],hy,LBL_W,h,'機 械',LBL_FS);
+      cellR(CB[0]+LBL_W,hy,VAL_W,h); cellT(CB[0]+LBL_W,hy,VAL_W,h,machine.machineName??machine.machineCode??'',VAL_FS);
+      grayCell(CB[2],hy,LW_MID2,h,'チャック２',5.5);
+      cellR(CB[2]+LW_MID2,hy,CB[4]-CB[2]-LW_MID2,h); cellT(CB[2]+LW_MID2,hy,CB[4]-CB[2]-LW_MID2,h,d.chuck2??'',7.0);
+      if(!FX[8]) {
+        grayCell(CB[4],hy,cw(4),h,'',6.0);
+      }
+      hy+=h;
+    }
+    // 行7: タイム | 爪2 | (備考エリア継続)
+    {
+      const h=RH;
+      grayCell(CB[0],hy,LBL_W,h,'タ イ ム',LBL_FS);
+      cellR(CB[0]+LBL_W,hy,VAL_W,h); cellT(CB[0]+LBL_W,hy,VAL_W,h,d.cycleTimeStr??'H  M  S',VAL_FS);
+      grayCell(CB[2],hy,LW_MID2,h,'爪 2');
+      cellR(CB[2]+LW_MID2,hy,CB[4]-CB[2]-LW_MID2,h); cellT(CB[2]+LW_MID2,hy,CB[4]-CB[2]-LW_MID2,h,d.jaw2??'',7.0);
+      if(!FX[8]) {
+        grayCell(CB[4],hy,cw(4),h,'',6.0);
+      }
+      hy+=h;
+    }
+    // 行8: 個数
+    {
+      const h=16.6;
+      grayCell(CB[0],hy,LBL_W,h,'個 数',LBL_FS);
+      cellR(CB[0]+LBL_W,hy,VAL_W,h); cellT(CB[0]+LBL_W,hy,VAL_W,h,String(d.quantity??''),VAL_FS);
+      cellR(CB[2],hy,CB[9]-CB[2],h);
+      hy+=h;
+    }
+
+    // #8: 備考縦結合エリア（行5～7の右側 CB[4]+cw(4)～CB[9]）
+    {
+      const bikoH = FX[8] ? RH*3 : RH*3;
+      const bikoX = CB[4]+cw(4);
+      const bikoW = CB[9]-bikoX;
+      strokeN();
+      doc.rect(bikoX, bikoStartY, bikoW, bikoH).stroke();
+      if(d.note) {
+        doc.font(F).fontSize(7.0).fillColor('#000000');
+        doc.text(d.note, bikoX+2, bikoStartY+4, {width:bikoW-4,lineBreak:true});
+      }
+    }
+
+    // ─────────────────────────────────────────
     // ツーリングリスト
-    const toolingRows = (includeTooling && data.tooling?.length > 0)
-      ? data.tooling.map((t: any) => `
-        <tr style="page-break-inside:avoid;">
-          <td class="c">${t.toolNo ?? ''}</td>
-          <td>${t.toolName ?? ''}</td>
-          <td class="c">${t.diameter != null ? Number(t.diameter).toFixed(1) : ''}</td>
-          <td class="c">${t.lengthOffsetNo ?? ''}</td>
-          <td class="c">${t.diaOffsetNo ?? ''}</td>
-          <td>${t.toolType ?? ''}</td>
-          <td>${t.note ?? ''}</td>
-        </tr>`).join('')
-      : '<tr><td colspan="7" class="c" style="color:#aaa;font-size:8pt;padding:4px;">データなし</td></tr>';
+    // ─────────────────────────────────────────
+    const TBL_Y = hy;
+    const TH    = 21.3;
 
-    // ワークオフセット
-    const offsetRows = (includeWorkOffsets && data.workOffsets?.length > 0)
-      ? data.workOffsets.map((o: any) => `
-        <tr>
-          <td class="c mono">${o.gCode ?? ''}</td>
-          <td class="c mono">${o.xOffset != null ? Number(o.xOffset).toFixed(3) : ''}</td>
-          <td class="c mono">${o.yOffset != null ? Number(o.yOffset).toFixed(3) : ''}</td>
-          <td class="c mono">${o.zOffset != null ? Number(o.zOffset).toFixed(3) : ''}</td>
-          <td class="c mono">${o.aOffset != null ? Number(o.aOffset).toFixed(3) : ''}</td>
-          <td>${o.note ?? ''}</td>
-        </tr>`).join('')
-      : '<tr><td colspan="6" class="c" style="color:#aaa;font-size:8pt;padding:4px;">データなし</td></tr>';
+    // #9: N列幅修正（参照=29.5pt）
+    const N_W   = FX[9] ? 29.5 : 40.6;
+    // 工具列: 残り幅を吸収
+    const TOOL_W= FX[9] ? (95.8+(40.6-29.5)) : 95.8;  // 106.9 or 95.8
 
-    // インデックスプログラム
-    const indexRows = (includeIndexPrograms && data.indexPrograms?.length > 0)
-      ? data.indexPrograms.map((p: any) => `
-        <tr>
-          <td class="c">${p.sortOrder ?? ''}</td>
-          <td class="mono">${p.axis0 ?? ''}</td>
-          <td class="mono">${p.axis1 ?? ''}</td>
-          <td class="mono">${p.axis2 ?? ''}</td>
-          <td>${p.note ?? ''}</td>
-        </tr>`).join('')
-      : '<tr><td colspan="5" class="c" style="color:#aaa;font-size:8pt;padding:4px;">データなし</td></tr>';
+    const TCOLS = [
+      {label:'N',        x:ML,            w:N_W,    al:'center' as const},
+      {label:'工 具',    x:ML+N_W,        w:TOOL_W, al:'left'   as const},
+      {label:'T',        x:ML+N_W+TOOL_W, w:38.7,   al:'center' as const},
+      {label:'H',        x:0,             w:38.7,   al:'center' as const},
+      {label:'D',        x:0,             w:38.7,   al:'center' as const},
+      {label:'D値',      x:0,             w:46.1,   al:'center' as const},
+      {label:'SUB',      x:0,             w:45.1,   al:'center' as const},
+      {label:'コメント', x:0,             w:0,      al:'left'   as const},
+    ];
+    // x座標を累積計算
+    let cx = ML;
+    for(const col of TCOLS) {
+      if(col.x === 0) col.x = cx;
+      cx = col.x + col.w;
+    }
+    // コメント列は右端まで
+    TCOLS[7].w = MR - TCOLS[7].x;
 
-    // 共通加工グループ
-    const commonGroupHtml = (data.commonGroup?.length > 1)
-      ? `<div style="margin-top:6px;padding:4px 8px;background:#fef3c7;border:1px solid #fbbf24;border-radius:4px;font-size:8pt;">
-          <strong>共通加工</strong>（加工ID: ${data.machiningId}）：
-          ${data.commonGroup.map((g: any) => `MCID ${g.legacyMcid ?? g.id} / ${g.part?.drawingNo ?? ''} ${g.part?.name ?? ''}`).join('　')}
-         </div>` : '';
+    // ヘッダー行
+    for(const col of TCOLS) {
+      strokeN();
+      doc.rect(col.x, TBL_Y, col.w, TH).fillAndStroke('#d8d8d8','#000000');
+      doc.font(F).fontSize(7.0).fillColor('#000000');
+      const ty = TBL_Y+(TH-7*0.72)/2;
+      doc.text(col.label, col.x, ty, {width:col.w, align:'center', lineBreak:false});
+    }
 
-    const cycleDisp = (() => {
-      const s = data.cycleTimeSec;
-      if (s == null) return '';
-      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-      return `${h}H ${String(m).padStart(2,'0')}M ${String(sec).padStart(2,'0')}S`;
-    })();
+    // データ行（最大24行）
+    for(let ri=0; ri<24; ri++) {
+      const t   = tooling[ri];
+      const ry  = TBL_Y + TH + ri*TH;
+      const vals: string[] = t ? [
+        String(t.toolNo??ri+1), t.toolName??'',
+        String(t.tNumber??''),
+        t.hValue!=null?String(t.hValue):'',
+        t.dRegister??'',
+        t.dValue!=null?String(t.dValue):'',
+        t.subProgram??'',
+        t.comment??t.note??'',
+      ] : ['','','','','','','',''];
+      for(let ci=0; ci<TCOLS.length; ci++) {
+        const col = TCOLS[ci];
+        strokeN(); doc.rect(col.x, ry, col.w, TH).stroke();
+        if(vals[ci]) {
+          doc.font(F).fontSize(6.5).fillColor('#000000');
+          const ty = ry+(TH-6.5*0.72)/2;
+          if(col.al==='center') doc.text(vals[ci],col.x,ty,{width:col.w,align:'center',lineBreak:false});
+          else doc.text(vals[ci],col.x+2,ty,{width:col.w-4,lineBreak:false});
+        }
+      }
+    }
 
-    const drawingsHtml = (includeDrawings && drawingBase64s.length > 0)
-      ? `<div style="margin-top:8px;page-break-inside:avoid;">
-           <div class="sh">段取図</div>
-           <div style="display:flex;flex-wrap:wrap;gap:8px;">
-             ${drawingBase64s.map((src: string, i: number) =>
-               `<img src="${src}" alt="段取図${i+1}" style="max-width:49%;height:auto;border:1px solid #ccc;" />`
-             ).join('')}
-           </div>
-         </div>` : '';
+    // ─────────────────────────────────────────
+    // ページ番号ボックス（右下）
+    // ─────────────────────────────────────────
+    const PG_Y=778.1; const PG_H=21.3;
+    const PG_X=MR-44.2;
+    // #11: ページラベル「ペ－ジ」（縦書き近似）
+    strokeN();
+    doc.rect(PG_X, PG_Y, 22.1, PG_H).fillAndStroke('#e8e8e8','#000000');
+    if(FX[11]) {
+      // 縦書き3文字
+      doc.font(F).fontSize(5.5).fillColor('#000000');
+      doc.text('ペ', PG_X+1, PG_Y+1,    {width:20,lineBreak:false});
+      doc.text('ー', PG_X+1, PG_Y+7,    {width:20,lineBreak:false});
+      doc.text('ジ', PG_X+1, PG_Y+13,   {width:20,lineBreak:false});
+    } else {
+      doc.font(F).fontSize(5.5).fillColor('#000000');
+      doc.text('ページ', PG_X+1, PG_Y+(PG_H-5.5*0.72)/2, {width:20,lineBreak:false});
+    }
+    strokeN();
+    doc.rect(PG_X+22.1, PG_Y, 22.1, PG_H).stroke();
+    doc.font(F).fontSize(6.5).fillColor('#000000');
+    doc.text('1 / 2', PG_X+22.1, PG_Y+(PG_H-6.5*0.72)/2,
+             {width:22, align:'center', lineBreak:false});
+  }
 
-    return `<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Noto Sans JP',sans-serif;font-size:9pt;color:#1e293b;}
-  h1{font-size:13pt;font-weight:700;color:#0f766e;border-bottom:2px solid #0f766e;padding-bottom:4px;margin-bottom:6px;}
-  .meta{display:flex;gap:16px;font-size:8pt;color:#64748b;margin-bottom:8px;}
-  table{width:100%;border-collapse:collapse;margin-bottom:8px;}
-  th{background:#f0fdfa;color:#0f766e;font-size:8pt;font-weight:700;padding:3px 6px;border:1px solid #99f6e4;text-align:left;}
-  td{padding:3px 6px;border:1px solid #e2e8f0;vertical-align:top;}
-  .sh{font-weight:700;font-size:9pt;color:#0f766e;border-left:3px solid #0f766e;padding-left:6px;margin:8px 0 4px;}
-  .c{text-align:center;}
-  .mono{font-family:monospace;}
-  .badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:8pt;font-weight:700;}
-  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px;}
-  .info-cell{display:flex;gap:4px;font-size:9pt;}
-  .info-key{color:#64748b;min-width:80px;flex-shrink:0;}
-  .info-val{font-weight:700;}
-</style>
-</head>
-<body>
-<h1>マシニング 段取シート</h1>
-<div class="meta">
-  <span>MCID: <strong>${data.id}</strong></span>
-  <span>加工ID: <strong>${data.machiningId}</strong></span>
-  <span>Ver: <strong>${data.version}</strong></span>
-  <span>発行: ${fmtNow}</span>
-  <span class="badge" style="background:${statusColor[data.status] ?? '#888'};color:#fff;">
-    ${statusLabel[data.status] ?? data.status}
-  </span>
-</div>
+  // ══════════════════════════════════════════
+  // P2: WS000001完全再現
+  // ══════════════════════════════════════════
+  private buildP2(doc: any, _data: any): void {
+    const F  = 'IPA';
+    const FX = this.FIX;
+    doc.addPage({ size: 'A4', margin: 0 });
 
-${commonGroupHtml}
+    const ML = 28.6;
+    const PW = 525.1;
+    const MR = ML + PW; // 553.7
 
-<div class="info-grid" style="margin-top:6px;">
-  <div class="info-cell"><span class="info-key">部品名称</span><span class="info-val">${data.part?.name ?? ''}</span></div>
-  <div class="info-cell"><span class="info-key">図面番号</span><span class="info-val">${data.part?.drawingNo ?? ''}</span></div>
-  <div class="info-cell"><span class="info-key">機械</span><span class="info-val">${data.machine?.machineName ?? data.machine?.machineCode ?? ''}</span></div>
-  <div class="info-cell"><span class="info-key">MC工程No</span><span class="info-val mono">${data.mcProcessNo ?? ''}</span></div>
-  <div class="info-cell"><span class="info-key">主Oナンバ</span><span class="info-val mono">${data.oNumber ?? ''}</span></div>
-  <div class="info-cell"><span class="info-key">CT/1P</span><span class="info-val">${cycleDisp}</span></div>
-  <div class="info-cell"><span class="info-key">加工個数/1S</span><span class="info-val">${data.machiningQty ?? 1}</span></div>
-  <div class="info-cell"><span class="info-key">作成者</span><span class="info-val">${data.creator?.name ?? ''}</span></div>
-  <div class="info-cell"><span class="info-key">作成日</span><span class="info-val mono">${data.sheetCreatedAt ? fmtDate(data.sheetCreatedAt) : ''}</span></div>
-  <div class="info-cell"><span class="info-key">PG作成者</span><span class="info-val">${data.pgCreator?.name ?? ''}</span></div>
-  <div class="info-cell"><span class="info-key">Save Date</span><span class="info-val mono">${data.pgUpdatedAt ? fmtDate(data.pgUpdatedAt) : ''}</span></div>
-  ${includeClamp ? `<div class="info-cell" style="grid-column:1/-1;"><span class="info-key">クランプ</span><span class="info-val" style="white-space:pre-wrap;">${data.clampNote ?? ''}</span></div>` : ''}
-</div>
+    const lw0=0.5; const lw1=1.0;
+    const strokeN = () => doc.strokeColor('#000000').lineWidth(lw0);
+    const strokeB = () => doc.strokeColor('#000000').lineWidth(lw1);
 
-${includeTooling ? `<div class="sh">ツーリングリスト</div>
-<table>
-  <thead><tr><th class="c">T番号</th><th>工具名</th><th class="c">径(mm)</th><th class="c">H補正</th><th class="c">D補正</th><th>種別</th><th>備考</th></tr></thead>
-  <tbody>${toolingRows}</tbody>
-</table>` : ''}
+    const lbl = (x:number,y:number,w:number,h:number,t:string,fs=6.5) => {
+      strokeN();
+      doc.rect(x,y,w,h).fillAndStroke('#e8e8e8','#000000');
+      doc.font(F).fontSize(fs).fillColor('#000000');
+      doc.text(t, x+1.5, y+(h-fs*0.72)/2, {width:w-3, lineBreak:false});
+    };
+    const val = (x:number,y:number,w:number,h:number,t='') => {
+      strokeN(); doc.rect(x,y,w,h).stroke();
+      if(t){ doc.font(F).fontSize(6.5).fillColor('#000000');
+        doc.text(t,x+2,y+(h-6.5*0.72)/2,{width:w-4,lineBreak:false}); }
+    };
+    const plain = (x:number,y:number,w:number,h:number,t='',fs=6.5) => {
+      strokeN(); doc.rect(x,y,w,h).stroke();
+      if(t){ doc.font(F).fontSize(fs).fillColor('#000000');
+        doc.text(t,x+2,y+(h-fs*0.72)/2,{width:w-4,lineBreak:false}); }
+    };
 
-${includeWorkOffsets ? `<div class="sh" style="page-break-before:auto;">ワークオフセット</div>
-<table>
-  <thead><tr><th class="c">G座標</th><th class="c">X</th><th class="c">Y</th><th class="c">Z</th><th class="c">A</th><th>備考</th></tr></thead>
-  <tbody>${offsetRows}</tbody>
-</table>` : ''}
+    // #23: P2全体外枠
+    if(FX[23]) {
+      strokeB();
+      const infoH = FX[21] ? (501.1-38.9) : (477.0-38.9);
+      doc.rect(ML, 38.9, PW, 790.0).stroke();
+    }
 
-${includeIndexPrograms ? `<div class="sh" style="page-break-before:auto;">インデックスプログラム</div>
-<table>
-  <thead><tr><th class="c">No.</th><th>第0軸</th><th>第1軸</th><th>第2軸</th><th>備考</th></tr></thead>
-  <tbody>${indexRows}</tbody>
-</table>` : ''}
+    const DIV = 287.9;
+    const LW  = DIV - ML;  // 259.3
+    const RW  = MR  - DIV; // 265.8
 
-${drawingsHtml}
+    // ─── 行1: 段取/チェック/量産  y=50.0  h=22.2 ───
+    // #15: セル間に明確な仕切り線
+    {
+      const y=50.0; const h=22.2;
+      if(FX[15]) {
+        // 外枠+内部仕切り線
+        strokeN(); doc.rect(ML,y,PW,h).stroke();
+        doc.moveTo(ML+175.0,y).lineTo(ML+175.0,y+h).stroke();
+        doc.moveTo(ML+330.0,y).lineTo(ML+330.0,y+h).stroke();
+      } else {
+        strokeN();
+        doc.rect(ML,y,175.0,h).stroke();
+        doc.rect(ML+175.0,y,155.0,h).stroke();
+        doc.rect(ML+330.0,y,MR-(ML+330.0),h).stroke();
+      }
+      doc.font(F).fontSize(8.0).fillColor('#000000');
+      doc.text('段取',    ML+3,        y+(h-8*0.72)/2, {lineBreak:false});
+      doc.text('チェック',ML+175.0+3,  y+(h-8*0.72)/2, {lineBreak:false});
+      doc.text('量産',    ML+330.0+3,  y+(h-8*0.72)/2, {lineBreak:false});
+    }
 
-<div style="margin-top:10px;font-size:8pt;color:#64748b;border-top:1px solid #e2e8f0;padding-top:4px;display:flex;flex-wrap:wrap;gap:12px;">
-  <span>入力: ${data.registrar?.name ?? ''} (${fmtDate(data.registeredAt)})</span>
-  <span>承認: ${data.approver?.name ?? '未承認'}${data.approvedAt ? ' (' + fmtDate(data.approvedAt) + ')' : ''}</span>
-  ${data.note ? `<span style="color:#475569;">備考: ${data.note}</span>` : ''}
-</div>
-</body>
-</html>`;
+    // ─── 行2: プログラム / Tool  y=74.1  h=22.2 ───
+    {
+      const y=74.1; const h=22.2;
+      lbl(ML,y,52,h,'プログラム',6.0);
+      val(ML+52,y,LW-52,h,'＋ ー  H  M保存');
+      lbl(DIV,y,40,h,'Tool',6.5);
+      val(DIV+40,y,RW-40,h,'＋ ー  H  M');
+    }
+
+    // ─── 行3: 段取時の中断 / 量産時の中断  y=98.2  h=23.2 ───
+    // #17: HとMの欄を正確に再現
+    {
+      const y=98.2; const h=23.2;
+      if(FX[17]) {
+        lbl(ML,y,62,h,'段取時の中断',5.5);
+        val(ML+62,y,LW-62-42,h);
+        lbl(MR/2-42,y,20,h,'H',6.5);
+        val(MR/2-22,y,22,h);
+        lbl(DIV,y,62,h,'量産時の中断',5.5);
+        val(DIV+62,y,RW-62-42,h);
+        lbl(MR-42,y,20,h,'H',6.5);
+        val(MR-22,y,22,h);
+      } else {
+        lbl(ML,y,62,h,'段取時の中断',5.5);
+        val(ML+62,y,LW-62-20-20,h);
+        lbl(ML+LW-40,y,20,h,'H',6.5);
+        val(ML+LW-20,y,20,h);
+        lbl(DIV,y,62,h,'量産時の中断',5.5);
+        val(DIV+62,y,RW-62-20-20,h);
+        lbl(DIV+RW-40,y,20,h,'H',6.5);
+        val(DIV+RW-20,y,20,h);
+      }
+    }
+
+    // ─── 行4: M  y=123.2  h=21.3 ───
+    {
+      const y=123.2; const h=21.3;
+      plain(ML,y,LW,h,'M');
+      plain(DIV,y,RW,h,'M');
+    }
+
+    // ─── 行5: 段取良品数 / 全良品数  y=144.5  h=22.2 ───
+    {
+      const y=144.5; const h=22.2;
+      lbl(ML,y,52,h,'段取良品数',6.0);
+      val(ML+52,y,LW-52,h);
+      lbl(DIV,y,52,h,'全良品数',6.0);
+      val(DIV+52,y,RW-52,h);
+    }
+
+    // ─── 行6: 写真枚数 / 登録者  y=166.7  h=22.2 ───
+    // #14: 写真枚数行を正確に表示
+    {
+      const y=166.7; const h=22.2;
+      if(FX[14]) {
+        lbl(ML,y,52,h,'写真枚数',6.0);
+        val(ML+52,y,LW-52,h,'枚  Rim    ～Rim');
+        lbl(DIV,y,52,h,'登録者',6.0);
+        val(DIV+52,y,RW-52,h);
+      } else {
+        plain(ML,y,LW,h,'写真枚数  枚  Rim  ～Rim');
+        lbl(DIV,y,52,h,'登録者',6.0);
+        val(DIV+52,y,RW-52,h);
+      }
+    }
+
+    // ─────────────────────────────────────────
+    // タイムチャート描画
+    // ─────────────────────────────────────────
+    const DATE_W  = 38.7;
+    const GRID_X  = ML + DATE_W;
+    const GRID_W  = MR - GRID_X;
+    const SLOT_W  = GRID_W / 27;
+    const HDR_H   = 20.4;
+    const ROW_H   = 20.4;
+    const ROWS    = 15;
+
+    // #19: グレースロット（参照=12:00-13:00=index 8,9のみ2スロット）
+    const GRAY_IDX = FX[19] ? new Set([8,9]) : new Set([8,9,10,11]);
+
+    const TIME_LABELS = [
+      '8:00','8:30','9:00','9:30','10:00','10:30','11:00','11:30',
+      '12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30',
+      '16:00','16:30','17:00','17:30','18:00','18:30','19:00','19:30',
+      '20:00','—','7:00',
+    ];
+
+    const drawChart = (startY: number) => {
+      // 日付ラベル
+      strokeN();
+      doc.rect(ML, startY, DATE_W, HDR_H).fillAndStroke('#d8d8d8','#000000');
+      doc.font(F).fontSize(5.5).fillColor('#000000');
+      doc.text('日付', ML, startY+(HDR_H-5.5*0.72)/2, {width:DATE_W, align:'center', lineBreak:false});
+
+      // #18: 時刻スロットヘッダー（縦書きラベル）
+      for(let i=0; i<TIME_LABELS.length; i++) {
+        const sx  = GRID_X + i*SLOT_W;
+        const bg  = GRAY_IDX.has(i) ? '#b8b8b8' : '#d8d8d8';
+        strokeN();
+        doc.rect(sx, startY, SLOT_W, HDR_H).fillAndStroke(bg,'#000000');
+        if(FX[18]) {
+          // 縦書き: rotate -90度
+          doc.save();
+          doc.translate(sx + SLOT_W*0.65, startY + HDR_H - 1.5);
+          doc.rotate(-90);
+          doc.font(F).fontSize(4.5).fillColor('#000000');
+          doc.text(TIME_LABELS[i], 0, 0, {lineBreak:false});
+          doc.restore();
+        }
+      }
+
+      // データ行
+      for(let row=0; row<ROWS; row++) {
+        const ry = startY + HDR_H + row*ROW_H;
+        strokeN(); doc.rect(ML, ry, DATE_W, ROW_H).stroke();
+        doc.font(F).fontSize(7.0).fillColor('#000000');
+        doc.text('/', ML, ry+(ROW_H-7*0.72)/2, {width:DATE_W, align:'center', lineBreak:false});
+        for(let i=0; i<TIME_LABELS.length; i++) {
+          const sx = GRID_X + i*SLOT_W;
+          strokeN();
+          if(GRAY_IDX.has(i)) doc.rect(sx,ry,SLOT_W,ROW_H).fillAndStroke('#e0e0e0','#000000');
+          else doc.rect(sx,ry,SLOT_W,ROW_H).stroke();
+        }
+      }
+    };
+
+    // #21: 2セット目y位置（参照から正確に再計算）
+    // 1セット目: 188.9pt開始, HDR_H+15*ROW_H = 20.4+306 = 326.4pt
+    // 1セット目終端: 188.9+326.4 = 515.3pt
+    // 2セット目開始: FX[21]=true → 515.3pt+5 = 520.3pt
+    const SET1_Y = 188.9;
+    const SET2_Y = FX[21] ? (SET1_Y + HDR_H + ROWS*ROW_H + 5) : 501.1;
+
+    drawChart(SET1_Y);
+    drawChart(SET2_Y);
+
+    // ページ番号
+    doc.font(F).fontSize(7.0).fillColor('#000000');
+    doc.text('2 / 2', 0, 828, {width:595.28, align:'center', lineBreak:false});
   }
 
 }
