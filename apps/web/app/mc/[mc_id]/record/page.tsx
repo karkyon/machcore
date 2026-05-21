@@ -234,7 +234,7 @@ function McRecordPageInner() {
               <div className="flex-1">
                 <div className="text-sm font-bold text-teal-800">作業記録 — 作業開始前</div>
                 <div className="text-xs text-teal-600 mt-0.5">
-                  {selectedSheet ? `段取シート（${new Date(selectedSheet.printedAt).toLocaleDateString("ja-JP")}）を選択中` : "左リストから段取シートを選択してください"}
+                  {selectedSheet ? `段取シート（${new Date(selectedSheet.printed_at).toLocaleDateString("ja-JP")}）を選択中` : "左リストから段取シートを選択してください"}
                 </div>
               </div>
               <button onClick={() => setAuthOpen(true)}
