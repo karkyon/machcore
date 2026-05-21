@@ -69,6 +69,10 @@ export default function McDashboard() {
   const [loading, setLoading] = useState(true);
   const [lastAt,  setLastAt]  = useState<Date | null>(null);
   const [period,  setPeriod]  = useState<Period>("week");
+  const [collectingId,  setCollectingId]  = useState<{system:"NC"|"MC"; id:number; programId:number} | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [collectErr,    setCollectErr]    = useState<string | null>(null);
+  const [users,         setUsers]         = useState<any[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,6 +90,10 @@ export default function McDashboard() {
   }, []);
 
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
+  useEffect(() => {
+    const _API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
+    fetch(`${_API}/users`).then(r => r.json()).then(d => setUsers(Array.isArray(d) ? d : [])).catch(() => {});
+  }, []);
 
   const filtered = filterPeriod(sheets, period);
   const grouped  = groupByMachine(filtered);
