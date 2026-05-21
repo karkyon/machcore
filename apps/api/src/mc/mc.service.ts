@@ -673,7 +673,7 @@ export class McService {
   }
 
   // ══════════════════════════════════════════
-  // 段取シートPDF生成（PDFKit直接描画）
+  // 段取シートPDF生成（pdf-lib テンプレ差し込み方式）
   // ══════════════════════════════════════════
   async generateSetupSheetPdf(
     mcId: number,
@@ -686,28 +686,123 @@ export class McService {
       include_index_programs?: boolean;
     },
   ): Promise<Buffer> {
-    const data = await this.getPrintData(mcId);
-    const PDFDocument = (await import('pdfkit')).default;
-    const FONT = '/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf';
+    const data = await this.getPrintData(mcId) as any;
 
-    return new Promise<Buffer>((resolve, reject) => {
-      try {
-        const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false });
-        const chunks: Buffer[] = [];
-        doc.on('data', (c: Buffer) => chunks.push(c));
-        doc.on('end',  () => resolve(Buffer.concat(chunks)));
-        doc.on('error', reject);
-        doc.registerFont('IPA', FONT);
-        this.buildP1(doc, data, options);
-        this.buildP2(doc, data);
-        doc.end();
-      } catch(e){ reject(e); }
-    }).then(async (buf) => {
-      await this.prisma.mcSetupSheetLog.create({
-        data: { mcProgramId: mcId, operatorId, version: (data as any).version ?? null },
-      }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
-      return buf;
-    });
+    // pdf-lib / fontkit
+    const { PDFDocument, rgb } = await import('pdf-lib');
+    const fontkit = await import('@pdf-lib/fontkit');
+    const FONT_PATH = '/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf';
+    const fontBytes = fs.readFileSync(FONT_PATH);
+
+    // テンプレートPDFパス
+    const ASSETS = '/home/karkyon/projects/machcore/apps/api/assets';
+    const p1Bytes = fs.readFileSync(`${ASSETS}/template_p1.pdf`);
+    const p2Bytes = fs.readFileSync(`${ASSETS}/template_p2.pdf`);
+
+    // DBからフィールド定義取得
+    const templates = await this.prisma.$queryRaw<any[]>`
+      SELECT t.id, t.name, t.page_number,
+             f.field_key, f.label, f.x, f.y, f.font_size, f.data_source, f.sort_order
+      FROM pdf_templates t
+      JOIN pdf_field_definitions f ON f.template_id = t.id
+      WHERE t.name IN ('mc_setup_p1','mc_setup_p2')
+        AND t.is_active = true AND f.is_active = true
+      ORDER BY t.page_number, f.sort_order
+    `;
+
+    // データ解決ヘルパー
+    const resolve = (src: string): string => {
+      const keys = src.split('.');
+      let val: any = data;
+      for (const k of keys) { val = val?.[k]; if (val === undefined || val === null) return ''; }
+      if (src === 'version') {
+        const v = String(val ?? '1.0001');
+        return v.replace(/^(\d+)\.(\d{4})$/, (_,a,b) => a+'.'+b.slice(0,2)+' '+b.slice(2));
+      }
+      return String(val ?? '');
+    };
+
+    // P1生成
+    const p1Doc = await PDFDocument.load(p1Bytes);
+    p1Doc.registerFontkit(fontkit.default ?? fontkit);
+    const font1 = await p1Doc.embedFont(fontBytes);
+    const p1Page = p1Doc.getPage(0);
+    const p1H = p1Page.getHeight();
+
+    const p1Fields = templates.filter(f => f.name === 'mc_setup_p1');
+    for (const f of p1Fields) {
+      const text = resolve(f.data_source);
+      if (!text) continue;
+      p1Page.drawText(text, {
+        x: Number(f.x),
+        y: p1H - Number(f.y),  // PDF座標系: 左下原点に変換
+        size: Number(f.font_size),
+        font: font1,
+        color: rgb(0, 0, 0),
+      });
+    }
+
+    // ツーリングリスト差し込み（DB定義がない場合のフォールバック）
+    if (options.include_tooling !== false && data.tooling?.length > 0) {
+      const toolFields = await this.prisma.$queryRaw<any[]>`
+        SELECT * FROM pdf_field_definitions
+        WHERE template_id = (SELECT id FROM pdf_templates WHERE name='mc_setup_p1')
+          AND field_key LIKE 'tooling_%' AND is_active = true
+        ORDER BY sort_order
+      `;
+      // ツーリング行はfield_key='tooling_row'の定義を使用
+      const rowDef = toolFields.find((f:any) => f.field_key === 'tooling_row');
+      if (rowDef) {
+        const ROW_H = Number(rowDef.note ?? '15'); // note列に行高を格納
+        const COLS = ['toolNo','toolName','tNumber','hValue','dRegister','dValue','subProgram','note'];
+        const COL_XS = String(rowDef.data_source).split(',').map(Number);
+        data.tooling.slice(0, 24).forEach((t: any, ri: number) => {
+          const ry = p1H - Number(rowDef.y) - ri * ROW_H;
+          COLS.forEach((col, ci) => {
+            const val = String(t[col] ?? '');
+            if (!val || !COL_XS[ci]) return;
+            p1Page.drawText(val, { x: COL_XS[ci], y: ry, size: 7, font: font1, color: rgb(0,0,0) });
+          });
+        });
+      }
+    }
+
+    // P2生成
+    const p2Doc = await PDFDocument.load(p2Bytes);
+    p2Doc.registerFontkit(fontkit.default ?? fontkit);
+    const font2 = await p2Doc.embedFont(fontBytes);
+    const p2Page = p2Doc.getPage(0);
+    const p2H = p2Page.getHeight();
+
+    const p2Fields = templates.filter(f => f.name === 'mc_setup_p2');
+    for (const f of p2Fields) {
+      const text = resolve(f.data_source);
+      if (!text) continue;
+      p2Page.drawText(text, {
+        x: Number(f.x),
+        y: p2H - Number(f.y),
+        size: Number(f.font_size),
+        font: font2,
+        color: rgb(0, 0, 0),
+      });
+    }
+
+    // P1+P2を結合して2ページPDFに
+    const finalDoc = await PDFDocument.create();
+    finalDoc.registerFontkit(fontkit.default ?? fontkit);
+    const [copiedP1] = await finalDoc.copyPages(p1Doc, [0]);
+    const [copiedP2] = await finalDoc.copyPages(p2Doc, [0]);
+    finalDoc.addPage(copiedP1);
+    finalDoc.addPage(copiedP2);
+
+    const pdfBytes = await finalDoc.save();
+    const pdfBuffer = Buffer.from(pdfBytes);
+
+    await this.prisma.mcSetupSheetLog.create({
+      data: { mcProgramId: mcId, operatorId, version: data.version ?? null },
+    }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
+
+    return pdfBuffer;
   }
 
   // ══════════════════════════════════════════
