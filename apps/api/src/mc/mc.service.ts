@@ -737,6 +737,10 @@ export class McService {
     console.log('[PDF] templates count:', templates.length, 'p1:', templates.filter((f:any)=>f.name==='mc_setup_p1').length);
     console.log('[PDF] templates count:', templates.length, 'p1:', templates.filter((f:any)=>f.name==='mc_setup_p1').length);
     const p1Fields = templates.filter(f => f.name === 'mc_setup_p1');
+    // テスト: 既知座標に固定テキスト描画
+    p1Page.drawText('TEST_OK', { x: 100, y: 700, size: 20, font: font1, color: rgb(1,0,0) });
+    p1Page.drawText('X100_Y700', { x: 100, y: 650, size: 12, font: font1, color: rgb(1,0,0) });
+    p1Page.drawText('X100_Y100', { x: 100, y: 100, size: 12, font: font1, color: rgb(1,0,0) });
     for (const f of p1Fields) {
       const text = resolve(f.data_source);
       if (!text) continue;
