@@ -582,6 +582,15 @@ export class McService {
     });
   }
 
+  /** SSL-MC-01: 段取シート回収済みマーク */
+  async collectSetupSheet(logId: number) {
+    await this.prisma.mcSetupSheetLog.update({
+      where: { id: logId },
+      data:  { workCollected: true },
+    });
+    return { message: '段取シートを回収済みにしました' };
+  }
+
   // ══════════════════════════════════════════
   // ファイル一覧
   // ══════════════════════════════════════════

@@ -1,5 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { authApi, mcApi, ncApi, usersApi } from "@/lib/api";
+import AuthModal from "@/components/auth/AuthModal";
 import { useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
@@ -88,7 +90,48 @@ export default function McDashboard() {
   const filtered = filterPeriod(sheets, period);
   const grouped  = groupByMachine(filtered);
 
+  const handleCollectClick = (system: "NC" | "MC", id: number, programId: number) => {
+    setCollectingId({ system, id, programId });
+    setCollectErr(null);
+    setShowAuthModal(true);
+  };
+
+  const handleAuthSuccess = async (token: string) => {
+    if (!collectingId) return;
+    setShowAuthModal(false);
+    try {
+      const { system, id, programId } = collectingId;
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
+      const res = await fetch(`${API_URL}/${system.toLowerCase()}/${programId}/setup-sheet-logs/${id}/collect`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("回収処理に失敗しました");
+      await load();
+    } catch (e: any) {
+      setCollectErr(e.message ?? "エラーが発生しました");
+    } finally {
+      setCollectingId(null);
+    }
+  };
+
   return (
+    <>
+      {showAuthModal && (
+        <AuthModal
+          users={users}
+          sessionType="WORK_RECORD"
+          programId={collectingId?.programId ?? 0}
+          onSuccess={handleAuthSuccess}
+          onCancel={() => { setShowAuthModal(false); setCollectingId(null); }}
+        />
+      )}
+      {collectErr && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg">
+          {collectErr}
+          <button onClick={() => setCollectErr(null)} className="ml-3 text-red-200 hover:text-white">✕</button>
+        </div>
+      )}
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
@@ -239,5 +282,6 @@ export default function McDashboard() {
         </main>
       </div>
     </div>
+    </>
   );
 }

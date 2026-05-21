@@ -181,6 +181,17 @@ export class McController {
     return this.mc.setupSheetLogs(id);
   }
 
+  /** 段取シート回収完了（work_collected=true） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Put(':mc_id/setup-sheet-logs/:log_id/collect')
+  async collectSetupSheet(
+    @Param('mc_id',  ParseIntPipe) _mcId:  number,
+    @Param('log_id', ParseIntPipe) logId: number,
+  ) {
+    return this.mc.collectSetupSheet(logId);
+  }
+
   // ── PGファイル閲覧・ダウンロード ───────────────────────────────
   /** PGファイルをテキストで返す（インラインビューア用） */
   @Get(':mc_id/pg-file')
