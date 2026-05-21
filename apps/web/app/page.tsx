@@ -262,14 +262,15 @@ export default function McDashboard() {
                       <span className="ml-auto text-xs text-amber-700 font-bold bg-amber-100 px-2 py-0.5 rounded-full">{items.length}枚</span>
                     </div>
                     {/* テーブルヘッダー */}
-                    <div className="grid grid-cols-[70px_70px_70px_100px_1fr_120px_100px_80px_16px] gap-x-2 px-4 py-1.5 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
-                      <span>MCID</span><span>加工ID</span><span>部品ID</span><span>工程</span><span>図番 / 部品名 / 納入先</span><span>印刷日時</span><span>印刷者</span><span>経過</span><span/>
+                    <div className="grid grid-cols-[70px_70px_70px_100px_1fr_120px_100px_80px_80px] gap-x-2 px-4 py-1.5 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
+                      <span>MCID</span><span>加工ID</span><span>部品ID</span><span>工程</span><span>図番 / 部品名 / 納入先</span><span>印刷日時</span><span>印刷者</span><span>経過</span><span>回収</span>
                     </div>
                     <div className="divide-y divide-slate-100">
                       {items.map(item => (
-                        <button key={item.id}
+                        <div key={item.id} className="flex items-stretch divide-x divide-slate-100">
+                        <button
                           onClick={() => router.push("/mc/" + item.mc_id + "/record")}
-                          className={"w-full grid grid-cols-[70px_70px_70px_100px_1fr_120px_100px_80px_16px] gap-x-2 px-4 py-2.5 items-center text-left transition-colors " + rowCls(item.printed_at)}>
+                          className={"flex-1 grid grid-cols-[70px_70px_70px_100px_1fr_120px_100px_80px] gap-x-2 px-4 py-2.5 items-center text-left transition-colors " + rowCls(item.printed_at)}>
                           <span className="font-mono text-xs text-slate-500">{item.legacy_mcid ?? "-"}</span>
                           <span className="font-mono text-xs text-slate-500">{item.machining_id}</span>
                           <span className="font-mono text-xs text-slate-600">{item.part_id}</span>
@@ -287,8 +288,13 @@ export default function McDashboard() {
                           <span className="text-[11px] text-slate-500 whitespace-nowrap">{fmtDt(item.printed_at)}</span>
                           <span className="text-xs text-slate-500">{item.operator_name}</span>
                           <span className={"text-xs whitespace-nowrap " + ageCls(item.printed_at)}>{elapsed(item.printed_at)}</span>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-300"><path d="M9 18l6-6-6-6"/></svg>
                         </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); handleCollectClick("MC", item.id, item.mc_id); }}
+                          className="w-20 shrink-0 flex items-center justify-center text-[11px] font-bold text-teal-600 hover:bg-teal-50 transition-colors">
+                          🔄 回収
+                        </button>
+                        </div>
                       ))}
                     </div>
                   </div>
