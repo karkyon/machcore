@@ -146,7 +146,7 @@ export default function McDashboard() {
           onCancel={() => setSbAuthOpen(false)}
         />
       )}
-      {sbError && sbSheets !== null && (
+      {sbError && sbResult !== null && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg">
           {sbError}
           <button onClick={() => setSbError(null)} className="ml-3 text-red-200 hover:text-white">✕</button>
