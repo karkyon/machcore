@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { authApi, mcApi, ncApi, usersApi } from "@/lib/api";
 import AuthModal from "@/components/auth/AuthModal";
 import { useRouter } from "next/navigation";
@@ -63,6 +64,7 @@ function filterPeriod(items: McSheet[], p: Period) {
 
 export default function McDashboard() {
   const router = useRouter();
+  const { token: authToken, login } = useAuth();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [sheets,  setSheets]  = useState<McSheet[]>([]);
   const [total,   setTotal]   = useState(0);
@@ -104,32 +106,39 @@ export default function McDashboard() {
     setShowAuthModal(true);
   };
 
-  const handleAuthSuccess = async (token: string) => {
+  const handleAuthSuccess = async () => {
     if (!collectingId) return;
     setShowAuthModal(false);
-    try {
-      const { system, id, programId } = collectingId;
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
-      const res = await fetch(`${API_URL}/${system.toLowerCase()}/${programId}/setup-sheet-logs/${id}/collect`, {
-        method: "PUT",
-        headers: { "Authorization": `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("回収処理に失敗しました");
-      await load();
-    } catch (e: any) {
-      setCollectErr(e.message ?? "エラーが発生しました");
-    } finally {
-      setCollectingId(null);
-    }
+    // useAuth の login() が呼ばれた直後なので token は次の tick で取れる
+    // setTimeout で 1tick 待ってから取得
+    setTimeout(async () => {
+      const tok = authToken ?? (typeof window !== "undefined" ? localStorage.getItem("work_token") : null);
+      if (!tok) { setCollectErr("認証トークンが取得できませんでした"); setCollectingId(null); return; }
+      try {
+        const { system, id, programId } = collectingId!;
+        const _API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
+        const res = await fetch(`${_API}/${system.toLowerCase()}/${programId}/setup-sheet-logs/${id}/collect`, {
+          method: "PUT",
+          headers: { "Authorization": `Bearer ${tok}` },
+        });
+        if (!res.ok) throw new Error("回収処理に失敗しました");
+        await load();
+      } catch (e: any) {
+        setCollectErr(e.message ?? "エラーが発生しました");
+      } finally {
+        setCollectingId(null);
+      }
+    }, 100);
   };
 
   return (
     <>
       {showAuthModal && (
         <AuthModal
-          users={users}
-          sessionType="WORK_RECORD"
-          programId={collectingId?.programId ?? 0}
+          isOpen={true}
+          sessionType="MC_WORK_RECORD"
+          mcProgramId={collectingId?.system === "MC" ? collectingId?.programId : undefined}
+          ncProgramId={collectingId?.system === "NC" ? collectingId?.programId : undefined}
           onSuccess={handleAuthSuccess}
           onCancel={() => { setShowAuthModal(false); setCollectingId(null); }}
         />
