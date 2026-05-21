@@ -9,6 +9,7 @@ import { McModule } from './mc/mc.module';
 import { FilesModule } from './files/files.module';
 import { AdminModule } from './admin/admin.module';
 import { CommonModule } from './common/common.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { CommonModule } from './common/common.module';
     FilesModule,
     AdminModule,
     CommonModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

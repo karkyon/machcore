@@ -211,6 +211,7 @@ export class McService {
           machiningQty:  dto.machining_qty  ?? 1,
           commonPartCode: dto.common_part_code ?? null,
           note:          dto.note           ?? null,
+          legacyMcid:    dto.machining_id,
           registeredBy:  operatorId,
           status:        'NEW',
           version:       '0.0001',
@@ -734,19 +735,14 @@ export class McService {
     const p1Page = p1Doc.getPage(0);
     const p1H = p1Page.getHeight();
 
-    console.log('[PDF] templates count:', templates.length, 'p1:', templates.filter((f:any)=>f.name==='mc_setup_p1').length);
-    console.log('[PDF] templates count:', templates.length, 'p1:', templates.filter((f:any)=>f.name==='mc_setup_p1').length);
+    console.log('[PDF] templates count:', templates.length);
     const p1Fields = templates.filter(f => f.name === 'mc_setup_p1');
-    // テスト: 既知座標に固定テキスト描画
-    p1Page.drawText('TEST_OK', { x: 100, y: 700, size: 20, font: font1, color: rgb(1,0,0) });
-    p1Page.drawText('X100_Y700', { x: 100, y: 650, size: 12, font: font1, color: rgb(1,0,0) });
-    p1Page.drawText('X100_Y100', { x: 100, y: 100, size: 12, font: font1, color: rgb(1,0,0) });
     for (const f of p1Fields) {
       const text = resolve(f.data_source);
       if (!text) continue;
       p1Page.drawText(text, {
         x: Number(f.x),
-        y: p1H - Number(f.y),  // PDF座標系: 左下原点に変換
+        y: Number(f.y),
         size: Number(f.font_size),
         font: font1,
         color: rgb(0, 0, 0),
@@ -796,7 +792,7 @@ export class McService {
       if (!text) continue;
       p2Page.drawText(text, {
         x: Number(f.x),
-        y: p2H - Number(f.y),
+        y: Number(f.y),
         size: Number(f.font_size),
         font: font2,
         color: rgb(0, 0, 0),

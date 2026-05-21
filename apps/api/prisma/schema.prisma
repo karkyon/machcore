@@ -562,6 +562,7 @@ model McSetupSheetLog {
   version     String?  @db.VarChar(10)
   pdfPath     String?  @db.VarChar(500)    @map("pdf_path")
   sessionId   String?  @db.VarChar(36)     @map("session_id")
+  workCollected Boolean @default(false)    @map("work_collected")
 
   mcProgram McProgram @relation(fields: [mcProgramId], references: [id])
   operator  User      @relation(fields: [operatorId],  references: [id])

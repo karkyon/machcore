@@ -4,12 +4,11 @@ import { useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
 
-type McSheet = {
-  id: number; mc_id: number;
-  legacy_mcid: number | null; machining_id: number;
+type NcSheet = {
+  id: number; nc_id: number;
   part_id: string; drawing_no: string; part_name: string;
   client_name: string | null; main_model: string | null;
-  mc_process_no: number | null;
+  process_l: number;
   machine_code: string | null; machine_name: string | null; machine_sort: number;
   version: string | null; printed_at: string; operator_name: string;
 };
@@ -45,8 +44,8 @@ function fmtDt(iso: string) {
   return d.toLocaleDateString("ja-JP",{month:"2-digit",day:"2-digit"}) + " " +
          d.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"});
 }
-function groupByMachine(items: McSheet[]) {
-  const map = new Map<string, McSheet[]>();
+function groupByMachine(items: NcSheet[]) {
+  const map = new Map<string, NcSheet[]>();
   for (const item of items) {
     const key = item.machine_code ?? "未設定";
     if (!map.has(key)) map.set(key, []);
@@ -54,15 +53,15 @@ function groupByMachine(items: McSheet[]) {
   }
   return map;
 }
-function filterPeriod(items: McSheet[], p: Period) {
+function filterPeriod(items: NcSheet[], p: Period) {
   if (p === "all") return items;
   return items.filter(i => ageDays(i.printed_at) <= (p === "week" ? 7 : 14));
 }
 
-export default function McDashboard() {
+export default function NcDashboard() {
   const router = useRouter();
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [sheets,  setSheets]  = useState<McSheet[]>([]);
+  const [sheets,  setSheets]  = useState<NcSheet[]>([]);
   const [total,   setTotal]   = useState(0);
   const [loading, setLoading] = useState(true);
   const [lastAt,  setLastAt]  = useState<Date | null>(null);
@@ -73,7 +72,7 @@ export default function McDashboard() {
     try {
       const [s, u] = await Promise.all([
         fetch(API_URL + "/dashboard/summary").then(r => r.json()),
-        fetch(API_URL + "/dashboard/uncollected-mc").then(r => r.json()),
+        fetch(API_URL + "/dashboard/uncollected-nc").then(r => r.json()),
       ]);
       setSummary(s);
       setSheets(u.items ?? []);
@@ -91,13 +90,13 @@ export default function McDashboard() {
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
-        <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
+        <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
         <span className="text-slate-400 text-xs">|</span>
-        <span className="text-sm font-medium">MC マシニング ダッシュボード</span>
+        <span className="text-sm font-medium">NC 旋盤 ダッシュボード</span>
         <div className="ml-auto flex items-center gap-2 text-xs">
-          <button onClick={() => router.push("/")}
-            className="bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded font-bold transition-colors">
-            NC 旋盤 →
+          <button onClick={() => router.push("/mc")}
+            className="bg-teal-600 hover:bg-teal-500 text-white px-3 py-1.5 rounded font-bold transition-colors">
+            MC マシニング →
           </button>
           {lastAt && <span className="text-slate-400">更新: {lastAt.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})}</span>}
           <button onClick={load} className="bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 rounded transition-colors text-slate-300">
@@ -107,19 +106,18 @@ export default function McDashboard() {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        {/* サイドバー: MCのみ */}
+        {/* サイドバー: NCのみ */}
         <aside className="w-[200px] shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
           <div className="p-4 border-b border-slate-100">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">MC マシニング</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">NC 旋盤</p>
             <nav className="space-y-1">
               {[
-                { label: "ダッシュボード", href: "/mc",         active: true },
-                { label: "部品検索",       href: "/mc/search",  active: false },
-                { label: "新規登録",       href: "/mc/new",     active: false },
+                { label: "ダッシュボード", href: "/",           active: true },
+                { label: "部品検索",       href: "/nc/search",  active: false },
               ].map(item => (
                 <button key={item.href} onClick={() => router.push(item.href)}
                   className={"w-full px-3 py-2 rounded-lg text-left text-sm transition-colors " +
-                    (item.active ? "bg-teal-50 text-teal-700 font-bold border border-teal-200" : "text-slate-600 hover:bg-teal-50 hover:text-teal-700")}>
+                    (item.active ? "bg-sky-50 text-sky-700 font-bold border border-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700")}>
                   {item.label}
                 </button>
               ))}
@@ -143,14 +141,14 @@ export default function McDashboard() {
         <main className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* サマリー */}
           <section>
-            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">MC システム状況</h2>
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">NC システム状況</h2>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "MC 登録数",    value: summary?.mc_total,       cls: "text-teal-600",    bg: "bg-teal-50",    border: "border-teal-200" },
-                { label: "MC 未承認",    value: summary?.mc_pending,     cls: summary?.mc_pending ? "text-yellow-600" : "text-slate-400", bg: "bg-white", border: "border-slate-200" },
-                { label: "未回収シート", value: summary?.mc_uncollected, cls: summary?.mc_uncollected ? "text-red-600" : "text-emerald-600",
-                  bg: summary?.mc_uncollected ? "bg-red-50" : "bg-emerald-50",
-                  border: summary?.mc_uncollected ? "border-red-200" : "border-emerald-200" },
+                { label: "NC 登録数",    value: summary?.nc_total,       cls: "text-sky-600",     bg: "bg-sky-50",     border: "border-sky-200" },
+                { label: "NC 未承認",    value: summary?.nc_pending,     cls: summary?.nc_pending ? "text-yellow-600" : "text-slate-400", bg: "bg-white", border: "border-slate-200" },
+                { label: "未回収シート", value: summary?.nc_uncollected, cls: summary?.nc_uncollected ? "text-red-600" : "text-emerald-600",
+                  bg: summary?.nc_uncollected ? "bg-red-50" : "bg-emerald-50",
+                  border: summary?.nc_uncollected ? "border-red-200" : "border-emerald-200" },
               ].map(c => (
                 <div key={c.label} className={"rounded-xl px-4 py-3 border " + c.bg + " " + c.border}>
                   <div className="text-[10px] text-slate-400 mb-1">{c.label}</div>
@@ -164,15 +162,17 @@ export default function McDashboard() {
           <section>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">現在発行中の段取シート（MC）</h2>
-                <span className="text-[10px] bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-bold">全 {total} 枚</span>
+                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">現在発行中の段取シート（NC）</h2>
+                <span className="text-[10px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-bold">全 {total} 枚</span>
               </div>
               <div className="flex items-center gap-3">
+                {/* 凡例 */}
                 <div className="flex items-center gap-3 text-[10px] text-slate-500">
                   <span className="flex items-center gap-1"><span className="w-3 h-2 border-l-2 border-l-slate-300 bg-white inline-block"/>7日以内</span>
                   <span className="flex items-center gap-1 text-blue-600"><span className="w-3 h-2 border-l-2 border-l-blue-400 bg-blue-50 inline-block"/>7〜14日</span>
                   <span className="flex items-center gap-1 text-red-600"><span className="w-3 h-2 border-l-2 border-l-red-400 bg-red-50 inline-block"/>14日超</span>
                 </div>
+                {/* 期間フィルタ */}
                 <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5">
                   {([["week","直近1週間"],["twoweeks","直近2週間"],["all","すべて"]] as const).map(([k,l]) => (
                     <button key={k} onClick={() => setPeriod(k)}
@@ -202,25 +202,22 @@ export default function McDashboard() {
                       <span className="ml-auto text-xs text-amber-700 font-bold bg-amber-100 px-2 py-0.5 rounded-full">{items.length}枚</span>
                     </div>
                     {/* テーブルヘッダー */}
-                    <div className="grid grid-cols-[70px_70px_70px_100px_1fr_120px_100px_80px_16px] gap-x-2 px-4 py-1.5 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
-                      <span>MCID</span><span>加工ID</span><span>部品ID</span><span>工程</span><span>図番 / 部品名 / 納入先</span><span>印刷日時</span><span>印刷者</span><span>経過</span><span/>
+                    <div className="grid grid-cols-[60px_80px_100px_1fr_120px_100px_80px_16px] gap-x-3 px-4 py-1.5 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
+                      <span>NC ID</span><span>部品ID</span><span>工程</span><span>図番 / 部品名 / 納入先</span><span>印刷日時</span><span>印刷者</span><span>経過</span><span/>
                     </div>
                     <div className="divide-y divide-slate-100">
                       {items.map(item => (
                         <button key={item.id}
-                          onClick={() => router.push("/mc/" + item.mc_id + "/record")}
-                          className={"w-full grid grid-cols-[70px_70px_70px_100px_1fr_120px_100px_80px_16px] gap-x-2 px-4 py-2.5 items-center text-left transition-colors " + rowCls(item.printed_at)}>
-                          <span className="font-mono text-xs text-slate-500">{item.legacy_mcid ?? "-"}</span>
-                          <span className="font-mono text-xs text-slate-500">{item.machining_id}</span>
+                          onClick={() => router.push("/nc/" + item.nc_id + "/record")}
+                          className={"w-full grid grid-cols-[60px_80px_100px_1fr_120px_100px_80px_16px] gap-x-3 px-4 py-2.5 items-center text-left transition-colors " + rowCls(item.printed_at)}>
+                          <span className="font-mono text-xs text-slate-500">{item.nc_id}</span>
                           <span className="font-mono text-xs text-slate-600">{item.part_id}</span>
                           <span className="text-xs">
-                            {item.mc_process_no != null
-                              ? <span className="bg-teal-100 text-teal-700 font-bold px-1.5 py-0.5 rounded font-mono">P{item.mc_process_no}</span>
-                              : <span className="text-slate-300">-</span>}
+                            <span className="bg-sky-100 text-sky-700 font-bold px-1.5 py-0.5 rounded font-mono">L{item.process_l}</span>
                             {item.version && <span className="ml-1 text-slate-400 text-[10px]">v{item.version}</span>}
                           </span>
                           <span className="min-w-0">
-                            <span className="font-mono text-sm text-teal-600 font-bold">{item.drawing_no}</span>
+                            <span className="font-mono text-sm text-sky-600 font-bold">{item.drawing_no}</span>
                             <span className="text-slate-600 text-xs ml-2">{item.part_name}</span>
                             {item.client_name && <span className="text-slate-400 text-[10px] ml-2">/ {item.client_name}</span>}
                           </span>
