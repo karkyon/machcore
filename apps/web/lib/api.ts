@@ -590,20 +590,20 @@ export type McWorkRecord = {
 
 export type McChangeHistory = {
   id:            number;
-  changedAt:     string;
-  changeType:    string;
-  operatorId:    number;
-  versionBefore: string | null;
-  versionAfter:  string | null;
-  content:       string | null;
-  operator:      { name: string } | null;
+  changed_at:    string;
+  change_type:   string;
+  operator_name: string | null;
+  ver_before:    string | null;
+  ver_after:     string | null;
+  change_detail: string | null;
 };
 
 export type McSetupSheetLog = {
-  id:          number;
-  printedAt:   string;
-  version:     string | null;
-  operator:    { name: string } | null;
+  id:             number;
+  printed_at:     string;
+  version:        string | null;
+  operator_name:  string | null;
+  work_collected: boolean;
 };
 
 export type CreateMcWorkRecordBody = {

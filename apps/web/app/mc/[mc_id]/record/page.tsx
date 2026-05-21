@@ -212,12 +212,12 @@ function McRecordPageInner() {
                 }`}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-mono font-bold text-slate-600">
-                    {new Date(s.printedAt).toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit" })}
-                    {" "}{new Date(s.printedAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                    {new Date(s.printed_at).toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit" })}
+                    {" "}{new Date(s.printed_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
                   </span>
                   {s.version && <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-mono">Ver.{s.version}</span>}
                 </div>
-                <div className="text-slate-500">印刷者: {s.operator?.name ?? "—"}</div>
+                <div className="text-slate-500">印刷者: {s.operator_name ?? "—"}</div>
                 {selectedSheet?.id === s.id && (
                   <div className="mt-1 text-[11px] text-teal-700 font-bold">▶ この段取シートで記録入力中</div>
                 )}

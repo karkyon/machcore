@@ -652,7 +652,7 @@ export default function McDetailPage() {
                       <span className="text-slate-400 text-xs">{fmtDate(c.changedAt)}</span>
                       <span className="text-slate-500 text-xs">{c.operator?.name ?? "—"}</span>
                       <span className="text-slate-700">{c.content ?? c.changeType}</span>
-                      {c.versionAfter && <span className="ml-auto font-mono text-[10px] text-slate-400">Ver.{c.versionAfter}</span>}
+                      {c.versionAfter && <span className="ml-auto font-mono text-[10px] text-slate-400">Ver.{c.ver_after}</span>}
                     </div>
                   </div>
                 ))}
@@ -684,8 +684,8 @@ export default function McDetailPage() {
                 ) : prints.map((p: McSetupSheetLog, i) => (
                   <div key={p.id} className={`px-4 py-3 border-b border-slate-100 text-xs ${i % 2 === 0 ? "bg-white" : "bg-slate-50"}`}>
                     <div className="flex items-center gap-3">
-                      <span className="text-slate-400">{new Date(p.printedAt).toLocaleString("ja-JP")}</span>
-                      <span className="text-slate-600">{p.operator?.name ?? "—"}</span>
+                      <span className="text-slate-400">{new Date(p.printed_at).toLocaleString("ja-JP")}</span>
+                      <span className="text-slate-600">{p.operator_name ?? "—"}</span>
                       {p.version && <span className="ml-auto font-mono text-slate-400">Ver.{p.version}</span>}
                     </div>
                   </div>

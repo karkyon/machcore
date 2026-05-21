@@ -564,22 +564,38 @@ export class McService {
   // 変更履歴
   // ══════════════════════════════════════════
   async changeHistory(mcId: number) {
-    return this.prisma.mcChangeHistory.findMany({
+    const rows = await this.prisma.mcChangeHistory.findMany({
       where:   { mcProgramId: mcId },
       orderBy: { changedAt: 'desc' },
       include: { operator: { select: { name: true } } },
     });
+    return rows.map(r => ({
+      id:             r.id,
+      changed_at:     r.changedAt,
+      change_type:    r.changeType,
+      operator_name:  r.operator?.name ?? null,
+      ver_before:     r.versionBefore ?? null,
+      ver_after:      r.versionAfter  ?? null,
+      change_detail:  r.content       ?? null,
+    }));
   }
 
   // ══════════════════════════════════════════
   // 段取シートログ
   // ══════════════════════════════════════════
   async setupSheetLogs(mcId: number) {
-    return this.prisma.mcSetupSheetLog.findMany({
+    const rows = await this.prisma.mcSetupSheetLog.findMany({
       where:   { mcProgramId: mcId },
       orderBy: { printedAt: 'desc' },
       include: { operator: { select: { name: true } } },
     });
+    return rows.map(r => ({
+      id:             r.id,
+      printed_at:     r.printedAt,
+      version:        r.version ?? null,
+      operator_name:  r.operator?.name ?? null,
+      work_collected: r.workCollected,
+    }));
   }
 
   /** 段取シートバック: legacy_mcid で未回収シート一覧取得 */
