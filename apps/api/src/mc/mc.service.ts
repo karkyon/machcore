@@ -699,16 +699,20 @@ export class McService {
     const p1Bytes = fs.readFileSync(`${ASSETS}/template_p1.pdf`);
     const p2Bytes = fs.readFileSync(`${ASSETS}/template_p2.pdf`);
 
-    // DBからフィールド定義取得
-    const templates = await this.prisma.$queryRaw<any[]>`
+    // DBからフィールド定義取得（pg直接クエリ）
+    const { Pool } = await import('pg');
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const qr = await pool.query(`
       SELECT t.id, t.name, t.page_number,
-             f.field_key, f.label, f.x, f.y, f.font_size, f.data_source, f.sort_order
+             f.field_key, f.label, f.x, f.y, f.font_size, f.data_source, f.sort_order, f.note
       FROM pdf_templates t
       JOIN pdf_field_definitions f ON f.template_id = t.id
       WHERE t.name IN ('mc_setup_p1','mc_setup_p2')
         AND t.is_active = true AND f.is_active = true
       ORDER BY t.page_number, f.sort_order
-    `;
+    `);
+    await pool.end();
+    const templates: any[] = qr.rows;
 
     // データ解決ヘルパー
     const resolve = (src: string): string => {
@@ -744,12 +748,16 @@ export class McService {
 
     // ツーリングリスト差し込み（DB定義がない場合のフォールバック）
     if (options.include_tooling !== false && data.tooling?.length > 0) {
-      const toolFields = await this.prisma.$queryRaw<any[]>`
+      const { Pool: Pool2 } = await import('pg');
+      const pool2 = new Pool2({ connectionString: process.env.DATABASE_URL });
+      const toolQr = await pool2.query(`
         SELECT * FROM pdf_field_definitions
         WHERE template_id = (SELECT id FROM pdf_templates WHERE name='mc_setup_p1')
           AND field_key LIKE 'tooling_%' AND is_active = true
         ORDER BY sort_order
-      `;
+      `);
+      await pool2.end();
+      const toolFields: any[] = toolQr.rows;
       // ツーリング行はfield_key='tooling_row'の定義を使用
       const rowDef = toolFields.find((f:any) => f.field_key === 'tooling_row');
       if (rowDef) {
