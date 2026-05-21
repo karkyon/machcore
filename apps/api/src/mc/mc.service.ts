@@ -701,7 +701,8 @@ export class McService {
 
     // DBからフィールド定義取得（pg直接クエリ）
     const { Pool } = await import('pg');
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const DB_URL = process.env.DATABASE_URL || 'postgresql://machcore:machcore_pass_change_me@localhost:5440/machcore_dev?schema=public';
+    const pool = new Pool({ connectionString: DB_URL });
     const qr = await pool.query(`
       SELECT t.id, t.name, t.page_number,
              f.field_key, f.label, f.x, f.y, f.font_size, f.data_source, f.sort_order, f.note
@@ -733,6 +734,8 @@ export class McService {
     const p1Page = p1Doc.getPage(0);
     const p1H = p1Page.getHeight();
 
+    console.log('[PDF] templates count:', templates.length, 'p1:', templates.filter((f:any)=>f.name==='mc_setup_p1').length);
+    console.log('[PDF] templates count:', templates.length, 'p1:', templates.filter((f:any)=>f.name==='mc_setup_p1').length);
     const p1Fields = templates.filter(f => f.name === 'mc_setup_p1');
     for (const f of p1Fields) {
       const text = resolve(f.data_source);
@@ -749,7 +752,8 @@ export class McService {
     // ツーリングリスト差し込み（DB定義がない場合のフォールバック）
     if (options.include_tooling !== false && data.tooling?.length > 0) {
       const { Pool: Pool2 } = await import('pg');
-      const pool2 = new Pool2({ connectionString: process.env.DATABASE_URL });
+      const DB_URL2 = process.env.DATABASE_URL || 'postgresql://machcore:machcore_pass_change_me@localhost:5440/machcore_dev?schema=public';
+      const pool2 = new Pool2({ connectionString: DB_URL2 });
       const toolQr = await pool2.query(`
         SELECT * FROM pdf_field_definitions
         WHERE template_id = (SELECT id FROM pdf_templates WHERE name='mc_setup_p1')
