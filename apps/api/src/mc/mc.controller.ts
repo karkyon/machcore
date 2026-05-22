@@ -377,6 +377,26 @@ export class McController {
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('OPERATOR', 'ADMIN')
+  @Put('timecards/:id')
+  updateTimecard(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { start_time: string; end_time: string; note?: string },
+  ) {
+    return this.mc.updateTimecard(id, body.start_time, body.end_time, body.note);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Post('timecards/init')
+  initTimecards(
+    @Body() body: { work_date: string },
+    @Req() req: any,
+  ) {
+    return this.mc.initTimecards(body.work_date, req.user.id);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
   @Post('timecards')
   createTimecard(@Body() body: {
     machine_id: number;

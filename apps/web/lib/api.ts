@@ -722,6 +722,10 @@ export const mcApi = {
     api.post('/mc/timecards', body, { headers: { Authorization: `Bearer ${token}` } }),
   deleteTimecard:  (id: number, token: string) =>
     api.delete(`/mc/timecards/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
+  updateTimecard:  (id: number, body: { start_time: string; end_time: string; note?: string }, token: string) =>
+    api.put(`/mc/timecards/${id}`, body, { headers: { Authorization: `Bearer ${token}` } }),
+  initTimecards:   (workDate: string, token: string) =>
+    api.post('/mc/timecards/init', { work_date: workDate }, { headers: { Authorization: `Bearer ${token}` } }),
   finalize: (mcId: number, changeType: string, changeDetail: string | undefined, token: string) =>
     api.post(`/mc/${mcId}/finalize`, { change_type: changeType, change_detail: changeDetail ?? undefined },
       { headers: { Authorization: `Bearer ${token}` } }),

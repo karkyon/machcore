@@ -782,6 +782,49 @@ export class McService {
     return { message: 'タイムカードを削除しました' };
   }
 
+  async updateTimecard(id: number, startTime: string, endTime: string, note?: string) {
+    const workDate = await this.prisma.machineTimecard.findUnique({ where: { id }, select: { workDate: true } });
+    if (!workDate) throw new Error('タイムカードが見つかりません');
+    const dateStr = workDate.workDate.toISOString().slice(0, 10);
+    return this.prisma.machineTimecard.update({
+      where: { id },
+      data: {
+        startTime: new Date(`${dateStr}T${startTime}`),
+        endTime:   new Date(`${dateStr}T${endTime}`),
+        note:      note ?? null,
+      },
+    });
+  }
+
+  // 全activeマシンの当日デフォルトレコード一括upsert（毎朝自動 or 手動初期化）
+  async initTimecards(workDate: string, operatorId: number) {
+    const machines = await this.prisma.machine.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    const DEFAULT_START = `${workDate}T08:00:00`;
+    const DEFAULT_END   = `${workDate}T17:00:00`;
+    const created: number[] = [];
+    for (const m of machines) {
+      const existing = await this.prisma.machineTimecard.findFirst({
+        where: { machineId: m.id, workDate: new Date(workDate) },
+      });
+      if (!existing) {
+        const tc = await this.prisma.machineTimecard.create({
+          data: {
+            machineId:  m.id,
+            operatorId,
+            workDate:   new Date(workDate),
+            startTime:  new Date(DEFAULT_START),
+            endTime:    new Date(DEFAULT_END),
+          },
+        });
+        created.push(tc.id);
+      }
+    }
+    return { created: created.length, message: `${created.length}件のデフォルトレコードを生成しました` };
+  }
+
   async createTimecard(
     machineId: number, operatorId: number,
     workDate: string, startTime: string, endTime: string, note?: string,

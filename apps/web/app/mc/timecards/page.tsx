@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { mcApi, machinesApi, Machine } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,280 +8,279 @@ import AuthModal from "@/components/auth/AuthModal";
 const TODAY = new Date().toISOString().slice(0, 10);
 
 function fmtTime(dt: any): string {
-  if (!dt) return "—";
-  const s = typeof dt === "string" ? dt : "";
-  // "HH:MM:SS" or ISO string
+  if (!dt) return "";
+  const s = typeof dt === "string" ? dt : String(dt);
   if (s.includes("T")) return s.slice(11, 16);
   return s.slice(0, 5);
 }
 
+function calcKadouMin(start: string, end: string): number {
+  if (!start || !end) return 0;
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  let diff = (eh * 60 + em) - (sh * 60 + sm);
+  if (diff < 0) diff += 24 * 60; // 日跨ぎ（夜番など）
+  // 昼跨ぎ補正（12時前開始 && 13時以降終了）
+  if (sh < 13 && eh >= 13) diff -= 60;
+  return Math.max(0, diff);
+}
+
+function fmtMin(min: number): string {
+  if (min <= 0) return "—";
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h > 0 ? `${h}h${m > 0 ? m + "m" : ""}` : `${m}m`;
+}
+
+interface RowState {
+  id: number;
+  machineId: number;
+  machineCode: string;
+  machineName: string;
+  startTime: string;
+  endTime: string;
+  note: string;
+  dirty: boolean;
+  saving: boolean;
+}
+
 export default function TimecardPage() {
-  const router   = useRouter();
+  const router = useRouter();
   const { isAuthenticated, token, operator, logout } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
   const [workDate, setWorkDate] = useState(TODAY);
+  const [rows, setRows] = useState<RowState[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
-  const [cards, setCards]       = useState<any[]>([]);
-  const [loading, setLoading]   = useState(false);
-
-  // 入力フォーム
-  const [selMachineId, setSelMachineId] = useState<string>("");
-  const [startTime, setStartTime]       = useState("08:00");
-  const [endTime, setEndTime]           = useState("17:00");
-  const [note, setNote]                 = useState("");
-  const [saving, setSaving]             = useState(false);
-  const [toast, setToast]               = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const initDone = useRef<Set<string>>(new Set());
 
   const showToast = useCallback((msg: string) => {
     setToast(msg); setTimeout(() => setToast(null), 3000);
   }, []);
 
-  const loadCards = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await mcApi.timecardsByDate(workDate);
-      setCards((r as any).data ?? []);
-    } catch { setCards([]); }
-    finally { setLoading(false); }
-  }, [workDate]);
-
+  // 全activeマシン取得
   useEffect(() => {
     machinesApi.list().then(r => {
       const ms = (r as any).data ?? [];
-      setMachines(ms.filter((m: Machine) => m.isActive));
+      setMachines(ms.filter((m: Machine) => m.isActive).sort((a: Machine, b: Machine) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)));
     });
   }, []);
 
-  useEffect(() => { loadCards(); }, [loadCards]);
-
-  const handleSave = async () => {
-    if (!token) { setAuthOpen(true); return; }
-    if (!selMachineId || !startTime || !endTime) {
-      showToast("⚠️ 機械・開始・終了時刻を入力してください"); return;
-    }
-    if (startTime >= endTime) {
-      showToast("⚠️ 終了時刻は開始時刻より後にしてください"); return;
-    }
-    setSaving(true);
+  // 日付変更時：自動init → データ取得
+  const loadAndInit = useCallback(async (date: string) => {
+    setLoading(true);
     try {
-      await mcApi.createTimecard({
-        machine_id: parseInt(selMachineId),
-        work_date:  workDate,
-        start_time: startTime + ":00",
-        end_time:   endTime   + ":00",
-        note:       note || undefined,
+      // 未init日付なら自動initを呼ぶ（認証なしで呼べるようにsystemオペレーターIDを使う）
+      // initはJWT必要なので、認証済みの場合のみ
+      if (token && !initDone.current.has(date)) {
+        try {
+          await mcApi.initTimecards(date, token);
+          initDone.current.add(date);
+        } catch { /* 認証なし or エラー時はスキップ */ }
+      }
+      const r = await mcApi.timecardsByDate(date);
+      const cards: any[] = (r as any).data ?? [];
+      // machinesに登録済みのactive機械とcardをマージ
+      setRows(cards.map((c: any) => ({
+        id:          c.id,
+        machineId:   c.machine_id,
+        machineCode: c.machine?.machineCode ?? "",
+        machineName: c.machine?.machineName ?? "",
+        startTime:   fmtTime(c.start_time),
+        endTime:     fmtTime(c.end_time),
+        note:        c.note ?? "",
+        dirty:       false,
+        saving:      false,
+      })));
+    } finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { loadAndInit(workDate); }, [workDate, loadAndInit]);
+
+  // 認証完了後にinitを再実行
+  useEffect(() => {
+    if (token && !initDone.current.has(workDate)) {
+      loadAndInit(workDate);
+    }
+  }, [token, workDate, loadAndInit]);
+
+  const updateRow = (idx: number, field: keyof RowState, value: string) => {
+    setRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value, dirty: true } : r));
+  };
+
+  const handleUpdate = async (idx: number) => {
+    const row = rows[idx];
+    if (!token) { setAuthOpen(true); return; }
+    if (!row.startTime || !row.endTime) { showToast("⚠️ 開始・終了時刻を入力してください"); return; }
+    setRows(prev => prev.map((r, i) => i === idx ? { ...r, saving: true } : r));
+    try {
+      await mcApi.updateTimecard(row.id, {
+        start_time: row.startTime + ":00",
+        end_time:   row.endTime   + ":00",
+        note:       row.note || undefined,
       }, token);
-      showToast("✅ タイムカードを登録しました");
-      setNote("");
-      loadCards();
+      setRows(prev => prev.map((r, i) => i === idx ? { ...r, dirty: false, saving: false } : r));
+      showToast(`✅ ${row.machineCode} を更新しました`);
     } catch (e: any) {
-      showToast("❌ " + (e?.response?.data?.message ?? "登録に失敗しました"));
-    } finally { setSaving(false); }
+      setRows(prev => prev.map((r, i) => i === idx ? { ...r, saving: false } : r));
+      showToast("❌ 更新に失敗しました");
+    }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleAllUpdate = async () => {
     if (!token) { setAuthOpen(true); return; }
-    if (!window.confirm("このタイムカードを削除しますか？")) return;
-    try {
-      await mcApi.deleteTimecard(id, token);
-      showToast("🗑️ 削除しました");
-      loadCards();
-    } catch { showToast("❌ 削除に失敗しました"); }
+    const dirtyIdxs = rows.map((r, i) => ({ r, i })).filter(({ r }) => r.dirty).map(({ i }) => i);
+    if (dirtyIdxs.length === 0) { showToast("変更なし"); return; }
+    for (const idx of dirtyIdxs) await handleUpdate(idx);
   };
 
-  // 機械ごとにグループ化
-  const grouped = cards.reduce((acc: Record<string, any[]>, c: any) => {
-    const key = c.machine?.machineCode ?? String(c.machine_id);
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(c);
-    return acc;
-  }, {});
-
-  const usedMachineIds = new Set(cards.map((c: any) => c.machine_id));
+  const dirtyCount = rows.filter(r => r.dirty).length;
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* ヘッダー */}
       <header className="bg-slate-800 text-white px-5 py-2.5 flex items-center gap-3 shrink-0">
         <button onClick={() => router.push("/mc")}
           className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-white transition-colors">
-          <span className="w-5 h-5 rounded-full bg-teal-500 flex items-center justify-center shrink-0">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-          </span>
-          ダッシュボード
+          ← ダッシュボード
         </button>
-        <span className="text-slate-600">|</span>
-        <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
+        <span className="text-slate-500">|</span>
+        <span className="font-mono text-teal-400 font-bold text-sm">MachCore</span>
         <span className="text-sm font-medium">機械タイムカード</span>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-3">
           {isAuthenticated && operator ? (
-            <span className="text-[11px] bg-red-600 text-white px-2 py-0.5 rounded font-bold animate-pulse">
-              作業中: {operator.name}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs bg-teal-700 px-2 py-1 rounded font-bold">{operator.name}</span>
+              <button onClick={logout} className="text-xs text-slate-400 hover:text-white">ログアウト</button>
+            </div>
           ) : (
             <button onClick={() => setAuthOpen(true)}
-              className="text-[11px] bg-sky-600 hover:bg-sky-500 text-white px-3 py-1 rounded font-bold transition-colors">
-              🔑 認証して登録
+              className="text-xs bg-slate-600 hover:bg-slate-500 px-3 py-1.5 rounded font-bold text-white transition-colors">
+              ログイン
             </button>
           )}
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5 space-y-5">
-        {/* 日付選択 */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
+      <div className="flex-1 p-5 max-w-5xl mx-auto w-full">
+        {/* 日付バー */}
+        <div className="flex items-center gap-4 mb-5 bg-white border border-slate-200 rounded-xl px-4 py-3">
           <label className="text-sm font-bold text-slate-600">日付</label>
           <input type="date" value={workDate} onChange={e => setWorkDate(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
+            className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
           <button onClick={() => setWorkDate(TODAY)}
-            className="text-xs text-teal-600 font-bold hover:underline">今日に戻す</button>
-          <span className="ml-auto text-xs text-slate-400">{cards.length}件登録済み</span>
+            className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold transition-colors">
+            今日
+          </button>
+          <button onClick={() => loadAndInit(workDate)}
+            className="text-xs px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg font-bold transition-colors">
+            ↺ 再読込
+          </button>
+          <span className="ml-auto text-xs text-slate-400">{rows.length}件</span>
+          {dirtyCount > 0 && (
+            <button onClick={handleAllUpdate}
+              className="px-4 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-lg transition-colors">
+              📝 変更した{dirtyCount}件を一括更新
+            </button>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* 登録フォーム */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h2 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">+</span>
-              タイムカード登録
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1">機械</label>
-                <select value={selMachineId} onChange={e => setSelMachineId(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
-                  <option value="">— 選択 —</option>
-                  {machines.map(m => (
-                    <option key={m.id} value={String(m.id)}>
-                      {m.machineCode}{usedMachineIds.has(m.id) ? " ✓" : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">開始時刻</label>
-                  <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">終了時刻</label>
-                  <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1">備考（任意）</label>
-                <input value={note} onChange={e => setNote(e.target.value)}
-                  placeholder="例: 午後から故障停止など"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
-              </div>
-
-              {/* クイック入力ボタン */}
-              <div>
-                <p className="text-xs text-slate-400 mb-1.5">クイック入力</p>
-                <div className="flex gap-2 flex-wrap">
-                  {[
-                    { label: "早番 08:00-17:00", s: "08:00", e: "17:00" },
-                    { label: "遅番 09:00-18:00", s: "09:00", e: "18:00" },
-                    { label: "夜番 17:00-02:00", s: "17:00", e: "02:00" },
-                  ].map(q => (
-                    <button key={q.label} type="button"
-                      onClick={() => { setStartTime(q.s); setEndTime(q.e); }}
-                      className="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors">
-                      {q.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button onClick={handleSave} disabled={saving || !selMachineId}
-                className="w-full bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
-                {saving ? "登録中..." : "✅ タイムカードを登録"}
-              </button>
-            </div>
+        {/* タイムカードテーブル */}
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center">
+            <span className="text-sm font-bold text-slate-700">稼働時間一覧</span>
+            <span className="ml-2 text-xs text-slate-400">（昼休み12:00-13:00跨ぎの場合は-60分）</span>
           </div>
-
-          {/* 登録済み一覧 */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-700">
-                {workDate} の登録状況
-              </h2>
-              <button onClick={loadCards} className="text-xs text-teal-600 hover:underline">↺ 更新</button>
+          {loading ? (
+            <div className="p-10 text-center text-slate-400 text-sm">読み込み中...</div>
+          ) : rows.length === 0 ? (
+            <div className="p-10 text-center text-slate-400 text-sm">
+              <div className="text-3xl mb-2">⏱️</div>
+              <p>この日のタイムカードがありません</p>
+              {!isAuthenticated && <p className="mt-2 text-xs">ログインするとデフォルトレコードが自動生成されます</p>}
             </div>
-            {loading ? (
-              <div className="p-8 text-center text-slate-400 text-sm">読み込み中...</div>
-            ) : cards.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-sm">
-                <div className="text-3xl mb-2">⏱️</div>
-                この日のタイムカードがありません
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {Object.entries(grouped).map(([machCode, items]) => (
-                  <div key={machCode} className="px-4 py-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-bold text-teal-700 bg-teal-100 px-2 py-0.5 rounded">{machCode}</span>
-                    </div>
-                    <div className="space-y-1.5">
-                      {(items as any[]).map((c: any) => {
-                        const s = fmtTime(c.start_time);
-                        const e = fmtTime(c.end_time);
-                        // 稼動時間計算（昼跨ぎ考慮）
-                        const [sh, sm] = s.split(":").map(Number);
-                        const [eh, em] = e.split(":").map(Number);
-                        let totalMin = (eh * 60 + em) - (sh * 60 + sm);
-                        if (totalMin < 0) totalMin += 24 * 60;
-                        // 昼跨ぎ（13時前に開始、13時以降に終了）で -60分
-                        if (sh < 13 && eh >= 13) totalMin -= 60;
-                        const dh = Math.floor(totalMin / 60);
-                        const dm = totalMin % 60;
-                        return (
-                          <div key={c.id} className="flex items-center gap-3 bg-slate-50 rounded-lg px-3 py-2">
-                            <span className="font-mono text-sm text-slate-800 font-bold">{s}〜{e}</span>
-                            <span className="text-xs text-slate-400">
-                              ({dh > 0 ? `${dh}h` : ""}{dm > 0 ? `${dm}m` : ""})
-                            </span>
-                            <span className="text-xs text-slate-500">{c.operator?.name ?? "—"}</span>
-                            {c.note && <span className="text-xs text-slate-400 ml-auto truncate max-w-24">{c.note}</span>}
-                            {isAuthenticated && token && (
-                              <button onClick={() => handleDelete(c.id)}
-                                className="text-red-400 hover:text-red-600 text-xs ml-auto font-bold shrink-0">✕</button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-teal-50 border-b border-teal-100 text-teal-800">
+                  <th className="px-4 py-2.5 text-left font-bold text-xs w-28">機械</th>
+                  <th className="px-3 py-2.5 text-left font-bold text-xs w-36">開始時刻</th>
+                  <th className="px-3 py-2.5 text-left font-bold text-xs w-36">終了時刻</th>
+                  <th className="px-3 py-2.5 text-left font-bold text-xs w-24">稼働時間</th>
+                  <th className="px-3 py-2.5 text-left font-bold text-xs">備考</th>
+                  <th className="px-3 py-2.5 text-center font-bold text-xs w-20">更新</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((row, idx) => {
+                  const kadouMin = calcKadouMin(row.startTime, row.endTime);
+                  return (
+                    <tr key={row.id} className={row.dirty ? "bg-amber-50" : (idx % 2 === 0 ? "bg-white" : "bg-slate-50/50")}>
+                      <td className="px-4 py-2.5">
+                        <div className="font-bold text-teal-700 text-xs">{row.machineCode}</div>
+                        <div className="text-xs text-slate-400 leading-tight">{row.machineName}</div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="time" value={row.startTime}
+                          onChange={e => updateRow(idx, "startTime", e.target.value)}
+                          className="w-32 border border-slate-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none font-mono" />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="time" value={row.endTime}
+                          onChange={e => updateRow(idx, "endTime", e.target.value)}
+                          className="w-32 border border-slate-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none font-mono" />
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`font-mono font-bold text-sm ${kadouMin > 0 ? "text-teal-700" : "text-slate-400"}`}>
+                          {fmtMin(kadouMin)}
+                        </span>
+                        <div className="text-[10px] text-slate-400">{kadouMin}分</div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="text" value={row.note}
+                          onChange={e => updateRow(idx, "note", e.target.value)}
+                          placeholder="例: 午後から故障停止"
+                          className="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-teal-400 focus:outline-none text-slate-600" />
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {row.dirty ? (
+                          <button onClick={() => handleUpdate(idx)} disabled={row.saving}
+                            className="px-3 py-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap">
+                            {row.saving ? "..." : "更新"}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-300 font-bold">✓</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
 
-        {/* 機械別週間サマリー */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <h2 className="text-sm font-bold text-slate-700 mb-3">機械タイムカードと作業記録の連携について</h2>
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1">
-            <p className="font-bold">⚙️ 旧システムHowLong関数の仕様</p>
-            <p>作業記録の時間計算では、段取開始〜加工終了の時刻差から機械の稼動時間を算出します。</p>
-            <p>昼休み（12:00〜13:00）を跨ぐ場合は<strong>-60分</strong>して計算します。</p>
-            <p>「機械タイムカード」に各機械の実際の稼動開始・終了時刻を登録することで、作業記録画面の時間集計に反映されます。</p>
-          </div>
+        {/* 説明 */}
+        <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 space-y-1">
+          <p className="font-bold">📋 機械タイムカードの使い方</p>
+          <p>・毎日ログイン時にactiveな全機械設備のデフォルトレコード（08:00〜17:00）が自動生成されます</p>
+          <p>・残業や故障停止など実際の稼働時間が異なる場合は終了時刻（または開始時刻）を修正して「更新」ボタンを押してください</p>
+          <p>・稼働時間は昼休み（12:00〜13:00）を跨ぐ場合は-60分して計算されます（旧システムHowLong関数準拠）</p>
+          <p>・作業記録画面で「📋 TC参照」ボタンを使うと、この機械タイムカードのデータから中断時間が自動計算されます</p>
         </div>
       </div>
 
       {/* 認証モーダル */}
       {authOpen && (
         <AuthModal isOpen={true} sessionType="work_record"
-          onSuccess={() => setAuthOpen(false)}
+          onSuccess={() => { setAuthOpen(false); loadAndInit(workDate); }}
           onCancel={() => setAuthOpen(false)} />
       )}
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-bold z-50">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-bold z-50 transition-opacity">
           {toast}
         </div>
       )}
