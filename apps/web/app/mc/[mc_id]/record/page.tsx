@@ -172,7 +172,7 @@ function McRecordPageInner() {
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   useEffect(() => {
-    mcApi.detail(mcId).then(r => setDetail((r as any).data ?? (r as any))).catch(() => {});
+    mcApi.findOne(mcId).then(r => setDetail((r as any).data ?? (r as any))).catch(() => {});
     mcApi.setupSheetLogs(mcId).then(r => {
       const sheets = ((r as any).data ?? []).filter((s: McSetupSheetLog) => !s.work_collected);
       setSetupSheets(sheets);
