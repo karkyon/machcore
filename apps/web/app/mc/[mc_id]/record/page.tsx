@@ -78,7 +78,10 @@ function fmtDate(s: string | null) {
 }
 function fmtMin(min: number | null) {
   if (min == null || min < 0) return "—";
-  return `${Math.floor(min / 60)}H ${String(min % 60).padStart(2,"0")}M`;
+  const rounded = Math.round(min * 10) / 10; // 小数点1位に丸める
+  const h = Math.floor(rounded / 60);
+  const m = Math.round(rounded % 60 * 10) / 10;
+  return `${h}H ${m % 1 === 0 ? String(Math.round(m)).padStart(2,"0") : m}M`;
 }
 function fmtSec(sec: number | null) {
   if (sec == null || sec < 0) return "—";
@@ -344,23 +347,23 @@ function McRecordPageInner() {
     try {
       const cycSec = cycleH * 3600 + cycleM * 60 + cycleS;
       const body: CreateMcWorkRecordBody = {
-        setup_time_min:      times?.setupMin ?? undefined,
-        machining_time_min:  times?.machMin  ?? undefined,
+        setup_time_min:      (times?.setupMin != null && !isNaN(times.setupMin)) ? times.setupMin : undefined,
+        machining_time_min:  (times?.machMin  != null && !isNaN(times.machMin))  ? times.machMin  : undefined,
         cycle_time_sec:      cycSec || undefined,
-        quantity:            quantity ? parseInt(quantity) : undefined,
-        setup_work_count:    setupQty ? parseInt(setupQty) : undefined,
+        quantity:            (quantity && !isNaN(parseInt(quantity))) ? parseInt(quantity) : undefined,
+        setup_work_count:    (setupQty && !isNaN(parseInt(setupQty))) ? parseInt(setupQty) : undefined,
         started_at:          startedAt ? new Date(startedAt).toISOString() : undefined,
         checked_at:          checkedAt ? new Date(checkedAt).toISOString() : undefined,
         finished_at:         finishedAt ? new Date(finishedAt).toISOString() : undefined,
-        interrupt_setup_min: (dStopH * 60 + dStopM) || undefined,
-        interrupt_work_min:  (yStopH * 60 + yStopM) || undefined,
+        interrupt_setup_min: (dStopH * 60 + dStopM) > 0 ? (dStopH * 60 + dStopM) : undefined,
+        interrupt_work_min:  (yStopH * 60 + yStopM) > 0 ? (yStopH * 60 + yStopM) : undefined,
         setup_operator_ids:  setupOps.length ? setupOps : undefined,
         production_operator_ids: prodOps.length ? prodOps : undefined,
         prg_man:             prgMan ? (users.find(u=>u.id===prgMan)?.name ?? undefined) : undefined,
-        prg_time_min:        (prgTimeH * 60 + prgTimeM) || undefined,
+        prg_time_min:        (prgTimeH * 60 + prgTimeM) > 0 ? (prgTimeH * 60 + prgTimeM) : undefined,
         prg_plas:            prgPlas || undefined,
         note:                note || undefined,
-        machine_id:          machineId ? parseInt(machineId) : undefined,
+        machine_id:          (machineId && !isNaN(parseInt(machineId))) ? parseInt(machineId) : undefined,
       };
       await mcApi.createWorkRecord(mcId, body, token);
       const r = await mcApi.workRecords(mcId);
@@ -381,7 +384,8 @@ function McRecordPageInner() {
         }
       }
     } catch (e: any) {
-      const msg = e?.message ?? "登録に失敗しました";
+      console.error("[STEP2] API error detail:", e?.response?.status, e?.response?.data);
+      const msg = e?.response?.data?.message ?? e?.message ?? "登録に失敗しました";
       setSaveError(msg);
       console.error("[STEP2] submit error:", e);
     } finally { setSaving(false); }
