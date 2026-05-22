@@ -41,10 +41,12 @@ function McRecordPageInner() {
   useLayoutEffect(() => {
     if (typeof window !== "undefined") {
       const v = sessionStorage.getItem("sb_next_record");
+      console.log("[STEP2] useLayoutEffect sb_next_record=", v, "mcId=", mcId);
       if (v && parseInt(v) === mcId) {
         setSbMode(true);
         const lid = sessionStorage.getItem("sb_sheet_log_id");
         if (lid) setSbSheetLogId(parseInt(lid));
+        console.log("[STEP2] sbMode=true に設定 logId=", lid);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -125,6 +127,7 @@ function McRecordPageInner() {
   }, [machineId]);
 
   useEffect(() => {
+    console.log("[STEP2] isAuthenticated=", isAuthenticated, "sbMode=", sbMode, "token=", token ? "あり" : "なし");
     if (isAuthenticated) {
       timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
     } else {
@@ -190,7 +193,9 @@ function McRecordPageInner() {
   const times = calcTimes();
 
   const handleSubmit = async () => {
-    if (!token && !sbMode) return;
+    console.log("[STEP2] handleSubmit sbMode=", sbMode, "token=", token ? "あり" : "なし", "isAuthenticated=", isAuthenticated);
+    if (!token && !sbMode) { console.log("[STEP2] token/sbMode なし — 中断"); return; }
+    if (!token) { console.error("[STEP2] token が null — APIコール不可"); setSaveError("認証セッションが切れています。ページを再読み込みしてください。"); return; }
     setSaving(true); setSaveError(null);
     try {
       const cycSec = cycleH * 3600 + cycleM * 60 + cycleS;

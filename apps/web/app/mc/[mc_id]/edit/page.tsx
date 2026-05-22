@@ -150,18 +150,15 @@ export default function McEditPage() {
         await mcApi.saveIndexPrograms(mcId, indexRows.map((r, i) => ({ ...r, sort_order: i })), token);
       }
       showToast("✅ 保存しました");
-      logout();
-      setTimeout(() => {
-        if (typeof window !== "undefined") {
-          const nextMcId = sessionStorage.getItem("sb_next_record");
-          if (nextMcId && parseInt(nextMcId) === mcId) {
-            sessionStorage.removeItem("sb_next_record");
-            router.push(`/mc/${mcId}/record`);
-            return;
-          }
-        }
-        router.push(`/mc/${mcId}`);
-      }, 1200);
+      if (sbMode) {
+        // sbMode: logout()しない（tokenをrecordページへ引き継ぐ）
+        // sb_next_record はrecord側でのみ削除する
+        console.log("[STEP1] 保存完了 sbMode=true → recordへ遷移 token=", token ? "あり" : "なし");
+        setTimeout(() => router.push(`/mc/${mcId}/record`), 800);
+      } else {
+        logout();
+        setTimeout(() => router.push(`/mc/${mcId}`), 1200);
+      }
     } catch (e: any) {
       setSaveError(e.message ?? "保存に失敗しました");
     } finally {
