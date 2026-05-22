@@ -127,6 +127,17 @@ function McRecordPageInner() {
   }, []);
 
   const { operator, isAuthenticated, token, logout } = useAuth();
+  // ── 離脱警告（sbMode=STEP2作業中） ─────────────────────────
+  React.useEffect(() => {
+    if (!sbMode && !isAuthenticated) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "作業が完了していません。このページを離れますか？";
+      return e.returnValue;
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [sbMode, isAuthenticated]);
   const [authOpen, setAuthOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);

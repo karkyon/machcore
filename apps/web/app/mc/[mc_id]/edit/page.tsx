@@ -35,6 +35,18 @@ export default function McEditPage() {
   const { operator, isAuthenticated, token, logout } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
 
+  // ── 離脱警告（useAuth後に配置必須）────────────────────────────
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "作業が完了していません。このページを離れますか？";
+      return e.returnValue;
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isAuthenticated]);
+
   // sbMode=true かつ未認証の場合は自動で認証モーダルを開く（useAuth後に配置必須）
   React.useEffect(() => {
     if ((sbMode || sbRepeatMode) && !isAuthenticated) {
@@ -335,20 +347,20 @@ export default function McEditPage() {
 
       {/* タブナビ */}
       <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
-        <button onClick={() => !sbMode && router.push(`/mc/${mcId}`)}
-          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 rounded-t-md transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
+        <button onClick={() => !(sbMode || sbRepeatMode) && router.push(`/mc/${mcId}`)}
+          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 rounded-t-md transition-colors " + ((sbMode || sbRepeatMode) ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>MC詳細
         </button>
-        <button onClick={() => router.push(`/mc/${mcId}/edit`)}
+        <button onClick={() => !(sbMode || sbRepeatMode) && router.push(`/mc/${mcId}/edit`)}
           className="px-4 py-1.5 text-[12px] font-bold flex items-center gap-1.5 rounded-t-md border border-b-0 border-[#1b2a41] bg-[#1b2a41] text-white transition-colors">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
         </button>
-        <button onClick={() => !sbMode && router.push(`/mc/${mcId}/print`)}
-          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
+        <button onClick={() => !(sbMode || sbRepeatMode) && router.push(`/mc/${mcId}/print`)}
+          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + ((sbMode || sbRepeatMode) ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
         </button>
-        <button onClick={() => !sbMode && router.push(`/mc/${mcId}/record`)}
-          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
+        <button onClick={() => !(sbMode || sbRepeatMode) && router.push(`/mc/${mcId}/record`)}
+          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + ((sbMode || sbRepeatMode) ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録
         </button>
       </nav>
@@ -376,12 +388,12 @@ export default function McEditPage() {
             </button>
             <button onClick={handleSave} disabled={saving}
               className="bg-white text-blue-700 px-4 py-1 rounded font-bold hover:bg-blue-50 disabled:opacity-50 text-sm">
-              {saving ? "保存中..." : "STEP1完了 → STEP2(作業記録)へ"}
+              {saving ? "保存中..." : (sbRepeatMode ? "更新完了 → 変更登録・STEP2へ" : "STEP1完了 → STEP2(作業記録)へ")}
             </button>
           </div>
         </div>
       )}
-      {isAuthenticated && operator && !sbMode && (
+      {isAuthenticated && operator && !sbMode && !sbRepeatMode && (
         <div className="bg-red-600 text-white px-5 py-1.5 flex items-center justify-between text-xs shrink-0">
           <div className="flex items-center gap-3">
             <span className="w-2 h-2 bg-red-300 rounded-full animate-pulse" />
