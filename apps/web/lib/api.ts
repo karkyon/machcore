@@ -586,6 +586,8 @@ export type McWorkRecord = {
   interrupt_setup_min: number | null;
   interrupt_work_min:  number | null;
   note:             string | null;
+  setup_operator_ids:      number[] | null;
+  production_operator_ids: number[] | null;
 };
 
 export type McChangeHistory = {
@@ -621,6 +623,8 @@ export type CreateMcWorkRecordBody = {
   work_type?:          string;
   note?:               string;
   machine_id?:         number;
+  setup_operator_ids?:      number[];
+  production_operator_ids?: number[];
 };
 
 export type McPrintOptions = {

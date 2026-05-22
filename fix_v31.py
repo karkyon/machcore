@@ -19,6 +19,59 @@ ROOT = "/home/karkyon/projects/machcore"
 REC_PATH = ROOT + "/apps/web/app/mc/[mc_id]/record/page.tsx"
 
 # ─────────────────────────────────────────────────────────────
+# 0. api.ts: McWorkRecord と CreateMcWorkRecordBody に
+#    setup_operator_ids / production_operator_ids を追加
+# ─────────────────────────────────────────────────────────────
+def apply(path_str, old, new, label):
+    p2 = pathlib.Path(path_str)
+    s = p2.read_text(encoding="utf-8")
+    if old in s:
+        s = s.replace(old, new, 1)
+        p2.write_text(s, encoding="utf-8")
+        print(f"OK: {label}")
+    else:
+        print(f"WARN: {label} — パターン不一致")
+
+apply(
+    ROOT + "/apps/web/lib/api.ts",
+    """  interrupt_setup_min: number | null;
+  interrupt_work_min:  number | null;
+  note:             string | null;
+};
+
+export type McChangeHistory""",
+    """  interrupt_setup_min: number | null;
+  interrupt_work_min:  number | null;
+  note:             string | null;
+  setup_operator_ids:      number[] | null;
+  production_operator_ids: number[] | null;
+};
+
+export type McChangeHistory""",
+    "api.ts: McWorkRecord に setup/production_operator_ids 追加"
+)
+
+apply(
+    ROOT + "/apps/web/lib/api.ts",
+    """  work_type?:          string;
+  note?:               string;
+  machine_id?:         number;
+};
+
+export type McPrintOptions""",
+    """  work_type?:          string;
+  note?:               string;
+  machine_id?:         number;
+  setup_operator_ids?:      number[];
+  production_operator_ids?: number[];
+};
+
+export type McPrintOptions""",
+    "api.ts: CreateMcWorkRecordBody に setup/production_operator_ids 追加"
+)
+
+
+# ─────────────────────────────────────────────────────────────
 # 全体を新しい内容で置き換える
 # ─────────────────────────────────────────────────────────────
 NEW_CONTENT = r'''"use client";
@@ -170,13 +223,13 @@ function McRecordPageInner() {
     setCycleM(Math.floor((cSec % 3600) / 60));
     setCycleS(cSec % 60);
     setCyclePcs(""); // 1S_個数は現在work_recordsに保存されていない
-    setSetupOps(((r as any).setup_operator_ids ?? []) as number[]);
+    setSetupOps((r.setup_operator_ids ?? []) as number[]);
     setStartedAt(toLocalInput(r.started_at));
     setCheckedAt(toLocalInput(r.checked_at));
     const dstop = r.interrupt_setup_min ?? 0;
     setDStopH(Math.floor(dstop / 60)); setDStopM(dstop % 60);
     setSetupQty(r.setup_work_count ? String(r.setup_work_count) : "");
-    setProdOps(((r as any).production_operator_ids ?? []) as number[]);
+    setProdOps((r.production_operator_ids ?? []) as number[]);
     setFinishedAt(toLocalInput(r.finished_at));
     const ystop = r.interrupt_work_min ?? 0;
     setYStopH(Math.floor(ystop / 60)); setYStopM(ystop % 60);
