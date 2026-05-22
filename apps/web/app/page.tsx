@@ -311,7 +311,7 @@ export default function McDashboard() {
             </div>
 
             {/* 段取シートバック パネル */}
-            <div className="mx-3 mb-3 mt-4">
+            <div className="mx-3 mb-3 mt-2">
               <div className="bg-teal-50 border border-teal-200 rounded-lg p-3">
                 <p className="text-[10px] font-bold text-teal-700 mb-2">段取シートバック</p>
                 <input
