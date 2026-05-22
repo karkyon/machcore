@@ -15,6 +15,11 @@ export default function McEditPage() {
   const mcId  = parseInt(mc_id);
   const router = useRouter();
   const [sbMode, setSbMode] = React.useState(false);
+  // 終了確認モーダル（リピートフロー）
+  const [showKanryoModal, setShowKanryoModal] = React.useState(false);
+  const [kanryoType,   setKanryoType]   = React.useState("小変更");
+  const [kanryoDetail, setKanryoDetail] = React.useState("");
+  const [pendingBody,  setPendingBody]  = React.useState<any>(null);
   React.useEffect(() => {
     if (typeof window !== "undefined") {
       const v = sessionStorage.getItem("sb_next_record");
@@ -202,12 +207,12 @@ export default function McEditPage() {
       showToast("✅ 保存しました");
       if (sbMode) {
         // sbMode: logout()しない（tokenをrecordページへ引き継ぐ）
-        // sb_next_record はrecord側でのみ削除する
         console.log("[STEP1] 保存完了 sbMode=true → recordへ遷移 token=", token ? "あり" : "なし");
         setTimeout(() => router.push(`/mc/${mcId}/record`), 800);
       } else {
-        logout();
-        setTimeout(() => router.push(`/mc/${mcId}`), 1200);
+        // リピートフロー: 終了確認モーダルを表示
+        setPendingBody({ savedMcId: mcId });
+        setShowKanryoModal(true);
       }
     } catch (e: any) {
       const errMsg = e?.response?.data?.message ?? e?.message ?? "保存に失敗しました";
@@ -215,6 +220,26 @@ export default function McEditPage() {
       setSaveError(errMsg);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ── 終了確認OK: change_type/detail を付けて再updateしバージョンインクリ → recordへ ──
+  const handleKanryoOk = async () => {
+    if (!token || !pendingBody) return;
+    try {
+      await mcApi.update(pendingBody.savedMcId, {
+        change_type:   kanryoType,
+        change_detail: kanryoDetail || undefined,
+      } as any, token);
+      setShowKanryoModal(false);
+      setPendingBody(null);
+      showToast(`✅ ${kanryoType}としてバージョン更新しました`);
+      // 作業記録へ遷移（tokenを保持）
+      setTimeout(() => router.push(`/mc/${pendingBody.savedMcId}/record`), 800);
+    } catch (e: any) {
+      const errMsg = e?.response?.data?.message ?? e?.message ?? "バージョン更新に失敗";
+      setSaveError(errMsg);
+      setShowKanryoModal(false);
     }
   };
 
@@ -703,6 +728,59 @@ export default function McEditPage() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 終了確認モーダル（リピートフロー: 変更種別選択 + バージョンインクリ）*/}
+      {showKanryoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="bg-slate-800 px-5 py-3">
+              <h2 className="text-base font-bold text-white">終了確認 — 変更内容を記録</h2>
+              <p className="text-xs text-slate-400 mt-0.5">この変更をどの種類として登録しますか？バージョンが更新されます。</p>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-2">作業種別 *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {["大変更","小変更","追加","修正","削除","訂正"].map(t => (
+                    <button key={t} type="button"
+                      onClick={() => setKanryoType(t)}
+                      className={`py-2 rounded-lg text-sm font-bold border transition-colors ${
+                        kanryoType === t
+                          ? t === "大変更" ? "bg-red-600 text-white border-red-600"
+                            : "bg-teal-600 text-white border-teal-600"
+                          : "bg-white text-slate-600 border-slate-300 hover:border-teal-400"
+                      }`}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                {kanryoType === "大変更" && (
+                  <p className="text-xs text-red-600 mt-1.5 font-bold">⚠️ 大変更: バージョンの整数部が+1されます</p>
+                )}
+                {kanryoType !== "大変更" && (
+                  <p className="text-xs text-teal-600 mt-1.5">小変更系: バージョンの小数部が+0.01されます</p>
+                )}
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1.5">内容（任意）</label>
+                <textarea value={kanryoDetail} onChange={e => setKanryoDetail(e.target.value)}
+                  rows={3} placeholder="変更の詳細内容を入力..."
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none" />
+              </div>
+            </div>
+            <div className="px-5 pb-5 flex gap-3">
+              <button onClick={handleKanryoOk}
+                className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm transition-colors">
+                OK — 作業記録へ
+              </button>
+              <button onClick={() => { setShowKanryoModal(false); logout(); router.push(`/mc/${pendingBody?.savedMcId ?? mcId}`); }}
+                className="px-5 py-3 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
+                スキップ（作業記録なし）
+              </button>
+            </div>
           </div>
         </div>
       )}

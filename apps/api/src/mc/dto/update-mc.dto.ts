@@ -27,4 +27,10 @@ export class UpdateMcDto {
 
   @IsOptional() @IsString()
   sheet_created_at?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(50)
+  change_type?: string;
+
+  @IsOptional() @IsString() @MaxLength(500)
+  change_detail?: string;
 }

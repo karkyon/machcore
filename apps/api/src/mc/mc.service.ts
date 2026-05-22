@@ -240,9 +240,24 @@ export class McService {
     const mc = await this.prisma.mcProgram.findUnique({ where: { id } });
     if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
 
-    const verParts = mc.version.split('.');
-    const newMinor = (parseInt(verParts[1] ?? '0', 10) + 1).toString().padStart(4, '0');
-    const newVersion = `${verParts[0]}.${newMinor}`;
+    // VBA 終了確認ロジック準拠バージョンインクリ
+    // version format: "1.0001" (整数部.4桁小数)
+    const verStr = mc.version ?? '1.0001';
+    const verFloat = parseFloat(verStr) || 1.0001;
+    const ver1 = Math.floor(verFloat);                           // 整数部
+    const ver2 = Math.floor(verFloat * 100) - ver1 * 100;       // 100分の1
+    const ver3 = Math.floor(verFloat * 10000) - ver1 * 10000 - ver2 * 100; // 10000分の1
+    const isMajor = ['大変更','新規登録','試作登録'].includes(dto.change_type ?? '');
+    let newVerFloat: number;
+    if (isMajor) {
+      newVerFloat = ver1 + 1 + ver3 / 10000;
+    } else {
+      newVerFloat = ver1 + ver2 / 100 + 0.01 + ver3 / 10000;
+    }
+    // フォーマット: "2.0000" 形式に
+    const newVer1 = Math.floor(newVerFloat);
+    const newVer2 = Math.round((newVerFloat - newVer1) * 10000);
+    const newVersion = `${newVer1}.${String(newVer2).padStart(4, '0')}`;
 
     return this.prisma.$transaction(async (tx) => {
       await tx.mcProgram.update({
@@ -256,13 +271,16 @@ export class McService {
           commonPartCode: dto.common_part_code !== undefined ? dto.common_part_code : mc.commonPartCode,
           note:          dto.note           !== undefined ? dto.note           : mc.note,
           creatorId:     dto.creator_id      !== undefined ? dto.creator_id      : mc.creatorId,
+          version:       newVersion,
           sheetCreatedAt: dto.sheet_created_at !== undefined
             ? (dto.sheet_created_at ? new Date(dto.sheet_created_at) : null)
             : mc.sheetCreatedAt,
-          version:       newVersion,
           status:        'CHANGING',
         },
       });
+      const changeContent = dto.change_type
+        ? `${dto.change_type}${dto.change_detail ? ' ' + dto.change_detail : ''}`
+        : 'データ変更';
       await tx.mcChangeHistory.create({
         data: {
           mcProgramId:   id,
@@ -270,7 +288,7 @@ export class McService {
           operatorId,
           versionBefore: mc.version,
           versionAfter:  newVersion,
-          content:       'データ変更',
+          content:       changeContent,
         },
       });
       await tx.operationLog.create({
