@@ -207,6 +207,7 @@ export type Machine = {
   machineCode: string;
   machineName: string;
   isActive: boolean;
+  sortOrder: number;
 };
 
 export const machinesApi = {
