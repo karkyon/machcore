@@ -21,6 +21,14 @@ function fmtMin(min: number | null) {
 function McRecordPageInner() {
   const { mc_id } = useParams<{ mc_id: string }>();
   const mcId = parseInt(mc_id);
+  const [sbMode, setSbMode] = React.useState(false);
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const v = sessionStorage.getItem("sb_next_record");
+      if (v) setSbMode(parseInt(v) === mcId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const router = useRouter();
   const searchParams = useSearchParams();
 
