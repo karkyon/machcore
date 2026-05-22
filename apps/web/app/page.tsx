@@ -238,12 +238,7 @@ export default function McDashboard() {
                         </button>
                       </>
                     )}
-                    <button
-                      onClick={() => setSbAuthOpen(true)}
-                      disabled={sbCollecting}
-                      className="w-full py-2 border-2 border-teal-600 text-teal-700 hover:bg-teal-50 text-sm font-bold rounded-xl transition-colors disabled:opacity-40">
-                      {sbCollecting ? "回収処理中..." : "✓ このシートを回収済みにする"}
-                    </button>
+
                   </div>
                 </div>
               );
