@@ -2,7 +2,7 @@ import axios from "axios";
 
 const api = axios.create({ baseURL: "/api" });
 
-// リクエストインターセプター: work_tokenを自動付与
+// ── APIリクエスト/レスポンス完全ログ ─────────────────────────
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("work_token");
@@ -10,8 +10,43 @@ api.interceptors.request.use((config) => {
       config.headers["Authorization"] = `Bearer ${token}`;
     }
   }
+  const body = config.data;
+  console.log(
+    `%c[API REQ] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
+    "color:#2563eb;font-weight:bold",
+    { params: config.params, body: body ? (typeof body === "string" ? JSON.parse(body) : body) : undefined,
+      auth: config.headers["Authorization"] ? "Bearer ***" : "none" }
+  );
   return config;
+}, (error) => {
+  console.error("[API REQ ERROR]", error);
+  return Promise.reject(error);
 });
+
+api.interceptors.response.use(
+  (response) => {
+    console.log(
+      `%c[API RES] ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url}`,
+      "color:#059669;font-weight:bold",
+      { data: response.data }
+    );
+    return response;
+  },
+  (error) => {
+    const status = error?.response?.status;
+    const data   = error?.response?.data;
+    const url    = error?.config?.url;
+    const method = error?.config?.method?.toUpperCase();
+    const body   = error?.config?.data;
+    console.error(
+      `%c[API ERR] ${status} ${method} ${url}`,
+      "color:#dc2626;font-weight:bold",
+      { requestBody: body ? (typeof body === "string" ? JSON.parse(body) : body) : undefined,
+        responseData: data, message: Array.isArray(data?.message) ? data.message.join(", ") : data?.message }
+    );
+    return Promise.reject(error);
+  }
+);
 
 export type NcSearchResult = {
   nc_id: number;

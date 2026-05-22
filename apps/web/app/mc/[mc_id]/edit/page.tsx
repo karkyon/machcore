@@ -98,6 +98,7 @@ export default function McEditPage() {
   useEffect(() => {
     mcApi.findOne(mcId).then(r => {
       const d = (r as any).data ?? r;
+      console.log("[EDIT] detail取得", { id: d.id, version: d.version, status: d.status, machine: d.machine });
       setDetail(d);
       // McDetail.machine は { machineCode, machineName } のみ — id は machines リストから取得
       // machines がまだ空の可能性があるので machineCode を一時保存してから後で解決
@@ -171,6 +172,9 @@ export default function McEditPage() {
     `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 
   const handleSave = async () => {
+    console.log("[EDIT] handleSave開始", { sbMode, sbRepeatMode, token: token ? "あり" : "なし", mcId,
+      data: { machineId, oNumber, clampNote, cycleH, cycleM, cycleS, machiningQty, note, creatorId, sheetCreatedAt,
+              toolingRows: toolingRows.length, offsetRows: offsetRows.length, indexRows: indexRows.length } });
     if (!token) { setSaveError("認証が必要です"); return; }
     setSaving(true); setSaveError(null);
     try {
@@ -236,6 +240,7 @@ export default function McEditPage() {
 
   // ── 終了確認OK: change_type/detail を付けて再updateしバージョンインクリ → recordへ ──
   const handleKanryoOk = async () => {
+    console.log("[EDIT] handleKanryoOk", { kanryoType, kanryoDetail, pendingBody, token: token ? "あり" : "なし" });
     if (!token || !pendingBody) return;
     try {
       await mcApi.update(pendingBody.savedMcId, {
@@ -459,7 +464,7 @@ export default function McEditPage() {
               ["index",   "インデックスPG"],
               ["files",   "図・写真"],
             ].map(([k, l]) => (
-              <button key={k} onClick={() => setActiveSection(k as any)}
+              <button key={k} onClick={() => { console.log('[EDIT] セクション切替', k); setActiveSection(k as any); }}
                 className={`text-left px-4 py-3 text-xs font-medium border-l-2 transition-colors ${
                   activeSection === k ? "border-teal-500 text-teal-700 bg-teal-50" : "border-transparent text-slate-500 hover:bg-slate-50"}`}>
                 {l}
@@ -478,7 +483,7 @@ export default function McEditPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">機械</label>
-                    <select value={machineId} onChange={e => setMachineId(e.target.value)}
+                    <select value={machineId} onChange={e => { console.log("[EDIT] 機械変更", e.target.value); setMachineId(e.target.value); }}
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
                       <option value="">— 選択 —</option>
                       {machines.filter(m => m.isActive).map(m => (
@@ -488,7 +493,7 @@ export default function McEditPage() {
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">主Oナンバ</label>
-                    <input value={oNumber} onChange={e => setONumber(e.target.value)}
+                    <input value={oNumber} onChange={e => { console.log("[EDIT] 主Oナンバ変更", e.target.value); setONumber(e.target.value); }}
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
                   </div>
                 </div>
