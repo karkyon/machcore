@@ -718,7 +718,7 @@ export default function McDetailPage() {
                     <div className="aspect-square bg-slate-100 flex items-center justify-center overflow-hidden">
                       <img
                         src={`/api/mc/${mcId}/files/${f.id}/thumb`}
-                        alt={f.stored_name ?? f.original_name}
+                        alt={f.original_name}
                         className="w-full h-full object-contain"
                         loading="lazy"
                         onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
