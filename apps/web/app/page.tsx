@@ -423,7 +423,10 @@ export default function McDashboard() {
                               {item.version && <span className="ml-1 text-slate-400 text-[10px]">v{item.version}</span>}
                             </span>
                             <span className="min-w-0">
-                              <span className="font-mono text-sm text-teal-600 font-bold">{item.drawing_no}</span>
+                              {item.is_reference && <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-bold mr-1">参考</span>}
+                            {!item.is_reference && item.sheet_type === "NEW" && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold mr-1">新規</span>}
+                            {!item.is_reference && item.sheet_type === "REPEAT" && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold mr-1">リピート</span>}
+                            <span className="font-mono text-sm text-teal-600 font-bold">{item.drawing_no}</span>
                               <span className="text-slate-600 text-xs ml-2">{item.part_name}</span>
                               {item.client_name && <span className="text-slate-400 text-[10px] ml-2">/ {item.client_name}</span>}
                             </span>

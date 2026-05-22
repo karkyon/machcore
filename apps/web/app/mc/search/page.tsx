@@ -71,7 +71,8 @@ export default function McSearchPage() {
       <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
         <span className="text-base font-medium text-white">MC マシニング管理システム</span>
-        <span className="ml-auto flex items-center gap-2"><button onClick={() => router.push("/mc/new")} className="text-xs bg-teal-500 hover:bg-teal-400 text-white font-bold px-3 py-1.5 rounded-lg transition-colors">＋ 新規登録</button><span className="text-[10px] text-slate-400 bg-slate-700 px-2 py-0.5 rounded">認証不要</span></span>
+        <span className="ml-auto flex items-center gap-2"><button onClick={() => router.push("/mc")} className="text-xs bg-slate-600 hover:bg-slate-500 text-white font-bold px-3 py-1.5 rounded-lg transition-colors">← ダッシュボードへ</button>
+            <button onClick={() => router.push("/mc/new")} className="text-xs bg-teal-500 hover:bg-teal-400 text-white font-bold px-3 py-1.5 rounded-lg transition-colors">＋ 新規登録</button><span className="text-[10px] text-slate-400 bg-slate-700 px-2 py-0.5 rounded">認証不要</span></span>
       </header>
       <div className="flex flex-1 min-h-0">
         <aside className="w-[240px] shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">

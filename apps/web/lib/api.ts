@@ -604,6 +604,7 @@ export type McSetupSheetLog = {
   version:        string | null;
   operator_name:  string | null;
   work_collected: boolean;
+  is_reference:   boolean;
 };
 
 export type CreateMcWorkRecordBody = {

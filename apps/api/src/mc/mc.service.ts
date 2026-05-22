@@ -595,6 +595,7 @@ export class McService {
       version:        r.version ?? null,
       operator_name:  r.operator?.name ?? null,
       work_collected: r.workCollected,
+      is_reference:   r.isReference,
     }));
   }
 
@@ -642,6 +643,7 @@ export class McService {
         version:      s.version ?? null,
         operator_name: s.operator?.name ?? null,
         work_collected: s.workCollected,
+        is_reference:   s.isReference,
       })),
     };
   }
@@ -884,7 +886,8 @@ export class McService {
     const pdfBuffer = Buffer.from(pdfBytes);
 
     await this.prisma.mcSetupSheetLog.create({
-      data: { mcProgramId: mcId, operatorId, version: data.version ?? null },
+      data: { mcProgramId: mcId, operatorId, version: data.version ?? null,
+              isReference: (options as any).is_reference ?? false },
     }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
 
     return pdfBuffer;

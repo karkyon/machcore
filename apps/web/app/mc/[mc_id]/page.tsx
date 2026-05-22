@@ -195,7 +195,8 @@ export default function McDetailPage() {
   if (loadError) return (
     <div className="h-screen flex items-center justify-center text-red-500">
       <div className="text-center"><p className="text-2xl mb-2">⚠️</p><p>{loadError}</p>
-        <button onClick={() => router.push("/mc/search")} className="mt-4 text-teal-600 text-sm hover:underline">← 検索に戻る</button>
+        <button onClick={() => router.push("/mc")} className="px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold transition-colors">← ダッシュボード</button>
+          <button onClick={() => router.push("/mc/search")} className="mt-4 text-teal-600 text-sm hover:underline">← 検索に戻る</button>
       </div>
     </div>
   );

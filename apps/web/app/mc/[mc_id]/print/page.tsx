@@ -70,7 +70,7 @@ export default function McPrintPage() {
       const res = await fetch(`${apiUrl}/mc/${mcId}/print`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(printBody),
+        body: JSON.stringify({...printBody, is_reference: isReference}),
       });
       if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.message ?? `HTTP ${res.status}`); }
       const blob = await res.blob();
@@ -93,7 +93,7 @@ export default function McPrintPage() {
       const res = await fetch(`${apiUrl}/mc/${mcId}/direct-print`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(printBody),
+        body: JSON.stringify({...printBody, is_reference: isReference}),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.message ?? `HTTP ${res.status}`);
@@ -171,6 +171,7 @@ export default function McPrintPage() {
 
       {/* タブナビ */}
       <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
+        <button onClick={() => router.push("/mc")} className="px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold transition-colors mr-2">← ダッシュボードへ</button>
         <button onClick={() => router.push(`/mc/${mcId}`)}
           className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41] transition-colors">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>MC詳細
@@ -259,6 +260,14 @@ export default function McPrintPage() {
                     <span className="text-slate-700">{label}</span>
                   </label>
                 ))}
+              </div>
+              <div className="px-5 py-3 border-t border-slate-100">
+                <label className="flex items-center gap-3 text-sm cursor-pointer">
+                  <input type="checkbox" checked={isReference} onChange={e => setIsReference(e.target.checked)}
+                    className="accent-amber-500 w-4 h-4" />
+                  <span className="text-amber-700 font-bold">参考出力（生産に使用しない・回収不要）</span>
+                </label>
+                {isReference && <p className="text-[11px] text-amber-600 mt-1 ml-7">参考出力はダッシュボードの未回収一覧に表示されません</p>}
               </div>
               <div className="px-5 pb-5 flex flex-col gap-3">
                 <button onClick={handlePrint} disabled={printing}
