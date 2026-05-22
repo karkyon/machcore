@@ -79,7 +79,14 @@ export default function McEditPage() {
     mcApi.findOne(mcId).then(r => {
       const d = (r as any).data ?? r;
       setDetail(d);
-      setMachineId(d.machine?.id ? String(d.machine.id) : "");
+      // McDetail.machine は { machineCode, machineName } のみ — id は machines リストから取得
+      // machines がまだ空の可能性があるので machineCode を一時保存してから後で解決
+      if (d.machine?.machineCode) {
+        // machinesが既に取得済みなら id を解決、なければ machineCode をそのまま保持
+        setMachineId(d.machine.machineCode); // 一旦machineCodeをセット
+      } else {
+        setMachineId("");
+      }
       setONumber(d.oNumber ?? "");
       setClampNote(d.clampNote ?? "");
       setNote(d.note ?? "");
@@ -117,6 +124,19 @@ export default function McEditPage() {
     }
   };
 
+  // machines 取得後に machineId を machineCode → id に解決
+  useEffect(() => {
+    if (machines.length > 0 && machineId) {
+      // machineId が数字でない（machineCode）場合に id に変換
+      if (isNaN(parseInt(machineId))) {
+        const m = machines.find(m => m.machineCode === machineId);
+        if (m) setMachineId(String(m.id));
+        else setMachineId("");
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [machines]);
+
   useEffect(() => {
     if (isAuthenticated) {
       timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
@@ -136,13 +156,13 @@ export default function McEditPage() {
     try {
       const cycleTimeSec = cycleH * 3600 + cycleM * 60 + cycleS;
       await mcApi.update(mcId, {
-        machine_id:     machineId ? parseInt(machineId) : undefined,
+        machine_id:     (machineId && !isNaN(parseInt(machineId))) ? parseInt(machineId) : undefined,
         o_number:       oNumber   || undefined,
         clamp_note:     clampNote || undefined,
         cycle_time_sec: cycleTimeSec > 0 ? cycleTimeSec : undefined,
         machining_qty:  machiningQty,
         note:           note || undefined,
-        creator_id:     creatorId ? parseInt(creatorId) : null,
+        creator_id:     (creatorId && !isNaN(parseInt(creatorId))) ? parseInt(creatorId) : null,
         sheet_created_at: sheetCreatedAt || null,
       }, token);
       // ツーリング保存
@@ -168,7 +188,9 @@ export default function McEditPage() {
         setTimeout(() => router.push(`/mc/${mcId}`), 1200);
       }
     } catch (e: any) {
-      setSaveError(e.message ?? "保存に失敗しました");
+      const errMsg = e?.response?.data?.message ?? e?.message ?? "保存に失敗しました";
+      console.error("[STEP1] handleSave error:", e?.response?.status, errMsg, e?.response?.data);
+      setSaveError(errMsg);
     } finally {
       setSaving(false);
     }
