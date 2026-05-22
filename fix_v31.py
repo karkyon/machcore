@@ -129,13 +129,14 @@ function McRecordPageInner() {
   // 機械選択時にサイクルタイムを自動セット（今回使用機械 = 登録機械の場合）
   useEffect(() => {
     if (!detail || !machineId) return;
-    if (machineId === String(detail.machine?.id ?? detail.machineId ?? "")) {
-      const sec = (detail as any).cycleTimeSec ?? 0;
+    const selMachine = machines.find(m => String(m.id) === machineId);
+    if (selMachine && detail.machine && selMachine.machineCode === detail.machine.machineCode) {
+      const sec = detail.cycleTimeSec ?? 0;
       if (sec) {
         setCycleH(Math.floor(sec / 3600));
         setCycleM(Math.floor((sec % 3600) / 60));
         setCycleS(sec % 60);
-        setCyclePcs(String((detail as any).machiningQty ?? "1"));
+        setCyclePcs(String(detail.machiningQty ?? "1"));
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
