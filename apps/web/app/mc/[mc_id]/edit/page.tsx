@@ -273,6 +273,19 @@ export default function McEditPage() {
       </nav>
 
       {/* セッションバナー */}
+      {isAuthenticated && operator && sbMode && (
+        <div className="bg-blue-700 text-white px-5 py-2 flex items-center justify-between text-xs shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center font-bold shrink-0">1</span>
+            <span className="font-bold">段取シートバック STEP1: 基本情報・ツーリング・図写真などを登録してください</span>
+            <span className="text-blue-300">→ 登録完了後 STEP2(作業記録)へ自動遷移します</span>
+          </div>
+          <button onClick={handleSave} disabled={saving}
+            className="bg-white text-blue-700 px-4 py-1 rounded font-bold hover:bg-blue-50 disabled:opacity-50 text-sm">
+            {saving ? "保存中..." : "STEP1完了 → STEP2(作業記録)へ"}
+          </button>
+        </div>
+      )}
       {isAuthenticated && operator && (
         <div className="bg-red-600 text-white px-5 py-1.5 flex items-center justify-between text-xs shrink-0">
           <div className="flex items-center gap-3">
@@ -446,7 +459,7 @@ export default function McEditPage() {
                   <div className="flex items-center gap-2 mt-2 mb-2">
                     <label className="px-3 py-1.5 bg-white border border-amber-400 text-amber-700 text-xs font-bold rounded cursor-pointer hover:bg-amber-50 transition-colors">
                       ファイルを選択
-                      <input type="file" accept=".min,.spf,.mpf,.nc,.cnc,.tap,.prg,.txt" className="hidden"
+                      <input type="file" className="hidden"
                         onChange={e => {
                           const f2 = e.target.files?.[0];
                           if (f2) { const reader = new FileReader(); reader.onload = ev => setToolingText(ev.target?.result as string ?? ""); reader.readAsText(f2, "shift-jis"); e.target.value = ""; }
