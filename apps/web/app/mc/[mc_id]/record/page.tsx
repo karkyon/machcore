@@ -88,6 +88,11 @@ function McRecordPageInner() {
   const [quantity,     setQuantity]     = useState<string>("");    // quantity
   // 備考
   const [note,         setNote]         = useState("");
+  // プログラム
+  const [prgMan,       setPrgMan]       = useState("");
+  const [prgTimeH,     setPrgTimeH]     = useState(0);
+  const [prgTimeM,     setPrgTimeM]     = useState(0);
+  const [prgPlas,      setPrgPlas]      = useState("");
   const [saving,       setSaving]       = useState(false);
   const [saveError,    setSaveError]    = useState<string | null>(null);
   const [toast,        setToast]        = useState<string | null>(null);
@@ -137,6 +142,7 @@ function McRecordPageInner() {
     setProdOps([]); setFinishedAt("");
     setYStopH(0); setYStopM(0); setQuantity("");
     setNote(""); setSaveError(null);
+    setPrgMan(""); setPrgTimeH(0); setPrgTimeM(0); setPrgPlas("");
   };
 
   const loadRecord = (r: McWorkRecord) => {
@@ -159,6 +165,10 @@ function McRecordPageInner() {
     setYStopH(Math.floor(ystop / 60)); setYStopM(ystop % 60);
     setQuantity(r.quantity ? String(r.quantity) : "");
     setNote(r.note ?? "");
+    setPrgMan(r.prg_man ?? ""); 
+    const pt = r.prg_time_min ?? 0;
+    setPrgTimeH(Math.floor(pt / 60)); setPrgTimeM(pt % 60);
+    setPrgPlas(r.prg_plas ?? "");
   };
 
   // 時間集計（自動計算）
@@ -199,6 +209,9 @@ function McRecordPageInner() {
         production_operator_ids: prodOps.length ? prodOps : undefined,
         note:                note || undefined,
         machine_id:          machineId ? parseInt(machineId) : undefined,
+        prg_man:             prgMan || undefined,
+        prg_time_min:        (prgTimeH * 60 + prgTimeM) || undefined,
+        prg_plas:            prgPlas || undefined,
       };
       await mcApi.createWorkRecord(mcId, body, token ?? "");
       const r = await mcApi.workRecords(mcId);
@@ -562,6 +575,37 @@ function McRecordPageInner() {
                   </div>
                 </div>
               )}
+
+
+              {/* プログラム */}
+              <div className="bg-purple-50 rounded-xl border border-purple-200 p-4 space-y-3">
+                <h3 className="text-xs font-bold text-purple-700 border-b border-purple-200 pb-2">💾 プログラム</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">プログラム担当</label>
+                    <input type="text" value={prgMan} onChange={e => setPrgMan(e.target.value)}
+                      placeholder="担当者名"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">PrgTime</label>
+                    <div className="flex items-center gap-1">
+                      <input type="number" min="0" value={prgTimeH} onChange={e => setPrgTimeH(parseInt(e.target.value)||0)}
+                        className="w-14 border border-slate-200 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-teal-400" />
+                      <span className="text-xs text-slate-500">h</span>
+                      <input type="number" min="0" max="59" value={prgTimeM} onChange={e => setPrgTimeM(parseInt(e.target.value)||0)}
+                        className="w-14 border border-slate-200 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-teal-400" />
+                      <span className="text-xs text-slate-500">m</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">PrgPlas (ePL)</label>
+                    <input type="text" value={prgPlas} onChange={e => setPrgPlas(e.target.value)}
+                      placeholder="ePL"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+                  </div>
+                </div>
+              </div>
 
               {/* 備考 */}
               <div className="bg-white rounded-xl border border-slate-200 p-4">

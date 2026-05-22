@@ -588,6 +588,9 @@ export type McWorkRecord = {
   note:             string | null;
   setup_operator_ids:      number[] | null;
   production_operator_ids: number[] | null;
+  prg_man:      string | null;
+  prg_time_min: number | null;
+  prg_plas:     string | null;
 };
 
 export type McChangeHistory = {
@@ -625,6 +628,9 @@ export type CreateMcWorkRecordBody = {
   machine_id?:         number;
   setup_operator_ids?:      number[];
   production_operator_ids?: number[];
+  prg_man?:      string;
+  prg_time_min?: number;
+  prg_plas?:     string;
 };
 
 export type McPrintOptions = {

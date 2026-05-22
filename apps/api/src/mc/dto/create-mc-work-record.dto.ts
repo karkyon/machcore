@@ -48,4 +48,13 @@ export class CreateMcWorkRecordDto {
 
   @IsOptional()
   production_operator_ids?: number[];
+
+  @IsOptional() @IsString() @MaxLength(100)
+  prg_man?: string;
+
+  @IsOptional() @IsInt() @Min(0)
+  prg_time_min?: number;
+
+  @IsOptional() @IsString() @MaxLength(50)
+  prg_plas?: string;
 }

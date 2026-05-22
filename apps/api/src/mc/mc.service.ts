@@ -504,6 +504,11 @@ export class McService {
       interrupt_setup_min: r.interruptSetupMin,
       interrupt_work_min:  r.interruptWorkMin,
       note:            r.note,
+      setup_operator_ids:      r.setupOperatorIds,
+      production_operator_ids: r.productionOperatorIds,
+      prg_man:         (r as any).prgMan      ?? null,
+      prg_time_min:    (r as any).prgTimeMin  ?? null,
+      prg_plas:        (r as any).prgPlas     ?? null,
     }));
   }
 
@@ -552,6 +557,9 @@ export class McService {
         note:             dto.note ?? null,
         setupOperatorIds:      dto.setup_operator_ids      ?? [],
         productionOperatorIds: dto.production_operator_ids ?? [],
+        prgMan:            dto.prg_man       ?? null,
+        prgTimeMin:        dto.prg_time_min  ?? null,
+        prgPlas:           dto.prg_plas      ?? null,
       },
     });
     await this.prisma.operationLog.create({
