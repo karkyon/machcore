@@ -355,12 +355,24 @@ export class McController {
   }
 
   // ── 機械タイムカード ────────────────────────
+  @Get('timecards/all')
+  getTimecardsByDate(@Query('work_date') workDate: string) {
+    return this.mc.getTimecardsByDate(workDate);
+  }
+
   @Get('timecards')
   getTimecards(
     @Query('machine_id', ParseIntPipe) machineId: number,
     @Query('work_date') workDate: string,
   ) {
     return this.mc.getTimecards(machineId, workDate);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Delete('timecards/:id')
+  deleteTimecard(@Param('id', ParseIntPipe) id: number) {
+    return this.mc.deleteTimecard(id);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)

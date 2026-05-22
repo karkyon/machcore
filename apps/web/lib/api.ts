@@ -716,8 +716,12 @@ export const mcApi = {
   getPgFile:       (mcId: number) => api.get<{ content: string; encoding: string; originalName: string; fileCount: number }>(`/mc/${mcId}/pg-file`),
   timecards:       (machineId: number, workDate: string) =>
     api.get<any[]>('/mc/timecards', { params: { machine_id: machineId, work_date: workDate } }),
+  timecardsByDate: (workDate: string) =>
+    api.get<any[]>('/mc/timecards/all', { params: { work_date: workDate } }),
   createTimecard:  (body: any, token: string) =>
     api.post('/mc/timecards', body, { headers: { Authorization: `Bearer ${token}` } }),
+  deleteTimecard:  (id: number, token: string) =>
+    api.delete(`/mc/timecards/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
   finalize: (mcId: number, changeType: string, changeDetail: string | undefined, token: string) =>
     api.post(`/mc/${mcId}/finalize`, { change_type: changeType, change_detail: changeDetail ?? undefined },
       { headers: { Authorization: `Bearer ${token}` } }),

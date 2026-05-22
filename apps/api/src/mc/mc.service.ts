@@ -758,12 +758,28 @@ export class McService {
   // ══════════════════════════════════════════
   // 機械タイムカード
   // ══════════════════════════════════════════
+  async getTimecardsByDate(workDate: string) {
+    return this.prisma.machineTimecard.findMany({
+      where:   { workDate: new Date(workDate) },
+      orderBy: [{ machineId: 'asc' }, { startTime: 'asc' }],
+      include: {
+        operator: { select: { name: true } },
+        machine:  { select: { machineCode: true, machineName: true } },
+      },
+    });
+  }
+
   async getTimecards(machineId: number, workDate: string) {
     return this.prisma.machineTimecard.findMany({
       where:   { machineId, workDate: new Date(workDate) },
       orderBy: { startTime: 'asc' },
       include: { operator: { select: { name: true } } },
     });
+  }
+
+  async deleteTimecard(id: number) {
+    await this.prisma.machineTimecard.delete({ where: { id } });
+    return { message: 'タイムカードを削除しました' };
   }
 
   async createTimecard(
