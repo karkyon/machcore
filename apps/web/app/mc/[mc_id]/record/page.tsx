@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, Suspense } from "react";
+import React, { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { mcApi, machinesApi, usersApi, McDetail, McSetupSheetLog, McWorkRecord, Machine, UserInfo, CreateMcWorkRecordBody } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -80,6 +80,19 @@ function fmtMin(min: number | null) {
   if (min == null || min < 0) return "—";
   return `${Math.floor(min / 60)}H ${String(min % 60).padStart(2,"0")}M`;
 }
+function fmtSec(sec: number | null) {
+  if (sec == null || sec < 0) return "—";
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.round(sec % 60);
+  if (h > 0) return `${h}H ${m}M ${s}S`;
+  return `${m}M ${s}S`;
+}
+function fmtNow() {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 function toLocalInput(dt: string | null): string {
   if (!dt) return "";
   try {
@@ -99,14 +112,13 @@ function McRecordPageInner() {
   // sbMode
   const [sbMode, setSbMode] = React.useState(false);
   const [sbSheetLogId, setSbSheetLogId] = React.useState<number>(0);
-  useLayoutEffect(() => {
-    if (typeof window !== "undefined") {
-      const v = sessionStorage.getItem("sb_next_record");
-      if (v && parseInt(v) === mcId) {
-        setSbMode(true);
-        const lid = sessionStorage.getItem("sb_sheet_log_id");
-        if (lid) setSbSheetLogId(parseInt(lid));
-      }
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const v = sessionStorage.getItem("sb_next_record");
+    if (v && parseInt(v) === mcId) {
+      setSbMode(true);
+      const lid = sessionStorage.getItem("sb_sheet_log_id");
+      if (lid) setSbSheetLogId(parseInt(lid));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -258,11 +270,16 @@ function McRecordPageInner() {
       const machMin  = machH * 60 + machMm;
       const totalMin = setupMin + machMin;
       const totalQty = (parseInt(quantity)||0) + (parseInt(setupQty)||0);
+      const cycSec2 = cycleH * 3600 + cycleM * 60 + cycleS;
+      const cycPcs2 = parseInt(cyclePcs)||0;
+      const cyclePerP = cycSec2 > 0 && cycPcs2 > 0 ? cycSec2 / cycPcs2 : null;
+      const machQtyBase2 = Math.max(1, (parseInt(quantity)||0) - (parseInt(setupQty)||0));
       return {
         setupMin,
         machMin,
         totalMin,
-        machPerPMin: totalQty > 0 ? Math.round(machMin / totalQty * 10) / 10 : null,
+        cyclePerPSec: cyclePerP,
+        machPerPMin: totalQty > 0 ? Math.round(machMin / machQtyBase2 * 10) / 10 : null,
         totalPerPMin: totalQty > 0 ? Math.round(totalMin / totalQty * 10) / 10 : null,
       };
     }
@@ -291,15 +308,19 @@ function McRecordPageInner() {
     const machQtyBase = (parseInt(quantity)||0) === (parseInt(setupQty)||0)
       ? totalQty
       : Math.max(1, (parseInt(quantity)||0) - (parseInt(setupQty)||0));
+    const cycSec2 = cycleH * 3600 + cycleM * 60 + cycleS;
+    const cycPcs2 = parseInt(cyclePcs)||0;
+    const cyclePerP = cycSec2 > 0 && cycPcs2 > 0 ? cycSec2 / cycPcs2 : null;
     return {
       setupMin,
       machMin,
       totalMin,
+      cyclePerPSec: cyclePerP,
       machPerPMin: machMin != null && machQtyBase > 0 ? Math.round(machMin / machQtyBase * 10) / 10 : null,
       totalPerPMin: totalQty > 0 ? Math.round(totalMin / totalQty * 10) / 10 : null,
     };
   }, [timeMode, setupH, setupMm, machH, machMm, startedAt, checkedAt, finishedAt,
-      dStopH, dStopM, yStopH, yStopM, quantity, setupQty]);
+      dStopH, dStopM, yStopH, yStopM, quantity, setupQty, cycleH, cycleM, cycleS, cyclePcs]);
 
   const times = calcTimes();
 
@@ -482,6 +503,30 @@ function McRecordPageInner() {
           )}
 
           <div className={!isAuthenticated && !sbMode ? "opacity-40 pointer-events-none select-none px-5 pb-5" : "px-5 pb-5 pt-4"}>
+            {/* Ver・登録日・回収日時・オペレータ（表示専用）*/}
+            {detail && (
+              <div className="bg-slate-100 rounded-xl border border-slate-200 p-3 mb-4">
+                <div className="grid grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">Ver</span>
+                    <span className="font-bold text-slate-700">{detail.version}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">登録・出力（段取シート）</span>
+                    <span className="font-bold text-slate-700">{selectedSheet ? new Date(selectedSheet.printed_at).toLocaleDateString("ja-JP") : "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">回収日時</span>
+                    <span className="font-bold text-slate-700">{fmtNow()}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">オペレータ</span>
+                    <span className="font-bold text-teal-700">{operator?.name ?? "—"}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* モードバー */}
             <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold mb-4 ${
               editRecordId ? "bg-amber-100 border border-amber-300 text-amber-800" : "bg-teal-50 border border-teal-200 text-teal-700"
@@ -680,9 +725,20 @@ function McRecordPageInner() {
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1.5">PrgPlas (ePL)</label>
-                    <input type="text" value={prgPlas} onChange={e => setPrgPlas(e.target.value)}
-                      placeholder="ePL"
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setPrgPlas("+")}
+                        className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors ${prgPlas === "+" ? "bg-teal-600 text-white border-teal-600" : "bg-white text-slate-600 border-slate-300 hover:border-teal-400"}`}>
+                        ＋
+                      </button>
+                      <button type="button" onClick={() => setPrgPlas("-")}
+                        className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors ${prgPlas === "-" ? "bg-red-500 text-white border-red-500" : "bg-white text-slate-600 border-slate-300 hover:border-red-300"}`}>
+                        ー
+                      </button>
+                      <button type="button" onClick={() => setPrgPlas("")}
+                        className="px-2 py-2 rounded-lg text-xs border border-slate-200 text-slate-400 hover:bg-slate-50">
+                        クリア
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -691,20 +747,41 @@ function McRecordPageInner() {
               {times && (
                 <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
                   <h3 className="text-xs font-bold text-slate-500 mb-3">時間集計（自動計算）</h3>
-                  <div className="grid grid-cols-4 gap-3 text-center text-sm">
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs mb-2">
                     <div className="bg-white rounded-lg p-2 border border-slate-100">
-                      <div className="text-xs text-slate-400 mb-0.5">段取時間</div>
-                      <div className="font-bold text-blue-700">{fmtMin(times.setupMin)}</div>
+                      <div className="text-slate-400 mb-0.5">段取時間</div>
+                      <div className="font-bold text-blue-700 text-sm">{fmtMin(times.setupMin)}</div>
                     </div>
                     <div className="bg-white rounded-lg p-2 border border-slate-100">
-                      <div className="text-xs text-slate-400 mb-0.5">加工時間</div>
-                      <div className="font-bold text-teal-700">{fmtMin(times.machMin)}</div>
+                      <div className="text-slate-400 mb-0.5">加工時間</div>
+                      <div className="font-bold text-teal-700 text-sm">{fmtMin(times.machMin)}</div>
                     </div>
                     <div className="bg-white rounded-lg p-2 border border-slate-100">
-                      <div className="text-xs text-slate-400 mb-0.5">総時間</div>
-                      <div className="font-bold text-slate-700">{fmtMin(times.totalMin)}</div>
+                      <div className="text-slate-400 mb-0.5">総時間</div>
+                      <div className="font-bold text-slate-700 text-sm">{fmtMin(times.totalMin)}</div>
                     </div>
-                    {times.machPerPMin !== null && (
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    {times.cyclePerPSec != null && (
+                      <div className="bg-white rounded-lg p-2 border border-slate-100">
+                        <div className="text-slate-400 mb-0.5">サイクルタイム/1P</div>
+                        <div className="font-bold text-purple-700 text-sm">{fmtSec(times.cyclePerPSec)}</div>
+                      </div>
+                    )}
+                    {times.machPerPMin != null && (
+                      <div className="bg-white rounded-lg p-2 border border-slate-100">
+                        <div className="text-slate-400 mb-0.5">加工時間/1P</div>
+                        <div className="font-bold text-teal-600 text-sm">{fmtMin(times.machPerPMin)}</div>
+                      </div>
+                    )}
+                    {times.totalPerPMin != null && (
+                      <div className="bg-white rounded-lg p-2 border border-slate-100">
+                        <div className="text-slate-400 mb-0.5">総時間/1P</div>
+                        <div className="font-bold text-slate-600 text-sm">{fmtMin(times.totalPerPMin)}</div>
+                      </div>
+                    )}
+                  </div>
+                  {false && (
                       <div className="bg-white rounded-lg p-2 border border-slate-100">
                         <div className="text-xs text-slate-400 mb-0.5">加工時間/1P</div>
                         <div className="font-bold text-slate-700">{fmtMin(times.machPerPMin)}</div>
