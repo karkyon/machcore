@@ -595,7 +595,10 @@ export type McProcessItem = {
 export type McFile = {
   id:            number;
   file_type:     'PHOTO' | 'DRAWING' | 'PROGRAM' | 'OTHER';
+  pg_role:       string | null;
+  sort_order:    number;
   original_name: string;
+  stored_name:   string;
   mime_type:     string;
   file_size:     number;
   file_path:     string;
