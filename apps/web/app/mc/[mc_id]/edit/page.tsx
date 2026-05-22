@@ -165,17 +165,39 @@ export default function McEditPage() {
         creator_id:     (creatorId && !isNaN(parseInt(creatorId))) ? parseInt(creatorId) : null,
         sheet_created_at: sheetCreatedAt || null,
       }, token);
-      // ツーリング保存
-      if (toolingRows.length > 0) {
-        await mcApi.saveTooling(mcId, toolingRows.map((t, i) => ({ ...t, sort_order: i })), token);
-      }
-      // ワークオフセット保存
+      // ツーリング保存（DBのcamelCase → DTOのsnake_caseに変換）
+      await mcApi.saveTooling(mcId, toolingRows.map((t: any, i: number) => ({
+        sort_order:       i,
+        tool_no:          t.tool_no   ?? t.toolNo   ?? "",
+        tool_name:        t.tool_name ?? t.toolName ?? undefined,
+        diameter:         t.diameter  ?? undefined,
+        length_offset_no: t.length_offset_no ?? t.lengthOffsetNo ?? undefined,
+        dia_offset_no:    t.dia_offset_no    ?? t.diaOffsetNo    ?? undefined,
+        tool_type:        t.tool_type        ?? t.toolType       ?? undefined,
+        note:             t.note             ?? undefined,
+        raw_program_line: t.raw_program_line ?? t.rawProgramLine ?? undefined,
+      })), token);
+      // ワークオフセット保存（DBのcamelCase → DTOのsnake_caseに変換）
       if (offsetRows.length > 0) {
-        await mcApi.saveWorkOffsets(mcId, offsetRows, token);
+        await mcApi.saveWorkOffsets(mcId, offsetRows.map((o: any) => ({
+          g_code:   o.g_code   ?? o.gCode   ?? "",
+          x_offset: o.x_offset ?? (o.xOffset != null ? Number(o.xOffset) : undefined),
+          y_offset: o.y_offset ?? (o.yOffset != null ? Number(o.yOffset) : undefined),
+          z_offset: o.z_offset ?? (o.zOffset != null ? Number(o.zOffset) : undefined),
+          a_offset: o.a_offset ?? (o.aOffset != null ? Number(o.aOffset) : undefined),
+          r_offset: o.r_offset ?? (o.rOffset != null ? Number(o.rOffset) : undefined),
+          note:     o.note     ?? undefined,
+        })), token);
       }
-      // インデックス保存
+      // インデックス保存（DBのcamelCase → DTOのsnake_caseに変換）
       if (indexRows.length > 0) {
-        await mcApi.saveIndexPrograms(mcId, indexRows.map((r, i) => ({ ...r, sort_order: i })), token);
+        await mcApi.saveIndexPrograms(mcId, indexRows.map((r: any, i: number) => ({
+          sort_order: i,
+          axis_0: r.axis_0 ?? r.axis0 ?? undefined,
+          axis_1: r.axis_1 ?? r.axis1 ?? undefined,
+          axis_2: r.axis_2 ?? r.axis2 ?? undefined,
+          note:   r.note   ?? undefined,
+        })), token);
       }
       showToast("✅ 保存しました");
       if (sbMode) {
