@@ -734,6 +734,6 @@ export const mcFilesApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
   },
-  delete: (fileId: number, token: string) =>
-    api.delete(`/files/${fileId}`, { headers: { Authorization: `Bearer ${token}` } }),
+  delete: (mcId: number, fileId: number, token: string) =>
+    api.delete(`/mc/${mcId}/files/${fileId}`, { headers: { Authorization: `Bearer ${token}` } }),
 };

@@ -731,7 +731,7 @@ export default function McEditPage() {
                     {files.filter((f: any) => f.file_type === "PHOTO" || f.file_type === "DRAWING").map((f: any) => (
                       <div key={f.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                         <div className="aspect-square bg-slate-100 flex items-center justify-center overflow-hidden">
-                          <img src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api"}/mc/${mcId}/files/${f.id}/thumb`}
+                          <img src={`/api/mc/${mcId}/files/${f.id}/thumb`}
                             alt={f.original_name} className="w-full h-full object-contain" loading="lazy"
                             onError={e2 => { (e2.target as HTMLImageElement).style.display = "none"; }} />
                         </div>
@@ -739,7 +739,7 @@ export default function McEditPage() {
                           <p className="text-[11px] text-slate-600 truncate flex-1">{f.stored_name ?? f.original_name}</p>
                           <button onClick={async () => {
                               if (!token || !window.confirm("削除しますか？")) return;
-                              await mcFilesApi.delete(f.id, token);
+                              await mcFilesApi.delete(mcId, f.id, token);
                               const r = await mcApi.listFiles(mcId);
                               setFiles((r as any).data ?? []);
                             }}
