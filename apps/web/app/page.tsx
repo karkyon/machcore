@@ -373,6 +373,7 @@ export default function McDashboard() {
                   { label: "ダッシュボード", href: "/mc",        active: true  },
                   { label: "部品検索",       href: "/mc/search", active: false },
                   { label: "新規登録",       href: "/mc/new",    active: false },
+                  { label: "機械TC",          href: "/mc/timecards", active: false },
                 ].map(item => (
                   <button key={item.href} onClick={() => router.push(item.href)}
                     className={"w-full px-3 py-2 rounded-lg text-left text-sm transition-colors " +

@@ -377,6 +377,61 @@ function McRecordPageInner() {
 
   const times = calcTimes();
 
+  // 機械タイムカードから中断時間を算出（HowLong関数準拠）
+  const fetchTimecardStop = async (phase: "setup" | "work") => {
+    if (!detail?.machine) return;
+    const refStart = phase === "setup" ? startedAt  : checkedAt;
+    const refEnd   = phase === "setup" ? checkedAt  : finishedAt;
+    if (!refStart) { alert("開始日時を先に入力してください"); return; }
+    const workDate = refStart.slice(0, 10);
+    try {
+      const r = await mcApi.timecardsByDate(workDate);
+      const allCards: any[] = (r as any).data ?? [];
+      // この機械のタイムカードを抽出（machineCodeで突き合わせ）
+      const machCode = detail.machine?.machineCode;
+      const cards = allCards.filter((c: any) => c.machine?.machineCode === machCode);
+      if (cards.length === 0) {
+        alert(`${workDate} の機械(${machCode})のタイムカードがありません`);
+        return;
+      }
+      // HowLong関数：タイムカードから稼働時間を計算
+      // 参照区間（phase開始〜終了）に被るタイムカードを合算
+      // 昼跨ぎ（開始<13:00 && 終了>=13:00）は-60分
+      const ws = refStart ? new Date(refStart) : null;
+      const we = refEnd   ? new Date(refEnd)   : null;
+      let totalKadouMin = 0;
+      for (const c of cards) {
+        const tcDate = c.work_date?.slice(0, 10) ?? workDate;
+        const tcS = new Date(`${tcDate}T${c.start_time?.slice(0, 8) ?? "00:00:00"}`);
+        const tcE = new Date(`${tcDate}T${c.end_time?.slice(0,   8) ?? "00:00:00"}`);
+        // タイムカードと参照区間の重複を計算
+        const overlapS = ws ? (tcS > ws ? tcS : ws) : tcS;
+        const overlapE = we ? (tcE < we ? tcE : we) : tcE;
+        let diffMin = Math.round((overlapE.getTime() - overlapS.getTime()) / 60000);
+        if (diffMin <= 0) continue;
+        // 昼跨ぎ補正（-60分）
+        const sh = tcS.getHours();
+        const eh = tcE.getHours();
+        if (sh < 13 && eh >= 13) diffMin -= 60;
+        if (diffMin > 0) totalKadouMin += diffMin;
+      }
+      // 参照区間の経過時間
+      let elapsedMin = 0;
+      if (ws && we) elapsedMin = Math.round((we.getTime() - ws.getTime()) / 60000);
+      else if (ws)  elapsedMin = 0;
+      // 中断時間 = 経過時間 - 機械稼働時間
+      const stopMin = Math.max(0, elapsedMin - totalKadouMin);
+      const h = Math.floor(stopMin / 60);
+      const m = stopMin % 60;
+      if (phase === "setup") { setDStopH(h); setDStopM(m); }
+      else                   { setYStopH(h); setYStopM(m); }
+      console.log(`[TC参照] phase=${phase} elapsed=${elapsedMin}min kadou=${totalKadouMin}min stop=${stopMin}min`);
+    } catch (e) {
+      console.error("[TC参照] エラー", e);
+      alert("タイムカード取得に失敗しました");
+    }
+  };
+
   const handleSubmit = async () => {
     console.log("[STEP2] handleSubmit sbMode=", sbMode, "token=", token ? "あり" : "なし", "isAuthenticated=", isAuthenticated);
     if (!token) { setSaveError("認証セッションが切れています。再認証してください。"); setAuthOpen(true); return; }
@@ -673,9 +728,15 @@ function McRecordPageInner() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">段取時の中断</label>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 flex-wrap">
                           <NumInput value={dStopH} onChange={setDStopH} /><span className="text-xs text-slate-500">h</span>
                           <NumInput value={dStopM} onChange={setDStopM} min={0} max={59} /><span className="text-xs text-slate-500">m</span>
+                          {detail?.machine && startedAt && (
+                            <button type="button" onClick={() => fetchTimecardStop("setup")}
+                              className="text-[10px] px-2 py-1 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded font-bold transition-colors whitespace-nowrap ml-1">
+                              📋 TC参照
+                            </button>
+                          )}
                         </div>
                       </div>
                       <div />
@@ -736,9 +797,15 @@ function McRecordPageInner() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">量産時の中断</label>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 flex-wrap">
                           <NumInput value={yStopH} onChange={setYStopH} /><span className="text-xs text-slate-500">h</span>
                           <NumInput value={yStopM} onChange={setYStopM} min={0} max={59} /><span className="text-xs text-slate-500">m</span>
+                          {detail?.machine && checkedAt && (
+                            <button type="button" onClick={() => fetchTimecardStop("work")}
+                              className="text-[10px] px-2 py-1 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded font-bold transition-colors whitespace-nowrap ml-1">
+                              📋 TC参照
+                            </button>
+                          )}
                         </div>
                       </div>
                       <div />
