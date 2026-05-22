@@ -195,7 +195,7 @@ export default function McDetailPage() {
   if (loadError) return (
     <div className="h-screen flex items-center justify-center text-red-500">
       <div className="text-center"><p className="text-2xl mb-2">⚠️</p><p>{loadError}</p>
-        <button onClick={() => router.push("/mc")} className="px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold transition-colors">← ダッシュボード</button>
+        <button onClick={() => router.push("/")} className="px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold transition-colors">← ダッシュボード</button>
           <button onClick={() => router.push("/mc/search")} className="mt-4 text-teal-600 text-sm hover:underline">← 検索に戻る</button>
       </div>
     </div>
@@ -216,7 +216,7 @@ export default function McDetailPage() {
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
         <span className="text-sm font-medium text-white">MC 詳細</span>
         <span className="ml-auto flex items-center gap-3">
-          <button onClick={() => router.push("/mc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors">
+          <button onClick={() => router.push("/")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
             ダッシュボードへ
           </button>

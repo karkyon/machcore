@@ -406,14 +406,22 @@ export default function McDashboard() {
                         <span className="text-slate-500 text-xs">{items[0]?.machine_name ?? ""}</span>
                         <span className="ml-auto text-xs text-amber-700 font-bold bg-amber-100 px-2 py-0.5 rounded-full">{items.length}枚</span>
                       </div>
-                      <div className="grid grid-cols-[70px_70px_70px_100px_1fr_120px_100px_80px_16px] gap-x-2 px-4 py-1.5 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
-                        <span>MCID</span><span>加工ID</span><span>部品ID</span><span>工程</span><span>図番 / 部品名 / 納入先</span><span>印刷日時</span><span>印刷者</span><span>経過</span><span/>
+                      <div className="grid grid-cols-[56px_70px_70px_70px_100px_1fr_120px_100px_80px_16px] gap-x-2 px-4 py-1.5 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
+                        <span>種別</span><span>MCID</span><span>加工ID</span><span>部品ID</span><span>工程</span><span>図番 / 部品名 / 納入先</span><span>印刷日時</span><span>印刷者</span><span>経過</span><span/>
                       </div>
                       <div className="divide-y divide-slate-100">
                         {items.map(item => (
                           <button key={item.id}
                             onClick={() => router.push("/mc/" + item.mc_id + "/record")}
-                            className={"w-full grid grid-cols-[70px_70px_70px_100px_1fr_120px_100px_80px_16px] gap-x-2 px-4 py-2.5 items-center text-left transition-colors " + rowCls(item.printed_at)}>
+                            className={"w-full grid grid-cols-[56px_70px_70px_70px_100px_1fr_120px_100px_80px_16px] gap-x-2 px-4 py-2.5 items-center text-left transition-colors " + rowCls(item.printed_at)}>
+                            <span>
+                              {item.is_reference
+                                ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-200 text-gray-600">参考</span>
+                                : item.sheet_type === "NEW"
+                                  ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">新規</span>
+                                  : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">リピート</span>
+                              }
+                            </span>
                             <span className="font-mono text-xs text-slate-500">{item.legacy_mcid ?? "-"}</span>
                             <span className="font-mono text-xs text-slate-500">{item.machining_id}</span>
                             <span className="font-mono text-xs text-slate-600">{item.part_id}</span>
