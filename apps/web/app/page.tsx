@@ -285,8 +285,7 @@ export default function McDashboard() {
         </header>
 
         <div className="flex flex-1 min-h-0">
-          <aside className="w-[200px] shrink-0 bg-white border-r border-slate-200 flex flex-col">
-            <div className="flex-1 overflow-y-auto">
+          <aside className="w-[200px] shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
             <div className="p-4 border-b border-slate-100">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">MC マシニング</p>
               <nav className="space-y-1">
