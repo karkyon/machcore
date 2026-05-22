@@ -30,6 +30,7 @@ export default function McPrintPage() {
   const [includeDrawings,       setIncludeDrawings]       = useState(false);
   const [includeWorkOffsets,    setIncludeWorkOffsets]    = useState(false);
   const [includeIndexPrograms,  setIncludeIndexPrograms]  = useState(false);
+  const [isReference,           setIsReference]           = useState(false);
 
   const [printing,       setPrinting]       = useState(false);
   const [directPrinting, setDirectPrinting] = useState(false);
