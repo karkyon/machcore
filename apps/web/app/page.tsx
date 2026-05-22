@@ -148,6 +148,14 @@ export default function McDashboard() {
   const handleSbAuthSuccess = async () => {
     setSbAuthOpen(false);
     if (!sbSelectedSheet) return;
+    // sb_next_record + sb_sheet_log_id をセット → record側でcollect処理する
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("sb_next_record", String(sbSelectedSheet.mc_id));
+      sessionStorage.setItem("sb_sheet_log_id", String(sbSelectedSheet.id));
+    }
+    router.push(`/mc/${sbSelectedSheet.mc_id}/record`);
+    return;
+    // ── 以下は旧collect処理（無効化）──
     setSbCollecting(true);
     const tok = authToken ?? (typeof window !== "undefined" ? localStorage.getItem("work_token") : null);
     try {
@@ -259,7 +267,7 @@ export default function McDashboard() {
                           マシニング情報を確認・編集（リピート）
                         </button>
                         <button
-                          onClick={() => { setSbModalOpen(false); router.push(`/mc/${sbSelectedSheet.mc_id}/record`); }}
+                          onClick={() => { setSbModalOpen(false); setSbAuthOpen(true); }}
                           className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold rounded-xl transition-colors">
                           作業記録を入力
                         </button>
