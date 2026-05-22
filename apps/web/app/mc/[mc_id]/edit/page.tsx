@@ -22,18 +22,18 @@ export default function McEditPage() {
     }
   }, [mc_id]);
 
-  // sbMode=true かつ未認証の場合は自動で認証モーダルを開く
+  const [detail, setDetail]   = useState<McDetail | null>(null);
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const { operator, isAuthenticated, token, logout } = useAuth();
+  const [authOpen, setAuthOpen] = useState(false);
+
+  // sbMode=true かつ未認証の場合は自動で認証モーダルを開く（useAuth後に配置必須）
   React.useEffect(() => {
     if (sbMode && !isAuthenticated) {
       console.log("[STEP1] sbMode=true 未認証 → 認証モーダルを自動表示");
       setAuthOpen(true);
     }
   }, [sbMode, isAuthenticated]);
-
-  const [detail, setDetail]   = useState<McDetail | null>(null);
-  const [machines, setMachines] = useState<Machine[]>([]);
-  const { operator, isAuthenticated, token, logout } = useAuth();
-  const [authOpen, setAuthOpen] = useState(false);
   const [elapsed, setElapsed]  = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
