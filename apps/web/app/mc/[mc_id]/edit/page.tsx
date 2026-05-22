@@ -15,6 +15,7 @@ export default function McEditPage() {
   const mcId  = parseInt(mc_id);
   const router = useRouter();
   const [sbMode, setSbMode] = React.useState(false);
+  const [sbRepeatMode, setSbRepeatMode] = React.useState(false);
   // 終了確認モーダル（リピートフロー）
   const [showKanryoModal, setShowKanryoModal] = React.useState(false);
   const [kanryoType,   setKanryoType]   = React.useState("小変更");
@@ -24,6 +25,8 @@ export default function McEditPage() {
     if (typeof window !== "undefined") {
       const v = sessionStorage.getItem("sb_next_record");
       if (v && parseInt(v) === parseInt(mc_id)) setSbMode(true);
+      const r = sessionStorage.getItem("sb_repeat_edit");
+      if (r && parseInt(r) === parseInt(mc_id)) setSbRepeatMode(true);
     }
   }, [mc_id]);
 
@@ -34,11 +37,11 @@ export default function McEditPage() {
 
   // sbMode=true かつ未認証の場合は自動で認証モーダルを開く（useAuth後に配置必須）
   React.useEffect(() => {
-    if (sbMode && !isAuthenticated) {
-      console.log("[STEP1] sbMode=true 未認証 → 認証モーダルを自動表示");
+    if ((sbMode || sbRepeatMode) && !isAuthenticated) {
+      console.log("[EDIT] sbMode/sbRepeatMode=true 未認証 → 認証モーダルを自動表示");
       setAuthOpen(true);
     }
-  }, [sbMode, isAuthenticated]);
+  }, [sbMode, sbRepeatMode, isAuthenticated]);
   const [elapsed, setElapsed]  = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -234,7 +237,11 @@ export default function McEditPage() {
       setShowKanryoModal(false);
       setPendingBody(null);
       showToast(`✅ ${kanryoType}としてバージョン更新しました`);
-      // 作業記録へ遷移（tokenを保持）
+      // sb_repeat_edit をクリアして sb_next_record をセット → 作業記録へ遷移
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("sb_repeat_edit");
+        sessionStorage.setItem("sb_next_record", String(pendingBody.savedMcId));
+      }
       setTimeout(() => router.push(`/mc/${pendingBody.savedMcId}/record`), 800);
     } catch (e: any) {
       const errMsg = e?.response?.data?.message ?? e?.message ?? "バージョン更新に失敗";
@@ -347,12 +354,12 @@ export default function McEditPage() {
       </nav>
 
       {/* セッションバナー */}
-      {isAuthenticated && operator && sbMode && (
-        <div className="bg-blue-700 text-white px-5 py-2 flex items-center justify-between text-xs shrink-0">
+      {isAuthenticated && operator && (sbMode || sbRepeatMode) && (
+        <div className={`${sbRepeatMode ? "bg-amber-700" : "bg-blue-700"} text-white px-5 py-2 flex items-center justify-between text-xs shrink-0`}>
           <div className="flex items-center gap-3">
             <span className="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center font-bold shrink-0">1</span>
-            <span className="font-bold">段取シートバック STEP1: 基本情報・ツーリング・図写真などを登録してください</span>
-            <span className="text-blue-300">→ 登録完了後 STEP2(作業記録)へ自動遷移します</span>
+            <span className="font-bold">{sbRepeatMode ? "段取シートバック リピート: マシニング情報を確認・編集してください" : "段取シートバック STEP1: 基本情報・ツーリング・図写真などを登録してください"}</span>
+            <span className={sbRepeatMode ? "text-amber-300" : "text-blue-300"}>→ {sbRepeatMode ? "更新後、変更内容を登録してSTEP2(作業記録)へ遷移します" : "登録完了後 STEP2(作業記録)へ自動遷移します"}</span>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => {
@@ -360,6 +367,7 @@ export default function McEditPage() {
                 if (typeof window !== "undefined") {
                   sessionStorage.removeItem("sb_next_record");
                   sessionStorage.removeItem("sb_sheet_log_id");
+                  sessionStorage.removeItem("sb_repeat_edit");
                 }
                 router.push("/");
               }}

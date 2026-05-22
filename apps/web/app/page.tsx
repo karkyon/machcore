@@ -83,6 +83,8 @@ export default function McDashboard() {
   const [sbCollecting,    setSbCollecting]    = useState(false);
   const [sbStep1AuthOpen, setSbStep1AuthOpen] = useState(false);
   const [sbStep1McId,     setSbStep1McId]     = useState<number>(0);
+  const [sbRepeatAuthOpen, setSbRepeatAuthOpen] = useState(false);
+  const [sbRepeatMcId,     setSbRepeatMcId]     = useState<number>(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -252,7 +254,7 @@ export default function McDashboard() {
                     ) : (
                       <>
                         <button
-                          onClick={() => { setSbModalOpen(false); router.push(`/mc/${sbSelectedSheet.mc_id}`); }}
+                          onClick={() => { setSbRepeatMcId(sbSelectedSheet.mc_id); setSbModalOpen(false); setSbRepeatAuthOpen(true); }}
                           className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
                           マシニング情報を確認・編集（リピート）
                         </button>
@@ -296,6 +298,25 @@ export default function McDashboard() {
             router.push(`/mc/${sbStep1McId}/edit`);
           }}
           onCancel={() => setSbStep1AuthOpen(false)}
+        />
+      )}
+
+      {/* リピート編集認証モーダル */}
+      {sbRepeatAuthOpen && (
+        <AuthModal
+          isOpen={true}
+          sessionType="edit"
+          mcProgramId={sbRepeatMcId}
+          onSuccess={() => {
+            setSbRepeatAuthOpen(false);
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem("sb_repeat_edit", String(sbRepeatMcId));
+              const sheetId = sbSelectedSheet?.id ?? 0;
+              sessionStorage.setItem("sb_sheet_log_id", String(sheetId));
+            }
+            router.push(`/mc/${sbRepeatMcId}/edit`);
+          }}
+          onCancel={() => setSbRepeatAuthOpen(false)}
         />
       )}
 
