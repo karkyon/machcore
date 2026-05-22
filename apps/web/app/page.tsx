@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import { useRouter } from "next/navigation";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api";
+const API_URL = "/api";  // Next.js rewrite経由 → サーバー側でlocalhost:3011にproxy
 
 type McSheet = {
   id: number; mc_id: number;

@@ -67,8 +67,7 @@ export default function McPrintPage() {
     if (!token) { setPrintError("認証が必要です"); return; }
     setPrinting(true); setPrintError(null);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3011/api";
-      const res = await fetch(`${apiUrl}/mc/${mcId}/print`, {
+      const res = await fetch(`/api/mc/${mcId}/print`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({...printBody, is_reference: isReference}),
@@ -90,8 +89,7 @@ export default function McPrintPage() {
     if (!token) { setPrintError("認証が必要です"); return; }
     setDirectPrinting(true); setPrintError(null);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3011/api";
-      const res = await fetch(`${apiUrl}/mc/${mcId}/direct-print`, {
+      const res = await fetch(`/api/mc/${mcId}/direct-print`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({...printBody, is_reference: isReference}),
