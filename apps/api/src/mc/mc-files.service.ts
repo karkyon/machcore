@@ -140,6 +140,7 @@ export class McFilesService {
     file:           { filename: string; mimetype: string; data: Buffer },
     pgRoleOverride?: PgRole,
     isFolderUpload?: boolean,  // true=ケース2（フォルダ構成）、false/undefined=ケース1（単一）
+    fileTypeOverride?: 'PHOTO' | 'DRAWING',  // フロントから明示指定されたファイル種別
   ) {
     const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcProgramId } });
     if (!mc) throw new NotFoundException(`MC_id ${mcProgramId} が存在しません`);
@@ -153,9 +154,10 @@ export class McFilesService {
     const isPdf     = file.mimetype === 'application/pdf';
 
     let fileTypeEnum: string;
-    if (isProgram)             fileTypeEnum = 'PROGRAM';
-    else if (isImage || isPdf) fileTypeEnum = ['image/jpeg','image/jpg','image/png'].includes(file.mimetype) ? 'PHOTO' : 'DRAWING';
-    else                       fileTypeEnum = 'OTHER';
+    if (isProgram)                      fileTypeEnum = 'PROGRAM';
+    else if (fileTypeOverride)          fileTypeEnum = fileTypeOverride;  // フロント指定を最優先
+    else if (isImage || isPdf)          fileTypeEnum = ['image/jpeg','image/jpg','image/png'].includes(file.mimetype) ? 'PHOTO' : 'DRAWING';
+    else                                fileTypeEnum = 'OTHER';
 
     const pgRole: PgRole = pgRoleOverride !== undefined
       ? pgRoleOverride

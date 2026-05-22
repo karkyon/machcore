@@ -128,12 +128,12 @@ export default function McEditPage() {
     mcApi.listFiles(mcId).then(r => setFiles((r as any).data ?? [])).catch(() => {});
   }, [mcId]);
 
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = async (file: File, fileType?: 'PHOTO' | 'DRAWING') => {
     if (!token) return;
     setFileUploading(true);
     setFileUploadMsg(null);
     try {
-      await mcFilesApi.upload(mcId, file, token);
+      await mcFilesApi.upload(mcId, file, token, fileType);
       const r = await mcApi.listFiles(mcId);
       setFiles((r as any).data ?? []);
       setFileUploadMsg("✅ アップロード完了");
@@ -704,19 +704,19 @@ export default function McEditPage() {
                       e.preventDefault();
                       e.currentTarget.classList.remove("border-teal-400","bg-teal-50");
                       const f = e.dataTransfer.files[0];
-                      if (f) handleFileUpload(f);
+                      if (f) handleFileUpload(f, "PHOTO");
                     }}>
                     <p className="text-slate-400 text-sm mb-3">ファイルをここにドラッグ＆ドロップ</p>
                     <div className="flex items-center justify-center gap-3">
                       <label className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold rounded-lg cursor-pointer transition-colors">
                         写真を選択
                         <input ref={photoInputRef} type="file" className="hidden"
-                          onChange={e => { const f = e.target.files?.[0]; if (f) { handleFileUpload(f); e.target.value = ""; } }} />
+                          onChange={e => { const f = e.target.files?.[0]; if (f) { handleFileUpload(f, "PHOTO"); e.target.value = ""; } }} />
                       </label>
                       <label className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-lg cursor-pointer transition-colors">
                         図を選択
                         <input ref={scanInputRef} type="file" className="hidden"
-                          onChange={e => { const f = e.target.files?.[0]; if (f) { handleFileUpload(f); e.target.value = ""; } }} />
+                          onChange={e => { const f = e.target.files?.[0]; if (f) { handleFileUpload(f, "DRAWING"); e.target.value = ""; } }} />
                       </label>
                     </div>
                     {fileUploading && <p className="text-xs text-teal-600 mt-2 animate-pulse">アップロード中...</p>}

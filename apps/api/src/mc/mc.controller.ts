@@ -286,7 +286,8 @@ export class McController {
                              ? parseInt(data.fields.pg_created_by.value, 10)
                              : req.user.id;
     const pgRole = (data.fields?.pg_role?.value ?? undefined) as 'MAIN' | 'SUB' | undefined;
-    const result = await this.mcFiles.upload(id, req.user.id, { filename: data.filename, mimetype: data.mimetype, data: buf }, pgRole, isFolderUpload);
+    const fileTypeOverride = (data.fields?.file_type?.value ?? undefined) as 'PHOTO' | 'DRAWING' | undefined;
+    const result = await this.mcFiles.upload(id, req.user.id, { filename: data.filename, mimetype: data.mimetype, data: buf }, pgRole, isFolderUpload, fileTypeOverride);
     // PROGRAMファイルの場合 pg_created_by / pg_updated_at を自動更新
     const PROGRAM_EXTS = new Set(['.min','.spf','.mpf','.nc','.cnc','.tap','.prg','.gcode','.g','.txt']);
     const fileExt = ('.' + (data.filename.split('.').pop()?.toLowerCase() ?? ''));
