@@ -724,31 +724,69 @@ export default function McEditPage() {
                     <p className="text-[10px] text-slate-400 mt-2">すべてのファイル形式に対応（写真・図・PDF等）</p>
                   </div>
                 </div>
-                {files.filter((f: any) => f.file_type === "PHOTO" || f.file_type === "DRAWING").length === 0 ? (
-                  <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">ファイルがありません</div>
-                ) : (
-                  <div className="grid grid-cols-3 gap-4">
-                    {files.filter((f: any) => f.file_type === "PHOTO" || f.file_type === "DRAWING").map((f: any) => (
-                      <div key={f.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                        <div className="aspect-square bg-slate-100 flex items-center justify-center overflow-hidden">
-                          <img src={`/api/mc/${mcId}/files/${f.id}/thumb`}
-                            alt={f.original_name} className="w-full h-full object-contain" loading="lazy"
-                            onError={e2 => { (e2.target as HTMLImageElement).style.display = "none"; }} />
-                        </div>
-                        <div className="px-2 py-1.5 flex items-center justify-between">
-                          <p className="text-[11px] text-slate-600 truncate flex-1">{f.stored_name ?? f.original_name}</p>
-                          <button onClick={async () => {
-                              if (!token || !window.confirm("削除しますか？")) return;
-                              await mcFilesApi.delete(mcId, f.id, token);
-                              const r = await mcApi.listFiles(mcId);
-                              setFiles((r as any).data ?? []);
-                            }}
-                            className="text-[10px] text-red-400 hover:text-red-600 ml-1 shrink-0">✕</button>
-                        </div>
+                {/* 📷 写真セクション */}
+                  {files.filter((f: any) => f.file_type === "PHOTO").length > 0 && (
+                    <div className="mb-5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-bold text-white bg-teal-600 px-2.5 py-0.5 rounded-full">📷 写真</span>
+                        <span className="text-xs text-slate-400">{files.filter((f: any) => f.file_type === "PHOTO").length}枚</span>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <div className="grid grid-cols-3 gap-3">
+                        {files.filter((f: any) => f.file_type === "PHOTO").map((f: any) => (
+                          <div key={f.id} className="bg-white rounded-xl border-2 border-teal-300 overflow-hidden shadow-sm">
+                            <div className="aspect-square bg-teal-50 flex items-center justify-center overflow-hidden">
+                              <img src={`/api/mc/${mcId}/files/${f.id}/thumb`}
+                                alt={f.original_name} className="w-full h-full object-contain" loading="lazy"
+                                onError={e2 => { (e2.target as HTMLImageElement).style.display = "none"; }} />
+                            </div>
+                            <div className="px-2 py-1.5 flex items-center justify-between bg-teal-50 border-t border-teal-200">
+                              <p className="text-[11px] text-teal-800 font-bold truncate flex-1">{f.stored_name ?? f.original_name}</p>
+                              <button onClick={async () => {
+                                  if (!token || !window.confirm("削除しますか？")) return;
+                                  await mcFilesApi.delete(mcId, f.id, token);
+                                  const r = await mcApi.listFiles(mcId);
+                                  setFiles((r as any).data ?? []);
+                                }}
+                                className="text-[10px] text-red-400 hover:text-red-600 ml-1 shrink-0 font-bold">✕</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* 📐 図セクション */}
+                  {files.filter((f: any) => f.file_type === "DRAWING").length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-bold text-white bg-purple-600 px-2.5 py-0.5 rounded-full">📐 図</span>
+                        <span className="text-xs text-slate-400">{files.filter((f: any) => f.file_type === "DRAWING").length}枚</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        {files.filter((f: any) => f.file_type === "DRAWING").map((f: any) => (
+                          <div key={f.id} className="bg-white rounded-xl border-2 border-purple-300 overflow-hidden shadow-sm">
+                            <div className="aspect-square bg-purple-50 flex items-center justify-center overflow-hidden">
+                              <img src={`/api/mc/${mcId}/files/${f.id}/thumb`}
+                                alt={f.original_name} className="w-full h-full object-contain" loading="lazy"
+                                onError={e2 => { (e2.target as HTMLImageElement).style.display = "none"; }} />
+                            </div>
+                            <div className="px-2 py-1.5 flex items-center justify-between bg-purple-50 border-t border-purple-200">
+                              <p className="text-[11px] text-purple-800 font-bold truncate flex-1">{f.stored_name ?? f.original_name}</p>
+                              <button onClick={async () => {
+                                  if (!token || !window.confirm("削除しますか？")) return;
+                                  await mcFilesApi.delete(mcId, f.id, token);
+                                  const r = await mcApi.listFiles(mcId);
+                                  setFiles((r as any).data ?? []);
+                                }}
+                                className="text-[10px] text-red-400 hover:text-red-600 ml-1 shrink-0 font-bold">✕</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {files.filter((f: any) => f.file_type === "PHOTO" || f.file_type === "DRAWING").length === 0 && (
+                    <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">ファイルがありません</div>
+                  )}
               </div>
             )}
           </div>
