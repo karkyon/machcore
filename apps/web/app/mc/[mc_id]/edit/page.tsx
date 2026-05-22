@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { mcApi, machinesApi, usersApi, McDetail, Machine, UserInfo } from "@/lib/api";
+import { mcApi, mcFilesApi, machinesApi, usersApi, McDetail, Machine, UserInfo } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
@@ -46,12 +46,19 @@ export default function McEditPage() {
   const [toolingRows, setToolingRows] = useState<any[]>([]);
   const [toolingText, setToolingText] = useState("");
   const [parseResult, setParseResult] = useState<any[] | null>(null);
-  const [activeSection, setActiveSection] = useState<"basic"|"tooling"|"offset"|"index">("basic");
+  const [activeSection, setActiveSection] = useState<"basic"|"tooling"|"offset"|"index"|"files">("basic");
 
   // ワークオフセット
   const [offsetRows, setOffsetRows] = useState<any[]>([]);
   // インデックス
   const [indexRows, setIndexRows] = useState<any[]>([]);
+
+  // ファイル（写真・図）
+  const [files,          setFiles]          = useState<any[]>([]);
+  const [fileUploading,  setFileUploading]  = useState(false);
+  const [fileUploadMsg,  setFileUploadMsg]  = useState<string | null>(null);
+  const photoInputRef = React.useRef<HTMLInputElement>(null);
+  const scanInputRef  = React.useRef<HTMLInputElement>(null);
 
   const [saving, setSaving]   = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -82,7 +89,25 @@ export default function McEditPage() {
     }).catch(() => {});
     machinesApi.list().then(r => setMachines((r as any).data ?? [])).catch(() => {});
     usersApi.list().then(r => setUsers((r as any).data ?? [])).catch(() => {});
+    mcApi.listFiles(mcId).then(r => setFiles((r as any).data ?? [])).catch(() => {});
   }, [mcId]);
+
+  const handleFileUpload = async (file: File) => {
+    if (!token) return;
+    setFileUploading(true);
+    setFileUploadMsg(null);
+    try {
+      await mcFilesApi.upload(mcId, file, token);
+      const r = await mcApi.listFiles(mcId);
+      setFiles((r as any).data ?? []);
+      setFileUploadMsg("✅ アップロード完了");
+    } catch {
+      setFileUploadMsg("❌ アップロード失敗");
+    } finally {
+      setFileUploading(false);
+      setTimeout(() => setFileUploadMsg(null), 3000);
+    }
+  };
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -267,7 +292,7 @@ export default function McEditPage() {
               className="text-red-200 hover:text-white">キャンセル</button>
             <button onClick={handleSave} disabled={saving}
               className="bg-white text-red-700 px-3 py-0.5 rounded font-bold hover:bg-red-50 disabled:opacity-50">
-              {saving ? "保存中..." : "作業完了（登録）"}
+              {saving ? "保存中..." : sbMode ? "STEP1完了 → STEP2(作業記録)へ" : "作業完了（登録）"}
             </button>
           </div>
         </div>
@@ -316,6 +341,7 @@ export default function McEditPage() {
               ["tooling", "ツーリング"],
               ["offset",  "ワークオフセット"],
               ["index",   "インデックスPG"],
+              ["files",   "図・写真"],
             ].map(([k, l]) => (
               <button key={k} onClick={() => setActiveSection(k as any)}
                 className={`text-left px-4 py-3 text-xs font-medium border-l-2 transition-colors ${
@@ -405,12 +431,32 @@ export default function McEditPage() {
               <div className="max-w-4xl space-y-4">
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                   <p className="text-xs font-bold text-amber-700 mb-3">ツーリングプログラム読取り（MC専用機能）</p>
-                  <textarea value={toolingText} onChange={e => setToolingText(e.target.value)}
-                    placeholder="ツーリングプログラムのテキストをここに貼り付けてください..."
-                    rows={6}
-                    className="w-full border border-amber-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none resize-none" />
+                  <div className="relative">
+                    <textarea value={toolingText} onChange={e => setToolingText(e.target.value)}
+                      onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("border-amber-500","bg-amber-100"); }}
+                      onDragLeave={e => { e.currentTarget.classList.remove("border-amber-500","bg-amber-100"); }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        e.currentTarget.classList.remove("border-amber-500","bg-amber-100");
+                        const file = e.dataTransfer.files[0];
+                        if (file) { const reader = new FileReader(); reader.onload = ev => setToolingText(ev.target?.result as string ?? ""); reader.readAsText(file, "shift-jis"); }
+                      }}
+                      placeholder="ツーリングプログラムをここに貼り付け、またはファイルをドラッグ＆ドロップ..."
+                      rows={6}
+                      className="w-full border border-amber-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none resize-none" />
                   <div className="flex gap-2 mt-2">
-                    <button onClick={handleParseTooling}
+                    <div className="flex items-center gap-2 mb-2">
+                    <label className="px-3 py-1.5 bg-white border border-amber-400 text-amber-700 text-xs font-bold rounded cursor-pointer hover:bg-amber-50 transition-colors">
+                      📂 ファイルを選択
+                      <input type="file" accept=".min,.spf,.mpf,.nc,.cnc,.tap,.prg,.txt" className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) { const reader = new FileReader(); reader.onload = ev => setToolingText(ev.target?.result as string ?? ""); reader.readAsText(file, "shift-jis"); e.target.value = ""; }
+                        }} />
+                    </label>
+                    <span className="text-[10px] text-amber-600">またはテキストを貼り付け / ファイルをD&D</span>
+                  </div>
+                  <button onClick={handleParseTooling}
                       className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-4 py-2 rounded-lg font-bold">解析・プレビュー</button>
                     {parseResult && (
                       <button onClick={applyParseResult}
