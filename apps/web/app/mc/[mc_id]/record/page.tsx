@@ -781,8 +781,8 @@ function McRecordPageInner() {
                       </div>
                     )}
                   </div>
-                               )}
-
+                </div>
+              )}
               {/* 備考 */}
               <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <label className="text-xs font-bold text-slate-500 block mb-1.5">備考</label>
