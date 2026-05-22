@@ -220,15 +220,11 @@ export default function McEditPage() {
         })), token);
       }
       showToast("✅ 保存しました");
-      if (sbMode) {
-        // sbMode: logout()しない（tokenをrecordページへ引き継ぐ）
-        console.log("[STEP1] 保存完了 sbMode=true → recordへ遷移 token=", token ? "あり" : "なし");
-        setTimeout(() => router.push(`/mc/${mcId}/record`), 800);
-      } else {
-        // リピートフロー: 終了確認モーダルを表示
-        setPendingBody({ savedMcId: mcId });
-        setShowKanryoModal(true);
-      }
+      // 新規(sbMode)/リピート(sbRepeatMode)/通常: いずれも終了確認モーダルを表示
+      // 新規は変更内容を「新規登録」に固定
+      if (sbMode) setKanryoType("新規登録");
+      setPendingBody({ savedMcId: mcId, isSbMode: sbMode });
+      setShowKanryoModal(true);
     } catch (e: any) {
       const errMsg = e?.response?.data?.message ?? e?.message ?? "保存に失敗しました";
       console.error("[STEP1] handleSave error:", e?.response?.status, errMsg, e?.response?.data);
@@ -247,14 +243,19 @@ export default function McEditPage() {
         change_detail: kanryoDetail || undefined,
       } as any, token);
       setShowKanryoModal(false);
+      const savedId = pendingBody.savedMcId;
+      const wasSbMode = pendingBody.isSbMode;
       setPendingBody(null);
-      showToast(`✅ ${kanryoType}としてバージョン更新しました`);
-      // sb_repeat_edit をクリアして sb_next_record をセット → 作業記録へ遷移
+      showToast(`✅ ${kanryoType}として登録しました`);
       if (typeof window !== "undefined") {
         sessionStorage.removeItem("sb_repeat_edit");
-        sessionStorage.setItem("sb_next_record", String(pendingBody.savedMcId));
+        // 新規(sbMode)の場合はsb_next_recordが既にセット済み
+        // リピート(sbRepeatMode)の場合はここでセット
+        if (!wasSbMode) {
+          sessionStorage.setItem("sb_next_record", String(savedId));
+        }
       }
-      setTimeout(() => router.push(`/mc/${pendingBody.savedMcId}/record`), 800);
+      setTimeout(() => router.push(`/mc/${savedId}/record`), 800);
     } catch (e: any) {
       const errMsg = e?.response?.data?.message ?? e?.message ?? "バージョン更新に失敗";
       setSaveError(errMsg);
@@ -761,33 +762,41 @@ export default function McEditPage() {
               <p className="text-xs text-slate-400 mt-0.5">この変更をどの種類として登録しますか？バージョンが更新されます。</p>
             </div>
             <div className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-500 block mb-2">作業種別 *</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {["大変更","小変更","追加","修正","削除","訂正"].map(t => (
-                    <button key={t} type="button"
-                      onClick={() => setKanryoType(t)}
-                      className={`py-2 rounded-lg text-sm font-bold border transition-colors ${
-                        kanryoType === t
-                          ? t === "大変更" ? "bg-red-600 text-white border-red-600"
-                            : "bg-teal-600 text-white border-teal-600"
-                          : "bg-white text-slate-600 border-slate-300 hover:border-teal-400"
-                      }`}>
-                      {t}
-                    </button>
-                  ))}
+              {/* 新規登録の場合は固定表示 */}
+              {pendingBody?.isSbMode ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+                  <p className="text-sm font-bold text-blue-700 mb-1">変更種別: 新規登録</p>
+                  <p className="text-xs text-blue-600">バージョン 0.0001 → 1.0001（整数部+1）</p>
                 </div>
-                {kanryoType === "大変更" && (
-                  <p className="text-xs text-red-600 mt-1.5 font-bold">⚠️ 大変更: バージョンの整数部が+1されます</p>
-                )}
-                {kanryoType !== "大変更" && (
-                  <p className="text-xs text-teal-600 mt-1.5">小変更系: バージョンの小数部が+0.01されます</p>
-                )}
-              </div>
+              ) : (
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-2">作業種別 *</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {["大変更","小変更","追加","修正","削除","訂正"].map(t => (
+                      <button key={t} type="button"
+                        onClick={() => setKanryoType(t)}
+                        className={`py-2 rounded-lg text-sm font-bold border transition-colors ${
+                          kanryoType === t
+                            ? t === "大変更" ? "bg-red-600 text-white border-red-600"
+                              : "bg-teal-600 text-white border-teal-600"
+                            : "bg-white text-slate-600 border-slate-300 hover:border-teal-400"
+                        }`}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                  {kanryoType === "大変更" && (
+                    <p className="text-xs text-red-600 mt-1.5 font-bold">⚠️ 大変更: バージョンの整数部が+1（例: 1.0001 → 2.0001）</p>
+                  )}
+                  {kanryoType !== "大変更" && (
+                    <p className="text-xs text-teal-600 mt-1.5">小変更系: 100分の1位が+0.01（例: 1.0001 → 1.0101）</p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="text-xs font-bold text-slate-500 block mb-1.5">内容（任意）</label>
                 <textarea value={kanryoDetail} onChange={e => setKanryoDetail(e.target.value)}
-                  rows={3} placeholder="変更の詳細内容を入力..."
+                  rows={2} placeholder={pendingBody?.isSbMode ? "登録内容の補足（任意）" : "変更の詳細内容を入力..."}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none" />
               </div>
             </div>
@@ -796,7 +805,20 @@ export default function McEditPage() {
                 className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm transition-colors">
                 OK — 作業記録へ
               </button>
-              <button onClick={() => { setShowKanryoModal(false); logout(); router.push(`/mc/${pendingBody?.savedMcId ?? mcId}`); }}
+              <button onClick={() => {
+                  setShowKanryoModal(false);
+                  if (pendingBody?.isSbMode) {
+                    // 新規: sessionStorageをクリアしてダッシュボードへ
+                    if (typeof window !== "undefined") {
+                      sessionStorage.removeItem("sb_next_record");
+                      sessionStorage.removeItem("sb_sheet_log_id");
+                    }
+                    logout();
+                  } else {
+                    logout();
+                  }
+                  router.push("/");
+                }}
                 className="px-5 py-3 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
                 スキップ（作業記録なし）
               </button>
