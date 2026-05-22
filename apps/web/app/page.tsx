@@ -14,6 +14,7 @@ type McSheet = {
   mc_process_no: number | null;
   machine_code: string | null; machine_name: string | null; machine_sort: number;
   version: string | null; printed_at: string; operator_name: string;
+  sheet_type?: string | null; is_reference?: boolean;
 };
 type Summary = {
   nc_total: number; mc_total: number;
