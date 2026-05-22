@@ -586,6 +586,66 @@ export default function McEditPage() {
                 </div>
               </div>
             )}
+
+            {/* 図・写真 */}
+            {activeSection === "files" && (
+              <div className="max-w-3xl space-y-4">
+                <div className="bg-white border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs font-bold text-slate-600 mb-3">写真・図のアップロード</p>
+                  <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-teal-400 transition-colors"
+                    onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("border-teal-400","bg-teal-50"); }}
+                    onDragLeave={e => e.currentTarget.classList.remove("border-teal-400","bg-teal-50")}
+                    onDrop={e => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove("border-teal-400","bg-teal-50");
+                      const f = e.dataTransfer.files[0];
+                      if (f) handleFileUpload(f);
+                    }}>
+                    <p className="text-slate-400 text-sm mb-3">ファイルをここにドラッグ＆ドロップ</p>
+                    <div className="flex items-center justify-center gap-3">
+                      <label className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold rounded-lg cursor-pointer transition-colors">
+                        写真を選択
+                        <input ref={photoInputRef} type="file" className="hidden"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) { handleFileUpload(f); e.target.value = ""; } }} />
+                      </label>
+                      <label className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-lg cursor-pointer transition-colors">
+                        図を選択
+                        <input ref={scanInputRef} type="file" className="hidden"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) { handleFileUpload(f); e.target.value = ""; } }} />
+                      </label>
+                    </div>
+                    {fileUploading && <p className="text-xs text-teal-600 mt-2 animate-pulse">アップロード中...</p>}
+                    {fileUploadMsg && <p className="text-xs mt-2 font-bold text-slate-600">{fileUploadMsg}</p>}
+                    <p className="text-[10px] text-slate-400 mt-2">すべてのファイル形式に対応（写真・図・PDF等）</p>
+                  </div>
+                </div>
+                {files.filter((f: any) => f.file_type === "PHOTO" || f.file_type === "DRAWING").length === 0 ? (
+                  <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">ファイルがありません</div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-4">
+                    {files.filter((f: any) => f.file_type === "PHOTO" || f.file_type === "DRAWING").map((f: any) => (
+                      <div key={f.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                        <div className="aspect-square bg-slate-100 flex items-center justify-center overflow-hidden">
+                          <img src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3011/api"}/mc/${mcId}/files/${f.id}/thumb`}
+                            alt={f.original_name} className="w-full h-full object-contain" loading="lazy"
+                            onError={e2 => { (e2.target as HTMLImageElement).style.display = "none"; }} />
+                        </div>
+                        <div className="px-2 py-1.5 flex items-center justify-between">
+                          <p className="text-[11px] text-slate-600 truncate flex-1">{f.original_name}</p>
+                          <button onClick={async () => {
+                              if (!token || !window.confirm("削除しますか？")) return;
+                              await mcFilesApi.delete(f.id, token);
+                              const r = await mcApi.listFiles(mcId);
+                              setFiles((r as any).data ?? []);
+                            }}
+                            className="text-[10px] text-red-400 hover:text-red-600 ml-1 shrink-0">✕</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
