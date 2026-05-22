@@ -170,13 +170,13 @@ function McRecordPageInner() {
     setCycleM(Math.floor((cSec % 3600) / 60));
     setCycleS(cSec % 60);
     setCyclePcs(""); // 1S_個数は現在work_recordsに保存されていない
-    setSetupOps((r.setup_operator_ids ?? []) as number[]);
+    setSetupOps(((r as any).setup_operator_ids ?? []) as number[]);
     setStartedAt(toLocalInput(r.started_at));
     setCheckedAt(toLocalInput(r.checked_at));
     const dstop = r.interrupt_setup_min ?? 0;
     setDStopH(Math.floor(dstop / 60)); setDStopM(dstop % 60);
     setSetupQty(r.setup_work_count ? String(r.setup_work_count) : "");
-    setProdOps((r.production_operator_ids ?? []) as number[]);
+    setProdOps(((r as any).production_operator_ids ?? []) as number[]);
     setFinishedAt(toLocalInput(r.finished_at));
     const ystop = r.interrupt_work_min ?? 0;
     setYStopH(Math.floor(ystop / 60)); setYStopM(ystop % 60);
