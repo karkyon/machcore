@@ -265,59 +265,72 @@ function McRecordPageInner() {
 
   // ── VBA W_TIME準拠の時間自動計算 ──────────────────────────────
   const calcTimes = useCallback(() => {
+    // 共通: サイクルタイム/1P（常に計算可能）
+    const cycSec2 = cycleH * 3600 + cycleM * 60 + cycleS;
+    const cycPcs2 = parseInt(cyclePcs)||0;
+    const cyclePerPSec = cycSec2 > 0 && cycPcs2 > 0 ? cycSec2 / cycPcs2 : null;
+
+    const qtyN     = parseInt(quantity)||0;
+    const setupQtyN = parseInt(setupQty)||0;
+    const totalQty  = qtyN + setupQtyN;
+    // 加工時間/1P の分母: ワーク数 - 段取良品数 (同じ場合はワーク数)
+    const machQtyBase = qtyN > 0 && qtyN !== setupQtyN ? Math.max(1, qtyN - setupQtyN) : Math.max(1, totalQty);
+
     if (timeMode === "hm") {
       const setupMin = setupH * 60 + setupMm;
       const machMin  = machH * 60 + machMm;
       const totalMin = setupMin + machMin;
-      const totalQty = (parseInt(quantity)||0) + (parseInt(setupQty)||0);
-      const cycSec2 = cycleH * 3600 + cycleM * 60 + cycleS;
-      const cycPcs2 = parseInt(cyclePcs)||0;
-      const cyclePerP = cycSec2 > 0 && cycPcs2 > 0 ? cycSec2 / cycPcs2 : null;
-      const machQtyBase2 = Math.max(1, (parseInt(quantity)||0) - (parseInt(setupQty)||0));
+      // h/m入力では setupMin/machMin が直接値なので必ず表示
       return {
         setupMin,
         machMin,
         totalMin,
-        cyclePerPSec: cyclePerP,
-        machPerPMin: totalQty > 0 ? Math.round(machMin / machQtyBase2 * 10) / 10 : null,
-        totalPerPMin: totalQty > 0 ? Math.round(totalMin / totalQty * 10) / 10 : null,
+        cyclePerPSec,
+        machPerPMin:  machMin > 0 && qtyN > 0 ? Math.round(machMin / machQtyBase * 10) / 10 : null,
+        totalPerPMin: totalMin > 0 && totalQty > 0 ? Math.round(totalMin / totalQty * 10) / 10 : null,
       };
     }
+
     // datetime mode — VBA W_TIME ロジック準拠
-    if (!startedAt || !finishedAt) return null;
-    const s = new Date(startedAt).getTime();
-    const f = new Date(finishedAt).getTime();
-    if (isNaN(s) || isNaN(f)) return null;
+    // startedAt か finishedAt どちらかあれば計算を試みる
     const dStopMin = dStopH * 60 + dStopM;
     const yStopMin = yStopH * 60 + yStopM;
-    // 総時間 = 段取開始〜加工終了 - 全中断
-    const totalMin = Math.max(0, Math.round((f - s) / 60000) - dStopMin - yStopMin);
-    // 段取時間 = 段取開始〜段取終了(ﾁｪｯｸTime) - 段取中断
+
     let setupMin: number | null = null;
-    if (checkedAt) {
-      const c = new Date(checkedAt).getTime();
-      if (!isNaN(c)) setupMin = Math.max(0, Math.round((c - s) / 60000) - dStopMin);
+    let machMin:  number | null = null;
+    let totalMin: number | null = null;
+
+    if (startedAt && finishedAt) {
+      const sv = new Date(startedAt).getTime();
+      const fv = new Date(finishedAt).getTime();
+      if (!isNaN(sv) && !isNaN(fv)) {
+        totalMin = Math.max(0, Math.round((fv - sv) / 60000) - dStopMin - yStopMin);
+      }
     }
-    // 加工時間 = 段取終了〜加工終了 - 量産中断
-    let machMin: number | null = null;
+    if (startedAt && checkedAt) {
+      const sv = new Date(startedAt).getTime();
+      const cv = new Date(checkedAt).getTime();
+      if (!isNaN(sv) && !isNaN(cv)) {
+        setupMin = Math.max(0, Math.round((cv - sv) / 60000) - dStopMin);
+      }
+    }
     if (checkedAt && finishedAt) {
-      const c = new Date(checkedAt).getTime();
-      if (!isNaN(c)) machMin = Math.max(0, Math.round((f - c) / 60000) - yStopMin);
+      const cv = new Date(checkedAt).getTime();
+      const fv = new Date(finishedAt).getTime();
+      if (!isNaN(cv) && !isNaN(fv)) {
+        machMin = Math.max(0, Math.round((fv - cv) / 60000) - yStopMin);
+      }
     }
-    const totalQty = (parseInt(quantity)||0) + (parseInt(setupQty)||0);
-    const machQtyBase = (parseInt(quantity)||0) === (parseInt(setupQty)||0)
-      ? totalQty
-      : Math.max(1, (parseInt(quantity)||0) - (parseInt(setupQty)||0));
-    const cycSec2 = cycleH * 3600 + cycleM * 60 + cycleS;
-    const cycPcs2 = parseInt(cyclePcs)||0;
-    const cyclePerP = cycSec2 > 0 && cycPcs2 > 0 ? cycSec2 / cycPcs2 : null;
+    // 何も計算できていない場合はnull返す
+    if (setupMin === null && machMin === null && totalMin === null && cyclePerPSec === null) return null;
+
     return {
       setupMin,
       machMin,
       totalMin,
-      cyclePerPSec: cyclePerP,
-      machPerPMin: machMin != null && machQtyBase > 0 ? Math.round(machMin / machQtyBase * 10) / 10 : null,
-      totalPerPMin: totalQty > 0 ? Math.round(totalMin / totalQty * 10) / 10 : null,
+      cyclePerPSec,
+      machPerPMin:  machMin != null && machMin > 0 && qtyN > 0 ? Math.round(machMin / machQtyBase * 10) / 10 : null,
+      totalPerPMin: totalMin != null && totalMin > 0 && totalQty > 0 ? Math.round(totalMin / totalQty * 10) / 10 : null,
     };
   }, [timeMode, setupH, setupMm, machH, machMm, startedAt, checkedAt, finishedAt,
       dStopH, dStopM, yStopH, yStopM, quantity, setupQty, cycleH, cycleM, cycleS, cyclePcs]);
