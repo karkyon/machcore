@@ -332,7 +332,7 @@ export default function McDashboard() {
       {sbAuthOpen && (
         <AuthModal
           isOpen={true}
-          sessionType="WORK_RECORD"
+          sessionType="work_record"
           mcProgramId={sbSelectedSheet?.mc_id ?? sbResult?.programs?.[0]?.mc_id ?? 0}
           onSuccess={handleSbAuthSuccess}
           onCancel={() => setSbAuthOpen(false)}

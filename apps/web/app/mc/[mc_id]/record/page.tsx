@@ -874,7 +874,7 @@ function McRecordPageInner() {
 
       {/* 認証モーダル */}
       {authOpen && (
-        <AuthModal isOpen={true} sessionType="MC_WORK_RECORD" mcProgramId={mcId}
+        <AuthModal isOpen={true} sessionType="work_record" mcProgramId={mcId}
           onSuccess={() => setAuthOpen(false)}
           onCancel={() => setAuthOpen(false)} />
       )}
