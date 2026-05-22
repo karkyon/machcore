@@ -81,6 +81,8 @@ export default function McDashboard() {
   const [sbSelectedSheet, setSbSelectedSheet] = useState<any | null>(null);
   const [sbAuthOpen,      setSbAuthOpen]      = useState(false);
   const [sbCollecting,    setSbCollecting]    = useState(false);
+  const [sbStep1AuthOpen, setSbStep1AuthOpen] = useState(false);
+  const [sbStep1McId,     setSbStep1McId]     = useState<number>(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -214,14 +216,12 @@ export default function McDashboard() {
                         </div>
                         <button
                           onClick={() => {
-                            if (typeof window !== "undefined") {
-                              sessionStorage.setItem("sb_next_record", String(sbSelectedSheet.mc_id));
-                            }
+                            setSbStep1McId(sbSelectedSheet.mc_id);
                             setSbModalOpen(false);
-                            router.push(`/mc/${sbSelectedSheet.mc_id}/edit`);
+                            setSbStep1AuthOpen(true);
                           }}
                           className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-colors">
-                          STEP 1: マシニング情報を登録（新規）
+                          STEP 1: マシニング情報を登録（新規）— 担当者認証へ
                         </button>
                       </>
                     ) : (
@@ -252,6 +252,23 @@ export default function McDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* STEP1認証モーダル */}
+      {sbStep1AuthOpen && (
+        <AuthModal
+          isOpen={true}
+          sessionType="edit"
+          mcProgramId={sbStep1McId}
+          onSuccess={() => {
+            setSbStep1AuthOpen(false);
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem("sb_next_record", String(sbStep1McId));
+            }
+            router.push(`/mc/${sbStep1McId}/edit`);
+          }}
+          onCancel={() => setSbStep1AuthOpen(false)}
+        />
       )}
 
       {/* 認証モーダル */}

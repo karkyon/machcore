@@ -676,8 +676,7 @@ export const mcFilesApi = {
   upload: (mcId: number, file: File, token: string) => {
     const fd = new FormData();
     fd.append('file', file);
-    fd.append('mc_program_id', String(mcId));
-    return api.post<{ id: number; message: string }>('/files/upload', fd, {
+    return api.post<{ id: number; message: string }>(`/mc/${mcId}/files/upload`, fd, {
       headers: { Authorization: `Bearer ${token}` },
     });
   },

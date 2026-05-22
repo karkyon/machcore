@@ -451,7 +451,7 @@ export default function McEditPage() {
                       e.preventDefault();
                       e.currentTarget.classList.remove("border-amber-500","bg-amber-100");
                       const f = e.dataTransfer.files[0];
-                      if (f) { const reader = new FileReader(); reader.onload = ev => setToolingText(ev.target?.result as string ?? ""); reader.readAsText(f, "shift-jis"); }
+                      if (f) { const reader = new FileReader(); reader.onload = ev => setToolingText(ev.target?.result as string ?? ""); reader.readAsText(f); }
                     }}
                     placeholder="ツーリングプログラムをここに貼り付け、またはファイルをドラッグ＆ドロップ..."
                     rows={6}
@@ -462,7 +462,7 @@ export default function McEditPage() {
                       <input type="file" className="hidden"
                         onChange={e => {
                           const f2 = e.target.files?.[0];
-                          if (f2) { const reader = new FileReader(); reader.onload = ev => setToolingText(ev.target?.result as string ?? ""); reader.readAsText(f2, "shift-jis"); e.target.value = ""; }
+                          if (f2) { const reader = new FileReader(); reader.onload = ev => setToolingText(ev.target?.result as string ?? ""); reader.readAsText(f2); e.target.value = ""; }
                         }} />
                     </label>
                     <span className="text-[10px] text-amber-600">またはテキストを貼り付け / D&D</span>
