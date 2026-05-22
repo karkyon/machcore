@@ -736,7 +736,7 @@ export default function McEditPage() {
                             onError={e2 => { (e2.target as HTMLImageElement).style.display = "none"; }} />
                         </div>
                         <div className="px-2 py-1.5 flex items-center justify-between">
-                          <p className="text-[11px] text-slate-600 truncate flex-1">{f.original_name}</p>
+                          <p className="text-[11px] text-slate-600 truncate flex-1">{f.stored_name ?? f.original_name}</p>
                           <button onClick={async () => {
                               if (!token || !window.confirm("削除しますか？")) return;
                               await mcFilesApi.delete(f.id, token);

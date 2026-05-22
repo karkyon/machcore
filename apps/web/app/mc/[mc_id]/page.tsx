@@ -718,14 +718,14 @@ export default function McDetailPage() {
                     <div className="aspect-square bg-slate-100 flex items-center justify-center overflow-hidden">
                       <img
                         src={`/api/mc/${mcId}/files/${f.id}/thumb`}
-                        alt={f.original_name}
+                        alt={f.stored_name ?? f.original_name}
                         className="w-full h-full object-contain"
                         loading="lazy"
                         onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
                       />
                     </div>
                     <div className="px-2 py-1.5">
-                      <p className="text-[11px] text-slate-600 truncate">{f.original_name}</p>
+                      <p className="text-[11px] text-slate-600 truncate">{f.stored_name ?? f.original_name}</p>
                       <p className="text-[10px] text-slate-400">{f.uploaded_by}</p>
                     </div>
                   </div>
