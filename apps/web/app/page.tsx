@@ -285,7 +285,8 @@ export default function McDashboard() {
         </header>
 
         <div className="flex flex-1 min-h-0">
-          <aside className="w-[200px] shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
+          <aside className="w-[200px] shrink-0 bg-white border-r border-slate-200 flex flex-col">
+            <div className="flex-1 overflow-y-auto">
             <div className="p-4 border-b border-slate-100">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">MC マシニング</p>
               <nav className="space-y-1">
@@ -311,7 +312,7 @@ export default function McDashboard() {
             </div>
 
             {/* 段取シートバック パネル */}
-            <div className="mx-3 mb-3 mt-2">
+            <div className="mx-3 mb-3 mt-0 shrink-0">
               <div className="bg-teal-50 border border-teal-200 rounded-lg p-3">
                 <p className="text-[10px] font-bold text-teal-700 mb-2">段取シートバック</p>
                 <input

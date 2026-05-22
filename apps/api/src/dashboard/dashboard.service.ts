@@ -58,6 +58,17 @@ export class DashboardService {
         },
       },
     });
+    // sheet_type 判別: 各プログラムの全印刷回数を取得
+    const programIds = [...new Set(rows.map(s => s.mcProgramId))];
+    const allCounts = await this.prisma.mcSetupSheetLog.groupBy({
+      by: ['mcProgramId'],
+      where: { mcProgramId: { in: programIds } },
+      _count: { id: true },
+    });
+    const sheetTypeMap = new Map(allCounts.map(r => [
+      r.mcProgramId,
+      r._count.id <= 1 ? 'NEW' : 'REPEAT',
+    ]));
     const items = rows.map(s => ({
       id:             s.id,
       mc_id:          s.mcProgramId,
@@ -75,6 +86,8 @@ export class DashboardService {
       version:        s.version ?? null,
       printed_at:     s.printedAt,
       operator_name:  s.operator.name,
+      is_reference:   (s as any).isReference ?? false,
+      sheet_type:     sheetTypeMap.get(s.mcProgramId) ?? null,
     }));
     return { total: items.length, items };
   }
