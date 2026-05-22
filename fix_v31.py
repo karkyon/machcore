@@ -1,4 +1,27 @@
-"use client";
+#!/usr/bin/env python3
+# coding: utf-8
+"""
+fix_v31.py — record/page.tsx 全面改修
+  1. sbMode検出をuseLayoutEffectに変更（SSRでsbMode=falseのまま描画される問題を修正）
+  2. 種別（work_type）フィールドを削除
+  3. フォームを旧システム「段取ｼｰﾄ戻り2」準拠に全面改修:
+     - 機械（今回使用機械）
+     - サイクルタイム（TH/TM/TS）
+     - 1サイクル個数（setup_work_count流用 ※新規フィールド不要）
+     - 段取グループ: 段取担当（複数）/ 段取開始 / 段取終了 / 中断H:M / 段取良品数
+     - 量産グループ: 量産作業者（複数）/ 加工終了 / 中断H:M / 全良品数
+     - 時間集計: 段取時間・加工時間・総時間・/1P（自動計算・表示のみ）
+     - 備考
+"""
+import pathlib, subprocess, sys
+
+ROOT = "/home/karkyon/projects/machcore"
+REC_PATH = ROOT + "/apps/web/app/mc/[mc_id]/record/page.tsx"
+
+# ─────────────────────────────────────────────────────────────
+# 全体を新しい内容で置き換える
+# ─────────────────────────────────────────────────────────────
+NEW_CONTENT = r'''"use client";
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { mcApi, machinesApi, usersApi, McDetail, McSetupSheetLog, McWorkRecord, Machine, UserInfo, CreateMcWorkRecordBody } from "@/lib/api";
@@ -630,3 +653,47 @@ export default function McRecordPage() {
     </Suspense>
   );
 }
+'''
+
+p = pathlib.Path(REC_PATH)
+p.write_text(NEW_CONTENT, encoding="utf-8")
+print("OK: record/page.tsx 書き込み完了")
+
+# Build
+print("\n--- npm run build ---")
+r = subprocess.run(
+    "cd /home/karkyon/projects/machcore/apps/web && npm run build",
+    shell=True, capture_output=True, text=True
+)
+print(r.stdout[-4000:] if len(r.stdout) > 4000 else r.stdout)
+if r.returncode != 0:
+    print("STDERR:", r.stderr[-2000:])
+    print("BUILD FAILED — abort")
+    sys.exit(1)
+
+print("\n--- pm2 restart ---")
+r2 = subprocess.run(
+    "export NVM_DIR=\"$HOME/.nvm\" && source \"$NVM_DIR/nvm.sh\" && "
+    "cd /home/karkyon/projects/machcore && "
+    "pm2 delete machcore-web && "
+    "pm2 start ecosystem.config.js --only machcore-web",
+    shell=True, executable="/bin/bash", capture_output=True, text=True
+)
+print(r2.stdout)
+if r2.returncode != 0:
+    print("STDERR:", r2.stderr[-1000:])
+    sys.exit(1)
+
+print("\n--- git commit & push ---")
+r3 = subprocess.run(
+    "cd /home/karkyon/projects/machcore && "
+    "git add -A && "
+    "git commit -m 'feat: record/page.tsx 旧システム準拠フォーム全面改修 種別削除 段取/量産グループ 時間集計自動計算 sbMode useLayoutEffect修正 v31' && "
+    "git push origin main && pm2 save",
+    shell=True, capture_output=True, text=True
+)
+print(r3.stdout)
+if r3.returncode != 0:
+    print("STDERR:", r3.stderr[-500:])
+
+print("\nDONE")
