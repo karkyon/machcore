@@ -781,15 +781,7 @@ function McRecordPageInner() {
                       </div>
                     )}
                   </div>
-                  {false && (
-                      <div className="bg-white rounded-lg p-2 border border-slate-100">
-                        <div className="text-xs text-slate-400 mb-0.5">加工時間/1P</div>
-                        <div className="font-bold text-slate-700">{fmtMin(times.machPerPMin)}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+                               )}
 
               {/* 備考 */}
               <div className="bg-white rounded-xl border border-slate-200 p-4">
