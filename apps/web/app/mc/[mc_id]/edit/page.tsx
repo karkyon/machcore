@@ -243,10 +243,7 @@ export default function McEditPage() {
     console.log("[EDIT] handleKanryoOk", { kanryoType, kanryoDetail, pendingBody, token: token ? "あり" : "なし" });
     if (!token || !pendingBody) return;
     try {
-      await mcApi.update(pendingBody.savedMcId, {
-        change_type:   kanryoType,
-        change_detail: kanryoDetail || undefined,
-      } as any, token);
+      await mcApi.finalize(pendingBody.savedMcId, kanryoType, kanryoDetail || undefined, token);
       setShowKanryoModal(false);
       const savedId = pendingBody.savedMcId;
       const wasSbMode = pendingBody.isSbMode;

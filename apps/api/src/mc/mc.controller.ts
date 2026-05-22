@@ -11,6 +11,7 @@ import { McService } from './mc.service';
 import { McFilesService } from './mc-files.service';
 import { CreateMcDto } from './dto/create-mc.dto';
 import { UpdateMcDto } from './dto/update-mc.dto';
+import { FinalizeMcDto } from './dto/finalize-mc.dto';
 import { CreateMcWorkRecordDto } from './dto/create-mc-work-record.dto';
 import { SaveToolingDto } from './dto/save-tooling.dto';
 import { SaveWorkOffsetsDto } from './dto/save-work-offsets.dto';
@@ -68,6 +69,18 @@ export class McController {
   findOne(@Param('mc_id', ParseIntPipe) id: number) {
     this.opLog.log({ actionType: 'MC_VIEW', mcProgramId: id });
     return this.mc.findOne(id);
+  }
+
+  // ── 終了確認（バージョンインクリ + 変更履歴）──────
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Post(':mc_id/finalize')
+  finalize(
+    @Param('mc_id', ParseIntPipe) id: number,
+    @Body() dto: FinalizeMcDto,
+    @Req() req: any,
+  ) {
+    return this.mc.finalize(id, dto.change_type, dto.change_detail, req.user.id);
   }
 
   // ── 承認 ─────────────────────────────────────

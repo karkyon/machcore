@@ -234,6 +234,46 @@ export class McService {
   }
 
   // ══════════════════════════════════════════
+  // MC-05b: 終了確認（バージョンインクリ + 変更履歴登録）
+  // ══════════════════════════════════════════
+  async finalize(id: number, changeType: string, changeDetail: string | undefined, operatorId: number) {
+    const mc = await this.prisma.mcProgram.findUnique({ where: { id } });
+    if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
+
+    const verStr   = mc.version ?? '1.0001';
+    const verFloat = parseFloat(verStr) || 1.0001;
+    const ver1 = Math.floor(verFloat);
+    const ver2 = Math.floor(verFloat * 100) - ver1 * 100;
+    const ver3 = Math.floor(verFloat * 10000) - ver1 * 10000 - ver2 * 100;
+    const isMajor = ['大変更', '新規登録', '試作登録'].includes(changeType);
+    const newVerFloat = isMajor
+      ? ver1 + 1 + ver3 / 10000
+      : ver1 + ver2 / 100 + 0.01 + ver3 / 10000;
+    const newVer1    = Math.floor(newVerFloat);
+    const newVer2    = Math.round((newVerFloat - newVer1) * 10000);
+    const newVersion = `${newVer1}.${String(newVer2).padStart(4, '0')}`;
+    const content    = `${changeType}${changeDetail ? ' ' + changeDetail : ''}`;
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.mcProgram.update({
+        where: { id },
+        data:  { version: newVersion, status: 'CHANGING' },
+      });
+      await tx.mcChangeHistory.create({
+        data: {
+          mcProgramId:   id,
+          changeType:    'CHANGE',
+          operatorId,
+          versionBefore: mc.version,
+          versionAfter:  newVersion,
+          content,
+        },
+      });
+      return { mc_id: id, version: newVersion, message: `${changeType}として登録しました` };
+    });
+  }
+
+  // ══════════════════════════════════════════
   // MC-05: 更新
   // ══════════════════════════════════════════
   async update(id: number, dto: UpdateMcDto, operatorId: number) {
@@ -247,13 +287,8 @@ export class McService {
     const ver1 = Math.floor(verFloat);                           // 整数部
     const ver2 = Math.floor(verFloat * 100) - ver1 * 100;       // 100分の1
     const ver3 = Math.floor(verFloat * 10000) - ver1 * 10000 - ver2 * 100; // 10000分の1
-    const isMajor = ['大変更','新規登録','試作登録'].includes(dto.change_type ?? '');
-    let newVerFloat: number;
-    if (isMajor) {
-      newVerFloat = ver1 + 1 + ver3 / 10000;
-    } else {
-      newVerFloat = ver1 + ver2 / 100 + 0.01 + ver3 / 10000;
-    }
+    // update時はバージョンを変えない（finalizeで行う）
+    const newVerFloat = verFloat; // 変更なし
     // フォーマット: "2.0000" 形式に
     const newVer1 = Math.floor(newVerFloat);
     const newVer2 = Math.round((newVerFloat - newVer1) * 10000);
@@ -278,19 +313,7 @@ export class McService {
           status:        'CHANGING',
         },
       });
-      const changeContent = dto.change_type
-        ? `${dto.change_type}${dto.change_detail ? ' ' + dto.change_detail : ''}`
-        : 'データ変更';
-      await tx.mcChangeHistory.create({
-        data: {
-          mcProgramId:   id,
-          changeType:    'CHANGE',
-          operatorId,
-          versionBefore: mc.version,
-          versionAfter:  newVersion,
-          content:       changeContent,
-        },
-      });
+      // 変更履歴はfinalize()で登録するためupdateでは登録しない
       await tx.operationLog.create({
         data: { userId: operatorId, mcProgramId: id, actionType: 'MC_EDIT_SAVE', metadata: { action: 'update' } },
       });
