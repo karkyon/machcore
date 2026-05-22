@@ -264,6 +264,9 @@ export default function McDashboard() {
             setSbStep1AuthOpen(false);
             if (typeof window !== "undefined") {
               sessionStorage.setItem("sb_next_record", String(sbStep1McId));
+              // sbSelectedSheet.id (log_id) を保存 — STEP2完了時のcollect用
+              const sheetId = sbSelectedSheet?.id ?? 0;
+              sessionStorage.setItem("sb_sheet_log_id", String(sheetId));
             }
             router.push(`/mc/${sbStep1McId}/edit`);
           }}

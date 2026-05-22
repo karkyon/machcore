@@ -670,6 +670,8 @@ export const mcApi = {
     api.get<any[]>('/mc/timecards', { params: { machine_id: machineId, work_date: workDate } }),
   createTimecard:  (body: any, token: string) =>
     api.post('/mc/timecards', body, { headers: { Authorization: `Bearer ${token}` } }),
+  collectSetupSheet: (mcId: number, logId: number, token: string) =>
+    api.put(`/mc/${mcId}/setup-sheet-logs/${logId}/collect`, {}, { headers: { Authorization: `Bearer ${token}` } }),
 };
 
 export const mcFilesApi = {

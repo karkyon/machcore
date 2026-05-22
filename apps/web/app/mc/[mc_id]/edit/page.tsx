@@ -280,13 +280,26 @@ export default function McEditPage() {
             <span className="font-bold">段取シートバック STEP1: 基本情報・ツーリング・図写真などを登録してください</span>
             <span className="text-blue-300">→ 登録完了後 STEP2(作業記録)へ自動遷移します</span>
           </div>
-          <button onClick={handleSave} disabled={saving}
-            className="bg-white text-blue-700 px-4 py-1 rounded font-bold hover:bg-blue-50 disabled:opacity-50 text-sm">
-            {saving ? "保存中..." : "STEP1完了 → STEP2(作業記録)へ"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => {
+                logout();
+                if (typeof window !== "undefined") {
+                  sessionStorage.removeItem("sb_next_record");
+                  sessionStorage.removeItem("sb_sheet_log_id");
+                }
+                router.push("/");
+              }}
+              className="text-blue-200 hover:text-white text-xs px-3 py-1 rounded border border-blue-400 hover:border-white transition-colors">
+              キャンセル（中断）
+            </button>
+            <button onClick={handleSave} disabled={saving}
+              className="bg-white text-blue-700 px-4 py-1 rounded font-bold hover:bg-blue-50 disabled:opacity-50 text-sm">
+              {saving ? "保存中..." : "STEP1完了 → STEP2(作業記録)へ"}
+            </button>
+          </div>
         </div>
       )}
-      {isAuthenticated && operator && (
+      {isAuthenticated && operator && !sbMode && (
         <div className="bg-red-600 text-white px-5 py-1.5 flex items-center justify-between text-xs shrink-0">
           <div className="flex items-center gap-3">
             <span className="w-2 h-2 bg-red-300 rounded-full animate-pulse" />
@@ -295,12 +308,7 @@ export default function McEditPage() {
           <div className="flex gap-3">
             <button onClick={() => {
                 logout();
-                if (sbMode && typeof window !== "undefined") {
-                  sessionStorage.removeItem("sb_next_record");
-                  router.push("/");
-                } else {
-                  router.push(`/mc/${mcId}`);
-                }
+                router.push(`/mc/${mcId}`);
               }}
               className="text-red-200 hover:text-white">キャンセル</button>
             <button onClick={handleSave} disabled={saving}

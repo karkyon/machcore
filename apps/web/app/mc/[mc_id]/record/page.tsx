@@ -22,10 +22,15 @@ function McRecordPageInner() {
   const { mc_id } = useParams<{ mc_id: string }>();
   const mcId = parseInt(mc_id);
   const [sbMode, setSbMode] = React.useState(false);
+  const [sbSheetLogId, setSbSheetLogId] = React.useState<number>(0);
   React.useEffect(() => {
     if (typeof window !== "undefined") {
       const v = sessionStorage.getItem("sb_next_record");
-      if (v) setSbMode(parseInt(v) === mcId);
+      if (v && parseInt(v) === mcId) {
+        setSbMode(true);
+        const lid = sessionStorage.getItem("sb_sheet_log_id");
+        if (lid) setSbSheetLogId(parseInt(lid));
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -120,8 +125,17 @@ function McRecordPageInner() {
       if (sbMode && typeof window !== "undefined") {
         const v = sessionStorage.getItem("sb_next_record");
         if (v && parseInt(v) === mcId) {
+          // STEP2完了 → setup_sheet_log を回収済み(work_collected=true)に更新
+          const logId = sbSheetLogId || parseInt(sessionStorage.getItem("sb_sheet_log_id") ?? "0");
+          if (logId && token) {
+            try {
+              await mcApi.collectSetupSheet(mcId, logId, token);
+              showToast("✅ 段取シートバック完了 — 回収済みに更新しました");
+            } catch { showToast("⚠️ 作業記録登録済み（回収済み更新に失敗しました）"); }
+          }
           sessionStorage.removeItem("sb_next_record");
-          setTimeout(() => router.push("/"), 1200);
+          sessionStorage.removeItem("sb_sheet_log_id");
+          setTimeout(() => router.push("/"), 1500);
         }
       }
     } catch { setSaveError("登録に失敗しました"); }
@@ -144,17 +158,19 @@ function McRecordPageInner() {
               MC詳細
             </button>
             <span className="text-slate-600">|</span>
-            <button onClick={() => router.push("/")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-              ダッシュボードへ
-            </button>
+            {!sbMode && (
+              <button onClick={() => router.push("/")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+                ダッシュボードへ
+              </button>
+            )}
           </>
         )}
         {sbMode && (
           <span className="flex items-center gap-2 bg-teal-700 border border-teal-500 rounded-lg px-3 py-1">
             <span className="bg-teal-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shrink-0">2</span>
             <span className="text-xs font-bold text-teal-100">段取シートバック — STEP2: 作業記録入力</span>
-            <span className="text-teal-400 text-xs">（登録で完了）</span>
+            <span className="text-teal-400 text-xs">（登録で完了・回収済みになります）</span>
           </span>
         )}
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
@@ -207,7 +223,7 @@ function McRecordPageInner() {
           className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
         </button>
-        <button onClick={() => router.push(`/mc/${mcId}/print`)}
+        <button onClick={() => !sbMode && router.push(`/mc/${mcId}/print`)}
           className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
         </button>
@@ -258,7 +274,7 @@ function McRecordPageInner() {
 
         {/* 右ペイン: 入力フォーム */}
         <div className="flex-1 overflow-y-auto p-5">
-          {!isAuthenticated && (
+          {!isAuthenticated && !sbMode && (
             <div className="mb-5 p-4 bg-teal-50 border border-teal-200 rounded-xl flex items-center gap-4">
               <span className="text-3xl">⏱</span>
               <div className="flex-1">
@@ -274,7 +290,7 @@ function McRecordPageInner() {
             </div>
           )}
 
-          <div className={!isAuthenticated ? "opacity-40 pointer-events-none select-none" : ""}>
+          <div className={!isAuthenticated && !sbMode ? "opacity-40 pointer-events-none select-none" : ""}>
             {/* モードバー */}
             <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold mb-4 ${
               editRecordId ? "bg-amber-100 border border-amber-300 text-amber-800" : "bg-teal-50 border border-teal-200 text-teal-700"
