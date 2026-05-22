@@ -101,6 +101,31 @@ export default function McDashboard() {
 
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
 
+  // ── ダッシュボード行クリック: そのシートを選択済みでモーダルを開く ──
+  const handleSheetRowClick = async (item: McSheet) => {
+    const legacyId = item.legacy_mcid ?? item.mc_id;
+    setSbMcId(String(legacyId));
+    setSbLoading(true); setSbError(null); setSbResult(null); setSbSelectedSheet(null);
+    try {
+      const res = await fetch(`/api/mc/uncollected-by-legacy/${legacyId}`);
+      const data = await res.json();
+      if (!data.found || data.sheets.length === 0) {
+        setSbError("未回収の段取シートが見つかりません");
+        setSbLoading(false);
+        return;
+      }
+      setSbResult(data);
+      // クリックした行の sheet log id と一致するシートを初期選択
+      const target = data.sheets.find((s: any) => s.id === item.id) ?? data.sheets[0];
+      setSbSelectedSheet(target);
+      setSbModalOpen(true);
+    } catch {
+      setSbError("取得に失敗しました");
+    } finally {
+      setSbLoading(false);
+    }
+  };
+
   const filtered = filterPeriod(sheets, period);
   const grouped  = groupByMachine(filtered);
 
@@ -438,7 +463,7 @@ export default function McDashboard() {
                       <div className="divide-y divide-slate-100">
                         {items.map(item => (
                           <button key={item.id}
-                            onClick={() => router.push("/mc/" + item.mc_id + "/record")}
+                            onClick={() => handleSheetRowClick(item)}
                             className={"w-full grid grid-cols-[56px_70px_70px_70px_100px_1fr_120px_100px_80px_16px] gap-x-2 px-4 py-2.5 items-center text-left transition-colors " + rowCls(item.printed_at)}>
                             <span>
                               {item.is_reference
