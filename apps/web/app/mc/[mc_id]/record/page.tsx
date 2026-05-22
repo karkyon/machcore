@@ -187,7 +187,23 @@ function McRecordPageInner() {
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   useEffect(() => {
-    mcApi.findOne(mcId).then(r => setDetail((r as any).data ?? (r as any))).catch(() => {});
+    mcApi.findOne(mcId).then(r => {
+      const d = (r as any).data ?? (r as any);
+      setDetail(d);
+      // 機械・サイクルタイムの初期値をdetailから設定
+      if (d?.machine?.machineCode) {
+        // machinesが未取得の場合はmachineCodeを一時セット、取得後にidに変換
+        setMachineId(d.machine.machineCode);
+      }
+      if (d?.cycleTimeSec != null && d.cycleTimeSec > 0) {
+        setCycleH(Math.floor(d.cycleTimeSec / 3600));
+        setCycleM(Math.floor((d.cycleTimeSec % 3600) / 60));
+        setCycleS(d.cycleTimeSec % 60);
+      }
+      if (d?.machiningQty != null && d.machiningQty > 0) {
+        setCyclePcs(String(d.machiningQty));
+      }
+    }).catch(() => {});
     mcApi.setupSheetLogs(mcId).then(r => {
       const sheets = ((r as any).data ?? []).filter((s: McSetupSheetLog) => !s.work_collected);
       setSetupSheets(sheets);
@@ -197,6 +213,16 @@ function McRecordPageInner() {
     machinesApi.list().then(r => setMachines((r as any).data ?? [])).catch(() => {});
     usersApi.list().then(r => setUsers((r as any).data ?? [])).catch(() => {});
   }, [mcId]);
+
+  // machines 取得後に machineId を machineCode → id に解決
+  useEffect(() => {
+    if (machines.length > 0 && machineId && isNaN(parseInt(machineId))) {
+      const m = machines.find(m => m.machineCode === machineId);
+      if (m) setMachineId(String(m.id));
+      else setMachineId("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [machines]);
 
   useEffect(() => {
     if (isAuthenticated) {
