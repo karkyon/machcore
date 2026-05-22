@@ -202,15 +202,26 @@ export default function McDashboard() {
                   <div className="space-y-2">
                     {isNew ? (
                       <>
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-1">
+                          <p className="text-xs font-bold text-blue-700 mb-1">新規シート — 必須作業フロー</p>
+                          <div className="flex items-center gap-2 text-xs text-blue-600">
+                            <span className="bg-blue-600 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold shrink-0">1</span>
+                            <span>マシニング情報を登録</span>
+                            <span className="text-blue-400">→</span>
+                            <span className="bg-teal-600 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold shrink-0">2</span>
+                            <span>作業記録を入力</span>
+                          </div>
+                        </div>
                         <button
-                          onClick={() => { setSbModalOpen(false); router.push(`/mc/${sbSelectedSheet.mc_id}/edit`); }}
+                          onClick={() => {
+                            if (typeof window !== "undefined") {
+                              sessionStorage.setItem("sb_next_record", String(sbSelectedSheet.mc_id));
+                            }
+                            setSbModalOpen(false);
+                            router.push(`/mc/${sbSelectedSheet.mc_id}/edit`);
+                          }}
                           className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-colors">
-                          マシニング情報を登録（新規）
-                        </button>
-                        <button
-                          onClick={() => { setSbModalOpen(false); router.push(`/mc/${sbSelectedSheet.mc_id}/record`); }}
-                          className="w-full py-2 bg-slate-600 hover:bg-slate-700 text-white text-sm font-bold rounded-xl transition-colors">
-                          作業記録のみ入力
+                          STEP 1: マシニング情報を登録（新規）
                         </button>
                       </>
                     ) : (
@@ -422,9 +433,9 @@ export default function McDashboard() {
                                   : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">リピート</span>
                               }
                             </span>
-                            <span className="font-mono text-xs text-slate-500">{item.legacy_mcid ?? "-"}</span>
-                            <span className="font-mono text-xs text-slate-500">{item.machining_id}</span>
-                            <span className="font-mono text-xs text-slate-600">{item.part_id}</span>
+                            <span className="font-mono text-xs text-slate-700">{item.legacy_mcid ?? "-"}</span>
+                            <span className="font-mono text-xs text-slate-700">{item.machining_id}</span>
+                            <span className="font-mono text-xs text-slate-800">{item.part_id}</span>
                             <span className="text-xs">
                               {item.mc_process_no != null
                                 ? <span className="bg-teal-100 text-teal-700 font-bold px-1.5 py-0.5 rounded font-mono">P{item.mc_process_no}</span>
@@ -432,15 +443,12 @@ export default function McDashboard() {
                               {item.version && <span className="ml-1 text-slate-400 text-[10px]">v{item.version}</span>}
                             </span>
                             <span className="min-w-0">
-                              {item.is_reference && <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-bold mr-1">参考</span>}
-                            {!item.is_reference && item.sheet_type === "NEW" && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold mr-1">新規</span>}
-                            {!item.is_reference && item.sheet_type === "REPEAT" && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold mr-1">リピート</span>}
                             <span className="font-mono text-sm text-teal-600 font-bold">{item.drawing_no}</span>
-                              <span className="text-slate-600 text-xs ml-2">{item.part_name}</span>
+                              <span className="text-slate-800 text-xs ml-2">{item.part_name}</span>
                               {item.client_name && <span className="text-slate-400 text-[10px] ml-2">/ {item.client_name}</span>}
                             </span>
                             <span className="text-[11px] text-slate-500 whitespace-nowrap">{fmtDt(item.printed_at)}</span>
-                            <span className="text-xs text-slate-500">{item.operator_name}</span>
+                            <span className="text-xs text-slate-700">{item.operator_name}</span>
                             <span className={"text-xs whitespace-nowrap " + ageCls(item.printed_at)}>{elapsed(item.printed_at)}</span>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-300"><path d="M9 18l6-6-6-6"/></svg>
                           </button>

@@ -119,7 +119,17 @@ export default function McEditPage() {
       }
       showToast("✅ 保存しました");
       logout();
-      setTimeout(() => router.push(`/mc/${mcId}`), 1200);
+      setTimeout(() => {
+        if (typeof window !== "undefined") {
+          const nextMcId = sessionStorage.getItem("sb_next_record");
+          if (nextMcId && parseInt(nextMcId) === mcId) {
+            sessionStorage.removeItem("sb_next_record");
+            router.push(`/mc/${mcId}/record`);
+            return;
+          }
+        }
+        router.push(`/mc/${mcId}`);
+      }, 1200);
     } catch (e: any) {
       setSaveError(e.message ?? "保存に失敗しました");
     } finally {
