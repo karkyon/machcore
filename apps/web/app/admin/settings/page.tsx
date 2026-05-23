@@ -86,20 +86,20 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="bg-slate-900 text-white px-5 py-2.5 flex items-center gap-3 shrink-0 border-b border-slate-800">
+      <header className="bg-white border-b border-slate-200 px-5 py-2.5 flex items-center gap-3 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded bg-sky-600 flex items-center justify-center">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
           </div>
-          <span className="text-sm font-bold tracking-wide">MachCore 管理パネル</span>
+          <span className="text-sm font-bold text-slate-800 tracking-wide">MachCore 管理パネル</span>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <a href="/nc/search"
-            className="text-xs bg-slate-600 hover:bg-slate-500 text-slate-200 px-3 py-1.5 rounded transition-colors">
-            ← NC画面
+          <a href="/"
+            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded transition-colors">
+            ← ダッシュボード
           </a>
           <button onClick={() => { sessionStorage.removeItem("admin_token"); router.push("/admin/login"); }}
-            className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded transition-colors">
+            className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded transition-colors">
             ログアウト
           </button>
         </div>
@@ -112,12 +112,12 @@ export default function AdminSettingsPage() {
       )}
 
       <div className="flex flex-1 min-h-0">
-        <aside className="w-48 shrink-0 bg-slate-800 flex flex-col py-4 gap-1 border-r border-slate-700">
-          <div className="px-4 pb-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">メニュー</div>
+        <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5">
+          <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">メニュー</div>
           {SIDEBAR_ITEMS.map(item => (
             <a key={item.href} href={item.href}
               className={`mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors ${
-                pathname === item.href ? "bg-sky-600 text-white font-bold" : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                pathname === item.href ? "bg-sky-50 text-sky-700 font-bold border border-sky-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={item.icon}/></svg>
               {item.label}

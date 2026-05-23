@@ -22,6 +22,10 @@ export default function AdminUsersPage() {
   const [loading,     setLoading]     = useState(true);
   const [toast,       setToast]       = useState<{ msg: string; ok: boolean } | null>(null);
   const [dialogMode,  setDialogMode]  = useState<DialogMode>(null);
+  const [fltCode,   setFltCode]   = useState("");
+  const [fltName,   setFltName]   = useState("");
+  const [fltRole,   setFltRole]   = useState("");
+  const [fltStatus, setFltStatus] = useState("");
   const [editTarget,  setEditTarget]  = useState<AdminUserInfo | null>(null);
   const [fCode,  setFCode]  = useState("");
   const [fName,  setFName]  = useState("");
@@ -41,6 +45,15 @@ export default function AdminUsersPage() {
   }, [router]);
 
   const getToken = () => sessionStorage.getItem("admin_token") ?? "";
+
+  const filteredUsers = users.filter(u => {
+    if (fltCode   && !u.employeeCode?.includes(fltCode)) return false;
+    if (fltName   && !u.name?.includes(fltName))         return false;
+    if (fltRole   && u.role !== fltRole)                  return false;
+    if (fltStatus === "active"   && !u.isActive)          return false;
+    if (fltStatus === "inactive" &&  u.isActive)          return false;
+    return true;
+  });
 
   const fetchUsers = useCallback(async (token?: string) => {
     setLoading(true);
@@ -228,7 +241,7 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {users.map(u => (
+                {filteredUsers.map(u => (
                   <tr key={u.id} className={`hover:bg-slate-50 ${!u.isActive ? "opacity-40" : ""}`}>
                     <td className="px-5 py-3 text-slate-400">{u.id}</td>
                     <td className="px-5 py-3 font-mono text-slate-700">{u.employeeCode}</td>

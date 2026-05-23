@@ -19,6 +19,10 @@ export default function AdminRawPage() {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState<string | null>(null);
   const [filter,  setFilter]  = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo,   setDateTo]   = useState("");
+  const [fieldKey, setFieldKey] = useState("");
+  const [fieldVal, setFieldVal] = useState("");
 
   useEffect(() => {
     const token = sessionStorage.getItem("admin_token");
@@ -50,9 +54,20 @@ export default function AdminRawPage() {
 
   useEffect(() => { fetchData(table, page); }, [table, page, fetchData]);
 
-  const filtered = filter
-    ? data.filter(row => Object.values(row).some(v => String(v ?? "").includes(filter)))
-    : data;
+  const filtered = data.filter(row => {
+    // キーワードフィルタ
+    if (filter && !Object.values(row).some(v => String(v ?? "").includes(filter))) return false;
+    // フィールド指定フィルタ
+    if (fieldKey && fieldVal && !String(row[fieldKey] ?? "").includes(fieldVal)) return false;
+    // 日付範囲フィルタ（created_at / updated_at / work_date / changed_at）
+    const dateField = ["created_at","updated_at","work_date","changed_at","accessed_at","printed_at"].find(f => row[f]);
+    if (dateField && row[dateField]) {
+      const rowDate = String(row[dateField]).slice(0, 10);
+      if (dateFrom && rowDate < dateFrom) return false;
+      if (dateTo   && rowDate > dateTo)   return false;
+    }
+    return true;
+  });
 
   const totalPages = Math.ceil(total / limit);
 
@@ -66,20 +81,17 @@ export default function AdminRawPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="bg-slate-900 text-white px-5 py-2.5 flex items-center gap-3 shrink-0 border-b border-slate-800">
+      <header className="bg-white border-b border-slate-200 px-5 py-2.5 flex items-center gap-3 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded bg-sky-600 flex items-center justify-center">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
           </div>
-          <span className="text-sm font-bold tracking-wide">MachCore 管理パネル</span>
+          <span className="text-sm font-bold text-slate-800 tracking-wide">MachCore 管理パネル</span>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <a href="/nc/search"
-            className="text-xs bg-slate-600 hover:bg-slate-500 text-slate-200 px-3 py-1.5 rounded transition-colors">
-            ← NC画面
-          </a>
+          <a href="/" className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded transition-colors">← ダッシュボード</a>
           <button onClick={() => { sessionStorage.removeItem("admin_token"); router.push("/admin/login"); }}
-            className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded transition-colors">
+            className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded transition-colors">
             ログアウト
           </button>
         </div>
@@ -99,24 +111,40 @@ export default function AdminRawPage() {
         </aside>
         <main className="flex-1 overflow-auto px-4 py-6">
         {/* コントロール */}
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <div>
-            <label className="text-xs text-slate-500 mr-1">テーブル:</label>
-            <select value={table} onChange={e => { setTable(e.target.value); setPage(1); setFilter(""); }}
-              className="text-sm border border-slate-300 rounded px-2 py-1 bg-white">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 mb-4 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-xs font-bold text-slate-500">テーブル:</label>
+            <select value={table} onChange={e => { setTable(e.target.value); setPage(1); setFilter(""); setDateFrom(""); setDateTo(""); setFieldKey(""); setFieldVal(""); }}
+              className="text-sm border border-slate-300 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
               {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
+            <input type="text" value={filter} onChange={e => setFilter(e.target.value)}
+              placeholder="キーワードフィルタ" className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 w-52 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+            <span className="text-xs text-slate-500">DB: {total.toLocaleString()}件 / 表示: {filtered.length}件</span>
+            <button onClick={() => fetchData(table, page)} className="text-xs bg-sky-600 text-white px-3 py-1.5 rounded-lg hover:bg-sky-700">🔄 再取得</button>
           </div>
-          <input
-            type="text" value={filter} onChange={e => setFilter(e.target.value)}
-            placeholder="キーワードフィルタ（クライアント側）"
-            className="text-sm border border-slate-300 rounded px-3 py-1 w-64"
-          />
-          <span className="text-xs text-slate-500">全 {total.toLocaleString()} 件</span>
-          <button onClick={() => fetchData(table, page)}
-            className="text-xs bg-sky-600 text-white px-3 py-1.5 rounded-lg hover:bg-sky-700">
-            🔄 再取得
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-xs font-bold text-slate-500">日付範囲:</label>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              className="text-sm border border-slate-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+            <span className="text-xs text-slate-400">〜</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              className="text-sm border border-slate-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+            {cols.length > 0 && <>
+              <label className="text-xs font-bold text-slate-500 ml-2">フィールド指定:</label>
+              <select value={fieldKey} onChange={e => setFieldKey(e.target.value)}
+                className="text-sm border border-slate-300 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none w-40">
+                <option value="">-- 列選択 --</option>
+                {cols.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input type="text" value={fieldVal} onChange={e => setFieldVal(e.target.value)}
+                placeholder="値を入力" className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 w-40 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+            </>}
+            {(dateFrom || dateTo || fieldKey || filter) && (
+              <button onClick={() => { setFilter(""); setDateFrom(""); setDateTo(""); setFieldKey(""); setFieldVal(""); }}
+                className="text-xs text-slate-500 hover:text-red-500 px-2 py-1 border border-slate-300 rounded-lg">✕ クリア</button>
+            )}
+          </div>
         </div>
 
         {/* エラー */}
