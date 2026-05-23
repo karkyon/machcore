@@ -153,6 +153,18 @@ export default function TimecardPage() {
     for (const idx of dirtyIdxs) await handleUpdate(idx);
   };
 
+  // 旧システム Ctl5ボタン相当: 全機械の終了時刻を17:00にセット
+  const handleSetAllEnd17 = () => {
+    setRows(prev => prev.map(r => ({ ...r, endTime: "17:00", dirty: true })));
+    showToast("全機械の終了時刻を 17:00 にセットしました");
+  };
+
+  // 全機械の開始時刻を08:00にセット
+  const handleSetAllStart08 = () => {
+    setRows(prev => prev.map(r => ({ ...r, startTime: "08:00", dirty: true })));
+    showToast("全機械の開始時刻を 08:00 にセットしました");
+  };
+
   const dirtyCount = rows.filter(r => r.dirty).length;
 
   return (
@@ -196,12 +208,22 @@ export default function TimecardPage() {
             ↺ 再読込
           </button>
           <span className="ml-auto text-xs text-slate-400">{rows.length}件</span>
-          {dirtyCount > 0 && (
-            <button onClick={handleAllUpdate}
-              className="px-4 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-lg transition-colors">
-              📝 変更した{dirtyCount}件を一括更新
+          <div className="flex items-center gap-2">
+            <button onClick={handleSetAllStart08}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-bold rounded-lg transition-colors whitespace-nowrap">
+              全機械 08:00開始
             </button>
-          )}
+            <button onClick={handleSetAllEnd17}
+              className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-200 text-xs font-bold rounded-lg transition-colors whitespace-nowrap">
+              全機械 17:00終了
+            </button>
+            {dirtyCount > 0 && (
+              <button onClick={handleAllUpdate}
+                className="px-4 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap">
+                💾 変更した{dirtyCount}件を一括更新
+              </button>
+            )}
+          </div>
         </div>
 
         {/* タイムカードテーブル */}
@@ -236,8 +258,7 @@ export default function TimecardPage() {
                   return (
                     <tr key={row.id} className={row.dirty ? "bg-amber-50" : (idx % 2 === 0 ? "bg-white" : "bg-slate-50/50")}>
                       <td className="px-4 py-2.5">
-                        <div className="font-bold text-teal-700 text-xs">{row.machineCode}</div>
-                        <div className="text-xs text-slate-400 leading-tight">{row.machineName}</div>
+                        <div className="font-bold text-teal-700 text-sm">{row.machineCode}</div>
                       </td>
                       <td className="px-3 py-2">
                         <input type="time" value={row.startTime}
