@@ -109,7 +109,7 @@ export default function AdminRawPage() {
             </a>
           ))}
         </aside>
-        <main className="flex-1 overflow-auto px-4 py-6">
+        <main className="flex-1 overflow-y-auto px-4 py-6">
         {/* コントロール */}
         <div className="bg-white rounded-xl border border-slate-200 p-3 mb-4 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
