@@ -702,8 +702,8 @@ export default function McDetailPage() {
 
         {/* ─── 写真・図 ─── */}
         {mainTab === "files" && (
-          <div className="max-w-3xl mx-auto">
-            {d.files.length === 0 ? (
+          <div className="max-w-3xl mx-auto space-y-6">
+            {d.files.filter(f => f.file_type === "PHOTO" || f.file_type === "DRAWING").length === 0 ? (
               <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
                 <div className="text-4xl mb-3">📁</div>
                 <p className="text-slate-400 text-sm">ファイルがありません</p>
@@ -711,25 +711,57 @@ export default function McDetailPage() {
                   className="mt-4 text-teal-600 text-sm hover:underline">編集画面でアップロード →</button>
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-4">
-                {d.files.filter(f => f.file_type === "PHOTO" || f.file_type === "DRAWING").map(f => (
-                  <div key={f.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => setPreviewFile(f)}>
-                    <div className="aspect-square bg-slate-100 flex items-center justify-center overflow-hidden">
-                      <img
-                        src={`/api/mc/${mcId}/files/${f.id}/thumb`}
-                        alt={f.original_name}
-                        className="w-full h-full object-contain"
-                        loading="lazy"
-                        onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-                      />
+              <div>
+                {/* 📷 写真セクション */}
+                {d.files.filter(f => f.file_type === "PHOTO").length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs font-bold text-white bg-teal-600 px-2.5 py-0.5 rounded-full">📷 写真</span>
+                      <span className="text-xs text-slate-400">{d.files.filter(f => f.file_type === "PHOTO").length}枚</span>
                     </div>
-                    <div className="px-2 py-1.5">
-                      <p className="text-[11px] text-slate-600 truncate">{f.stored_name ?? f.original_name}</p>
-                      <p className="text-[10px] text-slate-400">{f.uploaded_by}</p>
+                    <div className="grid grid-cols-3 gap-4">
+                      {d.files.filter(f => f.file_type === "PHOTO").map(f => (
+                        <div key={f.id} className="bg-white rounded-xl border-2 border-teal-300 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                          onClick={() => setPreviewFile(f)}>
+                          <div className="aspect-square bg-teal-50 flex items-center justify-center overflow-hidden">
+                            <img src={`/api/mc/${mcId}/files/${f.id}/thumb`} alt={f.original_name}
+                              className="w-full h-full object-contain" loading="lazy"
+                              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                          </div>
+                          <div className="px-2 py-1.5 bg-teal-50 border-t border-teal-200">
+                            <p className="text-[11px] text-teal-800 font-bold truncate">{f.stored_name ?? f.original_name}</p>
+                            <p className="text-[10px] text-slate-400">{f.uploaded_by}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
+                )}
+                {/* 📐 図セクション */}
+                {d.files.filter(f => f.file_type === "DRAWING").length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs font-bold text-white bg-purple-600 px-2.5 py-0.5 rounded-full">📐 図</span>
+                      <span className="text-xs text-slate-400">{d.files.filter(f => f.file_type === "DRAWING").length}枚</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      {d.files.filter(f => f.file_type === "DRAWING").map(f => (
+                        <div key={f.id} className="bg-white rounded-xl border-2 border-purple-300 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                          onClick={() => setPreviewFile(f)}>
+                          <div className="aspect-square bg-purple-50 flex items-center justify-center overflow-hidden">
+                            <img src={`/api/mc/${mcId}/files/${f.id}/thumb`} alt={f.original_name}
+                              className="w-full h-full object-contain" loading="lazy"
+                              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                          </div>
+                          <div className="px-2 py-1.5 bg-purple-50 border-t border-purple-200">
+                            <p className="text-[11px] text-purple-800 font-bold truncate">{f.stored_name ?? f.original_name}</p>
+                            <p className="text-[10px] text-slate-400">{f.uploaded_by}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
