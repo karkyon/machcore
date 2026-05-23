@@ -1,4 +1,23 @@
-"use client";
+import subprocess, sys, os
+
+ROOT = os.path.expanduser("~/projects/machcore")
+
+def write(path, content):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+def run(cmd, cwd=ROOT):
+    label = cmd.split()[0]
+    print(f"--- {label} ---")
+    r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
+    if r.stdout.strip(): print(r.stdout[-3000:])
+    if r.stderr.strip(): print("STDERR:", r.stderr[-2000:])
+    return r.returncode
+
+# ── 1. timecards/page.tsx 完全書き直し ──────────────────────────────
+TC_PAGE = f"{ROOT}/apps/web/app/mc/timecards/page.tsx"
+
+PAGE = '''"use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { mcApi, machinesApi, Machine } from "@/lib/api";
@@ -304,3 +323,17 @@ export default function TimecardPage() {
     </div>
   );
 }
+'''
+
+write(TC_PAGE, PAGE)
+print("OK: mc/timecards/page.tsx 完全書き直し")
+
+# ── 2. ビルド & デプロイ ────────────────────────────────────────────
+rc = run("npm run build", cwd=f"{ROOT}/apps/web")
+if rc != 0:
+    print("BUILD FAILED — abort"); sys.exit(1)
+
+run("npx tsc --noEmit", cwd=f"{ROOT}/apps/api")
+run("pm2 restart machcore-web && pm2 save && pm2 list")
+run('git add -A && git commit -m "fix: タイムカード画面完全作り直し ヘッダー固定/UTC修正/19:00ボタン追加 v59" && git push')
+print("DONE")
