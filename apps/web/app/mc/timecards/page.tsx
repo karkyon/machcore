@@ -85,9 +85,6 @@ export default function TimecardPage() {
     setLoading(true);
     try {
       const token = getToken();
-      if (doInit && token) {
-        try { await mcApi.initTimecards(date, token); } catch { /* ignore */ }
-      }
       const r = await mcApi.timecardsByDate(date);
       const cards: any[] = (r as any).data ?? [];
       setRows(cards.map((c: any) => ({
@@ -103,7 +100,7 @@ export default function TimecardPage() {
     } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { loadData(workDate, true); }, [workDate, loadData]);
+  useEffect(() => { loadData(workDate, false); }, [workDate, loadData]);
 
   const updateRow = (idx: number, field: keyof RowState, value: string) => {
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value, dirty: true } : r));
@@ -183,7 +180,7 @@ export default function TimecardPage() {
             <input type="date" value={workDate} onChange={e => setWorkDate(e.target.value)}
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none" />
             <button onClick={() => setWorkDate(TODAY())} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold">今日</button>
-            <button onClick={() => loadData(workDate, true)} className="text-xs px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg font-bold">↺ 再読込</button>
+            <button onClick={() => loadData(workDate, false)} className="text-xs px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg font-bold">↺ 再読込</button>
             <span className="text-xs text-slate-400 ml-1">{rows.length}件</span>
             <div className="ml-auto flex items-center gap-2 flex-wrap">
               <button onClick={() => setAllTime("startTime","08:00")} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg font-bold whitespace-nowrap">全機械 08:00開始</button>

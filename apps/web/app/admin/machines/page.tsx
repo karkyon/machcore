@@ -11,6 +11,10 @@ const SIDEBAR_ITEMS = [
   { href: "/admin/raw",      label: "RAWデータ",        icon: "M4 6h16M4 10h16M4 14h16M4 18h16" },
 ];
 
+// /api/... プロキシ経由でfetch（CORSなし）
+const adminFetch = (path: string, opts?: RequestInit) =>
+  fetch(`/api${path}`, { ...opts, headers: { "Content-Type": "application/json", ...(opts?.headers ?? {}) } });
+
 type DialogMode = "create" | "edit" | null;
 
 export default function AdminMachinesPage() {
@@ -21,28 +25,21 @@ export default function AdminMachinesPage() {
   const [toast,    setToast]    = useState<{ msg: string; ok: boolean } | null>(null);
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [editTarget, setEditTarget] = useState<Machine | null>(null);
-  const [fCode,   setFCode]   = useState("");
-  const [fName,   setFName]   = useState("");
-  const [fType,   setFType]   = useState("MC");
-  const [fMaker,  setFMaker]  = useState("");
-  const [fSort,   setFSort]   = useState("0");
-  const [fError,  setFError]  = useState<string | null>(null);
-  const [saving,  setSaving]  = useState(false);
-  // フィルタ
+  const [fCode,  setFCode]  = useState("");
+  const [fName,  setFName]  = useState("");
+  const [fType,  setFType]  = useState("MC");
+  const [fMaker, setFMaker] = useState("");
+  const [fSort,  setFSort]  = useState("0");
+  const [fError, setFError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [fltName,   setFltName]   = useState("");
   const [fltType,   setFltType]   = useState("");
   const [fltMaker,  setFltMaker]  = useState("");
   const [fltStatus, setFltStatus] = useState("");
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3011/api";
   const getToken = () => sessionStorage.getItem("admin_token") ?? "";
-
   const showToast = (msg: string, ok: boolean) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
-
-  const handleLogout = () => {
-    sessionStorage.removeItem("admin_token"); sessionStorage.removeItem("admin_user");
-    router.push("/admin/login");
-  };
+  const handleLogout = () => { sessionStorage.removeItem("admin_token"); sessionStorage.removeItem("admin_user"); router.push("/admin/login"); };
 
   const fetchMachines = useCallback(async () => {
     setLoading(true);
@@ -55,45 +52,37 @@ export default function AdminMachinesPage() {
   }, []);
 
   useEffect(() => {
-    const token = sessionStorage.getItem("admin_token");
-    if (!token) { router.replace("/admin/login"); return; }
+    if (!sessionStorage.getItem("admin_token")) { router.replace("/admin/login"); return; }
     fetchMachines();
   }, [router, fetchMachines]);
 
   const filtered = machines.filter(m => {
-    if (fltName   && !m.machineName?.includes(fltName))   return false;
-    if (fltType   && (m as any).machineType !== fltType)    return false;
-    if (fltMaker  && !(m as any).maker?.includes(fltMaker)) return false;
-    if (fltStatus === "active"   &&  !m.isActive)          return false;
-    if (fltStatus === "inactive" &&  m.isActive)           return false;
+    if (fltName   && !m.machineName?.includes(fltName))             return false;
+    if (fltType   && (m as any).machineType !== fltType)            return false;
+    if (fltMaker  && !(m as any).maker?.includes(fltMaker))         return false;
+    if (fltStatus === "active"   && !m.isActive)                    return false;
+    if (fltStatus === "inactive" &&  m.isActive)                    return false;
     return true;
   });
 
-  const openCreate = () => {
-    setFCode(""); setFName(""); setFType("MC"); setFMaker(""); setFSort("0"); setFError(null);
-    setEditTarget(null); setDialogMode("create");
-  };
-  const openEdit = (m: Machine) => {
-    setFCode(m.machineCode); setFName(m.machineName ?? ""); setFType((m as any).machineType ?? "MC");
-    setFMaker((m as any).maker ?? ""); setFSort(String(m.sortOrder ?? 0)); setFError(null);
-    setEditTarget(m); setDialogMode("edit");
-  };
+  const openCreate = () => { setFCode(""); setFName(""); setFType("MC"); setFMaker(""); setFSort("0"); setFError(null); setEditTarget(null); setDialogMode("create"); };
+  const openEdit   = (m: Machine) => { setFCode(m.machineCode); setFName(m.machineName ?? ""); setFType((m as any).machineType ?? "MC"); setFMaker((m as any).maker ?? ""); setFSort(String(m.sortOrder ?? 0)); setFError(null); setEditTarget(m); setDialogMode("edit"); };
 
   const handleSave = async () => {
     if (!fCode || !fName) { setFError("機械コードと機械名は必須です"); return; }
     setSaving(true); setFError(null);
     try {
       if (dialogMode === "create") {
-        await fetch(`${apiBase}/admin/machines`, {
+        await adminFetch("/admin/machines", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ machine_code: fCode, machine_name: fName, machine_type: fType, maker: fMaker, sort_order: parseInt(fSort) || 0, is_active: true }),
+          headers: { Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ machine_code: fCode, machine_name: fName, machine_type: fType, maker: fMaker, sort_order: parseInt(fSort)||0, is_active: true }),
         });
       } else if (editTarget) {
-        await fetch(`${apiBase}/admin/machines/${editTarget.id}`, {
+        await adminFetch(`/admin/machines/${editTarget.id}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ machine_code: fCode, machine_name: fName, machine_type: fType, maker: fMaker, sort_order: parseInt(fSort) || 0 }),
+          headers: { Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ machine_code: fCode, machine_name: fName, machine_type: fType, maker: fMaker, sort_order: parseInt(fSort)||0 }),
         });
       }
       showToast(dialogMode === "edit" ? "更新しました" : "登録しました", true);
@@ -104,9 +93,9 @@ export default function AdminMachinesPage() {
 
   const handleToggle = async (m: Machine) => {
     try {
-      await fetch(`${apiBase}/admin/machines/${m.id}`, {
+      await adminFetch(`/admin/machines/${m.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        headers: { Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ is_active: !m.isActive }),
       });
       showToast(m.isActive ? "無効化しました" : "有効化しました", true);
@@ -115,7 +104,8 @@ export default function AdminMachinesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
+      {/* ヘッダー固定 */}
       <header className="bg-white border-b border-slate-200 px-5 py-2.5 flex items-center gap-3 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded bg-sky-600 flex items-center justify-center">
@@ -131,8 +121,9 @@ export default function AdminMachinesPage() {
 
       {toast && <div className={`fixed bottom-6 right-6 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-bold z-50 ${toast.ok ? "bg-green-600" : "bg-red-500"}`}>{toast.msg}</div>}
 
-      <div className="flex flex-1 min-h-0">
-        <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* サイドバー固定 */}
+        <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5 overflow-y-auto">
           <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">メニュー</div>
           {SIDEBAR_ITEMS.map(item => (
             <a key={item.href} href={item.href}
@@ -144,72 +135,69 @@ export default function AdminMachinesPage() {
           ))}
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="flex items-center justify-between mb-4">
+        <main className="flex-1 overflow-hidden flex flex-col p-5 gap-3">
+          {/* タイトル行 */}
+          <div className="flex items-center justify-between shrink-0">
             <h1 className="text-xl font-bold text-slate-800">機械一覧</h1>
-            <button onClick={openCreate} className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold rounded-lg transition-colors">＋ 新規機械追加</button>
+            <button onClick={openCreate} className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold rounded-lg">＋ 新規機械追加</button>
           </div>
-
           {/* フィルタ */}
-          <div className="flex flex-wrap gap-2 mb-4 bg-white p-3 rounded-xl border border-slate-200">
+          <div className="flex flex-wrap gap-2 bg-white p-3 rounded-xl border border-slate-200 shrink-0">
             <input type="text" value={fltName} onChange={e => setFltName(e.target.value)} placeholder="機械名でフィルタ"
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none w-44" />
             <select value={fltType} onChange={e => setFltType(e.target.value)}
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
-              <option value="">種別: すべて</option>
-              <option value="MC">MC</option>
-              <option value="NC">NC</option>
-              <option value="OTHER">その他</option>
+              <option value="">種別: すべて</option><option value="MC">MC</option><option value="NC">NC</option><option value="OTHER">その他</option>
             </select>
             <input type="text" value={fltMaker} onChange={e => setFltMaker(e.target.value)} placeholder="メーカーでフィルタ"
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none w-44" />
             <select value={fltStatus} onChange={e => setFltStatus(e.target.value)}
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
-              <option value="">状態: すべて</option>
-              <option value="active">有効のみ</option>
-              <option value="inactive">無効のみ</option>
+              <option value="">状態: すべて</option><option value="active">有効のみ</option><option value="inactive">無効のみ</option>
             </select>
             <span className="text-xs text-slate-400 self-center">{filtered.length}/{machines.length}件</span>
           </div>
-
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            {loading ? <div className="text-center py-20 text-slate-400">読み込み中…</div> : (
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600 text-xs">ID</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600 text-xs">機械名</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600 text-xs">種別</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600 text-xs">メーカー</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600 text-xs">順序</th>
-                    <th className="px-4 py-3 text-left font-bold text-slate-600 text-xs">状態</th>
-                    <th className="px-4 py-3 text-right font-bold text-slate-600 text-xs">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filtered.map((m, i) => (
-                    <tr key={m.id} className={`${!m.isActive ? "opacity-40" : ""} ${i % 2 === 0 ? "bg-white" : "bg-slate-50/40"}`}>
-                      <td className="px-4 py-2.5 text-slate-400 text-xs">{m.id}</td>
-                      <td className="px-4 py-2.5 font-bold text-slate-800">{m.machineName}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{(m as any).machineType ?? "MC"}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{(m as any).maker ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{m.sortOrder ?? 0}</td>
-                      <td className="px-4 py-2.5">
-                        <span className={`text-xs font-bold ${m.isActive ? "text-green-600" : "text-slate-400"}`}>
-                          {m.isActive ? "有効" : "無効"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-right space-x-2">
-                        <button onClick={() => openEdit(m)} className="text-xs text-sky-600 hover:underline">編集</button>
-                        <button onClick={() => handleToggle(m)} className={`text-xs hover:underline ${m.isActive ? "text-red-500" : "text-green-600"}`}>
-                          {m.isActive ? "無効化" : "有効化"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+          {/* テーブル: ヘッダー固定・明細スクロール */}
+          <div className="flex-1 overflow-hidden bg-white rounded-xl border border-slate-200 flex flex-col">
+            <div className="shrink-0 border-b border-slate-200">
+              <table className="w-full text-sm table-fixed">
+                <colgroup><col className="w-14"/><col/><col className="w-20"/><col className="w-32"/><col className="w-16"/><col className="w-16"/><col className="w-28"/></colgroup>
+                <thead><tr className="bg-slate-50 text-slate-600 text-xs uppercase">
+                  <th className="px-4 py-3 text-left font-bold">ID</th>
+                  <th className="px-4 py-3 text-left font-bold">機械名</th>
+                  <th className="px-3 py-3 text-left font-bold">種別</th>
+                  <th className="px-3 py-3 text-left font-bold">メーカー</th>
+                  <th className="px-3 py-3 text-left font-bold">順序</th>
+                  <th className="px-3 py-3 text-left font-bold">状態</th>
+                  <th className="px-3 py-3 text-right font-bold">操作</th>
+                </tr></thead>
               </table>
-            )}
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {loading ? <div className="text-center py-20 text-slate-400">読み込み中…</div> : (
+                <table className="w-full text-sm table-fixed">
+                  <colgroup><col className="w-14"/><col/><col className="w-20"/><col className="w-32"/><col className="w-16"/><col className="w-16"/><col className="w-28"/></colgroup>
+                  <tbody className="divide-y divide-slate-100">
+                    {filtered.map((m, i) => (
+                      <tr key={m.id} className={`${!m.isActive ? "opacity-40" : ""} ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                        <td className="px-4 py-2.5 text-slate-400 text-xs">{m.id}</td>
+                        <td className="px-4 py-2.5 font-bold text-slate-800">{m.machineName}</td>
+                        <td className="px-3 py-2.5 text-slate-500">{(m as any).machineType ?? "MC"}</td>
+                        <td className="px-3 py-2.5 text-slate-500">{(m as any).maker ?? "—"}</td>
+                        <td className="px-3 py-2.5 text-slate-500">{m.sortOrder ?? 0}</td>
+                        <td className="px-3 py-2.5"><span className={`text-xs font-bold ${m.isActive ? "text-green-600" : "text-slate-400"}`}>{m.isActive ? "有効" : "無効"}</span></td>
+                        <td className="px-3 py-2.5 text-right space-x-2">
+                          <button onClick={() => openEdit(m)} className="text-xs text-sky-600 hover:underline">編集</button>
+                          <button onClick={() => handleToggle(m)} className={`text-xs hover:underline ${m.isActive ? "text-red-500" : "text-green-600"}`}>
+                            {m.isActive ? "無効化" : "有効化"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </main>
       </div>
@@ -217,36 +205,28 @@ export default function AdminMachinesPage() {
       {/* ダイアログ */}
       {dialogMode && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-            <div className="bg-slate-50 border-b border-slate-200 px-5 py-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="bg-slate-50 border-b border-slate-200 px-5 py-4 rounded-t-2xl">
               <h2 className="text-slate-800 font-bold">{dialogMode === "create" ? "新規機械追加" : "機械編集"}</h2>
             </div>
             <div className="p-5 space-y-3">
-              {[
-                { label: "機械コード *", value: fCode, set: setFCode, ph: "例: MC10" },
-                { label: "機械名 *",    value: fName, set: setFName, ph: "例: MC10" },
-                { label: "メーカー",    value: fMaker, set: setFMaker, ph: "例: 森精機製作所" },
-                { label: "表示順序",    value: fSort, set: setFSort, ph: "0" },
-              ].map(f => (
-                <div key={f.label}>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">{f.label}</label>
-                  <input value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.ph}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+              {[{l:"機械コード *",v:fCode,s:setFCode,p:"例: MC10"},{l:"機械名 *",v:fName,s:setFName,p:"例: MC10"},{l:"メーカー",v:fMaker,s:setFMaker,p:"例: 森精機"},{l:"表示順序",v:fSort,s:setFSort,p:"0"}].map(f=>(
+                <div key={f.l}>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">{f.l}</label>
+                  <input value={f.v} onChange={e=>f.s(e.target.value)} placeholder={f.p}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"/>
                 </div>
               ))}
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">種別</label>
-                <select value={fType} onChange={e => setFType(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-400">
+                <select value={fType} onChange={e=>setFType(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-400">
                   <option value="MC">MC</option><option value="NC">NC</option><option value="OTHER">その他</option>
                 </select>
               </div>
               {fError && <p className="text-red-600 text-sm bg-red-50 rounded px-3 py-2">{fError}</p>}
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setDialogMode(null)} className="flex-1 px-4 py-2 rounded-lg border border-slate-300 text-slate-600 text-sm font-medium hover:bg-slate-50">キャンセル</button>
-                <button onClick={handleSave} disabled={saving} className="flex-1 px-4 py-2 rounded-lg bg-sky-600 text-white text-sm font-bold hover:bg-sky-700 disabled:opacity-40">
-                  {saving ? "保存中..." : "保存"}
-                </button>
+                <button onClick={()=>setDialogMode(null)} className="flex-1 px-4 py-2 rounded-lg border border-slate-300 text-slate-600 text-sm">キャンセル</button>
+                <button onClick={handleSave} disabled={saving} className="flex-1 px-4 py-2 rounded-lg bg-sky-600 text-white text-sm font-bold disabled:opacity-40">{saving?"保存中...":"保存"}</button>
               </div>
             </div>
           </div>
