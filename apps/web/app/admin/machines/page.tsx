@@ -44,8 +44,9 @@ export default function AdminMachinesPage() {
   const fetchMachines = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await machinesApi.list();
-      const d = (res as any).data ?? res;
+      // admin/machinesエンドポイント（無効機械も含む全件取得）
+      const res = await adminFetch("/admin/machines", { headers: { Authorization: `Bearer ${getToken()}` } });
+      const d = await res.json();
       setMachines(Array.isArray(d) ? d.sort((a: Machine, b: Machine) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)) : []);
     } catch { showToast("機械一覧の取得に失敗しました", false); }
     finally { setLoading(false); }
@@ -161,7 +162,7 @@ export default function AdminMachinesPage() {
           <div className="flex-1 overflow-hidden bg-white rounded-xl border border-slate-200 flex flex-col">
             <div className="shrink-0 border-b border-slate-200">
               <table className="w-full text-sm table-fixed">
-                <colgroup><col className="w-14"/><col/><col className="w-20"/><col className="w-32"/><col className="w-16"/><col className="w-16"/><col className="w-28"/></colgroup>
+                <colgroup><col className="w-14"/><col className="w-36"/><col className="w-20"/><col className="w-28"/><col className="w-16"/><col className="w-16"/><col className="w-28"/></colgroup>
                 <thead><tr className="bg-slate-50 text-slate-600 text-xs uppercase">
                   <th className="px-4 py-3 text-left font-bold">ID</th>
                   <th className="px-4 py-3 text-left font-bold">機械名</th>
@@ -176,7 +177,7 @@ export default function AdminMachinesPage() {
             <div className="flex-1 overflow-y-auto">
               {loading ? <div className="text-center py-20 text-slate-400">読み込み中…</div> : (
                 <table className="w-full text-sm table-fixed">
-                  <colgroup><col className="w-14"/><col/><col className="w-20"/><col className="w-32"/><col className="w-16"/><col className="w-16"/><col className="w-28"/></colgroup>
+                  <colgroup><col className="w-14"/><col className="w-36"/><col className="w-20"/><col className="w-28"/><col className="w-16"/><col className="w-16"/><col className="w-28"/></colgroup>
                   <tbody className="divide-y divide-slate-100">
                     {filtered.map((m, i) => (
                       <tr key={m.id} className={`${!m.isActive ? "opacity-40" : ""} ${i%2===0?"bg-white":"bg-slate-50/40"}`}>

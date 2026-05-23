@@ -80,7 +80,7 @@ export default function AdminRawPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
       <header className="bg-white border-b border-slate-200 px-5 py-2.5 flex items-center gap-3 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded bg-sky-600 flex items-center justify-center">
@@ -96,8 +96,8 @@ export default function AdminRawPage() {
           </button>
         </div>
       </header>
-      <div className="flex flex-1 min-h-0">
-        <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5 overflow-y-auto">
           <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">メニュー</div>
           {SIDEBAR_ITEMS.map(item => (
             <a key={item.href} href={item.href}
