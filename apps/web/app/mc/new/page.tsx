@@ -15,7 +15,7 @@ type PartResult = {
 
 export default function McNewPage() {
   const router = useRouter();
-  const { token: authToken, operator: authOperator } = useAuth();
+  const { token: authToken, operator: authOperator, isAuthenticated } = useAuth();
 
   const [searchQ,      setSearchQ]      = useState("");
   const [searchType,   setSearchType]   = useState<"drawing_no"|"part_id"|"part_name">("drawing_no");
