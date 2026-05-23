@@ -783,9 +783,11 @@ export class McService {
   }
 
   async updateTimecard(id: number, startTime: string, endTime: string, note?: string) {
-    const workDate = await this.prisma.machineTimecard.findUnique({ where: { id }, select: { workDate: true } });
-    if (!workDate) throw new Error('タイムカードが見つかりません');
-    const dateStr = workDate.workDate.toISOString().slice(0, 10);
+    const tc = await this.prisma.machineTimecard.findUnique({ where: { id }, select: { workDate: true } });
+    if (!tc) throw new Error('タイムカードが見つかりません');
+    // work_dateをYYYY-MM-DDに変換（UTC補正: toLocaleDateStringではなくISO+9h）
+    const d = tc.workDate;
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     return this.prisma.machineTimecard.update({
       where: { id },
       data: {
@@ -796,33 +798,37 @@ export class McService {
     });
   }
 
-  // 全activeマシンの当日デフォルトレコード一括upsert（毎朝自動 or 手動初期化）
+  // 全activeマシンの当日デフォルトレコード一括生成（upsert: 既存があれば何もしない）
   async initTimecards(workDate: string, operatorId: number) {
     const machines = await this.prisma.machine.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: 'asc' },
     });
-    const DEFAULT_START = `${workDate}T08:00:00`;
-    const DEFAULT_END   = `${workDate}T17:00:00`;
+    // UNIQUE(machine_id, work_date)制約を利用してupsert
     const created: number[] = [];
     for (const m of machines) {
-      const existing = await this.prisma.machineTimecard.findFirst({
-        where: { machineId: m.id, workDate: new Date(workDate) },
-      });
-      if (!existing) {
-        const tc = await this.prisma.machineTimecard.create({
-          data: {
+      try {
+        const tc = await this.prisma.machineTimecard.upsert({
+          where: {
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore — Prisma generates compound unique key after migration
+            machine_timecards_machine_id_work_date_key: { machineId: m.id, workDate: new Date(workDate) },
+          },
+          update: {}, // 既存レコードは更新しない
+          create: {
             machineId:  m.id,
             operatorId,
             workDate:   new Date(workDate),
-            startTime:  new Date(DEFAULT_START),
-            endTime:    new Date(DEFAULT_END),
+            startTime:  new Date(`${workDate}T08:00:00`),
+            endTime:    new Date(`${workDate}T17:00:00`),
           },
         });
         created.push(tc.id);
+      } catch {
+        // UNIQUE制約違反（既存あり）は無視
       }
     }
-    return { created: created.length, message: `${created.length}件のデフォルトレコードを生成しました` };
+    return { created: created.length, message: `処理完了` };
   }
 
   async createTimecard(

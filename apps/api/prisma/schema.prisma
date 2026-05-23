@@ -508,7 +508,7 @@ model MachineTimecard {
   machine  Machine @relation(fields: [machineId],  references: [id])
   operator User    @relation(fields: [operatorId], references: [id])
 
-  @@index([machineId, workDate])
+  @@unique([machineId, workDate])
   @@index([workDate])
   @@map("machine_timecards")
 }

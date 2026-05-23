@@ -10,6 +10,13 @@ const TODAY = new Date().toISOString().slice(0, 10);
 function fmtTime(dt: any): string {
   if (!dt) return "";
   const s = typeof dt === "string" ? dt : String(dt);
+  // ISO datetime: "1970-01-01T08:00:00.000Z" → UTC時刻を取得
+  if (s.includes("T") && s.includes("Z")) {
+    const d = new Date(s);
+    const h = String(d.getUTCHours()).padStart(2, "0");
+    const m = String(d.getUTCMinutes()).padStart(2, "0");
+    return `${h}:${m}`;
+  }
   if (s.includes("T")) return s.slice(11, 16);
   return s.slice(0, 5);
 }
@@ -53,7 +60,18 @@ export default function TimecardPage() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const initDone = useRef<Set<string>>(new Set());
+  // initDoneをsessionStorageで管理（ページリロード間でも重複init防止）
+  const getInitDone = () => {
+    try { return new Set<string>(JSON.parse(sessionStorage.getItem("tc_init_done") ?? "[]")); }
+    catch { return new Set<string>(); }
+  };
+  const setInitDone = (date: string) => {
+    try {
+      const s = getInitDone(); s.add(date);
+      sessionStorage.setItem("tc_init_done", JSON.stringify([...s]));
+    } catch { /* ignore */ }
+  };
+  const isInitDone = (date: string) => getInitDone().has(date);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg); setTimeout(() => setToast(null), 3000);
@@ -73,10 +91,10 @@ export default function TimecardPage() {
     try {
       // 未init日付なら自動initを呼ぶ（認証なしで呼べるようにsystemオペレーターIDを使う）
       // initはJWT必要なので、認証済みの場合のみ
-      if (token && !initDone.current.has(date)) {
+      if (token && !isInitDone(date)) {
         try {
           await mcApi.initTimecards(date, token);
-          initDone.current.add(date);
+          setInitDone(date);
         } catch { /* 認証なし or エラー時はスキップ */ }
       }
       const r = await mcApi.timecardsByDate(date);
@@ -100,10 +118,10 @@ export default function TimecardPage() {
 
   // 認証完了後にinitを再実行
   useEffect(() => {
-    if (token && !initDone.current.has(workDate)) {
+    if (token && !isInitDone(workDate)) {
       loadAndInit(workDate);
     }
-  }, [token, workDate, loadAndInit]);
+  }, [token, workDate, loadAndInit]);  // eslint-disable-line
 
   const updateRow = (idx: number, field: keyof RowState, value: string) => {
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value, dirty: true } : r));
