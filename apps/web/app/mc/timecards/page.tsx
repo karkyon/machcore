@@ -112,6 +112,7 @@ export default function TimecardPage() {
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value, dirty: true } : r));
   };
 
+  // 1行更新（単体）
   const handleUpdate = useCallback(async (idx: number) => {
     const row = rows[idx];
     if (!row.startTime || !row.endTime) { showToast("⚠️ 開始・終了時刻を入力してください"); return; }
@@ -129,11 +130,32 @@ export default function TimecardPage() {
     }
   }, [rows, showToast]);
 
-  const handleAllUpdate = async () => {
-    const idxs = rows.map((_, i) => i).filter(i => rows[i].dirty);
-    if (idxs.length === 0) { showToast("変更なし"); return; }
-    for (const i of idxs) await handleUpdate(i);
-  };
+  // 全件一括更新: dirtyな行をすべてPUT → 完了後にDBから再読込して確認
+  const handleAllUpdate = useCallback(async () => {
+    const dirtyRows = rows.filter(r => r.dirty && r.startTime && r.endTime);
+    if (dirtyRows.length === 0) { showToast("変更なし"); return; }
+    // 保存中UIに切り替え
+    setRows(prev => prev.map(r => r.dirty ? { ...r, saving: true } : r));
+    let ok = 0, ng = 0;
+    // 並列PUT（Promise.allSettled）
+    const results = await Promise.allSettled(
+      dirtyRows.map(row =>
+        apiFetch(`/mc/timecards/${row.id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            start_time: row.startTime + ":00",
+            end_time:   row.endTime   + ":00",
+            note:       row.note || undefined,
+          }),
+        })
+      )
+    );
+    results.forEach(r => { if (r.status === "fulfilled") ok++; else ng++; });
+    // 完了後にDBから再読込（保存済みデータを表示）
+    await loadData(workDate);
+    if (ng === 0) showToast(`✅ ${ok}件を更新・保存しました`);
+    else          showToast(`⚠️ ${ok}件成功、${ng}件失敗`);
+  }, [rows, workDate, loadData, showToast]);
 
   const setAllTime = (field: "startTime" | "endTime", val: string) => {
     setRows(prev => prev.map(r => ({ ...r, [field]: val, dirty: true })));

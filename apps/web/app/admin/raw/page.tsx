@@ -109,9 +109,9 @@ export default function AdminRawPage() {
             </a>
           ))}
         </aside>
-        <main className="flex-1 overflow-y-auto px-4 py-6">
+        <main className="flex-1 overflow-hidden flex flex-col px-4 py-4 gap-3">
         {/* コントロール */}
-        <div className="bg-white rounded-xl border border-slate-200 p-3 mb-4 space-y-2">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-2 shrink-0">
           <div className="flex flex-wrap items-center gap-2">
             <label className="text-xs font-bold text-slate-500">テーブル:</label>
             <select value={table} onChange={e => { setTable(e.target.value); setPage(1); setFilter(""); setDateFrom(""); setDateTo(""); setFieldKey(""); setFieldVal(""); }}
@@ -149,49 +149,57 @@ export default function AdminRawPage() {
 
         {/* エラー */}
         {error && (
-          <div className="mb-4 bg-red-50 border border-red-200 rounded px-4 py-2 text-red-600 text-sm">
+          <div className="shrink-0 bg-red-50 border border-red-200 rounded px-4 py-2 text-red-600 text-sm">
             ⚠️ {error}
           </div>
         )}
 
-        {/* テーブル */}
-        <div className="bg-white rounded-xl shadow overflow-auto">
+        {/* テーブル: カラムヘッダー固定・明細スクロール */}
+        <div className="flex-1 overflow-hidden bg-white rounded-xl border border-slate-200 flex flex-col">
           {loading ? (
             <div className="py-20 text-center text-slate-400">読み込み中…</div>
           ) : filtered.length === 0 ? (
             <div className="py-20 text-center text-slate-400">データなし</div>
-          ) : (
-            <table className="w-full text-xs whitespace-nowrap">
-              <thead className="bg-slate-50 sticky top-0">
-                <tr>
-                  {cols.map(col => (
-                    <th key={col} className="px-3 py-2 text-left text-slate-500 font-bold border-b border-slate-200">
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {filtered.map((row, i) => (
-                  <tr key={i} className="hover:bg-slate-50">
+          ) : (<>
+            {/* 固定ヘッダー */}
+            <div className="shrink-0 overflow-x-auto border-b border-slate-200">
+              <table className="text-xs whitespace-nowrap">
+                <thead className="bg-slate-50">
+                  <tr>
                     {cols.map(col => (
-                      <td key={col} className="px-3 py-1.5 font-mono text-slate-700 max-w-[200px] truncate"
-                        title={String(row[col] ?? "")}>
-                        {row[col] === null ? <span className="text-slate-300">NULL</span>
-                          : typeof row[col] === "object" ? JSON.stringify(row[col])
-                          : String(row[col])}
-                      </td>
+                      <th key={col} className="px-3 py-2 text-left text-slate-500 font-bold">
+                        {col}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+              </table>
+            </div>
+            {/* スクロール明細 */}
+            <div className="flex-1 overflow-auto">
+              <table className="text-xs whitespace-nowrap">
+                <tbody className="divide-y divide-slate-50">
+                  {filtered.map((row, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      {cols.map(col => (
+                        <td key={col} className="px-3 py-1.5 font-mono text-slate-700 max-w-[200px] truncate"
+                          title={String(row[col] ?? "")}>
+                          {row[col] === null ? <span className="text-slate-300">NULL</span>
+                            : typeof row[col] === "object" ? JSON.stringify(row[col])
+                            : String(row[col])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>)}
         </div>
 
         {/* ページネーション */}
         {totalPages > 1 && (
-          <div className="flex items-center gap-2 mt-4 justify-center">
+          <div className="flex items-center gap-2 justify-center shrink-0">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
               className="px-3 py-1 text-sm bg-white border border-slate-300 rounded disabled:opacity-40">
               ← 前
