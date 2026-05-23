@@ -81,7 +81,8 @@ export default function McNewPage() {
   const handleAuthSuccess = () => { setAuthOpen(false); };
 
   const handleSubmit = async () => {
-    if (!authToken) { setAuthOpen(true); return; }
+    // 認証状態を二重チェック（authToken と AuthContext の両方）
+    if (!authToken || !isAuthenticated) { setAuthOpen(true); return; }
     if (!selectedPart) { setSaveError("部品を選択してください"); return; }
     if (!machiningId) { setSaveError("加工IDを取得できませんでした"); return; }
 
@@ -103,13 +104,19 @@ export default function McNewPage() {
     } finally { setSaving(false); }
   };
 
-  const canSubmit = !!(authToken && selectedPart && machiningId);
+  // 認証状態はauthToken(ローカル)とisAuthenticated(AuthContext)の両方を確認
+  const canSubmit = !!(authToken && isAuthenticated && selectedPart && machiningId);
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="bg-slate-800 text-white px-5 py-2.5 flex items-center gap-3 shrink-0">
-        <button onClick={() => router.push("/mc/search")}
+        <button onClick={() => router.push("/")}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium transition-colors shrink-0">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          ダッシュボードへ戻る
+        </button>
+        <button onClick={() => router.push("/mc/search")}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 border border-slate-500 rounded-lg text-xs font-medium transition-colors shrink-0">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
           MC検索に戻る
         </button>
@@ -117,7 +124,7 @@ export default function McNewPage() {
         <span className="text-slate-400 text-xs">|</span>
         <span className="text-sm font-medium">MC 新規登録（仮登録）</span>
         <span className="ml-auto">
-          {authOperator
+          {isAuthenticated && authOperator
             ? <span className="text-[11px] bg-teal-700 text-white px-2.5 py-1 rounded font-bold">✓ 認証済: {authOperator.name}</span>
             : <button onClick={() => setAuthOpen(true)} className="text-[11px] bg-amber-600 hover:bg-amber-500 text-white px-2.5 py-1 rounded font-bold transition-colors">🔒 要認証 — クリックして認証</button>
           }
