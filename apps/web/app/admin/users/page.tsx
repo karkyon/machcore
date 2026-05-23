@@ -24,6 +24,7 @@ export default function AdminUsersPage() {
   const [dialogMode,  setDialogMode]  = useState<DialogMode>(null);
   const [fltCode,   setFltCode]   = useState("");
   const [fltName,   setFltName]   = useState("");
+  const [fltName2,  setFltName2]  = useState("");
   const [fltRole,   setFltRole]   = useState("");
   const [fltStatus, setFltStatus] = useState("");
   const [editTarget,  setEditTarget]  = useState<AdminUserInfo | null>(null);
@@ -48,7 +49,7 @@ export default function AdminUsersPage() {
 
   const filteredUsers = users.filter(u => {
     if (fltCode   && !u.employeeCode?.includes(fltCode)) return false;
-    if (fltName   && !u.name?.includes(fltName))         return false;
+    if (fltName2  && !u.name?.includes(fltName2))         return false;
     if (fltRole   && u.role !== fltRole)                  return false;
     if (fltStatus === "active"   && !u.isActive)          return false;
     if (fltStatus === "inactive" &&  u.isActive)          return false;
@@ -163,12 +164,12 @@ export default function AdminUsersPage() {
   return (
     <div className="min-h-screen bg-slate-100">
       {/* トップヘッダー */}
-    <header className="bg-slate-900 text-white px-5 py-2.5 flex items-center gap-3 shrink-0 border-b border-slate-800">
+    <header className="bg-white border-b border-slate-200 px-5 py-2.5 flex items-center gap-3 shrink-0">
       <div className="flex items-center gap-2">
         <div className="w-6 h-6 rounded bg-sky-600 flex items-center justify-center">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
         </div>
-        <span className="text-sm font-bold tracking-wide">MachCore 管理パネル</span>
+        <span className="text-sm font-bold text-slate-800 tracking-wide">MachCore 管理パネル</span>
       </div>
       <div className="ml-auto flex items-center gap-3">
         <span className="text-xs text-slate-400">{adminUser?.name}（管理者）</span>
@@ -186,8 +187,8 @@ export default function AdminUsersPage() {
     {/* サイドバー + メイン */}
     <div className="flex flex-1 min-h-0">
       {/* サイドバー */}
-      <aside className="w-48 shrink-0 bg-slate-800 flex flex-col py-4 gap-1 border-r border-slate-700">
-        <div className="px-4 pb-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">メニュー</div>
+      <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5">
+        <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">メニュー</div>
         <a href="/admin/users"
           className="mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm bg-sky-600 text-white font-bold">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>

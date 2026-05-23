@@ -97,12 +97,12 @@ export default function AdminRawPage() {
         </div>
       </header>
       <div className="flex flex-1 min-h-0">
-        <aside className="w-48 shrink-0 bg-slate-800 flex flex-col py-4 gap-1 border-r border-slate-700">
-          <div className="px-4 pb-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">メニュー</div>
+        <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5">
+          <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">メニュー</div>
           {SIDEBAR_ITEMS.map(item => (
             <a key={item.href} href={item.href}
               className={`mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors ${
-                pathname === item.href ? "bg-sky-600 text-white font-bold" : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                pathname === item.href ? "bg-sky-50 text-sky-700 font-bold border border-sky-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={item.icon}/></svg>
               {item.label}

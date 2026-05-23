@@ -62,8 +62,8 @@ export default function AdminMachinesPage() {
 
   const filtered = machines.filter(m => {
     if (fltName   && !m.machineName?.includes(fltName))   return false;
-    if (fltType   && m.machineType !== fltType)             return false;
-    if (fltMaker  && !m.maker?.includes(fltMaker))         return false;
+    if (fltType   && (m as any).machineType !== fltType)    return false;
+    if (fltMaker  && !(m as any).maker?.includes(fltMaker)) return false;
     if (fltStatus === "active"   &&  !m.isActive)          return false;
     if (fltStatus === "inactive" &&  m.isActive)           return false;
     return true;
