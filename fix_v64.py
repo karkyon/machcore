@@ -1,4 +1,28 @@
-"use client";
+import subprocess, sys, os
+
+ROOT = os.path.expanduser("~/projects/machcore")
+
+def read(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+def write(path, content):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+def run(cmd, cwd=ROOT):
+    print(f"--- {cmd.split()[0]} ---")
+    r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
+    if r.stdout.strip(): print(r.stdout[-3000:])
+    if r.stderr.strip(): print("STDERR:", r.stderr[-2000:])
+    return r.returncode
+
+# ═══════════════════════════════════════════
+# 1. users/page.tsx を完全書き直し
+# ═══════════════════════════════════════════
+USERS_PAGE = f"{ROOT}/apps/web/app/admin/users/page.tsx"
+
+USERS_CONTENT = '''"use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { adminUsersApi, AdminUserInfo } from "../../../lib/api";
@@ -330,3 +354,45 @@ function SelectField({ label, value, onChange }: { label: string; value: string;
     </div>
   );
 }
+'''
+
+write(USERS_PAGE, USERS_CONTENT)
+print("OK: admin/users/page.tsx 完全書き直し")
+
+# ═══════════════════════════════════════════
+# 2. mc/timecards/page.tsx — 「←管理パネル」ボタン追加
+# ═══════════════════════════════════════════
+TC_PAGE = f"{ROOT}/apps/web/app/mc/timecards/page.tsx"
+
+OLD_TC_HEADER = '''        <button onClick={() => router.push("/mc")}
+          className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium transition-colors">
+          ← ダッシュボード
+        </button>'''
+
+NEW_TC_HEADER = '''        <button onClick={() => router.push("/mc")}
+          className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium transition-colors">
+          ← ダッシュボード
+        </button>
+        <button onClick={() => router.push("/admin/machines")}
+          className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 border border-slate-500 rounded-lg text-xs font-medium transition-colors">
+          ⚙ 管理パネル
+        </button>'''
+
+c = read(TC_PAGE)
+if OLD_TC_HEADER in c:
+    write(TC_PAGE, c.replace(OLD_TC_HEADER, NEW_TC_HEADER, 1))
+    print("OK: mc/timecards/page.tsx 管理パネルボタン追加")
+else:
+    print("WARN: mc/timecards/page.tsx 管理パネルボタン — パターン不一致")
+
+# ═══════════════════════════════════════════
+# ビルド & デプロイ
+# ═══════════════════════════════════════════
+rc = run("npm run build", cwd=f"{ROOT}/apps/web")
+if rc != 0:
+    print("BUILD FAILED — abort"); sys.exit(1)
+
+run("npx tsc --noEmit", cwd=f"{ROOT}/apps/api")
+run("pm2 restart machcore-web && pm2 save && pm2 list")
+run('git add -A && git commit -m "fix: users/page.tsx完全書き直しライトモード+フィルタ+TC画面に管理パネルボタン v64" && git push')
+print("DONE")

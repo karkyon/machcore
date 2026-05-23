@@ -136,6 +136,10 @@ export default function TimecardPage() {
           className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium transition-colors">
           ← ダッシュボード
         </button>
+        <button onClick={() => router.push("/admin/machines")}
+          className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 border border-slate-500 rounded-lg text-xs font-medium transition-colors">
+          ⚙ 管理パネル
+        </button>
         <span className="text-slate-500">|</span>
         <span className="font-mono text-teal-400 font-bold text-sm">MachCore</span>
         <span className="text-sm font-medium">機械タイムカード</span>
