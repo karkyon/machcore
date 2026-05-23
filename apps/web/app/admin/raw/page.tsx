@@ -57,10 +57,11 @@ export default function AdminRawPage() {
   const totalPages = Math.ceil(total / limit);
 
   const SIDEBAR_ITEMS = [
-    { href: "/admin/users",    label: "ユーザ管理",   icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0" },
-    { href: "/admin/machines", label: "機械管理",     icon: "M22 12h-4l-3 9L9 3l-3 9H2" },
-    { href: "/admin/settings", label: "システム設定", icon: "M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" },
-    { href: "/admin/raw",      label: "RAWデータ",    icon: "M4 6h16M4 10h16M4 14h16M4 18h16" },
+    { href: "/admin/users",    label: "ユーザ管理",       icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0" },
+    { href: "/admin/machines", label: "機械管理",         icon: "M22 12h-4l-3 9L9 3l-3 9H2" },
+    { href: "/mc/timecards",   label: "機械タイムカード", icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
+    { href: "/admin/settings", label: "システム設定",     icon: "M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" },
+    { href: "/admin/raw",      label: "RAWデータ",        icon: "M4 6h16M4 10h16M4 14h16M4 18h16" },
   ];
 
   return (
