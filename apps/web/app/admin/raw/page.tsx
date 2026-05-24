@@ -154,47 +154,39 @@ export default function AdminRawPage() {
           </div>
         )}
 
-        {/* テーブル: カラムヘッダー固定・明細スクロール */}
-        <div className="flex-1 overflow-hidden bg-white rounded-xl border border-slate-200 flex flex-col">
+        {/* テーブル: stickyヘッダー方式（列幅が揃う） */}
+        <div className="flex-1 overflow-auto bg-white rounded-xl border border-slate-200">
           {loading ? (
             <div className="py-20 text-center text-slate-400">読み込み中…</div>
           ) : filtered.length === 0 ? (
             <div className="py-20 text-center text-slate-400">データなし</div>
-          ) : (<>
-            {/* 固定ヘッダー */}
-            <div className="shrink-0 overflow-x-auto border-b border-slate-200">
-              <table className="text-xs whitespace-nowrap">
-                <thead className="bg-slate-50">
-                  <tr>
+          ) : (
+            <table className="text-xs whitespace-nowrap w-full">
+              <thead className="bg-slate-50 sticky top-0 z-10">
+                <tr>
+                  {cols.map(col => (
+                    <th key={col} className="px-3 py-2 text-left text-slate-500 font-bold border-b border-slate-200">
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {filtered.map((row, i) => (
+                  <tr key={i} className="hover:bg-slate-50">
                     {cols.map(col => (
-                      <th key={col} className="px-3 py-2 text-left text-slate-500 font-bold">
-                        {col}
-                      </th>
+                      <td key={col} className="px-3 py-1.5 font-mono text-slate-700 max-w-[200px] truncate"
+                        title={String(row[col] ?? "")}>
+                        {row[col] === null ? <span className="text-slate-300">NULL</span>
+                          : typeof row[col] === "object" ? JSON.stringify(row[col])
+                          : String(row[col])}
+                      </td>
                     ))}
                   </tr>
-                </thead>
-              </table>
-            </div>
-            {/* スクロール明細 */}
-            <div className="flex-1 overflow-auto">
-              <table className="text-xs whitespace-nowrap">
-                <tbody className="divide-y divide-slate-50">
-                  {filtered.map((row, i) => (
-                    <tr key={i} className="hover:bg-slate-50">
-                      {cols.map(col => (
-                        <td key={col} className="px-3 py-1.5 font-mono text-slate-700 max-w-[200px] truncate"
-                          title={String(row[col] ?? "")}>
-                          {row[col] === null ? <span className="text-slate-300">NULL</span>
-                            : typeof row[col] === "object" ? JSON.stringify(row[col])
-                            : String(row[col])}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>)}
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* ページネーション */}

@@ -124,7 +124,7 @@ export default function AdminSettingsPage() {
             </a>
           ))}
         </aside>
-        <main className="flex-1 overflow-y-auto p-6 max-w-2xl">
+        <main className="flex-1 overflow-y-auto p-6">
         {loading ? (
           <div className="text-center py-20 text-slate-400">読み込み中…</div>
         ) : (
