@@ -85,24 +85,17 @@ export default function McNewPage() {
   const handlePartSelect = async (p: PartResult) => {
     setSelectedPart(p);
     setPartApproved(null); // 確認中→ボタンdisabled
-    console.log("[partSelect] 選択:", p.drawing_no, "→ 承認確認開始");
     try {
       const res = await mcApi.search("drawing_no", p.drawing_no ?? "");
       const d   = (res as any).data ?? res;
       const rows: any[] = d.rows ?? [];
-      console.log("[partSelect] 検索結果件数:", rows.length,
-        "ステータス一覧:", rows.map((r: any) => r.status));
       if (rows.length === 0) {
-        // 完全新規部品 → 登録可
-        console.log("[partSelect] 新規部品 → partApproved=true");
         setPartApproved(true);
       } else {
         const hasApproved = rows.some((r: any) => r.status === "APPROVED");
-        console.log("[partSelect] 承認済みあり:", hasApproved, "→ partApproved=", hasApproved);
         setPartApproved(hasApproved);
       }
-    } catch (e) {
-      console.warn("[partSelect] search失敗、通す:", e);
+    } catch {
       setPartApproved(true);
     }
   };
@@ -135,14 +128,6 @@ export default function McNewPage() {
   // partApproved が false（未承認のみ）の場合は登録不可
   // partApproved === true の場合のみ登録可（null=確認中はNG、false=未承認はNG）
   const canSubmit = !!(authToken && isAuthenticated && selectedPart && machiningId && partApproved === true);
-  // デバッグ用: canSubmit の状態変化をログ出力
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  if (typeof window !== "undefined") {
-    console.log("[canSubmit]", {
-      authToken: !!authToken, isAuthenticated, selectedPart: selectedPart?.drawing_no ?? null,
-      machiningId, partApproved, canSubmit,
-    });
-  }
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
