@@ -250,14 +250,18 @@ export default function McPrintPage() {
               <div className="bg-teal-600 px-5 py-3 text-white">
                 <h2 className="font-bold">段取シート発行オプション</h2>
               </div>
-              {/* 新規(NEW)以外のみ印刷オプション表示 */}
-              {!isNew && (
-                <>
-                  <div className="p-5 space-y-3">
+              {/* 図を含めるは常に表示、その他オプションは新規(NEW)以外のみ */}
+              <div className="p-5 pb-2 space-y-3">
+                <label className="flex items-center gap-3 text-sm cursor-pointer">
+                  <input type="checkbox" checked={includeDrawings} onChange={e => setIncludeDrawings(e.target.checked)}
+                    className="accent-teal-600 w-4 h-4" />
+                  <span className="text-slate-700">図を含める</span>
+                </label>
+                {!isNew && (
+                  <>
                     {[
                       [includeTooling,       setIncludeTooling,       "ツーリングリストを含める"],
                       [includeClamp,         setIncludeClamp,         "クランプ情報を含める"],
-                      [includeDrawings,      setIncludeDrawings,      "図を含める"],
                       [includeWorkOffsets,   setIncludeWorkOffsets,   "ワークオフセットを含める"],
                       [includeIndexPrograms, setIncludeIndexPrograms, "インデックスプログラムを含める"],
                     ].map(([val, setter, label]: any) => (
@@ -267,24 +271,26 @@ export default function McPrintPage() {
                         <span className="text-slate-700">{label}</span>
                       </label>
                     ))}
-                  </div>
-                  <div className="px-5 py-3 border-t border-slate-100">
-                    <label className="flex items-center gap-3 text-sm cursor-pointer">
-                      <input type="checkbox" checked={isReference} onChange={e => setIsReference(e.target.checked)}
-                        className="accent-amber-500 w-4 h-4" />
-                      <span className="text-amber-700 font-bold">参考出力（生産に使用しない・回収不要）</span>
-                    </label>
-                    {isReference && <p className="text-[11px] text-amber-600 mt-1 ml-7">参考出力はダッシュボードの未回収一覧に表示されません</p>}
-                  </div>
-                </>
+                  </>
+                )}
+              </div>
+              {!isNew && (
+                <div className="px-5 py-3 border-t border-slate-100">
+                  <label className="flex items-center gap-3 text-sm cursor-pointer">
+                    <input type="checkbox" checked={isReference} onChange={e => setIsReference(e.target.checked)}
+                      className="accent-amber-500 w-4 h-4" />
+                    <span className="text-amber-700 font-bold">参考出力（生産に使用しない・回収不要）</span>
+                  </label>
+                  {isReference && <p className="text-[11px] text-amber-600 mt-1 ml-7">参考出力はダッシュボードの未回収一覧に表示されません</p>}
+                </div>
               )}
-              <div className="px-5 pb-5 flex flex-col gap-3">
+              <div className="px-5 py-4 pb-6 flex flex-col gap-4 border-t border-slate-100 mt-2">
                 <button onClick={handlePrint} disabled={printing}
-                  className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-bold py-3 rounded-xl text-sm">
+                  className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-bold py-3.5 rounded-xl text-sm">
                   {printing ? "PDF生成中..." : isNew ? "📄 プレビュー（透かし入り・記録なし）" : "📄 PDFプレビュー（ブラウザで開く）"}
                 </button>
                 <button onClick={handleDirectPrint} disabled={directPrinting}
-                  className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3 rounded-xl text-sm">
+                  className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3.5 rounded-xl text-sm">
                   {directPrinting ? "送信中..." : "🖨 プリンタに直接印刷"}
                 </button>
               </div>

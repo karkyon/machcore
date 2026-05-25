@@ -9,6 +9,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
+import { McService } from '../mc/mc.service';
 
 const ALLOWED_TABLES = [
   'users', 'machines', 'parts', 'nc_programs',
@@ -20,6 +21,7 @@ export class AdminController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly filesService: FilesService,
+    private readonly mcService: McService,
   ) {}
 
   @Get('company')
@@ -375,6 +377,89 @@ export class AdminController {
         mcPrinter: body.mc_printer, ncPrinter: body.nc_printer,
       },
     });
+  }
+
+  // ══ PDFフィールド定義管理 ══
+
+  /** PDFテンプレート一覧 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('pdf-templates')
+  async getPdfTemplates() {
+    return this.prisma.pdfTemplate.findMany({
+      orderBy: { id: 'asc' },
+    });
+  }
+
+  /** PDFフィールド定義一覧（テンプレート名でフィルタ） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('pdf-fields')
+  async getPdfFields(@Query('template') templateName?: string) {
+    const where: any = {};
+    if (templateName) {
+      const tpl = await this.prisma.pdfTemplate.findFirst({ where: { name: templateName } });
+      if (tpl) where.templateId = tpl.id;
+    }
+    return this.prisma.pdfFieldDefinition.findMany({
+      where,
+      include: { template: { select: { name: true, filePath: true } } },
+      orderBy: [{ templateId: 'asc' }, { sortOrder: 'asc' }],
+    });
+  }
+
+  /** PDFフィールド定義更新 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Put('pdf-fields/:id')
+  async updatePdfField(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: {
+      x?: number;
+      y?: number;
+      font_size?: number;
+      is_active?: boolean;
+      label?: string;
+      note?: string;
+    },
+  ) {
+    return this.prisma.pdfFieldDefinition.update({
+      where: { id },
+      data: {
+        ...(body.x         != null && { x:        body.x }),
+        ...(body.y         != null && { y:        body.y }),
+        ...(body.font_size != null && { fontSize: body.font_size }),
+        ...(body.is_active != null && { isActive: body.is_active }),
+        ...(body.label     != null && { label:    body.label }),
+        ...(body.note      != null && { note:     body.note }),
+      },
+    });
+  }
+
+  /** PDFプレビュー生成（最初のMCプログラムを使用、is_preview=true） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('pdf-preview')
+  async getPdfPreview(
+    @Query('mc_id') mcIdStr?: string,
+    @Res() reply?: any,
+  ) {
+    // mc_id が指定されていない場合は最初のMCプログラムを使用
+    let mcId = mcIdStr ? parseInt(mcIdStr) : 0;
+    if (!mcId) {
+      const first = await this.prisma.mcProgram.findFirst({ orderBy: { id: 'asc' } });
+      if (!first) throw new BadRequestException('MCプログラムが存在しません');
+      mcId = first.id;
+    }
+    const pdf = await this.mcService.generateSetupSheetPdf(mcId, 1, {
+      include_tooling: true,
+      include_clamp:   true,
+      is_preview:      true,
+    } as any);
+    reply.header('Content-Type',        'application/pdf');
+    reply.header('Content-Disposition', `inline; filename="preview-${mcId}.pdf"`);
+    reply.header('Content-Length',      String(pdf.length));
+    return reply.send(pdf);
   }
 
   // ══ 機械タイムカード (admin用) ══
