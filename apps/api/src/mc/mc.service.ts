@@ -1010,13 +1010,51 @@ export class McService {
     finalDoc.addPage(copiedP1);
     finalDoc.addPage(copiedP2);
 
+    // ── プレビュー透かし処理 ──
+    const isPreview = (options as any).is_preview === true;
+    if (isPreview) {
+      // 全ページに「プレビュー」透かしを描画
+      const allPages = finalDoc.getPages();
+      const fontkit2 = await import('@pdf-lib/fontkit');
+      finalDoc.registerFontkit(fontkit2.default ?? fontkit2);
+      const FONT_PATH2 = '/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf';
+      const fontBytes2 = fs.readFileSync(FONT_PATH2);
+      const wFont = await finalDoc.embedFont(fontBytes2);
+      const { degrees } = await import('pdf-lib');
+      for (const page of allPages) {
+        const { width, height } = page.getSize();
+        // 対角方向に「プレビュー」を薄いグレーで複数回描画
+        const wText = 'プレビュー';
+        const wSize = 60;
+        const wColor = rgb(0.75, 0.75, 0.75);
+        const positions = [
+          { x: width * 0.15, y: height * 0.25 },
+          { x: width * 0.35, y: height * 0.55 },
+          { x: width * 0.55, y: height * 0.75 },
+        ];
+        for (const pos of positions) {
+          page.drawText(wText, {
+            x: pos.x, y: pos.y,
+            size: wSize,
+            font: wFont,
+            color: wColor,
+            rotate: degrees(35),
+            opacity: 0.35,
+          });
+        }
+      }
+    }
+
     const pdfBytes = await finalDoc.save();
     const pdfBuffer = Buffer.from(pdfBytes);
 
-    await this.prisma.mcSetupSheetLog.create({
-      data: { mcProgramId: mcId, operatorId, version: data.version ?? null,
-              ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}) },
-    }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
+    // プレビューの場合はDB記録・ファイル保存をスキップ
+    if (!isPreview) {
+      await this.prisma.mcSetupSheetLog.create({
+        data: { mcProgramId: mcId, operatorId, version: data.version ?? null,
+                ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}) },
+      }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
+    }
 
     return pdfBuffer;
   }

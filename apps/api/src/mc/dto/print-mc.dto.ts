@@ -7,4 +7,5 @@ export class PrintMcDto {
   @IsOptional() @IsBoolean() include_work_offsets?: boolean;
   @IsOptional() @IsBoolean() include_index_programs?: boolean;
   @IsOptional() @IsBoolean() is_reference?: boolean;
+  @IsOptional() @IsBoolean() is_preview?: boolean;
 }

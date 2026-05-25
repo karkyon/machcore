@@ -63,6 +63,8 @@ export default function McPrintPage() {
     include_index_programs: includeIndexPrograms,
   };
 
+  const isNew = nc?.status === "NEW";
+
   const handlePrint = async () => {
     if (!token) { setPrintError("認証が必要です"); return; }
     setPrinting(true); setPrintError(null);
@@ -70,14 +72,14 @@ export default function McPrintPage() {
       const res = await fetch(`/api/mc/${mcId}/print`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({...printBody, is_reference: isReference}),
+        // プレビューボタン: is_preview=true → DBに記録しない・透かし入り
+        body: JSON.stringify({...printBody, is_reference: isReference, is_preview: true}),
       });
       if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.message ?? `HTTP ${res.status}`); }
       const blob = await res.blob();
+      // プレビューはセッション継続（logout しない・画面遷移しない）
       window.open(URL.createObjectURL(blob), "_blank");
-      logout();
-      showToast("✅ 段取シートを発行しました");
-      setTimeout(() => router.push(`/mc/${mcId}`), 1500);
+      showToast("📄 プレビューを開きました（DBに記録されません）");
     } catch (e: any) {
       setPrintError(e.message ?? "PDF生成に失敗しました");
     } finally {
@@ -248,33 +250,38 @@ export default function McPrintPage() {
               <div className="bg-teal-600 px-5 py-3 text-white">
                 <h2 className="font-bold">段取シート発行オプション</h2>
               </div>
-              <div className="p-5 space-y-3">
-                {[
-                  [includeTooling,       setIncludeTooling,       "ツーリングリストを含める"],
-                  [includeClamp,         setIncludeClamp,         "クランプ情報を含める"],
-                  [includeDrawings,      setIncludeDrawings,      "図を含める"],
-                  [includeWorkOffsets,   setIncludeWorkOffsets,   "ワークオフセットを含める"],
-                  [includeIndexPrograms, setIncludeIndexPrograms, "インデックスプログラムを含める"],
-                ].map(([val, setter, label]: any) => (
-                  <label key={label} className="flex items-center gap-3 text-sm cursor-pointer">
-                    <input type="checkbox" checked={val} onChange={e => setter(e.target.checked)}
-                      className="accent-teal-600 w-4 h-4" />
-                    <span className="text-slate-700">{label}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="px-5 py-3 border-t border-slate-100">
-                <label className="flex items-center gap-3 text-sm cursor-pointer">
-                  <input type="checkbox" checked={isReference} onChange={e => setIsReference(e.target.checked)}
-                    className="accent-amber-500 w-4 h-4" />
-                  <span className="text-amber-700 font-bold">参考出力（生産に使用しない・回収不要）</span>
-                </label>
-                {isReference && <p className="text-[11px] text-amber-600 mt-1 ml-7">参考出力はダッシュボードの未回収一覧に表示されません</p>}
-              </div>
+              {/* 新規(NEW)以外のみ印刷オプション表示 */}
+              {!isNew && (
+                <>
+                  <div className="p-5 space-y-3">
+                    {[
+                      [includeTooling,       setIncludeTooling,       "ツーリングリストを含める"],
+                      [includeClamp,         setIncludeClamp,         "クランプ情報を含める"],
+                      [includeDrawings,      setIncludeDrawings,      "図を含める"],
+                      [includeWorkOffsets,   setIncludeWorkOffsets,   "ワークオフセットを含める"],
+                      [includeIndexPrograms, setIncludeIndexPrograms, "インデックスプログラムを含める"],
+                    ].map(([val, setter, label]: any) => (
+                      <label key={label} className="flex items-center gap-3 text-sm cursor-pointer">
+                        <input type="checkbox" checked={val} onChange={e => setter(e.target.checked)}
+                          className="accent-teal-600 w-4 h-4" />
+                        <span className="text-slate-700">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="px-5 py-3 border-t border-slate-100">
+                    <label className="flex items-center gap-3 text-sm cursor-pointer">
+                      <input type="checkbox" checked={isReference} onChange={e => setIsReference(e.target.checked)}
+                        className="accent-amber-500 w-4 h-4" />
+                      <span className="text-amber-700 font-bold">参考出力（生産に使用しない・回収不要）</span>
+                    </label>
+                    {isReference && <p className="text-[11px] text-amber-600 mt-1 ml-7">参考出力はダッシュボードの未回収一覧に表示されません</p>}
+                  </div>
+                </>
+              )}
               <div className="px-5 pb-5 flex flex-col gap-3">
                 <button onClick={handlePrint} disabled={printing}
                   className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-bold py-3 rounded-xl text-sm">
-                  {printing ? "PDF生成中..." : "📄 PDFプレビュー（ブラウザで開く）"}
+                  {printing ? "PDF生成中..." : isNew ? "📄 プレビュー（透かし入り・記録なし）" : "📄 PDFプレビュー（ブラウザで開く）"}
                 </button>
                 <button onClick={handleDirectPrint} disabled={directPrinting}
                   className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3 rounded-xl text-sm">
