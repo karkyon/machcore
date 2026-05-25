@@ -357,6 +357,7 @@ export type AdminUserInfo = {
   nameKana: string | null;
   role: 'VIEWER' | 'OPERATOR' | 'ADMIN';
   isActive: boolean;
+  systemType: 'NC' | 'MC' | 'BOTH';
   createdAt: string;
 };
 
@@ -373,6 +374,7 @@ export type UpdateAdminUserBody = {
   name_kana?: string;
   role?: 'VIEWER' | 'OPERATOR' | 'ADMIN';
   is_active?: boolean;
+  system_type?: 'NC' | 'MC' | 'BOTH';
 };
 
 export const adminUsersApi = {

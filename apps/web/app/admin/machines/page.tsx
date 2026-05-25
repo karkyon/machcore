@@ -160,8 +160,12 @@ export default function AdminMachinesPage() {
           <div className="flex flex-wrap gap-2 bg-white p-3 rounded-xl border border-slate-200 shrink-0">
             <input type="text" value={fltName} onChange={e => setFltName(e.target.value)} placeholder="機械名でフィルタ"
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none w-36" />
-            <input type="text" value={fltType} onChange={e => setFltType(e.target.value)} placeholder="種別（例: NC）"
-              className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none w-32" />
+            <select value={fltType} onChange={e => setFltType(e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+              <option value="">種別: すべて</option>
+              <option value="NC">NC</option>
+              <option value="MC">MC</option>
+            </select>
             <input type="text" value={fltMaker} onChange={e => setFltMaker(e.target.value)} placeholder="メーカーでフィルタ"
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none w-36" />
             <select value={fltStatus} onChange={e => setFltStatus(e.target.value)}

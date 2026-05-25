@@ -84,6 +84,7 @@ model User {
   role         UserRole @default(OPERATOR)
   isActive     Boolean  @default(true)          @map("is_active")
   avatarPath   String?  @db.VarChar(500)        @map("avatar_path")
+  systemType   SystemType @default(NC)          @map("system_type")
   createdAt    DateTime @default(now())         @map("created_at")
   updatedAt    DateTime @updatedAt              @map("updated_at")
   registeredPrograms NcProgram[]     @relation("RegisteredBy")

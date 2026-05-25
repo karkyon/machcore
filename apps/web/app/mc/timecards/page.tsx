@@ -15,7 +15,6 @@ const SIDEBAR_ITEMS = [
   { href: "/admin/raw",      label: "RAWデータ",        icon: "M4 6h16M4 10h16M4 14h16M4 18h16" },
 ];
 
-// admin token を使って /api/admin/... を呼ぶ fetch
 const apiFetch = async (path: string, opts?: RequestInit) => {
   const token = sessionStorage.getItem("admin_token") ?? "";
   const res = await fetch(`/api${path}`, {
@@ -32,12 +31,15 @@ const apiFetch = async (path: string, opts?: RequestInit) => {
 function fmtTime(dt: any): string {
   if (!dt) return "";
   const s = typeof dt === "string" ? dt : String(dt);
-  if (s.includes("T") && s.endsWith("Z")) {
+  // "1970-01-01T08:00:00.000Z" 形式（PostgreSQL Time型）
+  if (s.endsWith("Z") && s.includes("T")) {
     const d = new Date(s);
     return String(d.getUTCHours()).padStart(2,"0") + ":" + String(d.getUTCMinutes()).padStart(2,"0");
   }
-  if (s.includes("T")) return s.slice(11, 16);
+  // "08:00:00" 形式
   if (/^\d{2}:\d{2}/.test(s)) return s.slice(0, 5);
+  // "2026-05-25T08:00:00" (ローカル)
+  if (s.includes("T")) return s.slice(11, 16);
   return s;
 }
 
@@ -60,7 +62,6 @@ function fmtMin(min: number): string {
 
 interface RowState {
   id: number;
-  machineCode: string;
   machineName: string;
   startTime: string;
   endTime: string;
@@ -76,7 +77,6 @@ export default function TimecardPage() {
   const [workDate,   setWorkDate]   = useState(TODAY());
   const [rows,       setRows]       = useState<RowState[]>([]);
   const [loading,    setLoading]    = useState(false);
-  const [initing,    setIniting]    = useState(false);
   const [toast,      setToast]      = useState<string | null>(null);
   const [toastOk,    setToastOk]    = useState(true);
 
@@ -94,13 +94,11 @@ export default function TimecardPage() {
   const loadData = useCallback(async (date: string) => {
     setLoading(true);
     try {
-      // admin用エンドポイント: GET /api/admin/timecards?work_date=YYYY-MM-DD
       const data = await apiFetch(`/admin/timecards?work_date=${date}`);
       const cards: any[] = Array.isArray(data) ? data : (data.data ?? []);
       setRows(cards.map((c: any) => ({
         id:          c.id,
-        machineCode: c.machine?.machineCode ?? String(c.machine_id),
-        machineName: c.machine?.machineName ?? "",
+        machineName: c.machine?.machineName ?? c.machine?.machineCode ?? String(c.machine_id),
         startTime:   fmtTime(c.start_time),
         endTime:     fmtTime(c.end_time),
         note:        c.note ?? "",
@@ -108,26 +106,11 @@ export default function TimecardPage() {
         saving:      false,
       })));
     } catch (e: any) {
-      console.error("[TC] loadData error", e);
       showToast(`データ取得失敗: ${e.message}`, false);
     } finally { setLoading(false); }
   }, [showToast]);
 
   useEffect(() => { loadData(workDate); }, [workDate, loadData]);
-
-  const handleInit = async () => {
-    setIniting(true);
-    try {
-      const r = await apiFetch("/admin/timecards/init", {
-        method: "POST",
-        body: JSON.stringify({ work_date: workDate }),
-      });
-      showToast(`✅ ${r.created}件生成（全${r.total}台）`, true);
-      await loadData(workDate);
-    } catch (e: any) {
-      showToast(`❌ 生成失敗: ${e.message}`, false);
-    } finally { setIniting(false); }
-  };
 
   const updateRow = (idx: number, field: "startTime" | "endTime" | "note", value: string) => {
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value, dirty: true } : r));
@@ -138,13 +121,12 @@ export default function TimecardPage() {
     if (!row.startTime || !row.endTime) { showToast("⚠️ 開始・終了時刻を入力してください", false); return; }
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, saving: true } : r));
     try {
-      // admin用エンドポイント: PUT /api/admin/timecards/:id
       await apiFetch(`/admin/timecards/${row.id}`, {
         method: "PUT",
         body: JSON.stringify({ start_time: row.startTime + ":00", end_time: row.endTime + ":00", note: row.note || undefined }),
       });
       setRows(prev => prev.map((r, i) => i === idx ? { ...r, dirty: false, saving: false } : r));
-      showToast(`✅ ${row.machineCode} 更新しました`, true);
+      showToast(`✅ ${row.machineName} 更新しました`, true);
     } catch (e: any) {
       setRows(prev => prev.map((r, i) => i === idx ? { ...r, saving: false } : r));
       showToast(`❌ 更新失敗: ${e.message}`, false);
@@ -160,11 +142,7 @@ export default function TimecardPage() {
       dirtyRows.map(row =>
         apiFetch(`/admin/timecards/${row.id}`, {
           method: "PUT",
-          body: JSON.stringify({
-            start_time: row.startTime + ":00",
-            end_time:   row.endTime   + ":00",
-            note:       row.note || undefined,
-          }),
+          body: JSON.stringify({ start_time: row.startTime + ":00", end_time: row.endTime + ":00", note: row.note || undefined }),
         })
       )
     );
@@ -181,14 +159,8 @@ export default function TimecardPage() {
 
   const dirtyCount = rows.filter(r => r.dirty).length;
 
-  const handleLogout = () => {
-    sessionStorage.removeItem("admin_token"); sessionStorage.removeItem("admin_user");
-    router.push("/admin/login");
-  };
-
   return (
     <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
-      {/* ヘッダー */}
       <header className="bg-white border-b border-slate-200 px-5 py-2.5 flex items-center gap-3 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded bg-sky-600 flex items-center justify-center">
@@ -198,19 +170,19 @@ export default function TimecardPage() {
         </div>
         <div className="ml-auto flex items-center gap-3">
           {adminUser && <span className="text-xs text-slate-500">{adminUser.name}（管理者）</span>}
-          <a href="/" className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded transition-colors">← ダッシュボード</a>
-          <button onClick={handleLogout} className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded transition-colors">ログアウト</button>
+          <a href="/" className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded">← ダッシュボード</a>
+          <button onClick={() => { sessionStorage.removeItem("admin_token"); router.push("/admin/login"); }}
+            className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded">ログアウト</button>
         </div>
       </header>
 
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-white text-sm font-bold transition-all ${toastOk ? "bg-emerald-500" : "bg-red-500"}`}>
+        <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-white text-sm font-bold ${toastOk ? "bg-emerald-500" : "bg-red-500"}`}>
           {toast}
         </div>
       )}
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* サイドバー */}
         <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5 overflow-y-auto">
           <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">メニュー</div>
           {SIDEBAR_ITEMS.map(item => (
@@ -225,23 +197,17 @@ export default function TimecardPage() {
         </aside>
 
         <main className="flex-1 overflow-hidden flex flex-col p-4 gap-3">
-          {/* タイトル */}
           <div className="shrink-0 flex items-center gap-3">
             <h1 className="text-xl font-bold text-slate-800">機械タイムカード</h1>
             <span className="text-xs text-slate-400">稼働時間一覧（昼休み12:00-13:00跨ぎ -60分補正）</span>
           </div>
 
-          {/* ツールバー */}
           <div className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 flex-wrap shrink-0">
             <label className="text-sm font-bold text-slate-600">日付</label>
             <input type="date" value={workDate} onChange={e => setWorkDate(e.target.value)}
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none" />
             <button onClick={() => setWorkDate(TODAY())} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold">今日</button>
             <button onClick={() => loadData(workDate)} className="text-xs px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg font-bold">↺ 再読込</button>
-            <button onClick={handleInit} disabled={initing}
-              className="text-xs px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg font-bold disabled:opacity-50">
-              {initing ? "生成中…" : "📋 デフォルト生成"}
-            </button>
             <span className="text-xs text-slate-400">{rows.length}件</span>
             <div className="ml-auto flex items-center gap-2 flex-wrap">
               <button onClick={() => setAllTime("startTime","08:00")} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg font-bold whitespace-nowrap">全機械 08:00開始</button>
@@ -255,17 +221,16 @@ export default function TimecardPage() {
             </div>
           </div>
 
-          {/* テーブル固定ヘッダー */}
+          {/* 固定ヘッダーテーブル */}
           <div className="flex-1 overflow-hidden bg-white rounded-xl border border-slate-200 flex flex-col">
             <div className="shrink-0 border-b border-slate-200">
               <table className="w-full text-sm table-fixed">
                 <colgroup>
-                  <col className="w-32"/><col className="w-40"/><col className="w-28"/><col className="w-28"/>
-                  <col className="w-20"/><col className="w-40"/><col className="w-20"/>
+                  <col className="w-44"/><col className="w-28"/><col className="w-28"/>
+                  <col className="w-20"/><col className="w-44"/><col className="w-20"/>
                 </colgroup>
                 <thead>
                   <tr className="bg-slate-50 text-slate-600 text-xs uppercase">
-                    <th className="px-4 py-3 text-left font-bold">機械コード</th>
                     <th className="px-4 py-3 text-left font-bold">機械名</th>
                     <th className="px-3 py-3 text-left font-bold">開始時刻</th>
                     <th className="px-3 py-3 text-left font-bold">終了時刻</th>
@@ -281,24 +246,21 @@ export default function TimecardPage() {
                 <div className="text-center py-20 text-slate-400">読み込み中…</div>
               ) : rows.length === 0 ? (
                 <div className="text-center py-20 text-slate-400">
-                  <p className="mb-3">データがありません</p>
-                  <button onClick={handleInit} className="text-xs px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold">
-                    📋 デフォルト値でデータ生成
-                  </button>
+                  <p className="mb-1">データがありません</p>
+                  <p className="text-xs">毎朝5:00に自動生成されます</p>
                 </div>
               ) : (
                 <table className="w-full text-sm table-fixed">
                   <colgroup>
-                    <col className="w-32"/><col className="w-40"/><col className="w-28"/><col className="w-28"/>
-                    <col className="w-20"/><col className="w-40"/><col className="w-20"/>
+                    <col className="w-44"/><col className="w-28"/><col className="w-28"/>
+                    <col className="w-20"/><col className="w-44"/><col className="w-20"/>
                   </colgroup>
                   <tbody className="divide-y divide-slate-100">
                     {rows.map((row, idx) => {
                       const kadou = calcKadouMin(row.startTime, row.endTime);
                       return (
                         <tr key={row.id} className={`${row.dirty ? "bg-orange-50" : idx%2===0?"bg-white":"bg-slate-50/30"}`}>
-                          <td className="px-4 py-2 font-mono text-slate-700 text-xs">{row.machineCode}</td>
-                          <td className="px-4 py-2 text-slate-700 text-xs truncate">{row.machineName}</td>
+                          <td className="px-4 py-2 text-slate-800 text-sm font-medium truncate">{row.machineName}</td>
                           <td className="px-3 py-1.5">
                             <input type="time" value={row.startTime} onChange={e => updateRow(idx, "startTime", e.target.value)}
                               className="border border-slate-300 rounded px-2 py-1 text-xs w-24 focus:ring-1 focus:ring-sky-400 focus:outline-none" />

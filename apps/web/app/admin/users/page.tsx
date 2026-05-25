@@ -14,8 +14,11 @@ const ROLE_COLOR: Record<string, string> = {
   ADMIN: "bg-red-100 text-red-700", OPERATOR: "bg-sky-100 text-sky-700", VIEWER: "bg-slate-100 text-slate-600",
 };
 const ROLE_LABEL: Record<string, string> = { ADMIN: "管理者", OPERATOR: "作業者", VIEWER: "閲覧者" };
+const SYS_COLOR: Record<string, string> = {
+  NC: "bg-teal-100 text-teal-700", MC: "bg-purple-100 text-purple-700", BOTH: "bg-amber-100 text-amber-700",
+};
 
-type SortKey = "id" | "employeeCode" | "name" | "nameKana" | "role" | "isActive";
+type SortKey = "id" | "employeeCode" | "name" | "nameKana" | "role" | "isActive" | "systemType";
 type SortDir = "asc" | "desc";
 
 export default function AdminUsersPage() {
@@ -26,8 +29,11 @@ export default function AdminUsersPage() {
   const [toast,      setToast]      = useState<{ msg: string; ok: boolean } | null>(null);
   const [dialogMode, setDialogMode] = useState<"create"|"edit"|"password"|null>(null);
   const [editTarget, setEditTarget] = useState<AdminUserInfo | null>(null);
-  const [fName2,  setFName2]  = useState(""); const [fKana2, setFKana2] = useState("");
-  const [fRole2,  setFRole2]  = useState(""); const [fActive2, setFActive2] = useState("");
+  const [fName2,  setFName2]  = useState("");
+  const [fKana2,  setFKana2]  = useState("");
+  const [fRole2,  setFRole2]  = useState("");
+  const [fActive2, setFActive2] = useState("");
+  const [fSys2,   setFSys2]   = useState("NC");
   const [fPW,     setFPW]     = useState("");
   const [fError,  setFError]  = useState<string|null>(null);
   const [saving,  setSaving]  = useState(false);
@@ -35,6 +41,7 @@ export default function AdminUsersPage() {
   const [fltName,   setFltName]   = useState("");
   const [fltRole,   setFltRole]   = useState("");
   const [fltStatus, setFltStatus] = useState("");
+  const [fltSys,    setFltSys]    = useState("");
   const [sortKey,   setSortKey]   = useState<SortKey>("id");
   const [sortDir,   setSortDir]   = useState<SortDir>("asc");
 
@@ -55,8 +62,7 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     const token = sessionStorage.getItem("admin_token");
-    const user  = sessionStorage.getItem("admin_user");
-    if (!token || !user) { router.replace("/admin/login"); return; }
+    if (!token) { router.replace("/admin/login"); return; }
     fetchUsers();
   }, [router, fetchUsers]);
 
@@ -66,9 +72,11 @@ export default function AdminUsersPage() {
     if (fltRole   && u.role !== fltRole)                  return false;
     if (fltStatus === "active"   && !u.isActive)          return false;
     if (fltStatus === "inactive" &&  u.isActive)          return false;
+    if (fltSys    && u.systemType !== fltSys)             return false;
     return true;
   }).sort((a, b) => {
-    let va: any = a[sortKey], vb: any = b[sortKey];
+    let va: any = (a as any)[sortKey] ?? "";
+    let vb: any = (b as any)[sortKey] ?? "";
     if (typeof va === "string") va = va.toLowerCase();
     if (typeof vb === "string") vb = vb.toLowerCase();
     if (va < vb) return sortDir === "asc" ? -1 : 1;
@@ -84,8 +92,14 @@ export default function AdminUsersPage() {
     <span className="ml-1 opacity-50">{sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : "⇅"}</span>
   );
 
-  const openCreate = () => { setFName2(""); setFKana2(""); setFRole2("OPERATOR"); setFActive2(""); setFPW(""); setFError(null); setEditTarget(null); setDialogMode("create"); };
-  const openEdit   = (u: AdminUserInfo) => { setFName2(u.name); setFKana2(u.nameKana ?? ""); setFRole2(u.role); setFActive2(u.isActive ? "active" : "inactive"); setFPW(""); setFError(null); setEditTarget(u); setDialogMode("edit"); };
+  const openCreate = () => {
+    setFName2(""); setFKana2(""); setFRole2("OPERATOR"); setFActive2(""); setFSys2("NC"); setFPW(""); setFError(null); setEditTarget(null); setDialogMode("create");
+  };
+  const openEdit = (u: AdminUserInfo) => {
+    setFName2(u.name); setFKana2(u.nameKana ?? ""); setFRole2(u.role);
+    setFActive2(u.isActive ? "active" : "inactive"); setFSys2(u.systemType ?? "NC");
+    setFPW(""); setFError(null); setEditTarget(u); setDialogMode("edit");
+  };
   const openPassword = (u: AdminUserInfo) => { setFPW(""); setFError(null); setEditTarget(u); setDialogMode("password"); };
 
   const handleSave = async () => {
@@ -98,7 +112,7 @@ export default function AdminUsersPage() {
         await adminUsersApi.create({ employee_code: `STAFF${Date.now()}`, name: fName2, name_kana: fKana2 || undefined, password: fPW, role: fRole2 as any }, token);
         showToast("ユーザを登録しました", true);
       } else if (dialogMode === "edit" && editTarget) {
-        await adminUsersApi.update(editTarget.id, { name: fName2, name_kana: fKana2 || undefined, role: fRole2 as any, is_active: fActive2 !== "inactive" }, token);
+        await adminUsersApi.update(editTarget.id, { name: fName2, name_kana: fKana2 || undefined, role: fRole2 as any, is_active: fActive2 !== "inactive", system_type: fSys2 as any }, token);
         showToast("更新しました", true);
       }
       setDialogMode(null); fetchUsers();
@@ -121,13 +135,6 @@ export default function AdminUsersPage() {
       await adminUsersApi.update(u.id, { is_active: !u.isActive }, getToken());
       showToast(u.isActive ? "無効化しました" : "有効化しました", true); fetchUsers();
     } catch { showToast("変更失敗", false); }
-  };
-
-  // ユーザのシステム区分を推定（ADMIN001はADMIN、それ以外はemployeeCodeから）
-  const getSystemBadge = (u: AdminUserInfo) => {
-    if (u.role === "ADMIN") return null;
-    // employeeCodeでMC/NCを判別 (実際はDBにないのでNCをデフォルト)
-    return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-700">NC</span>;
   };
 
   return (
@@ -170,6 +177,13 @@ export default function AdminUsersPage() {
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none w-40" />
             <input type="text" value={fltName} onChange={e => setFltName(e.target.value)} placeholder="氏名でフィルタ"
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none w-36" />
+            <select value={fltSys} onChange={e => setFltSys(e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+              <option value="">区分: すべて</option>
+              <option value="NC">NC</option>
+              <option value="MC">MC</option>
+              <option value="BOTH">NC+MC</option>
+            </select>
             <select value={fltRole} onChange={e => setFltRole(e.target.value)}
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
               <option value="">ロール: すべて</option>
@@ -189,8 +203,8 @@ export default function AdminUsersPage() {
               <div className="shrink-0 border-b border-slate-200">
                 <table className="w-full text-sm table-fixed">
                   <colgroup>
-                    <col className="w-12"/><col className="w-28"/><col className="w-28"/><col className="w-24"/>
-                    <col className="w-24"/><col className="w-14"/><col className="w-52"/>
+                    <col className="w-10"/><col className="w-28"/><col className="w-32"/><col className="w-24"/>
+                    <col className="w-16"/><col className="w-24"/><col className="w-14"/><col className="w-52"/>
                   </colgroup>
                   <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
                     <tr>
@@ -198,6 +212,7 @@ export default function AdminUsersPage() {
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("employeeCode")}>社員コード<SortIcon k="employeeCode"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("name")}>氏名<SortIcon k="name"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("nameKana")}>カナ<SortIcon k="nameKana"/></th>
+                      <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("systemType")}>区分<SortIcon k="systemType"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("role")}>ロール<SortIcon k="role"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("isActive")}>状態<SortIcon k="isActive"/></th>
                       <th className="px-3 py-3 text-right">操作</th>
@@ -208,21 +223,19 @@ export default function AdminUsersPage() {
               <div className="flex-1 overflow-y-auto">
                 <table className="w-full text-sm table-fixed">
                   <colgroup>
-                    <col className="w-12"/><col className="w-28"/><col className="w-28"/><col className="w-24"/>
-                    <col className="w-24"/><col className="w-14"/><col className="w-52"/>
+                    <col className="w-10"/><col className="w-28"/><col className="w-32"/><col className="w-24"/>
+                    <col className="w-16"/><col className="w-24"/><col className="w-14"/><col className="w-52"/>
                   </colgroup>
                   <tbody className="divide-y divide-slate-100">
                     {filteredUsers.map(u => (
                       <tr key={u.id} className={`hover:bg-slate-50 ${!u.isActive ? "opacity-40" : ""}`}>
                         <td className="px-3 py-2.5 text-slate-400 text-xs">{u.id}</td>
                         <td className="px-3 py-2.5 font-mono text-slate-700 text-xs">{u.employeeCode}</td>
-                        <td className="px-3 py-2.5 text-slate-800 text-xs font-medium">
-                          <div className="flex items-center gap-1">
-                            <span className="truncate">{u.name}</span>
-                            {getSystemBadge(u)}
-                          </div>
-                        </td>
+                        <td className="px-3 py-2.5 text-slate-800 text-xs font-medium truncate">{u.name}</td>
                         <td className="px-3 py-2.5 text-slate-500 text-xs truncate">{u.nameKana ?? "—"}</td>
+                        <td className="px-3 py-2.5">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${SYS_COLOR[u.systemType] ?? "bg-slate-100 text-slate-500"}`}>{u.systemType ?? "NC"}</span>
+                        </td>
                         <td className="px-3 py-2.5">
                           <span className={`px-2 py-0.5 rounded text-xs font-bold ${ROLE_COLOR[u.role]}`}>{ROLE_LABEL[u.role] ?? u.role}</span>
                         </td>
@@ -240,7 +253,7 @@ export default function AdminUsersPage() {
                         </td>
                       </tr>
                     ))}
-                    {filteredUsers.length === 0 && <tr><td colSpan={7} className="text-center py-12 text-slate-400">該当するユーザがありません</td></tr>}
+                    {filteredUsers.length === 0 && <tr><td colSpan={8} className="text-center py-12 text-slate-400">該当するユーザがありません</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -249,7 +262,6 @@ export default function AdminUsersPage() {
         </main>
       </div>
 
-      {/* ダイアログ */}
       {dialogMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm">
@@ -265,6 +277,13 @@ export default function AdminUsersPage() {
                 <div><label className="text-xs font-bold text-slate-500 block mb-1">カナ</label>
                   <input type="text" value={fKana2} onChange={e => setFKana2(e.target.value)}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none" /></div>
+                <div><label className="text-xs font-bold text-slate-500 block mb-1">システム区分</label>
+                  <select value={fSys2} onChange={e => setFSys2(e.target.value)}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+                    <option value="NC">NC</option>
+                    <option value="MC">MC</option>
+                    <option value="BOTH">NC+MC（両方）</option>
+                  </select></div>
                 <div><label className="text-xs font-bold text-slate-500 block mb-1">ロール</label>
                   <select value={fRole2} onChange={e => setFRole2(e.target.value)}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">

@@ -46,7 +46,7 @@ export class AdminController {
     return this.prisma.user.findMany({
       select: {
         id: true, employeeCode: true, name: true, nameKana: true,
-        role: true, isActive: true, createdAt: true,
+        role: true, isActive: true, systemType: true, createdAt: true,
       },
       orderBy: { id: 'asc' },
     });
@@ -75,7 +75,7 @@ export class AdminController {
       },
       select: {
         id: true, employeeCode: true, name: true, nameKana: true,
-        role: true, isActive: true, createdAt: true,
+        role: true, isActive: true, systemType: true, createdAt: true,
       },
     });
   }
@@ -91,19 +91,21 @@ export class AdminController {
       name_kana?: string;
       role?: 'VIEWER' | 'OPERATOR' | 'ADMIN';
       is_active?: boolean;
+      system_type?: 'NC' | 'MC' | 'BOTH';
     },
   ) {
     const data: any = {};
-    if (body.name      !== undefined) data.name     = body.name;
-    if (body.name_kana !== undefined) data.nameKana  = body.name_kana;
-    if (body.role      !== undefined) data.role      = body.role;
-    if (body.is_active !== undefined) data.isActive  = body.is_active;
+    if (body.name        !== undefined) data.name       = body.name;
+    if (body.name_kana   !== undefined) data.nameKana   = body.name_kana;
+    if (body.role        !== undefined) data.role       = body.role;
+    if (body.is_active   !== undefined) data.isActive   = body.is_active;
+    if (body.system_type !== undefined) data.systemType = body.system_type;
     return this.prisma.user.update({
       where:  { id },
       data,
       select: {
         id: true, employeeCode: true, name: true, nameKana: true,
-        role: true, isActive: true, createdAt: true,
+        role: true, isActive: true, systemType: true, createdAt: true,
       },
     });
   }
