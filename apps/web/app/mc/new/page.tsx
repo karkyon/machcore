@@ -36,7 +36,6 @@ export default function McNewPage() {
 
   const [saving,    setSaving]    = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [partApproved, setPartApproved] = useState<boolean | null>(null);
 
   useEffect(() => {
     machinesApi.list().then(r => {
@@ -81,23 +80,8 @@ export default function McNewPage() {
 
   const handleAuthSuccess = () => { setAuthOpen(false); };
 
-  // 部品選択時：承認済みレコードの存在チェック
-  const handlePartSelect = async (p: PartResult) => {
+  const handlePartSelect = (p: PartResult) => {
     setSelectedPart(p);
-    setPartApproved(null); // 確認中→ボタンdisabled
-    try {
-      const res = await mcApi.search("drawing_no", p.drawing_no ?? "");
-      const d   = (res as any).data ?? res;
-      const rows: any[] = d.rows ?? [];
-      if (rows.length === 0) {
-        setPartApproved(true);
-      } else {
-        const hasApproved = rows.some((r: any) => r.status === "APPROVED");
-        setPartApproved(hasApproved);
-      }
-    } catch {
-      setPartApproved(true);
-    }
   };
 
   const handleSubmit = async () => {
@@ -126,8 +110,8 @@ export default function McNewPage() {
 
   // 認証状態はauthToken(ローカル)とisAuthenticated(AuthContext)の両方を確認
   // partApproved が false（未承認のみ）の場合は登録不可
-  // partApproved === true の場合のみ登録可（null=確認中はNG、false=未承認はNG）
-  const canSubmit = !!(authToken && isAuthenticated && selectedPart && machiningId && partApproved === true);
+  // 認証済み + 部品選択済み + 加工ID取得済み の場合のみ登録可
+  const canSubmit = !!(authToken && isAuthenticated && selectedPart && machiningId);
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
