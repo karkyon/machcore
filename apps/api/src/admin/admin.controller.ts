@@ -1,7 +1,8 @@
 import { execSync } from "child_process";
+import type { FastifyReply } from 'fastify';
 import {
   Controller, Get, Post, Put, Delete, Body, UseGuards,
-  Param, ParseIntPipe, Query, BadRequestException,
+  Param, ParseIntPipe, Query, BadRequestException, Res,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuthGuard } from '@nestjs/passport';
