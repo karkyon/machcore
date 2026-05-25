@@ -36,6 +36,7 @@ export default function McNewPage() {
 
   const [saving,    setSaving]    = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [partApproved, setPartApproved] = useState<boolean | null>(null);
 
   useEffect(() => {
     machinesApi.list().then(r => {
