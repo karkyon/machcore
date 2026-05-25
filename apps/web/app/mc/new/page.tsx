@@ -103,8 +103,10 @@ export default function McNewPage() {
     } finally { setSaving(false); }
   };
 
-  // 認証済み + 部品選択済み + 加工ID取得済み の場合のみ登録可
-  const canSubmit = !!(authToken && isAuthenticated && selectedPart && machiningId);
+  // authOperatorがセットされている = AuthModalで実際に認証済み（localStorage残存トークンは除外）
+  // authOperatorはページリロードでnullになるのでlocalStorage残存tokenの誤認証を防ぐ
+  const actuallyAuthenticated = !!(authToken && authOperator);
+  const canSubmit = !!(actuallyAuthenticated && selectedPart && machiningId);
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
@@ -241,7 +243,7 @@ export default function McNewPage() {
           )}
 
           <div className="mt-4 max-w-xl flex gap-3">
-            {!authToken ? (
+            {!actuallyAuthenticated ? (
               <button onClick={() => setAuthOpen(true)}
                 className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
                 🔒 先に認証してください
