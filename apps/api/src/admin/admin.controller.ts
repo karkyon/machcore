@@ -453,8 +453,8 @@ export class AdminController {
       mcId = first.id;
     }
     const pdf = await this.mcService.generateSetupSheetPdf(mcId, 1, {
-      include_tooling: true,
-      include_clamp:   true,
+      include_tooling: false,
+      include_clamp:   false,
       is_preview:      true,
     } as any);
     reply.header('Content-Type',        'application/pdf');

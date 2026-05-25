@@ -76,7 +76,11 @@ export default function PdfEditorPage() {
     if (!sessionStorage.getItem("admin_token")) { router.replace("/admin/login"); return; }
   }, [router]);
 
-  useEffect(() => { loadFields(); }, [selTpl]);
+  useEffect(() => {
+    loadFields();
+    // P1選択→1ページ目、P2選択→2ページ目を自動で表示
+    setPreviewPage(selTpl === "mc_setup_p1" ? 1 : 2);
+  }, [selTpl]);
 
   // pdfjs でPDFをcanvasに描画（previewPageに応じてページを切り替え）
   useEffect(() => {
@@ -103,7 +107,8 @@ export default function PdfEditorPage() {
   const loadFields = async () => {
     setLoading(true);
     try {
-      const data = await apiFetch(`/admin/pdf-fields?template=${selTpl}`);
+      // 両テンプレートのフィールドを取得（P1/P2どちらも表示）
+      const data = await apiFetch(`/admin/pdf-fields`);
       const arr: PdfField[] = Array.isArray(data) ? data : [];
       setFields(arr.map(f => ({ ...f, _ex: f.x, _ey: f.y, _es: f.fontSize, _ea: f.isActive, _dirty: false })));
     } catch (e: any) { showToast(`読み込み失敗: ${e.message}`, false); }
@@ -245,13 +250,15 @@ export default function PdfEditorPage() {
             {/* プレビューページ切り替え */}
             {pdfBytes && (
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-slate-400">表示ページ:</span>
-                {[1, 2].map(p => (
-                  <button key={p} onClick={() => setPreviewPage(p)}
-                    className={`px-2 py-0.5 text-[10px] rounded border ${previewPage === p ? "bg-slate-700 text-white border-slate-700" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
-                    {p}ページ目
-                  </button>
-                ))}
+                <span className="text-[10px] text-slate-400">表示:</span>
+                <button onClick={() => { setPreviewPage(1); setSelTpl("mc_setup_p1"); }}
+                  className={`px-2 py-0.5 text-[10px] rounded border ${previewPage === 1 ? "bg-teal-600 text-white border-teal-600" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+                  1P目（段取シート1枚目）
+                </button>
+                <button onClick={() => { setPreviewPage(2); setSelTpl("mc_setup_p2"); }}
+                  className={`px-2 py-0.5 text-[10px] rounded border ${previewPage === 2 ? "bg-orange-600 text-white border-orange-600" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+                  2P目（段取シート2枚目）
+                </button>
               </div>
             )}
             <div className="flex items-center gap-1">
@@ -285,7 +292,7 @@ export default function PdfEditorPage() {
             <div className="flex-1 overflow-y-auto">
               {loading ? <div className="text-center py-10 text-slate-400 text-xs">読み込み中…</div> : (
                 <table className="w-full text-xs table-fixed">
-                  <colgroup><col className="w-5"/><col/><col className="w-12"/><col className="w-12"/><col className="w-10"/><col className="w-12"/></colgroup>
+                  <colgroup><col className="w-5"/><col/><col className="w-8"/><col className="w-12"/><col className="w-12"/><col className="w-10"/><col className="w-12"/></colgroup>
                   <tbody className="divide-y divide-slate-100">
                     {fields.map(f => {
                       const isSel = selId === f.id;
@@ -299,6 +306,11 @@ export default function PdfEditorPage() {
                           <td className="px-2 py-1">
                             <div className="font-medium text-slate-800 truncate text-[11px]">{f.label}</div>
                             <div className="text-[9px] text-slate-400 truncate font-mono">{f.dataSource}</div>
+                          </td>
+                          <td className="py-1 px-0.5 text-center">
+                            <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${f.template?.name === 'mc_setup_p1' ? 'bg-teal-100 text-teal-700' : 'bg-orange-100 text-orange-700'}`}>
+                              {f.template?.name === 'mc_setup_p1' ? '1P' : '2P'}
+                            </span>
                           </td>
                           <td className="py-1 px-0.5" onClick={e => e.stopPropagation()}>
                             <input type="number" value={f._ex ?? f.x} step="1"
