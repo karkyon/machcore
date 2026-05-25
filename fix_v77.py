@@ -1,4 +1,169 @@
-"use client";
+#!/usr/bin/env python3
+"""
+fix_v77.py
+===========
+修正内容:
+  1. [DB] pdf_field_definitions の MC ID フィールドの data_source を 'id' → 'legacyMcid' に変更
+  2. [API] mc.service.ts generateSetupSheetPdf:
+     a. 備考（note）フィールドを複数行対応（\n で分割して複数drawText）
+     b. ツーリングリストを必ず include_tooling オプションで制御（include_tooling=trueの時のみ）
+        → adminプレビューは include_tooling:true で呼んでいるが、デフォルトはfalse にする
+     c. __page_no__ フィールドに「1 / 2」形式で印字
+  3. [UI] admin/pdf-editor/page.tsx: P2編集のためページ切り替えボタン追加
+     + pdfjs-dist を <Script> ではなく useEffect で動的ロード（Next.js対応）
+  ビルド→pm2 restart→git push
+"""
+import subprocess, sys, os
+
+ROOT = os.path.expanduser("~/projects/machcore")
+WEB  = f"{ROOT}/apps/web"
+API  = f"{ROOT}/apps/api/src"
+
+def read(p):
+    with open(p,"r",encoding="utf-8") as f: return f.read()
+def write(p,c):
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p,"w",encoding="utf-8") as f: f.write(c)
+def patch(p,old,new,label):
+    c=read(p)
+    if old not in c: print(f"WARN: {label} — 不一致"); return False
+    write(p,c.replace(old,new,1)); print(f"OK: {label}"); return True
+def run(cmd,cwd=ROOT):
+    r=subprocess.run(cmd,shell=True,cwd=cwd,capture_output=True,text=True)
+    if r.stdout.strip(): print(r.stdout[-4000:])
+    if r.stderr.strip(): print("STDERR:",r.stderr[-2000:])
+    return r.returncode
+
+# ─────────────────────────────────────────────────────────────
+# 1. DB: MC IDフィールドのdata_sourceを legacyMcid に変更
+#        + ページ番号フィールドを「1 / 2」形式に対応するため data_source='__page_no__' に更新
+# ─────────────────────────────────────────────────────────────
+print("--- DB: pdf_field_definitions MC ID data_source修正 ---")
+sql = """
+-- MC ID フィールドの data_source を legacyMcid に変更（'id'は内部DB連番で意味なし）
+UPDATE pdf_field_definitions
+  SET data_source = 'legacyMcid'
+  WHERE field_key = 'id' AND data_source = 'id';
+
+-- __page_no__ フィールドを確認
+SELECT field_key, data_source, label FROM pdf_field_definitions WHERE field_key = '__page_no__';
+SELECT field_key, data_source, label FROM pdf_field_definitions WHERE field_key = 'id';
+"""
+r = subprocess.run(
+    ["docker","exec","machcore-postgres","psql","-U","machcore","-d","machcore_dev","-c",sql],
+    capture_output=True, text=True, cwd=ROOT
+)
+print(r.stdout[:1000])
+if r.returncode == 0:
+    print("OK: DB MC ID data_source修正")
+else:
+    print("WARN:", r.stderr[:300])
+
+# ─────────────────────────────────────────────────────────────
+# 2. mc.service.ts: 備考多行対応 + ツーリング制御修正 + ページ番号「1/2」
+# ─────────────────────────────────────────────────────────────
+mc_service = f"{API}/mc/mc.service.ts"
+
+# P1フィールドのdrawTextループを改良版に置換
+old_p1_loop = """    console.log('[PDF] templates count:', templates.length);
+    const p1Fields = templates.filter(f => f.name === 'mc_setup_p1');
+    for (const f of p1Fields) {
+      const text = resolve(f.data_source);
+      if (!text) continue;
+      p1Page.drawText(text, {
+        x: Number(f.x),
+        y: Number(f.y),
+        size: Number(f.font_size),
+        font: font1,
+        color: rgb(0, 0, 0),
+      });
+    }"""
+
+new_p1_loop = """    console.log('[PDF] templates count:', templates.length);
+
+    // 備考の複数行描画ヘルパー
+    const drawMultiLine = (page: any, text: string, x: number, y: number, size: number, font: any, lineH?: number) => {
+      const lh = lineH ?? size * 1.4;
+      const lines = text.split(/\\n|\\r\\n/);
+      lines.forEach((line: string, i: number) => {
+        if (!line.trim()) return;
+        page.drawText(line, { x, y: y - i * lh, size, font, color: rgb(0,0,0) });
+      });
+    };
+
+    const p1Fields = templates.filter(f => f.name === 'mc_setup_p1');
+    for (const f of p1Fields) {
+      // __page_no__ は「1 / 2」固定
+      if (f.field_key === '__page_no__') {
+        p1Page.drawText('1 / 2', {
+          x: Number(f.x), y: Number(f.y), size: Number(f.font_size), font: font1, color: rgb(0,0,0),
+        });
+        continue;
+      }
+      const text = resolve(f.data_source);
+      if (!text) continue;
+      // 備考フィールドは改行対応
+      if (f.field_key === 'note' && text.includes('\\n')) {
+        drawMultiLine(p1Page, text, Number(f.x), Number(f.y), Number(f.font_size), font1);
+      } else {
+        p1Page.drawText(text, {
+          x: Number(f.x), y: Number(f.y), size: Number(f.font_size), font: font1, color: rgb(0,0,0),
+        });
+      }
+    }"""
+
+patch(mc_service, old_p1_loop, new_p1_loop, "mc.service.ts P1フィールドループ改良（備考改行+ページ番号）")
+
+# P2フィールドループも同様に改良
+old_p2_loop = """    const p2Fields = templates.filter(f => f.name === 'mc_setup_p2');
+    for (const f of p2Fields) {
+      const text = resolve(f.data_source);
+      if (!text) continue;
+      p2Page.drawText(text, {
+        x: Number(f.x),
+        y: Number(f.y),
+        size: Number(f.font_size),
+        font: font2,
+        color: rgb(0, 0, 0),
+      });
+    }"""
+
+new_p2_loop = """    const p2Fields = templates.filter(f => f.name === 'mc_setup_p2');
+    for (const f of p2Fields) {
+      if (f.field_key === '__page_no__') {
+        p2Page.drawText('2 / 2', {
+          x: Number(f.x), y: Number(f.y), size: Number(f.font_size), font: font2, color: rgb(0,0,0),
+        });
+        continue;
+      }
+      const text = resolve(f.data_source);
+      if (!text) continue;
+      if (f.field_key === 'note' && text.includes('\\n')) {
+        const lh = Number(f.font_size) * 1.4;
+        text.split(/\\n|\\r\\n/).forEach((line: string, i: number) => {
+          if (!line.trim()) return;
+          p2Page.drawText(line, { x: Number(f.x), y: Number(f.y) - i * lh, size: Number(f.font_size), font: font2, color: rgb(0,0,0) });
+        });
+      } else {
+        p2Page.drawText(text, {
+          x: Number(f.x), y: Number(f.y), size: Number(f.font_size), font: font2, color: rgb(0,0,0),
+        });
+      }
+    }"""
+
+patch(mc_service, old_p2_loop, new_p2_loop, "mc.service.ts P2フィールドループ改良（備考改行+ページ番号）")
+
+# ツーリングリストのデフォルトを include_tooling チェック付きに修正
+# adminプレビュー呼び出し時は include_tooling:true のままでOK
+# 通常PDFプレビューボタン（is_preview=true）の呼び出し時はoptions.include_toolingに依存
+old_tooling_check = "    // ツーリングリスト差し込み（DB定義がない場合のフォールバック）\n    if (options.include_tooling !== false && data.tooling?.length > 0) {"
+new_tooling_check = "    // ツーリングリスト差し込み（include_tooling=trueの場合のみ）\n    if (options.include_tooling === true && data.tooling?.length > 0) {"
+patch(mc_service, old_tooling_check, new_tooling_check, "mc.service.ts include_tooling デフォルトをfalseに")
+
+# ─────────────────────────────────────────────────────────────
+# 3. admin/pdf-editor/page.tsx: pdfjs動的ロード修正 + P2切り替えボタン
+# ─────────────────────────────────────────────────────────────
+write(f"{WEB}/app/admin/pdf-editor/page.tsx", r'''"use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
@@ -434,3 +599,25 @@ export default function PdfEditorPage() {
     </div>
   );
 }
+''')
+print("OK: admin/pdf-editor/page.tsx pdfjs動的ロード+P2切り替え+previewPage")
+
+# ─────────────────────────────────────────────────────────────
+# 4. ビルド + pm2 + push
+# ─────────────────────────────────────────────────────────────
+print("--- build web ---")
+rc = run("pnpm --filter web build", cwd=ROOT)
+if rc != 0: rc = run("pnpm run build", cwd=f"{ROOT}/apps/web")
+if rc != 0: print("BUILD FAILED (web) — abort"); sys.exit(1)
+
+print("--- build api ---")
+rc2 = run("pnpm --filter api build", cwd=ROOT)
+if rc2 != 0: rc2 = run("pnpm run build", cwd=f"{ROOT}/apps/api")
+if rc2 != 0: print("BUILD FAILED (api) — abort"); sys.exit(1)
+
+print("--- pm2 restart ---")
+run("pm2 restart machcore-api machcore-web")
+
+print("--- git push ---")
+run("git add -A && git commit -m 'fix(v77): MC ID→legacyMcid、備考改行、ツーリング制御、ページ番号1/2、P2エディタ切替' && git push", cwd=ROOT)
+print("DONE v77")

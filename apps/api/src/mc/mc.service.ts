@@ -939,21 +939,40 @@ export class McService {
     const p1H = p1Page.getHeight();
 
     console.log('[PDF] templates count:', templates.length);
+
+    // 備考の複数行描画ヘルパー
+    const drawMultiLine = (page: any, text: string, x: number, y: number, size: number, font: any, lineH?: number) => {
+      const lh = lineH ?? size * 1.4;
+      const lines = text.split(/\n|\r\n/);
+      lines.forEach((line: string, i: number) => {
+        if (!line.trim()) return;
+        page.drawText(line, { x, y: y - i * lh, size, font, color: rgb(0,0,0) });
+      });
+    };
+
     const p1Fields = templates.filter(f => f.name === 'mc_setup_p1');
     for (const f of p1Fields) {
+      // __page_no__ は「1 / 2」固定
+      if (f.field_key === '__page_no__') {
+        p1Page.drawText('1 / 2', {
+          x: Number(f.x), y: Number(f.y), size: Number(f.font_size), font: font1, color: rgb(0,0,0),
+        });
+        continue;
+      }
       const text = resolve(f.data_source);
       if (!text) continue;
-      p1Page.drawText(text, {
-        x: Number(f.x),
-        y: Number(f.y),
-        size: Number(f.font_size),
-        font: font1,
-        color: rgb(0, 0, 0),
-      });
+      // 備考フィールドは改行対応
+      if (f.field_key === 'note' && text.includes('\n')) {
+        drawMultiLine(p1Page, text, Number(f.x), Number(f.y), Number(f.font_size), font1);
+      } else {
+        p1Page.drawText(text, {
+          x: Number(f.x), y: Number(f.y), size: Number(f.font_size), font: font1, color: rgb(0,0,0),
+        });
+      }
     }
 
-    // ツーリングリスト差し込み（DB定義がない場合のフォールバック）
-    if (options.include_tooling !== false && data.tooling?.length > 0) {
+    // ツーリングリスト差し込み（include_tooling=trueの場合のみ）
+    if (options.include_tooling === true && data.tooling?.length > 0) {
       const { Pool: Pool2 } = await import('pg');
       const DB_URL2 = process.env.DATABASE_URL || 'postgresql://machcore:machcore_pass_change_me@localhost:5440/machcore_dev?schema=public';
       const pool2 = new Pool2({ connectionString: DB_URL2 });
@@ -991,15 +1010,25 @@ export class McService {
 
     const p2Fields = templates.filter(f => f.name === 'mc_setup_p2');
     for (const f of p2Fields) {
+      if (f.field_key === '__page_no__') {
+        p2Page.drawText('2 / 2', {
+          x: Number(f.x), y: Number(f.y), size: Number(f.font_size), font: font2, color: rgb(0,0,0),
+        });
+        continue;
+      }
       const text = resolve(f.data_source);
       if (!text) continue;
-      p2Page.drawText(text, {
-        x: Number(f.x),
-        y: Number(f.y),
-        size: Number(f.font_size),
-        font: font2,
-        color: rgb(0, 0, 0),
-      });
+      if (f.field_key === 'note' && text.includes('\n')) {
+        const lh = Number(f.font_size) * 1.4;
+        text.split(/\n|\r\n/).forEach((line: string, i: number) => {
+          if (!line.trim()) return;
+          p2Page.drawText(line, { x: Number(f.x), y: Number(f.y) - i * lh, size: Number(f.font_size), font: font2, color: rgb(0,0,0) });
+        });
+      } else {
+        p2Page.drawText(text, {
+          x: Number(f.x), y: Number(f.y), size: Number(f.font_size), font: font2, color: rgb(0,0,0),
+        });
+      }
     }
 
     // P1+P2を結合して2ページPDFに
