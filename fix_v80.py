@@ -1,4 +1,52 @@
-"use client";
+#!/usr/bin/env python3
+"""fix_v80.py"""
+import subprocess, sys, os
+
+ROOT = os.path.expanduser("~/projects/machcore")
+WEB  = f"{ROOT}/apps/web"
+
+def read(p):
+    with open(p,"r",encoding="utf-8") as f: return f.read()
+def write(p,c):
+    with open(p,"w",encoding="utf-8") as f: f.write(c)
+def patch(p,old,new,label):
+    c=read(p)
+    if old not in c: print(f"WARN: {label} — 不一致"); return False
+    write(p,c.replace(old,new,1)); print(f"OK: {label}"); return True
+def run(cmd,cwd=ROOT):
+    r=subprocess.run(cmd,shell=True,cwd=cwd,capture_output=True,text=True)
+    if r.stdout.strip(): print(r.stdout[-4000:])
+    if r.stderr.strip(): print("STDERR:",r.stderr[-2000:])
+    return r.returncode
+def db_exec(sql):
+    r=subprocess.run(["docker","exec","machcore-postgres","psql","-U","machcore","-d","machcore_dev","-c",sql],
+        capture_output=True,text=True,cwd=ROOT)
+    print(r.stdout[:2000])
+    if r.returncode!=0: print("WARN:",r.stderr[:300])
+
+# ─────────────────────────────────────────────────────────────
+# 1. DB: P2フィールドを__page_no__のみにする（他は全削除）
+# ─────────────────────────────────────────────────────────────
+print("--- DB: P2フィールドを__page_no__のみに ---")
+db_exec("""
+-- P2の__page_no__以外を全削除
+DELETE FROM pdf_field_definitions
+WHERE template_id = (SELECT id FROM pdf_templates WHERE name = 'mc_setup_p2')
+  AND field_key != '__page_no__';
+
+-- 確認
+SELECT id, field_key, label, data_source, is_active, x, y, font_size
+FROM pdf_field_definitions
+WHERE template_id = (SELECT id FROM pdf_templates WHERE name = 'mc_setup_p2');
+""")
+
+# ─────────────────────────────────────────────────────────────
+# 2. pdf-editor/page.tsx 完全書き直し
+#    - 上部の「P1（表面）」「P2（裏面）」ボタン削除
+#    - 「表示:1P目/2P目」ボタンのみでP1/P2切り替え
+#    - selTpl は previewPage に連動（1P目→mc_setup_p1、2P目→mc_setup_p2）
+# ─────────────────────────────────────────────────────────────
+write(f"{WEB}/app/admin/pdf-editor/page.tsx", r'''"use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
@@ -413,3 +461,17 @@ export default function PdfEditorPage() {
     </div>
   );
 }
+''')
+print("OK: admin/pdf-editor/page.tsx 完全書き直し")
+
+print("--- build web ---")
+rc = run("pnpm --filter web build", cwd=ROOT)
+if rc != 0: rc = run("pnpm run build", cwd=f"{ROOT}/apps/web")
+if rc != 0: print("BUILD FAILED — abort"); sys.exit(1)
+
+print("--- pm2 restart ---")
+run("pm2 restart machcore-web")
+
+print("--- git push ---")
+run("git add -A && git commit -m 'fix(v80): P1/P2ボタン削除・P2フィールドをページ番号のみ・切替修正' && git push", cwd=ROOT)
+print("DONE v80")
