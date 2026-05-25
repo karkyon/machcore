@@ -107,8 +107,8 @@ export default function PdfEditorPage() {
   const loadFields = async () => {
     setLoading(true);
     try {
-      // 両テンプレートのフィールドを取得（P1/P2どちらも表示）
-      const data = await apiFetch(`/admin/pdf-fields`);
+      // selTpl に対応するフィールドのみ取得
+      const data = await apiFetch(`/admin/pdf-fields?template=${selTpl}`);
       const arr: PdfField[] = Array.isArray(data) ? data : [];
       setFields(arr.map(f => ({ ...f, _ex: f.x, _ey: f.y, _es: f.fontSize, _ea: f.isActive, _dirty: false })));
     } catch (e: any) { showToast(`読み込み失敗: ${e.message}`, false); }
@@ -292,7 +292,7 @@ export default function PdfEditorPage() {
             <div className="flex-1 overflow-y-auto">
               {loading ? <div className="text-center py-10 text-slate-400 text-xs">読み込み中…</div> : (
                 <table className="w-full text-xs table-fixed">
-                  <colgroup><col className="w-5"/><col/><col className="w-8"/><col className="w-12"/><col className="w-12"/><col className="w-10"/><col className="w-12"/></colgroup>
+                  <colgroup><col className="w-5"/><col/><col className="w-12"/><col className="w-12"/><col className="w-10"/><col className="w-12"/></colgroup>
                   <tbody className="divide-y divide-slate-100">
                     {fields.map(f => {
                       const isSel = selId === f.id;
@@ -306,11 +306,6 @@ export default function PdfEditorPage() {
                           <td className="px-2 py-1">
                             <div className="font-medium text-slate-800 truncate text-[11px]">{f.label}</div>
                             <div className="text-[9px] text-slate-400 truncate font-mono">{f.dataSource}</div>
-                          </td>
-                          <td className="py-1 px-0.5 text-center">
-                            <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${f.template?.name === 'mc_setup_p1' ? 'bg-teal-100 text-teal-700' : 'bg-orange-100 text-orange-700'}`}>
-                              {f.template?.name === 'mc_setup_p1' ? '1P' : '2P'}
-                            </span>
                           </td>
                           <td className="py-1 px-0.5" onClick={e => e.stopPropagation()}>
                             <input type="number" value={f._ex ?? f.x} step="1"
