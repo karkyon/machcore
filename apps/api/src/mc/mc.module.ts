@@ -6,5 +6,6 @@ import { McFilesService } from './mc-files.service';
 @Module({
   controllers: [McController],
   providers:   [McService, McFilesService],
+  exports:     [McService],
 })
 export class McModule {}

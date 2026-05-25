@@ -1,4 +1,53 @@
-"use client";
+#!/usr/bin/env python3
+"""
+fix_v75.py
+===========
+修正内容:
+  1. [API 緊急修正] mc.module.ts に exports: [McService] 追加
+     → AdminModule が McService を DI できず 500 エラーになっていた根本原因
+  2. [UI] admin/pdf-editor/page.tsx: Anthropic API を使ったインタラクティブPDFエディタに刷新
+     - 左ペイン: フィールド一覧テーブル（x/y/fontSize を直接数値入力）
+       + 選択フィールドのスライダー編集
+     - 右ペイン: iframeでPDFプレビュー + SVGオーバーレイでフィールド位置を可視化
+     - 変更は即座に右側のオーバーレイに反映（PDF再生成不要）
+     - 「保存してプレビュー更新」で DB保存 → PDF再生成 → 表示更新
+  ビルド→pm2 restart→git push まで自動実行
+"""
+import subprocess, sys, os
+
+ROOT = os.path.expanduser("~/projects/machcore")
+WEB  = f"{ROOT}/apps/web"
+API  = f"{ROOT}/apps/api/src"
+
+def read(path):
+    with open(path, "r", encoding="utf-8") as f: return f.read()
+def write(path, c):
+    with open(path, "w", encoding="utf-8") as f: f.write(c)
+def patch(path, old, new, label):
+    c = read(path)
+    if old not in c: print(f"WARN: {label} — 不一致"); return False
+    write(path, c.replace(old, new, 1)); print(f"OK: {label}"); return True
+def run(cmd, cwd=ROOT):
+    r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
+    if r.stdout.strip(): print(r.stdout[-4000:])
+    if r.stderr.strip(): print("STDERR:", r.stderr[-2000:])
+    return r.returncode
+
+# ─────────────────────────────────────────────────────────────
+# 1. mc.module.ts に exports: [McService] 追加（根本原因修正）
+# ─────────────────────────────────────────────────────────────
+mc_module = f"{API}/mc/mc.module.ts"
+patch(mc_module,
+    "@Module({\n  controllers: [McController],\n  providers:   [McService, McFilesService],\n})\nexport class McModule {}",
+    "@Module({\n  controllers: [McController],\n  providers:   [McService, McFilesService],\n  exports:     [McService],\n})\nexport class McModule {}",
+    "mc.module.ts exports: [McService] 追加"
+)
+
+# ─────────────────────────────────────────────────────────────
+# 2. admin/pdf-editor/page.tsx: 完全書き直し（インタラクティブ版）
+# ─────────────────────────────────────────────────────────────
+os.makedirs(f"{WEB}/app/admin/pdf-editor", exist_ok=True)
+write(f"{WEB}/app/admin/pdf-editor/page.tsx", r'''"use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
@@ -384,3 +433,25 @@ export default function PdfEditorPage() {
     </div>
   );
 }
+''')
+print("OK: admin/pdf-editor/page.tsx インタラクティブ版書き直し")
+
+# ─────────────────────────────────────────────────────────────
+# 3. ビルド + pm2 + push
+# ─────────────────────────────────────────────────────────────
+print("--- build web ---")
+rc = run("pnpm --filter web build", cwd=ROOT)
+if rc != 0: rc = run("pnpm run build", cwd=f"{ROOT}/apps/web")
+if rc != 0: print("BUILD FAILED (web) — abort"); sys.exit(1)
+
+print("--- build api ---")
+rc2 = run("pnpm --filter api build", cwd=ROOT)
+if rc2 != 0: rc2 = run("pnpm run build", cwd=f"{ROOT}/apps/api")
+if rc2 != 0: print("BUILD FAILED (api) — abort"); sys.exit(1)
+
+print("--- pm2 restart ---")
+run("pm2 restart machcore-api machcore-web")
+
+print("--- git push ---")
+run("git add -A && git commit -m 'fix(v75): mc.module exports修正(全API500修正)+PDFエディタインタラクティブ版' && git push", cwd=ROOT)
+print("DONE v75")
