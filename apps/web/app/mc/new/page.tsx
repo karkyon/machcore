@@ -23,17 +23,16 @@ export default function McNewPage() {
   const [partLoading,  setPartLoading]  = useState(false);
   const [selectedPart, setSelectedPart] = useState<PartResult | null>(null);
 
-  const [machiningId,  setMachiningId]  = useState<number | null>(null);
+  const [machiningId,   setMachiningId]   = useState<number | null>(null);
   const [nextIdLoading, setNextIdLoading] = useState(false);
-  const [mcProcessNo,  setMcProcessNo]  = useState("");
-  const [machineId,    setMachineId]    = useState("");
-  const [oNumber,      setONumber]      = useState("");
-  const [machiningQty, setMachiningQty] = useState("1");
-  const [note,         setNote]         = useState("");
-  const [machines,     setMachines]     = useState<Machine[]>([]);
+  const [mcProcessNo,   setMcProcessNo]   = useState("");
+  const [machineId,     setMachineId]     = useState("");
+  const [oNumber,       setONumber]       = useState("");
+  const [machiningQty,  setMachiningQty]  = useState("1");
+  const [note,          setNote]          = useState("");
+  const [machines,      setMachines]      = useState<Machine[]>([]);
 
   const [authOpen,  setAuthOpen]  = useState(false);
-
   const [saving,    setSaving]    = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -43,6 +42,66 @@ export default function McNewPage() {
       setMachines(Array.isArray(d) ? d.filter((m: Machine) => m.isActive) : []);
     }).catch(() => {});
   }, []);
+
+  // 次の加工ID候補を自動取得
+  useEffect(() => {
+    setNextIdLoading(true);
+    fetch("/api/mc/next-machining-id")
+      .then(r => r.json())
+      .then(d => { setMachiningId(d.next_machining_id ?? null); })
+      .catch(() => {})
+      .finally(() => setNextIdLoading(false));
+  }, []);
+
+  const handlePartSearch = useCallback(async () => {
+    if (!searchQ.trim()) return;
+    setPartLoading(true);
+    try {
+      const res = await mcApi.search(searchType, searchQ.trim(), {});
+      const d = (res as any).data ?? res;
+      const rows: any[] = d.rows ?? [];
+      const map = new Map<string, PartResult>();
+      for (const r of rows) {
+        if (!map.has(r.drawing_no)) {
+          map.set(r.drawing_no, {
+            id:          r.part_db_id ?? 0,
+            part_id:     (r as any).part_id ?? "",
+            drawing_no:  r.drawing_no,
+            name:        r.part_name,
+            client_name: r.client_name ?? null,
+          });
+        }
+      }
+      setParts(Array.from(map.values()));
+    } catch { setParts([]); }
+    finally { setPartLoading(false); }
+  }, [searchQ, searchType]);
+
+  const handleAuthSuccess = () => { setAuthOpen(false); };
+
+  const handleSubmit = async () => {
+    // ユーザー認証チェック（AuthContextのisAuthenticated + authToken両方確認）
+    if (!authToken || !isAuthenticated) { setAuthOpen(true); return; }
+    if (!selectedPart) { setSaveError("部品を選択してください"); return; }
+    if (!machiningId)  { setSaveError("加工IDを取得できませんでした"); return; }
+
+    setSaving(true); setSaveError(null);
+    try {
+      const body: Record<string, any> = { part_id: selectedPart.id, machining_id: machiningId };
+      if (machineId)    body.machine_id    = parseInt(machineId);
+      if (mcProcessNo)  body.mc_process_no = parseInt(mcProcessNo);
+      if (oNumber)      body.o_number      = oNumber;
+      if (machiningQty) body.machining_qty = parseInt(machiningQty);
+      if (note)         body.note          = note;
+
+      const res = await mcApi.create(body, authToken!);
+      const d   = (res as any).data ?? res;
+      router.push(`/mc/${d.mc_id}/print`);
+    } catch (e: any) {
+      const msg = e?.response?.data?.message ?? e?.message ?? "登録に失敗しました";
+      setSaveError(Array.isArray(msg) ? msg.join(" / ") : msg);
+    } finally { setSaving(false); }
+  };
 
   // 認証済み + 部品選択済み + 加工ID取得済み の場合のみ登録可
   const canSubmit = !!(authToken && isAuthenticated && selectedPart && machiningId);
@@ -97,7 +156,7 @@ export default function McNewPage() {
               <p className="text-xs text-slate-400 text-center mt-10">検索結果がありません</p>
             )}
             {parts.map(p => (
-              <button key={p.drawing_no} onClick={() => handlePartSelect(p)}
+              <button key={p.drawing_no} onClick={() => setSelectedPart(p)}
                 className={`w-full text-left px-3 py-2.5 border-b border-slate-100 hover:bg-teal-50 transition-colors ${selectedPart?.drawing_no === p.drawing_no ? "bg-teal-50 border-l-4 border-l-teal-500" : ""}`}>
                 <div className="font-mono text-xs font-bold text-teal-700">{p.drawing_no}</div>
                 <div className="text-xs text-slate-600 truncate">{p.name}</div>
@@ -133,22 +192,22 @@ export default function McNewPage() {
                 ) : (
                   <span className="font-mono text-lg font-bold text-teal-700">{machiningId ?? "—"}</span>
                 )}
-                <span className="text-[10px] text-slate-400">（自動採番）</span>
+                <span className="text-xs text-slate-400">（自動採番）</span>
               </div>
             </div>
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">工程No</label>
-              <input type="number" step="any" value={mcProcessNo} onChange={e => setMcProcessNo(e.target.value)}
+              <input type="text" value={mcProcessNo} onChange={e => setMcProcessNo(e.target.value)}
                 placeholder="例: 1（負値・小数も可）"
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
             </div>
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">機械</label>
               <select value={machineId} onChange={e => setMachineId(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-400">
                 <option value="">-- 未設定 --</option>
                 {machines.map(m => (
-                  <option key={m.id} value={m.id}>{m.machineCode}</option>
+                  <option key={m.id} value={String(m.id)}>{m.machineName ?? m.machineCode}</option>
                 ))}
               </select>
             </div>
@@ -161,14 +220,14 @@ export default function McNewPage() {
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">加工個数</label>
               <div className="flex items-center gap-2">
-                <input type="number" min={1} value={machiningQty} onChange={e => setMachiningQty(e.target.value)}
+                <input type="number" value={machiningQty} onChange={e => setMachiningQty(e.target.value)} min="1"
                   className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
-                <span className="text-xs text-slate-400">個/サイクル</span>
+                <span className="text-xs text-slate-500">個/サイクル</span>
               </div>
             </div>
           </div>
 
-          <div className="mt-3 max-w-xl">
+          <div className="mt-4 max-w-xl">
             <label className="text-xs font-bold text-slate-700 block mb-1">備考</label>
             <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} maxLength={2000}
               placeholder="特記事項・注意事項"
