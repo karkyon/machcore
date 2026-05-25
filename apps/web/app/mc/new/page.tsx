@@ -80,6 +80,28 @@ export default function McNewPage() {
 
   const handleAuthSuccess = () => { setAuthOpen(false); };
 
+  // 部品選択時：承認済みレコードの存在チェック
+  const handlePartSelect = async (p: PartResult) => {
+    setSelectedPart(p);
+    setPartApproved(null); // 確認中
+    try {
+      // その部品の既存MCレコードを取得して承認済みがあるか確認
+      const res = await mcApi.search("drawing_no", p.drawing_no ?? "");
+      const d   = (res as any).data ?? res;
+      const rows: any[] = d.rows ?? [];
+      if (rows.length === 0) {
+        // この部品の既存MCレコードがない → 完全新規なので登録可能
+        setPartApproved(true);
+      } else {
+        // 承認済み（APPROVED）が1件でもあれば可
+        const hasApproved = rows.some((r: any) => r.status === "APPROVED");
+        setPartApproved(hasApproved);
+      }
+    } catch {
+      setPartApproved(true); // エラー時は通す
+    }
+  };
+
   const handleSubmit = async () => {
     // 認証状態を二重チェック（authToken と AuthContext の両方）
     if (!authToken || !isAuthenticated) { setAuthOpen(true); return; }
@@ -105,7 +127,8 @@ export default function McNewPage() {
   };
 
   // 認証状態はauthToken(ローカル)とisAuthenticated(AuthContext)の両方を確認
-  const canSubmit = !!(authToken && isAuthenticated && selectedPart && machiningId);
+  // partApproved が false（未承認のみ）の場合は登録不可
+  const canSubmit = !!(authToken && isAuthenticated && selectedPart && machiningId && partApproved !== false);
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
@@ -157,7 +180,7 @@ export default function McNewPage() {
               <p className="text-xs text-slate-400 text-center mt-10">検索結果がありません</p>
             )}
             {parts.map(p => (
-              <button key={p.drawing_no} onClick={() => setSelectedPart(p)}
+              <button key={p.drawing_no} onClick={() => handlePartSelect(p)}
                 className={`w-full text-left px-3 py-2.5 border-b border-slate-100 hover:bg-teal-50 transition-colors ${selectedPart?.drawing_no === p.drawing_no ? "bg-teal-50 border-l-4 border-l-teal-500" : ""}`}>
                 <div className="font-mono text-xs font-bold text-teal-700">{p.drawing_no}</div>
                 <div className="text-xs text-slate-600 truncate">{p.name}</div>
@@ -261,9 +284,9 @@ export default function McNewPage() {
 
           <div className="mt-5 max-w-xl bg-slate-100 rounded-xl p-3 text-xs text-slate-500 space-y-0.5">
             <p className="font-bold text-slate-600 mb-1">仮登録後の流れ</p>
-            <p>① 仮登録完了 → 段取シートページへ自動遷移</p>
+            <p>① 仮登録完了 → 段取シートページへ表示</p>
             <p>② 段取シートを印刷して現場へ配布</p>
-            <p>③ MC詳細でツーリング・ワークオフセット・プログラムファイルを登録</p>
+            <p>③ MC詳細でマシニング情報の登録及びツーリング・ワークオフセット・プログラムファイルなどを登録</p>
             <p>④ 承認者が承認 → ステータスが「承認済」に変わります</p>
           </div>
         </main>
