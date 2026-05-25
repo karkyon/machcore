@@ -12,7 +12,7 @@ import { FilesService } from '../files/files.service';
 
 const ALLOWED_TABLES = [
   'users', 'machines', 'parts', 'nc_programs',
-  'work_records', 'change_history', 'operation_logs', 'setup_sheet_logs',
+  'work_records', 'change_history', 'operation_logs', 'setup_sheet_logs', 'machine_timecards',
 ];
 
 @Controller('admin')
@@ -332,4 +332,117 @@ export class AdminController {
     const s = await this.prisma.companySetting.findFirst({ select: { printerName: true } });
     return { printer_name: s?.printerName ?? null };
   }
+
+
+  /** MC/NC個別ストレージ・プリンタ設定取得 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('settings/mc-nc')
+  async getMcNcSettings() {
+    const s = await this.prisma.companySetting.findFirst({
+      select: { mcStoragePath: true, ncStoragePath: true, mcPrinter: true, ncPrinter: true, uploadBasePath: true, printerName: true },
+    });
+    return {
+      mc_storage_path: s?.mcStoragePath ?? s?.uploadBasePath ?? "/mnt/ncfiles/mc",
+      nc_storage_path: s?.ncStoragePath ?? s?.uploadBasePath ?? "/mnt/ncfiles",
+      mc_printer:      s?.mcPrinter ?? s?.printerName ?? "",
+      nc_printer:      s?.ncPrinter ?? s?.printerName ?? "",
+    };
+  }
+
+  /** MC/NC個別ストレージ・プリンタ設定更新 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Put('settings/mc-nc')
+  async updateMcNcSettings(@Body() body: {
+    mc_storage_path?: string;
+    nc_storage_path?: string;
+    mc_printer?: string;
+    nc_printer?: string;
+  }) {
+    return this.prisma.companySetting.upsert({
+      where: { id: 1 },
+      update: {
+        ...(body.mc_storage_path !== undefined && { mcStoragePath: body.mc_storage_path }),
+        ...(body.nc_storage_path !== undefined && { ncStoragePath: body.nc_storage_path }),
+        ...(body.mc_printer      !== undefined && { mcPrinter:     body.mc_printer }),
+        ...(body.nc_printer      !== undefined && { ncPrinter:     body.nc_printer }),
+      },
+      create: { id: 1, companyName: '会社名未設定',
+        mcStoragePath: body.mc_storage_path, ncStoragePath: body.nc_storage_path,
+        mcPrinter: body.mc_printer, ncPrinter: body.nc_printer,
+      },
+    });
+  }
+
+  // ══ 機械タイムカード (admin用) ══
+
+  /** admin用: 全MC機械の当日タイムカード初期生成 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('timecards/init')
+  async adminInitTimecards(@Body() body: { work_date: string }) {
+    const machines = await this.prisma.machine.findMany({
+      where: { isActive: true, systemType: 'MC' },
+      orderBy: { sortOrder: 'asc' },
+    });
+    // ADMINユーザID=1をoperatorIdとして使用
+    const operatorId = 1;
+    const workDate = body.work_date;
+    let created = 0;
+    for (const m of machines) {
+      const exists = await this.prisma.machineTimecard.findFirst({
+        where: { machineId: m.id, workDate: new Date(workDate) },
+      });
+      if (!exists) {
+        await this.prisma.machineTimecard.create({
+          data: {
+            machineId:  m.id,
+            operatorId,
+            workDate:   new Date(workDate),
+            startTime:  new Date(`${workDate}T08:00:00`),
+            endTime:    new Date(`${workDate}T17:00:00`),
+          },
+        });
+        created++;
+      }
+    }
+    return { created, total: machines.length, message: `${created}件生成` };
+  }
+
+  /** admin用: タイムカード更新（admin JWT認証） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Put('timecards/:id')
+  async adminUpdateTimecard(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { start_time: string; end_time: string; note?: string },
+  ) {
+    const tc = await this.prisma.machineTimecard.findUnique({ where: { id } });
+    if (!tc) throw new BadRequestException('タイムカードが見つかりません');
+    const d = tc.workDate;
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return this.prisma.machineTimecard.update({
+      where: { id },
+      data: {
+        startTime: new Date(`${dateStr}T${body.start_time}`),
+        endTime:   new Date(`${dateStr}T${body.end_time}`),
+        note:      body.note ?? null,
+      },
+    });
+  }
+
+  /** admin用: 日付別タイムカード一覧取得 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('timecards')
+  async adminGetTimecards(@Query('work_date') workDate: string) {
+    const cards = await this.prisma.machineTimecard.findMany({
+      where: { workDate: new Date(workDate) },
+      include: { machine: { select: { machineCode: true, machineName: true, systemType: true } } },
+      orderBy: [{ machine: { sortOrder: 'asc' } }, { id: 'asc' }],
+    });
+    return cards;
+  }
+
 }

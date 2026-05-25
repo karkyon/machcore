@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
 import { PrismaService } from '../prisma/prisma.service';
@@ -796,6 +797,19 @@ export class McService {
         note:      note ?? null,
       },
     });
+  }
+
+  // 毎朝5:00に全MC機械のデフォルトタイムカード自動生成
+  @Cron('0 5 * * *')
+  async cronInitTimecards() {
+    const today = new Date();
+    const workDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    try {
+      await this.initTimecards(workDate, 1); // operatorId=1 (admin)
+      console.log(`[Cron] ${workDate} 機械タイムカード自動生成完了`);
+    } catch (e) {
+      console.error('[Cron] タイムカード自動生成エラー', e);
+    }
   }
 
   // 全activeマシンの当日デフォルトレコード一括生成（upsert: 既存があれば何もしない）

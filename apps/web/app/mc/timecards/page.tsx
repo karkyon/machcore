@@ -2,7 +2,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
-const TODAY = () => new Date().toISOString().slice(0, 10);
+const TODAY = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+};
 
 const SIDEBAR_ITEMS = [
   { href: "/admin/users",    label: "ユーザ管理",       icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0" },
@@ -12,14 +15,17 @@ const SIDEBAR_ITEMS = [
   { href: "/admin/raw",      label: "RAWデータ",        icon: "M4 6h16M4 10h16M4 14h16M4 18h16" },
 ];
 
-// admin token使用のfetch（CORSなし、axiosインターセプター不使用）
+// admin token を使って /api/admin/... を呼ぶ fetch
 const apiFetch = async (path: string, opts?: RequestInit) => {
   const token = sessionStorage.getItem("admin_token") ?? "";
   const res = await fetch(`/api${path}`, {
     ...opts,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(opts?.headers ?? {}) },
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status}: ${msg}`);
+  }
   return res.json();
 };
 
@@ -31,7 +37,8 @@ function fmtTime(dt: any): string {
     return String(d.getUTCHours()).padStart(2,"0") + ":" + String(d.getUTCMinutes()).padStart(2,"0");
   }
   if (s.includes("T")) return s.slice(11, 16);
-  return s.slice(0, 5);
+  if (/^\d{2}:\d{2}/.test(s)) return s.slice(0, 5);
+  return s;
 }
 
 function calcKadouMin(start: string, end: string): number {
@@ -47,14 +54,14 @@ function calcKadouMin(start: string, end: string): number {
 
 function fmtMin(min: number): string {
   if (min <= 0) return "—";
-  const h = Math.floor(min / 60);
-  const m = min % 60;
+  const h = Math.floor(min / 60), m = min % 60;
   return h > 0 ? `${h}h${m > 0 ? m+"m" : ""}` : `${m}m`;
 }
 
 interface RowState {
   id: number;
   machineCode: string;
+  machineName: string;
   startTime: string;
   endTime: string;
   note: string;
@@ -69,10 +76,12 @@ export default function TimecardPage() {
   const [workDate,   setWorkDate]   = useState(TODAY());
   const [rows,       setRows]       = useState<RowState[]>([]);
   const [loading,    setLoading]    = useState(false);
+  const [initing,    setIniting]    = useState(false);
   const [toast,      setToast]      = useState<string | null>(null);
+  const [toastOk,    setToastOk]    = useState(true);
 
-  const showToast = useCallback((msg: string) => {
-    setToast(msg); setTimeout(() => setToast(null), 3000);
+  const showToast = useCallback((msg: string, ok = true) => {
+    setToast(msg); setToastOk(ok); setTimeout(() => setToast(null), 3500);
   }, []);
 
   useEffect(() => {
@@ -82,65 +91,74 @@ export default function TimecardPage() {
     if (user) { try { setAdminUser(JSON.parse(user)); } catch {} }
   }, [router]);
 
-  const handleLogout = () => {
-    sessionStorage.removeItem("admin_token"); sessionStorage.removeItem("admin_user");
-    router.push("/admin/login");
-  };
-
   const loadData = useCallback(async (date: string) => {
     setLoading(true);
     try {
-      const data = await apiFetch(`/mc/timecards/all?work_date=${date}`);
+      // admin用エンドポイント: GET /api/admin/timecards?work_date=YYYY-MM-DD
+      const data = await apiFetch(`/admin/timecards?work_date=${date}`);
       const cards: any[] = Array.isArray(data) ? data : (data.data ?? []);
       setRows(cards.map((c: any) => ({
         id:          c.id,
         machineCode: c.machine?.machineCode ?? String(c.machine_id),
+        machineName: c.machine?.machineName ?? "",
         startTime:   fmtTime(c.start_time),
         endTime:     fmtTime(c.end_time),
         note:        c.note ?? "",
         dirty:       false,
         saving:      false,
       })));
-    } catch (e) {
+    } catch (e: any) {
       console.error("[TC] loadData error", e);
+      showToast(`データ取得失敗: ${e.message}`, false);
     } finally { setLoading(false); }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => { loadData(workDate); }, [workDate, loadData]);
 
-  const updateRow = (idx: number, field: keyof RowState, value: string) => {
+  const handleInit = async () => {
+    setIniting(true);
+    try {
+      const r = await apiFetch("/admin/timecards/init", {
+        method: "POST",
+        body: JSON.stringify({ work_date: workDate }),
+      });
+      showToast(`✅ ${r.created}件生成（全${r.total}台）`, true);
+      await loadData(workDate);
+    } catch (e: any) {
+      showToast(`❌ 生成失敗: ${e.message}`, false);
+    } finally { setIniting(false); }
+  };
+
+  const updateRow = (idx: number, field: "startTime" | "endTime" | "note", value: string) => {
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value, dirty: true } : r));
   };
 
-  // 1行更新（単体）
   const handleUpdate = useCallback(async (idx: number) => {
     const row = rows[idx];
-    if (!row.startTime || !row.endTime) { showToast("⚠️ 開始・終了時刻を入力してください"); return; }
+    if (!row.startTime || !row.endTime) { showToast("⚠️ 開始・終了時刻を入力してください", false); return; }
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, saving: true } : r));
     try {
-      await apiFetch(`/mc/timecards/${row.id}`, {
+      // admin用エンドポイント: PUT /api/admin/timecards/:id
+      await apiFetch(`/admin/timecards/${row.id}`, {
         method: "PUT",
         body: JSON.stringify({ start_time: row.startTime + ":00", end_time: row.endTime + ":00", note: row.note || undefined }),
       });
       setRows(prev => prev.map((r, i) => i === idx ? { ...r, dirty: false, saving: false } : r));
-      showToast(`✅ ${row.machineCode} 更新しました`);
-    } catch {
+      showToast(`✅ ${row.machineCode} 更新しました`, true);
+    } catch (e: any) {
       setRows(prev => prev.map((r, i) => i === idx ? { ...r, saving: false } : r));
-      showToast("❌ 更新に失敗しました");
+      showToast(`❌ 更新失敗: ${e.message}`, false);
     }
   }, [rows, showToast]);
 
-  // 全件一括更新: dirtyな行をすべてPUT → 完了後にDBから再読込して確認
   const handleAllUpdate = useCallback(async () => {
     const dirtyRows = rows.filter(r => r.dirty && r.startTime && r.endTime);
     if (dirtyRows.length === 0) { showToast("変更なし"); return; }
-    // 保存中UIに切り替え
     setRows(prev => prev.map(r => r.dirty ? { ...r, saving: true } : r));
     let ok = 0, ng = 0;
-    // 並列PUT（Promise.allSettled）
     const results = await Promise.allSettled(
       dirtyRows.map(row =>
-        apiFetch(`/mc/timecards/${row.id}`, {
+        apiFetch(`/admin/timecards/${row.id}`, {
           method: "PUT",
           body: JSON.stringify({
             start_time: row.startTime + ":00",
@@ -151,21 +169,26 @@ export default function TimecardPage() {
       )
     );
     results.forEach(r => { if (r.status === "fulfilled") ok++; else ng++; });
-    // 完了後にDBから再読込（保存済みデータを表示）
     await loadData(workDate);
-    if (ng === 0) showToast(`✅ ${ok}件を更新・保存しました`);
-    else          showToast(`⚠️ ${ok}件成功、${ng}件失敗`);
+    if (ng === 0) showToast(`✅ ${ok}件を保存しました`, true);
+    else          showToast(`⚠️ ${ok}件成功、${ng}件失敗`, false);
   }, [rows, workDate, loadData, showToast]);
 
   const setAllTime = (field: "startTime" | "endTime", val: string) => {
     setRows(prev => prev.map(r => ({ ...r, [field]: val, dirty: true })));
-    showToast(`全機械の${field === "startTime" ? "開始" : "終了"}時刻を ${val} にセットしました`);
+    showToast(`全機械の${field === "startTime" ? "開始" : "終了"}を${val}にセット`);
   };
 
   const dirtyCount = rows.filter(r => r.dirty).length;
 
+  const handleLogout = () => {
+    sessionStorage.removeItem("admin_token"); sessionStorage.removeItem("admin_user");
+    router.push("/admin/login");
+  };
+
   return (
     <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
+      {/* ヘッダー */}
       <header className="bg-white border-b border-slate-200 px-5 py-2.5 flex items-center gap-3 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded bg-sky-600 flex items-center justify-center">
@@ -174,15 +197,20 @@ export default function TimecardPage() {
           <span className="text-sm font-bold text-slate-800 tracking-wide">MachCore 管理パネル</span>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          {adminUser && <span className="text-xs text-slate-400">{adminUser.name}（管理者）</span>}
-          <a href="/" className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded">← ダッシュボード</a>
-          <button onClick={handleLogout} className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded">ログアウト</button>
+          {adminUser && <span className="text-xs text-slate-500">{adminUser.name}（管理者）</span>}
+          <a href="/" className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded transition-colors">← ダッシュボード</a>
+          <button onClick={handleLogout} className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded transition-colors">ログアウト</button>
         </div>
       </header>
 
-      {toast && <div className="fixed bottom-6 right-6 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-bold z-50 bg-slate-800">{toast}</div>}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-white text-sm font-bold transition-all ${toastOk ? "bg-emerald-500" : "bg-red-500"}`}>
+          {toast}
+        </div>
+      )}
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* サイドバー */}
         <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5 overflow-y-auto">
           <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">メニュー</div>
           {SIDEBAR_ITEMS.map(item => (
@@ -198,17 +226,23 @@ export default function TimecardPage() {
 
         <main className="flex-1 overflow-hidden flex flex-col p-4 gap-3">
           {/* タイトル */}
-          <div className="shrink-0">
+          <div className="shrink-0 flex items-center gap-3">
             <h1 className="text-xl font-bold text-slate-800">機械タイムカード</h1>
+            <span className="text-xs text-slate-400">稼働時間一覧（昼休み12:00-13:00跨ぎ -60分補正）</span>
           </div>
-          {/* ツールバー固定 */}
+
+          {/* ツールバー */}
           <div className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 flex-wrap shrink-0">
             <label className="text-sm font-bold text-slate-600">日付</label>
             <input type="date" value={workDate} onChange={e => setWorkDate(e.target.value)}
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none" />
             <button onClick={() => setWorkDate(TODAY())} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold">今日</button>
             <button onClick={() => loadData(workDate)} className="text-xs px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg font-bold">↺ 再読込</button>
-            <span className="text-xs text-slate-400 ml-1">{rows.length}件</span>
+            <button onClick={handleInit} disabled={initing}
+              className="text-xs px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg font-bold disabled:opacity-50">
+              {initing ? "生成中…" : "📋 デフォルト生成"}
+            </button>
+            <span className="text-xs text-slate-400">{rows.length}件</span>
             <div className="ml-auto flex items-center gap-2 flex-wrap">
               <button onClick={() => setAllTime("startTime","08:00")} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg font-bold whitespace-nowrap">全機械 08:00開始</button>
               <button onClick={() => setAllTime("endTime","17:00")} className="text-xs px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-200 rounded-lg font-bold whitespace-nowrap">全機械 17:00終了</button>
@@ -221,67 +255,77 @@ export default function TimecardPage() {
             </div>
           </div>
 
-          {/* テーブル: ヘッダー固定・明細スクロール */}
+          {/* テーブル固定ヘッダー */}
           <div className="flex-1 overflow-hidden bg-white rounded-xl border border-slate-200 flex flex-col">
             <div className="shrink-0 border-b border-slate-200">
               <table className="w-full text-sm table-fixed">
-                <colgroup><col className="w-32"/><col className="w-36"/><col className="w-36"/><col className="w-24"/><col/><col className="w-20"/></colgroup>
-                <thead><tr className="bg-teal-50 text-teal-800">
-                  <th className="px-4 py-2.5 text-left font-bold text-xs">機械</th>
-                  <th className="px-3 py-2.5 text-left font-bold text-xs">開始時刻</th>
-                  <th className="px-3 py-2.5 text-left font-bold text-xs">終了時刻</th>
-                  <th className="px-3 py-2.5 text-left font-bold text-xs">稼働時間</th>
-                  <th className="px-3 py-2.5 text-left font-bold text-xs">備考</th>
-                  <th className="px-3 py-2.5 text-center font-bold text-xs">更新</th>
-                </tr></thead>
+                <colgroup>
+                  <col className="w-32"/><col className="w-40"/><col className="w-28"/><col className="w-28"/>
+                  <col className="w-20"/><col className="w-40"/><col className="w-20"/>
+                </colgroup>
+                <thead>
+                  <tr className="bg-slate-50 text-slate-600 text-xs uppercase">
+                    <th className="px-4 py-3 text-left font-bold">機械コード</th>
+                    <th className="px-4 py-3 text-left font-bold">機械名</th>
+                    <th className="px-3 py-3 text-left font-bold">開始時刻</th>
+                    <th className="px-3 py-3 text-left font-bold">終了時刻</th>
+                    <th className="px-3 py-3 text-left font-bold">稼働時間</th>
+                    <th className="px-3 py-3 text-left font-bold">備考</th>
+                    <th className="px-3 py-3 text-center font-bold">更新</th>
+                  </tr>
+                </thead>
               </table>
             </div>
             <div className="flex-1 overflow-y-auto">
-              {loading ? <div className="p-10 text-center text-slate-400 text-sm">読み込み中...</div>
-              : rows.length === 0 ? <div className="p-10 text-center text-slate-400 text-sm">
-                  <div className="text-3xl mb-2">⏱️</div>
-                  <p>この日のタイムカードがありません</p>
-                  <p className="mt-1 text-xs text-slate-300">オペレーターがダッシュボードにログインするとレコードが生成されます</p>
+              {loading ? (
+                <div className="text-center py-20 text-slate-400">読み込み中…</div>
+              ) : rows.length === 0 ? (
+                <div className="text-center py-20 text-slate-400">
+                  <p className="mb-3">データがありません</p>
+                  <button onClick={handleInit} className="text-xs px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold">
+                    📋 デフォルト値でデータ生成
+                  </button>
                 </div>
-              : <table className="w-full text-sm table-fixed">
-                  <colgroup><col className="w-32"/><col className="w-36"/><col className="w-36"/><col className="w-24"/><col/><col className="w-20"/></colgroup>
+              ) : (
+                <table className="w-full text-sm table-fixed">
+                  <colgroup>
+                    <col className="w-32"/><col className="w-40"/><col className="w-28"/><col className="w-28"/>
+                    <col className="w-20"/><col className="w-40"/><col className="w-20"/>
+                  </colgroup>
                   <tbody className="divide-y divide-slate-100">
                     {rows.map((row, idx) => {
-                      const kadouMin = calcKadouMin(row.startTime, row.endTime);
+                      const kadou = calcKadouMin(row.startTime, row.endTime);
                       return (
-                        <tr key={row.id} className={row.dirty ? "bg-amber-50" : (idx%2===0?"bg-white":"bg-slate-50/40")}>
-                          <td className="px-4 py-2"><span className="font-bold text-teal-700 text-sm">{row.machineCode}</span></td>
+                        <tr key={row.id} className={`${row.dirty ? "bg-orange-50" : idx%2===0?"bg-white":"bg-slate-50/30"}`}>
+                          <td className="px-4 py-2 font-mono text-slate-700 text-xs">{row.machineCode}</td>
+                          <td className="px-4 py-2 text-slate-700 text-xs truncate">{row.machineName}</td>
                           <td className="px-3 py-1.5">
-                            <input type="time" value={row.startTime} onChange={e => updateRow(idx,"startTime",e.target.value)}
-                              className="w-32 border border-slate-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none font-mono" />
-                          </td>
-                          <td className="px-3 py-1.5">
-                            <input type="time" value={row.endTime} onChange={e => updateRow(idx,"endTime",e.target.value)}
-                              className="w-32 border border-slate-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none font-mono" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <span className={`font-mono font-bold text-sm ${kadouMin>0?"text-teal-700":"text-slate-400"}`}>{fmtMin(kadouMin)}</span>
-                            <div className="text-[10px] text-slate-400">{kadouMin>0?kadouMin+"分":""}</div>
+                            <input type="time" value={row.startTime} onChange={e => updateRow(idx, "startTime", e.target.value)}
+                              className="border border-slate-300 rounded px-2 py-1 text-xs w-24 focus:ring-1 focus:ring-sky-400 focus:outline-none" />
                           </td>
                           <td className="px-3 py-1.5">
-                            <input type="text" value={row.note} onChange={e => updateRow(idx,"note",e.target.value)}
-                              placeholder="例: 午後から故障停止"
-                              className="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-sky-400 focus:outline-none" />
+                            <input type="time" value={row.endTime} onChange={e => updateRow(idx, "endTime", e.target.value)}
+                              className="border border-slate-300 rounded px-2 py-1 text-xs w-24 focus:ring-1 focus:ring-sky-400 focus:outline-none" />
                           </td>
-                          <td className="px-3 py-1.5 text-center">
-                            {row.dirty ? (
+                          <td className="px-3 py-2 text-xs font-bold text-slate-700">{fmtMin(kadou)}</td>
+                          <td className="px-3 py-1.5">
+                            <input type="text" value={row.note} onChange={e => updateRow(idx, "note", e.target.value)}
+                              className="border border-slate-300 rounded px-2 py-1 text-xs w-full focus:ring-1 focus:ring-sky-400 focus:outline-none" />
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {row.dirty && (
                               <button onClick={() => handleUpdate(idx)} disabled={row.saving}
-                                className="px-3 py-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white text-xs font-bold rounded-lg">
-                                {row.saving ? "..." : "更新"}
+                                className="text-xs px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded font-bold disabled:opacity-50">
+                                {row.saving ? "…" : "更新"}
                               </button>
-                            ) : <span className="text-xs text-slate-300 font-bold">✓</span>}
+                            )}
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
-              }
+              )}
             </div>
           </div>
         </main>

@@ -148,6 +148,10 @@ model CompanySetting {
   logoPath         String?  @db.VarChar(500)  @map("logo_path")
   uploadBasePath   String?  @db.VarChar(500)  @map("upload_base_path")
   printerName      String?  @db.VarChar(200) @map("printer_name")
+  mcStoragePath    String?  @db.VarChar(500)  @map("mc_storage_path")
+  ncStoragePath    String?  @db.VarChar(500)  @map("nc_storage_path")
+  mcPrinter        String?  @db.VarChar(200)  @map("mc_printer")
+  ncPrinter        String?  @db.VarChar(200)  @map("nc_printer")
   updatedAt        DateTime @updatedAt         @map("updated_at")
   @@map("company_settings")
 }

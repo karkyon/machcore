@@ -4,7 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 
 const TABLES = [
   "users", "machines", "parts", "nc_programs",
-  "work_records", "change_history", "operation_logs", "setup_sheet_logs",
+  "work_records", "change_history", "operation_logs", "setup_sheet_logs", "machine_timecards",
 ];
 
 export default function AdminRawPage() {
@@ -35,8 +35,7 @@ export default function AdminRawPage() {
   const fetchData = useCallback(async (tbl: string, pg: number) => {
     setLoading(true); setError(null);
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3011/api";
-      const res = await fetch(`${apiBase}/admin/raw/${tbl}?page=${pg}&limit=${limit}`, {
+      const res = await fetch(`/api/admin/raw/${tbl}?page=${pg}&limit=${limit}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
