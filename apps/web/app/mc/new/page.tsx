@@ -129,7 +129,8 @@ export default function McNewPage() {
 
   // 認証状態はauthToken(ローカル)とisAuthenticated(AuthContext)の両方を確認
   // partApproved が false（未承認のみ）の場合は登録不可
-  const canSubmit = !!(authToken && isAuthenticated && selectedPart && machiningId && partApproved !== false);
+  // partApproved === true の場合のみ登録可（null=確認中はNG、false=未承認はNG）
+  const canSubmit = !!(authToken && isAuthenticated && selectedPart && machiningId && partApproved === true);
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
