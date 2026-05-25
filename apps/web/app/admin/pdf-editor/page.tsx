@@ -141,14 +141,14 @@ export default function PdfEditorPage() {
   // ── ドラッグ&ドロップ（SVGオーバーレイ上） ──
   const svgScale = canvasSize.w / A4_W; // canvas px / pdf pt
 
-  const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>, id: number, ox: number, oy: number) => {
+  const handleSvgMouseDown = (e: React.MouseEvent<SVGGElement>, id: number, ox: number, oy: number) => {
     e.preventDefault();
     setSelId(id);
     setDraggingId(id);
     dragStart.current = { mx: e.clientX, my: e.clientY, ox, oy };
   };
 
-  const handleSvgMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+  const handleSvgMouseMove = useCallback((e: React.MouseEvent<SVGElement>) => {
     if (draggingId === null || !dragStart.current) return;
     const dx = (e.clientX - dragStart.current.mx) / svgScale;
     const dy = (e.clientY - dragStart.current.my) / svgScale;
