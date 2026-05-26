@@ -651,6 +651,7 @@ export type McSetupSheetLog = {
   operator_name:  string | null;
   work_collected: boolean;
   is_reference:   boolean;
+  sheet_type:     'NEW' | 'REPEAT' | null;
 };
 
 export type CreateMcWorkRecordBody = {

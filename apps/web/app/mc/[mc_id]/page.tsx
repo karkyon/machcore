@@ -689,9 +689,20 @@ export default function McDetailPage() {
                 ) : prints.map((p: McSetupSheetLog, i) => (
                   <div key={p.id} className={`px-4 py-3 border-b border-slate-100 text-xs ${i % 2 === 0 ? "bg-white" : "bg-slate-50"}`}>
                     <div className="flex items-center gap-3">
+                      {p.sheet_type === 'NEW' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-700 border border-teal-200">新規段取</span>
+                      ) : p.sheet_type === 'REPEAT' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">リピート</span>
+                      ) : null}
+                      {p.is_reference && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">参考</span>
+                      )}
                       <span className="text-slate-400">{new Date(p.printed_at).toLocaleString("ja-JP")}</span>
                       <span className="text-slate-600">{p.operator_name ?? "—"}</span>
-                      {p.version && <span className="ml-auto font-mono text-slate-400">Ver.{p.version}</span>}
+                      {p.version && <span className="font-mono text-slate-400">Ver.{p.version}</span>}
+                      {!p.work_collected && (
+                        <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">未回収</span>
+                      )}
                     </div>
                   </div>
                 ))}

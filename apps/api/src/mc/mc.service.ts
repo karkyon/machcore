@@ -639,6 +639,21 @@ export class McService {
       orderBy: { printedAt: 'desc' },
       include: { operator: { select: { name: true } } },
     });
+    const logsAsc = [...rows].sort((a, b) => a.id - b.id);
+    return rows.map(r => {
+      const rank = logsAsc.findIndex(x => x.id === r.id) + 1;
+      return {
+        id:             r.id,
+        printed_at:     r.printedAt,
+        version:        r.version ?? null,
+        operator_name:  r.operator?.name ?? null,
+        work_collected: r.workCollected,
+        is_reference:   (r as any).isReference ?? false,
+        sheet_type:     rank === 1 ? 'NEW' : 'REPEAT',
+      };
+    });
+  } },
+    });
     return rows.map(r => ({
       id:             r.id,
       printed_at:     r.printedAt,
@@ -1102,9 +1117,9 @@ export class McService {
       include_index_programs?: boolean;
     },
   ): Promise<{ message: string }> {
-    const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true } });
-    const printerName = setting?.printerName;
-    if (!printerName) throw new Error('プリンタが設定されていません。管理者設定で設定してください。');
+    const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true, mcPrinter: true } });
+    const printerName = setting?.mcPrinter || setting?.printerName;
+    if (!printerName) throw new Error('MCプリンタが設定されていません。管理画面のシステム設定でMCチーム用プリンタを設定してください。');
     const pdfBuffer = await this.generateSetupSheetPdf(mcId, operatorId, options);
     const tmpPath = `/tmp/machcore-mc-print-${mcId}-${Date.now()}.pdf`;
     fs.writeFileSync(tmpPath, pdfBuffer);
