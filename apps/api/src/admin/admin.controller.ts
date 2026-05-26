@@ -2,7 +2,7 @@ import { execSync } from "child_process";
 import type { FastifyReply } from 'fastify';
 import {
   Controller, Get, Post, Put, Delete, Body, UseGuards,
-  Param, ParseIntPipe, Query, BadRequestException, Res,
+  Param, ParseIntPipe, Query, BadRequestException, Res, Req,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuthGuard } from '@nestjs/passport';
@@ -470,6 +470,7 @@ export class AdminController {
   @Get('pdf-repeat-preview')
   async getRepeatPdfPreview(
     @Query('mc_id') mcIdStr?: string,
+    @Query('template') templateName?: string,
     @Res() reply?: any,
   ) {
     let mcId = mcIdStr ? parseInt(mcIdStr) : 0;
@@ -497,6 +498,38 @@ export class AdminController {
     reply.header('Content-Disposition', `inline; filename="repeat-preview-${mcId}.pdf"`);
     reply.header('Content-Length',      String(pdf.length));
     return reply.send(pdf);
+  }
+
+
+  /** PDFテンプレートファイルアップロード（差し替え） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('pdf-templates/:id/upload')
+  async uploadPdfTemplate(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
+    @Res() reply?: any,
+  ) {
+    const tpl = await this.prisma.pdfTemplate.findUnique({ where: { id } });
+    if (!tpl) throw new BadRequestException(`テンプレート id=${id} が見つかりません`);
+
+    const data = await req.file();
+    if (!data) throw new BadRequestException('ファイルがありません');
+    if (data.mimetype !== 'application/pdf') throw new BadRequestException('PDFファイルのみアップロード可能です');
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) chunks.push(chunk as Buffer);
+    const buf = Buffer.concat(chunks);
+
+    // assets/ 配下に保存（file_path は相対パス "assets/xxx.pdf"）
+    const ASSETS = '/home/karkyon/projects/machcore/apps/api/assets';
+    const fs2 = await import('fs');
+    // file_path から実際の保存先ファイル名を決定
+    const savedName = tpl.filePath.replace(/^assets\//, '');
+    const savePath  = `${ASSETS}/${savedName}`;
+    fs2.writeFileSync(savePath, buf);
+
+    return { message: `テンプレートを更新しました: ${savedName}`, file_path: tpl.filePath, size: buf.length };
   }
 
   // ══ 機械タイムカード (admin用) ══

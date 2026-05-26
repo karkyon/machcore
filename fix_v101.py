@@ -1,4 +1,150 @@
-"use client";
+#!/usr/bin/env python3
+"""
+fix_v101.py
+===========
+1. admin.controller.ts: POST /admin/pdf-templates/:id/upload エンドポイント追加
+2. admin.controller.ts: GET /admin/pdf-repeat-preview に ?template= パラメータ対応
+3. pdf-editor/page.tsx: 全面リファクタリング
+   - トップレベルタブ「新規段取シート」「リピート段取シート」
+   - リピートタブに「作業記録 (repeat_p2)」追加
+   - 各テンプレートにPDF差し替えボタン
+   - プレビューに template パラメータ渡し
+4. DBに repeat_p2 テンプレートレコード追加
+5. ビルド → PM2 再起動 → git push
+"""
+
+import subprocess, sys, os, re
+
+PROJECT = "/home/karkyon/projects/machcore"
+
+def run(cmd, cwd=PROJECT, check=True):
+    r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
+    if check and r.returncode != 0:
+        print(f"ERROR: {cmd}\nSTDOUT:{r.stdout}\nSTDERR:{r.stderr}")
+        sys.exit(1)
+    return r.stdout, r.stderr
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 1: admin.controller.ts に PDF アップロードエンドポイントを追加
+#         + pdf-repeat-preview に template パラメータ対応
+# ─────────────────────────────────────────────────────────────────────────────
+CTRL_PATH = f"{PROJECT}/apps/api/src/admin/admin.controller.ts"
+with open(CTRL_PATH, "r") as f:
+    ctrl = f.read()
+
+# Import に Req を追加（まだない場合）
+if "'Req'" not in ctrl and '"Req"' not in ctrl:
+    ctrl = ctrl.replace(
+        "  Controller, Get, Post, Put, Delete, Body, UseGuards,\n  Param, ParseIntPipe, Query, BadRequestException, Res,",
+        "  Controller, Get, Post, Put, Delete, Body, UseGuards,\n  Param, ParseIntPipe, Query, BadRequestException, Res, Req,"
+    )
+    print("OK: Req import 追加")
+
+# pdf-repeat-preview に template パラメータを追加
+OLD_REPEAT_PREVIEW = '''  @Get('pdf-repeat-preview')
+  async getRepeatPdfPreview(
+    @Query('mc_id') mcIdStr?: string,
+    @Res() reply?: any,
+  ) {
+    let mcId = mcIdStr ?'''
+
+NEW_REPEAT_PREVIEW = '''  @Get('pdf-repeat-preview')
+  async getRepeatPdfPreview(
+    @Query('mc_id') mcIdStr?: string,
+    @Query('template') templateName?: string,
+    @Res() reply?: any,
+  ) {
+    let mcId = mcIdStr ?'''
+
+if OLD_REPEAT_PREVIEW in ctrl:
+    ctrl = ctrl.replace(OLD_REPEAT_PREVIEW, NEW_REPEAT_PREVIEW)
+    print("OK: pdf-repeat-preview に template パラメータ追加")
+else:
+    print("WARN: pdf-repeat-preview パターン不一致（スキップ）")
+
+# テンプレートPDFアップロードエンドポイントを追加
+# 「// ══ 機械タイムカード (admin用) ══」の直前に挿入
+UPLOAD_ENDPOINT = '''
+  /** PDFテンプレートファイルアップロード（差し替え） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('pdf-templates/:id/upload')
+  async uploadPdfTemplate(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
+    @Res() reply?: any,
+  ) {
+    const tpl = await this.prisma.pdfTemplate.findUnique({ where: { id } });
+    if (!tpl) throw new BadRequestException(`テンプレート id=${id} が見つかりません`);
+
+    const data = await req.file();
+    if (!data) throw new BadRequestException('ファイルがありません');
+    if (data.mimetype !== 'application/pdf') throw new BadRequestException('PDFファイルのみアップロード可能です');
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) chunks.push(chunk as Buffer);
+    const buf = Buffer.concat(chunks);
+
+    // assets/ 配下に保存（file_path は相対パス "assets/xxx.pdf"）
+    const ASSETS = '/home/karkyon/projects/machcore/apps/api/assets';
+    const fs2 = await import('fs');
+    // file_path から実際の保存先ファイル名を決定
+    const savedName = tpl.filePath.replace(/^assets\\//, '');
+    const savePath  = `${ASSETS}/${savedName}`;
+    fs2.writeFileSync(savePath, buf);
+
+    return { message: `テンプレートを更新しました: ${savedName}`, file_path: tpl.filePath, size: buf.length };
+  }
+
+'''
+
+INSERT_BEFORE = "  // ══ 機械タイムカード (admin用) ══"
+if INSERT_BEFORE in ctrl and "pdf-templates/:id/upload" not in ctrl:
+    ctrl = ctrl.replace(INSERT_BEFORE, UPLOAD_ENDPOINT + INSERT_BEFORE)
+    print("OK: pdf-templates/:id/upload エンドポイント追加")
+else:
+    if "pdf-templates/:id/upload" in ctrl:
+        print("SKIP: pdf-templates/:id/upload は既に存在")
+    else:
+        print("WARN: 挿入マーカーが見つかりません")
+
+with open(CTRL_PATH, "w") as f:
+    f.write(ctrl)
+print("OK: admin.controller.ts 書き込み完了")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 2: DB に repeat_p2 テンプレートレコードを追加
+# ─────────────────────────────────────────────────────────────────────────────
+SQL = """
+INSERT INTO pdf_templates (name, description, file_path, page_number, is_active, created_at, updated_at)
+VALUES ('repeat_p2', 'リピート段取シート: 作業記録ページ', 'assets/template_repeat_p2.pdf', 1, true, NOW(), NOW())
+ON CONFLICT DO NOTHING;
+SELECT id, name, file_path FROM pdf_templates ORDER BY id;
+"""
+
+out, err = run(
+    f'''docker exec machcore-postgres psql -U machcore -d machcore_dev -c "{SQL.strip().replace(chr(10), ' ')}"''',
+    check=False
+)
+if "repeat_p2" in out or "already exists" in err:
+    print("OK: repeat_p2 テンプレートレコード確認")
+else:
+    # 改行入りSQLはヒアドキュメント方式で実行
+    sql_file = "/tmp/fix_v101_seed.sql"
+    with open(sql_file, "w") as f:
+        f.write(SQL)
+    out2, err2 = run(
+        f"docker exec -i machcore-postgres psql -U machcore -d machcore_dev < {sql_file}",
+        check=False
+    )
+    print(f"DB seed: {out2[:200]}")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 3: pdf-editor/page.tsx を全面書き換え
+# ─────────────────────────────────────────────────────────────────────────────
+PAGE_PATH = f"{PROJECT}/apps/web/app/admin/pdf-editor/page.tsx"
+
+NEW_PAGE = r'''"use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
@@ -523,3 +669,80 @@ export default function PdfEditorPage() {
     </div>
   );
 }
+'''
+
+with open(PAGE_PATH, "w") as f:
+    f.write(NEW_PAGE)
+print(f"OK: pdf-editor/page.tsx 書き込み完了 ({len(NEW_PAGE)} chars)")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 4: API ビルド
+# ─────────────────────────────────────────────────────────────────────────────
+print("\n--- API ビルド ---")
+out, err = run("pnpm --filter api build", check=False)
+ts_errors = [l for l in (out+err).split("\n") if "error TS" in l]
+print(f"TypeScriptエラー: {len(ts_errors)} 件")
+if ts_errors:
+    for e in ts_errors[:20]:
+        print(f"  {e}")
+    sys.exit(1)
+if "ERR_PNPM" in err or "ERR_PNPM" in out:
+    print("API ビルド失敗")
+    print(err[-2000:])
+    sys.exit(1)
+print("API ビルド成功!")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 5: WEB ビルド
+# ─────────────────────────────────────────────────────────────────────────────
+print("\n--- WEB ビルド ---")
+out, err = run("pnpm --filter web build", check=False)
+if "ERR_PNPM" in err or "ERR_PNPM" in out:
+    print("WEB ビルド失敗")
+    print(out[-1000:])
+    print(err[-1000:])
+    sys.exit(1)
+print("WEB ビルド成功!")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 6: PM2 再起動
+# ─────────────────────────────────────────────────────────────────────────────
+print("\n--- PM2 restart ---")
+run("pm2 restart machcore-api machcore-web")
+print("PM2 再起動完了")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 7: git push
+# ─────────────────────────────────────────────────────────────────────────────
+print("\n--- git push ---")
+run("git add -A")
+run('git commit -m "fix(v101): PDFエディタ画面リファクタリング + テンプレートPDFアップロード + repeat_p2対応"')
+run("git push origin main")
+print("\nfix_v101 完了")
+
+print("""
+=== 完了サマリー ===
+【API変更】
+  - POST /admin/pdf-templates/:id/upload エンドポイント追加
+  - GET /admin/pdf-repeat-preview に ?template= パラメータ追加
+
+【DB変更】
+  - pdf_templates に repeat_p2 レコード追加
+
+【フロント変更】
+  - pdf-editor/page.tsx を全面リファクタリング
+    - 上部タブ「新規段取シート」「リピート段取シート」で切り替え
+    - リピートタブに「作業記録 (repeat_p2)」ボタン追加
+    - テンプレートPDF差し替えボタン（amber色）を各テンプレートに追加
+    - プレビューに template パラメータ渡し
+
+【テンプレートPDF配置先】
+  /home/karkyon/projects/machcore/apps/api/assets/
+  ├── template_p1.pdf        ... 新規段取シート P1（既存）
+  ├── template_p2.pdf        ... 新規段取シート P2（既存）
+  ├── repeat_header.pdf      ... リピート ヘッダ固定部
+  ├── repeat_tooling.pdf     ... リピート ツーリング列
+  ├── repeat_wo.pdf          ... リピート WO枠
+  ├── repeat_ip.pdf          ... リピート IP列
+  └── template_repeat_p2.pdf ... リピート 作業記録 ← KARKYONさんがWORD等で作成してSCP配置
+""")
