@@ -64,6 +64,22 @@ export class McController {
     return this.mc.create(dto, req.user.id);
   }
 
+  // ── 新規仮データプレビューPDF（DBに保存しない） ──
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Post('preview-new')
+  async previewNew(
+    @Body() dto: any,
+    @Req() req: any,
+    @Res() reply: FastifyReply,
+  ) {
+    const pdf = await this.mc.previewNew(dto, req.user.id);
+    reply.header('Content-Type',        'application/pdf');
+    reply.header('Content-Disposition', 'inline; filename="mc-setup-preview.pdf"');
+    reply.header('Content-Length',      String(pdf.length));
+    return reply.send(pdf);
+  }
+
   // ── 新規作成+段取シート印刷 (1トランザクション) ──
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('OPERATOR', 'ADMIN')

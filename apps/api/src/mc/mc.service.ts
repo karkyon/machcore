@@ -1094,6 +1094,48 @@ export class McService {
   }
 
 
+
+  // ══════════════════════════════════════════
+  // 新規仮データでプレビューPDF生成（DBに保存しない）
+  // ══════════════════════════════════════════
+  async previewNew(dto: any, operatorId: number): Promise<Buffer> {
+    const part = await this.prisma.part.findUnique({ where: { id: dto.part_id } });
+    if (!part) throw new NotFoundException(`part_id ${dto.part_id} が存在しません`);
+    const machine = dto.machine_id
+      ? await this.prisma.machine.findUnique({ where: { id: dto.machine_id } })
+      : null;
+
+    // 一時MCレコードを作成してPDF生成し、その後削除
+    const tempMc = await this.prisma.mcProgram.create({
+      data: {
+        partId:       dto.part_id,
+        machiningId:  dto.machining_id,
+        mcProcessNo:  dto.mc_process_no ?? null,
+        machineId:    dto.machine_id    ?? null,
+        oNumber:      dto.o_number      ?? null,
+        machiningQty: dto.machining_qty ?? 1,
+        note:         dto.note          ?? null,
+        legacyMcid:   dto.machining_id,
+        registeredBy: operatorId,
+        status:       'NEW',
+        version:      '0.0001',
+      },
+    });
+
+    try {
+      const pdfBuffer = await this.generateSetupSheetPdf(tempMc.id, operatorId, {
+        include_tooling:  false,
+        include_clamp:    false,
+        include_drawings: dto.include_drawings ?? false,
+        is_preview:       true,
+      } as any);
+      return pdfBuffer;
+    } finally {
+      // 必ずDB削除（プレビューなのでデータ残さない）
+      await this.prisma.mcProgram.delete({ where: { id: tempMc.id } }).catch(() => {});
+    }
+  }
+
   // ══════════════════════════════════════════
   // MC新規作成+段取シート印刷 (1トランザクション)
   // 競合時は次の加工IDで再試行

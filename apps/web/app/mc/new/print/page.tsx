@@ -11,6 +11,7 @@ function McNewPrintInner() {
   const [pending, setPending] = useState<any>(null);
   const [includeDrawings, setIncludeDrawings] = useState(false);
   const [printing, setDirectPrinting] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [printError, setPrintError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -37,6 +38,27 @@ function McNewPrintInner() {
   }, [isAuthenticated]);
 
   const fmtElapsed = (s: number) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+
+  const handlePreview = async () => {
+    if (!token || !pending) { setPrintError("認証または情報が不足しています"); return; }
+    setPreviewing(true); setPrintError(null);
+    try {
+      const body = { ...pending, include_drawings: includeDrawings };
+      const res = await fetch("/api/mc/preview-new", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.message ?? `HTTP ${res.status}`); }
+      const blob = await res.blob();
+      window.open(URL.createObjectURL(blob), "_blank");
+      showToast("📄 プレビューを開きました（DBに記録されません）");
+    } catch (e: any) {
+      setPrintError(e.message ?? "プレビュー生成に失敗しました");
+    } finally {
+      setPreviewing(false);
+    }
+  };
 
   const handleDirectPrint = async () => {
     if (!token || !pending) { setPrintError("認証または情報が不足しています"); return; }
@@ -136,9 +158,18 @@ function McNewPrintInner() {
               ⚠️ 「プリンタに直接印刷」のみ加工IDが確定し、MCデータが登録されます。<br/>
               この画面を離脱した場合、MCデータは登録されません。
             </div>
-            <button onClick={handleDirectPrint} disabled={printing}
+            <button onClick={handlePreview} disabled={previewing || printing}
+              className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-bold py-3.5 rounded-xl text-sm">
+              {previewing ? "PDF生成中..." : "📄 プレビュー（透かし入り・記録なし）"}
+            </button>
+            <button onClick={handleDirectPrint} disabled={printing || previewing}
               className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3.5 rounded-xl text-sm">
               {printing ? "登録・送信中..." : "🖨 プリンタに直接印刷（加工IDを確定）"}
+            </button>
+            <button onClick={() => { logout(); if (typeof window !== "undefined") sessionStorage.removeItem("mc_new_pending"); router.push("/"); }}
+              disabled={printing || previewing}
+              className="w-full bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-600 font-bold py-3 rounded-xl text-sm transition-colors">
+              ✗ キャンセル（ダッシュボードへ戻る）
             </button>
           </div>
         )}
