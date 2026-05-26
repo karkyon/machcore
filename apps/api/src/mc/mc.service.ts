@@ -1093,6 +1093,108 @@ export class McService {
     return pdfBuffer;
   }
 
+
+  // ══════════════════════════════════════════
+  // MC新規作成+段取シート印刷 (1トランザクション)
+  // 競合時は次の加工IDで再試行
+  // ══════════════════════════════════════════
+  async createAndPrint(dto: any, operatorId: number): Promise<Buffer> {
+    const part = await this.prisma.part.findUnique({ where: { id: dto.part_id } });
+    if (!part) throw new NotFoundException(`part_id ${dto.part_id} が存在しません`);
+
+    let machiningId: number = dto.machining_id;
+    let mcId: number | null = null;
+    let retried = false;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      // 加工IDの競合チェック
+      const existing = await this.prisma.mcProgram.findFirst({
+        where: { machiningId },
+      });
+      if (existing) {
+        // 競合 → 次の加工IDを取得
+        const agg = await this.prisma.mcProgram.aggregate({ _max: { machiningId: true } });
+        machiningId = (agg._max.machiningId ?? 0) + 1;
+        retried = true;
+        continue;
+      }
+
+      try {
+        const mc = await this.prisma.$transaction(async (tx) => {
+          const created = await tx.mcProgram.create({
+            data: {
+              partId:        dto.part_id,
+              machiningId,
+              mcProcessNo:   dto.mc_process_no   ?? null,
+              machineId:     dto.machine_id      ?? null,
+              oNumber:       dto.o_number        ?? null,
+              machiningQty:  dto.machining_qty   ?? 1,
+              note:          dto.note            ?? null,
+              legacyMcid:    machiningId,
+              registeredBy:  operatorId,
+              status:        'NEW',
+              version:       '0.0001',
+            },
+          });
+          await tx.mcChangeHistory.create({
+            data: {
+              mcProgramId:  created.id,
+              changeType:   'NEW_REGISTRATION',
+              operatorId,
+              versionAfter: created.version,
+              content:      '新規登録',
+            },
+          });
+          await tx.operationLog.create({
+            data: { userId: operatorId, mcProgramId: created.id, actionType: 'MC_EDIT_SAVE', metadata: { action: 'create' } },
+          });
+          return created;
+        });
+        mcId = mc.id;
+        break;
+      } catch (e: any) {
+        if (e.code === 'P2002') {
+          // unique制約違反 → 次の加工IDで再試行
+          const agg = await this.prisma.mcProgram.aggregate({ _max: { machiningId: true } });
+          machiningId = (agg._max.machiningId ?? 0) + 1;
+          retried = true;
+        } else {
+          throw e;
+        }
+      }
+    }
+
+    if (mcId === null) throw new Error('加工IDの確定に失敗しました。再度お試しください。');
+
+    // PDF生成 + 印刷ログ記録
+    const pdfBuffer = await this.generateSetupSheetPdf(mcId, operatorId, {
+      include_tooling: false,
+      include_clamp:   false,
+      include_drawings: dto.include_drawings ?? false,
+    });
+
+    // プリンタへ送信
+    const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true, mcPrinter: true } });
+    const printerName = setting?.mcPrinter || setting?.printerName;
+    if (!printerName) throw new Error('MCプリンタが設定されていません。管理画面のシステム設定でMCチーム用プリンタを設定してください。');
+    const tmpPath = `/tmp/machcore-mc-newprint-${mcId}-${Date.now()}.pdf`;
+    fs.writeFileSync(tmpPath, pdfBuffer);
+    try {
+      execSync(`lp -d ${printerName} -o media=A4 -o fit-to-page "${tmpPath}"`, { timeout: 15000 });
+    } finally {
+      try { fs.unlinkSync(tmpPath); } catch { /**/ }
+    }
+
+    return Buffer.from(JSON.stringify({
+      mc_id:        mcId,
+      machining_id: machiningId,
+      retried,
+      message:      retried
+        ? `加工IDが競合したため ${machiningId} で登録しました。${printerName} に送信しました`
+        : `${printerName} に送信しました`,
+    }));
+  }
+
   // ══════════════════════════════════════════
   // ダイレクト印刷
   // ══════════════════════════════════════════

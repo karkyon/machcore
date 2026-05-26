@@ -64,6 +64,15 @@ export class McController {
     return this.mc.create(dto, req.user.id);
   }
 
+  // ── 新規作成+段取シート印刷 (1トランザクション) ──
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Post('create-and-print')
+  async createAndPrint(@Body() dto: any, @Req() req: any) {
+    const result = await this.mc.createAndPrint(dto, req.user.id);
+    return JSON.parse(result.toString());
+  }
+
   // ── MC詳細 ──────────────────────────────────
   @Get(':mc_id')
   findOne(@Param('mc_id', ParseIntPipe) id: number) {

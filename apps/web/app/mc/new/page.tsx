@@ -85,22 +85,23 @@ export default function McNewPage() {
     if (!selectedPart) { setSaveError("部品を選択してください"); return; }
     if (!machiningId)  { setSaveError("加工IDを取得できませんでした"); return; }
 
-    setSaving(true); setSaveError(null);
-    try {
-      const body: Record<string, any> = { part_id: selectedPart.id, machining_id: machiningId };
-      if (machineId)    body.machine_id    = parseInt(machineId);
-      if (mcProcessNo)  body.mc_process_no = parseInt(mcProcessNo);
-      if (oNumber)      body.o_number      = oNumber;
-      if (machiningQty) body.machining_qty = parseInt(machiningQty);
-      if (note)         body.note          = note;
-
-      const res = await mcApi.create(body, authToken!);
-      const d   = (res as any).data ?? res;
-      router.push(`/mc/${d.mc_id}/print?from=new`);
-    } catch (e: any) {
-      const msg = e?.response?.data?.message ?? e?.message ?? "登録に失敗しました";
-      setSaveError(Array.isArray(msg) ? msg.join(" / ") : msg);
-    } finally { setSaving(false); }
+    // MCレコードはここでは作成しない（加工IDは仮押さえのみ）
+    // 直接印刷ボタン押下時に1トランザクションで確定する
+    const pendingData = {
+      part_id:       selectedPart.id,
+      drawing_no:    selectedPart.drawing_no,
+      part_name:     selectedPart.name,
+      machining_id:  machiningId,
+      machine_id:    machineId ? parseInt(machineId) : null,
+      mc_process_no: mcProcessNo ? parseInt(mcProcessNo) : null,
+      o_number:      oNumber || null,
+      machining_qty: machiningQty ? parseInt(machiningQty) : 1,
+      note:          note || null,
+    };
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("mc_new_pending", JSON.stringify(pendingData));
+    }
+    router.push(`/mc/new/print?from=new`);
   };
 
   // authOperatorがセットされている = AuthModalで実際に認証済み（localStorage残存トークンは除外）
