@@ -121,9 +121,8 @@ export default function McPrintPage() {
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="bg-slate-800 text-white px-5 py-2.5 flex items-center gap-3 shrink-0">
         <button
-          onClick={() => !isNew && router.push(`/mc/${mcId}`)}
-          disabled={isNew}
-          className={`inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors shrink-0 ${isNew ? "bg-slate-600 border-slate-600 text-slate-400 opacity-40 cursor-not-allowed pointer-events-none" : "bg-slate-700 hover:bg-slate-600 border-slate-600 text-white"}`}
+          onClick={() => router.push(`/mc/${mcId}`)}
+          className={`inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors shrink-0 ${false ? "bg-slate-600 border-slate-600 text-slate-400 opacity-40 cursor-not-allowed pointer-events-none" : "bg-slate-700 hover:bg-slate-600 border-slate-600 text-white"}`}
         >
           <span className="w-5 h-5 rounded-full bg-teal-500 flex items-center justify-center shrink-0">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
@@ -177,20 +176,20 @@ export default function McPrintPage() {
 
       {/* タブナビ */}
       <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
-        <button onClick={() => !isNew && router.push(`/mc/${mcId}`)}
-          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (isNew ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
+        <button onClick={() => router.push(`/mc/${mcId}`)}
+          className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>MC詳細
         </button>
-        <button onClick={() => !isNew && router.push(`/mc/${mcId}/edit`)}
-          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (isNew ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
+        <button onClick={() => router.push(`/mc/${mcId}/edit`)}
+          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (false ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
         </button>
         <button onClick={() => router.push(`/mc/${mcId}/print`)}
           className="px-4 py-1.5 text-[12px] font-bold flex items-center gap-1.5 rounded-t-md border border-b-0 border-[#1b2a41] bg-[#1b2a41] text-white transition-colors">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
         </button>
-        <button onClick={() => !isNew && router.push(`/mc/${mcId}/record`)}
-          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (isNew ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
+        <button onClick={() => router.push(`/mc/${mcId}/record`)}
+          className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録
         </button>
       </nav>
@@ -285,7 +284,40 @@ export default function McPrintPage() {
                   {isReference && <p className="text-[11px] text-amber-600 mt-1 ml-7">参考出力はダッシュボードの未回収一覧に表示されません</p>}
                 </div>
               )}
-              <div className="px-5 py-4 pb-6 flex flex-col gap-4 border-t border-slate-100 mt-2">
+              {/* 認証後オプション */}
+              <div className="px-5 py-4 border-t border-slate-100 space-y-3">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">段取シート発行オプション</p>
+                <label className="flex items-center gap-3 text-sm cursor-pointer">
+                  <input type="checkbox" checked={includeDrawings} onChange={e => setIncludeDrawings(e.target.checked)}
+                    className="accent-teal-600 w-4 h-4" />
+                  <span className="text-slate-700">図を含める</span>
+                </label>
+                {!isNew && (
+                  <>
+                    {([
+                      ["ツーリングリストを含める", includeTooling, setIncludeTooling],
+                      ["クランプ情報を含める",     includeClamp,   setIncludeClamp],
+                      ["ワークオフセットを含める", includeWorkOffsets, setIncludeWorkOffsets],
+                      ["インデックスプログラムを含める", includeIndexPrograms, setIncludeIndexPrograms],
+                    ] as [string, boolean, (v: boolean) => void][]).map(([label, val, setter]) => (
+                      <label key={label} className="flex items-center gap-3 text-sm cursor-pointer">
+                        <input type="checkbox" checked={val} onChange={e => setter(e.target.checked)}
+                          className="accent-teal-600 w-4 h-4" />
+                        <span className="text-slate-700">{label}</span>
+                      </label>
+                    ))}
+                    <div className="pt-2 border-t border-slate-100">
+                      <label className="flex items-center gap-3 text-sm cursor-pointer">
+                        <input type="checkbox" checked={isReference} onChange={e => setIsReference(e.target.checked)}
+                          className="accent-amber-500 w-4 h-4" />
+                        <span className="text-amber-700 font-bold">参考出力（生産に使用しない・回収不要）</span>
+                      </label>
+                      {isReference && <p className="text-[11px] text-amber-600 mt-1 ml-7">参考出力はダッシュボードの未回収一覧に表示されません</p>}
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="px-5 py-4 pb-6 flex flex-col gap-4 border-t border-slate-100">
                 <button onClick={handlePrint} disabled={printing}
                   className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-bold py-3.5 rounded-xl text-sm">
                   {printing ? "PDF生成中..." : isNew ? "📄 プレビュー（透かし入り・記録なし）" : "📄 PDFプレビュー（ブラウザで開く）"}
