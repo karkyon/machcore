@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+"""fix_v97b: mc/[mc_id]/print/page.tsx を正しい内容で完全書き直し"""
+import subprocess, sys, os
+
+ROOT = os.path.expanduser("~/projects/machcore")
+PRINT = f"{ROOT}/apps/web/app/mc/[mc_id]/print/page.tsx"
+
+CORRECT = '''\
 "use client";
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -19,7 +27,7 @@ function McPrintPageInner() {
   const mcId  = parseInt(mc_id);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isNewEntry = searchParams.get('from') === 'new';
+  const isNewEntry = searchParams.get(\'from\') === \'new\';
 
   const [nc, setNc]   = useState<McDetail | null>(null);
   const { operator, isAuthenticated, logout, token } = useAuth();
@@ -300,3 +308,30 @@ export default function McPrintPage() {
     </Suspense>
   );
 }
+'''
+
+with open(PRINT, "w", encoding="utf-8") as f:
+    f.write(CORRECT)
+print("OK: print/page.tsx 完全書き直し（オプション1つに統一）")
+
+print("\n--- build web ---")
+r = subprocess.run(["pnpm","--filter","web","build"], cwd=ROOT, capture_output=True, text=True)
+print(r.stdout[-3000:])
+if r.stderr: print("STDERR:", r.stderr[-2000:])
+if r.returncode != 0: print("BUILD FAILED (web)"); sys.exit(1)
+
+print("\n--- build api ---")
+r = subprocess.run(["pnpm","--filter","api","build"], cwd=ROOT, capture_output=True, text=True)
+print(r.stdout[-2000:])
+if r.stderr: print("STDERR:", r.stderr[-1000:])
+if r.returncode != 0: print("BUILD FAILED (api)"); sys.exit(1)
+
+print("\n--- pm2 restart ---")
+subprocess.run(["pm2","restart","machcore-api","machcore-web"], cwd=ROOT)
+subprocess.run(["pm2","ls"], cwd=ROOT)
+
+print("\n--- git push ---")
+subprocess.run(["git","add","-A"], cwd=ROOT)
+subprocess.run(["git","commit","-m","fix(v97b): print/page.tsx完全書き直し オプション2重表示解消"], cwd=ROOT)
+subprocess.run(["git","push"], cwd=ROOT)
+print("\nDONE v97b")
