@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { mcApi, machinesApi, usersApi, McDetail, McSetupSheetLog, McWorkRecord, Machine, UserInfo, CreateMcWorkRecordBody } from "@/lib/api";
+import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 
@@ -520,18 +521,28 @@ function McRecordPageInner() {
 
       {/* 部品情報バー */}
       {detail && (
-        <div className="bg-white border-b border-slate-200 px-5 py-2 flex items-center gap-4 shrink-0 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-700 text-sm">{detail.part?.drawingNo ?? "—"}</span>
-            <span className="text-slate-400">/</span>
-            <span className="text-sm text-slate-600">{detail.part?.name ?? "—"}</span>
+        <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
+          <div className="flex items-center gap-3 flex-wrap mb-1.5">
+            <span className="font-mono text-teal-600 font-bold text-2xl leading-none">{detail.part?.drawingNo ?? "—"}</span>
+            <span className="text-slate-300 text-xl font-light">/</span>
+            <span className="font-bold text-slate-800 text-xl leading-none">{detail.part?.name ?? "—"}</span>
+            {(detail as any).part?.mainModel && <>
+              <span className="text-slate-300 text-xl font-light">/</span>
+              <span className="text-slate-500 text-lg font-medium leading-none">{(detail as any).part.mainModel}</span>
+            </>}
+            <div className="flex items-center gap-2 ml-2">
+              {(detail as any).machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{(detail as any).machine.machineCode}</span>}
+              <StatusBadge status={detail.status} />
+              <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {detail.version}</span>
+            </div>
           </div>
           <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
+            {(detail as any)?.mcProcessNo != null && <span className="font-bold text-teal-700 text-sm">工程No: {(detail as any).mcProcessNo}</span>}
+            <span className="text-slate-400">|</span>
             <span>MCID: <span className="text-slate-700">{detail.legacyMcid ?? detail.id}</span></span>
             <span className="text-slate-400">|</span>
             <span>加工ID: <span className="text-slate-700">{detail.machiningId}</span></span>
-            <span className="text-slate-400">|</span>
-            <span>Ver: <span className="text-slate-700">{detail.version}</span></span>
+            {detail.part?.partId && <><span className="text-slate-400">|</span><span>部品ID: <span className="text-slate-700">{detail.part.partId}</span></span></>}
           </div>
         </div>
       )}
