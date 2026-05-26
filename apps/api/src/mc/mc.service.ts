@@ -652,16 +652,6 @@ export class McService {
         sheet_type:     rank === 1 ? 'NEW' : 'REPEAT',
       };
     });
-  } },
-    });
-    return rows.map(r => ({
-      id:             r.id,
-      printed_at:     r.printedAt,
-      version:        r.version ?? null,
-      operator_name:  r.operator?.name ?? null,
-      work_collected: r.workCollected,
-      is_reference:   (r as any).isReference ?? false,
-    }));
   }
 
   /** 段取シートバック: legacy_mcid で未回収シート一覧取得 */
