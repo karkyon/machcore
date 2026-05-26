@@ -226,22 +226,6 @@ function McPrintPageInner() {
                 <div className="flex justify-between"><span className="text-slate-500">CT/1P</span><span>{fmtCycle(d.cycleTimeSec)}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">ツーリング</span><span>{d.tooling.length}本</span></div>
               </div>
-              {/* 印刷オプション */}
-              <div className="space-y-2 mb-6">
-                {[
-                  [includeTooling,       setIncludeTooling,       "ツーリングリストを含める"],
-                  [includeClamp,         setIncludeClamp,         "クランプ情報を含める"],
-                  [includeDrawings,      setIncludeDrawings,      "図を含める"],
-                  [includeWorkOffsets,   setIncludeWorkOffsets,   "ワークオフセットを含める"],
-                  [includeIndexPrograms, setIncludeIndexPrograms, "インデックスプログラムを含める"],
-                ].map(([val, setter, label]: any) => (
-                  <label key={label} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input type="checkbox" checked={val} onChange={e => setter(e.target.checked)}
-                      className="accent-teal-600 w-4 h-4" />
-                    <span className="text-slate-700">{label}</span>
-                  </label>
-                ))}
-              </div>
               <button onClick={() => setAuthOpen(true)}
                 className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm">
                 この作業を開始する
