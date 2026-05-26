@@ -40,9 +40,10 @@ export default function PdfEditorPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [pdfjsReady, setPdfjsReady] = useState(false);
   const [fields,     setFields]     = useState<PdfField[]>([]);
-  // previewPage: 1=1枚目(mc_setup_p1), 2=2枚目(mc_setup_p2)
+  // selTpl: テンプレート名 (mc_setup_p1 / mc_setup_p2 / repeat_header / repeat_tooling / repeat_wo / repeat_ip)
+  const [selTpl, setSelTpl] = useState("mc_setup_p1");
+  // previewPage: PDF表示ページ (1 or 2)
   const [previewPage, setPreviewPage] = useState(1);
-  const selTpl = previewPage === 1 ? "mc_setup_p1" : "mc_setup_p2";
   const [selId,      setSelId]      = useState<number | null>(null);
   const [loading,    setLoading]    = useState(false);
   const [saving,     setSaving]     = useState(false);
@@ -76,11 +77,12 @@ export default function PdfEditorPage() {
     if (!sessionStorage.getItem("admin_token")) { router.replace("/admin/login"); return; }
   }, [router]);
 
-  // previewPage（=selTpl）が変わったらフィールド再取得 + 選択解除
+  // selTpl が変わったらフィールド再取得 + 選択解除
   useEffect(() => {
     setSelId(null);
     loadFields();
-  }, [previewPage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selTpl]);
 
   // PDF canvas レンダリング
   useEffect(() => {
@@ -106,7 +108,7 @@ export default function PdfEditorPage() {
   const loadFields = async () => {
     setLoading(true);
     try {
-      const tpl = previewPage === 1 ? "mc_setup_p1" : "mc_setup_p2";
+      const tpl = selTpl;
       const data = await apiFetch(`/admin/pdf-fields?template=${tpl}`);
       const arr: PdfField[] = Array.isArray(data) ? data : [];
       setFields(arr.map(f => ({ ...f, _ex: f.x, _ey: f.y, _es: f.fontSize, _ea: f.isActive, _dirty: false })));
@@ -151,9 +153,15 @@ export default function PdfEditorPage() {
   const loadPreview = async () => {
     setPdfLoading(true);
     try {
-      const blob = await apiFetch(`/admin/pdf-preview${mcIdInput ? `?mc_id=${mcIdInput}` : ""}`);
+      const isRepeat = selTpl.startsWith("repeat_");
+      const endpoint = isRepeat
+        ? `/admin/pdf-repeat-preview${mcIdInput ? `?mc_id=${mcIdInput}` : ""}`
+        : `/admin/pdf-preview${mcIdInput ? `?mc_id=${mcIdInput}` : ""}`;
+      const blob = await apiFetch(endpoint);
       const ab = await (blob as Blob).arrayBuffer();
       setPdfBytes(ab);
+      // リピートテンプレはページ1固定プレビュー
+      if (isRepeat) setPreviewPage(1);
     } catch (e: any) { showToast(`プレビュー失敗: ${e.message}`, false); }
     finally { setPdfLoading(false); }
   };
@@ -216,17 +224,38 @@ export default function PdfEditorPage() {
         {/* 左ペイン */}
         <div className="w-80 shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden">
           <div className="shrink-0 p-2 border-b border-slate-100 space-y-1.5">
-            {/* 表示切替（これだけ） */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-slate-500 font-bold shrink-0">表示:</span>
-              <button onClick={() => setPreviewPage(1)}
-                className={`flex-1 py-1 text-xs font-bold rounded border ${previewPage === 1 ? "bg-teal-600 text-white border-teal-600" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
-                1P目（段取シート1枚目）
-              </button>
-              <button onClick={() => setPreviewPage(2)}
-                className={`flex-1 py-1 text-xs font-bold rounded border ${previewPage === 2 ? "bg-orange-500 text-white border-orange-500" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
-                2P目（段取シート2枚目）
-              </button>
+            {/* テンプレート切り替えセレクタ */}
+            <div className="space-y-1">
+              <div className="text-[10px] text-slate-500 font-bold">新規段取シート</div>
+              <div className="flex gap-1">
+                {[
+                  {tpl:"mc_setup_p1",  label:"P1 ツーリング面",   pg:1, color:"teal"},
+                  {tpl:"mc_setup_p2",  label:"P2 作業記録",       pg:2, color:"orange"},
+                ].map(({tpl,label,pg,color}) => (
+                  <button key={tpl} onClick={() => { setSelTpl(tpl); setPreviewPage(pg); }}
+                    className={`flex-1 py-1 text-[10px] font-bold rounded border whitespace-nowrap ${selTpl===tpl
+                      ? (color==="teal" ? "bg-teal-600 text-white border-teal-600" : "bg-orange-500 text-white border-orange-500")
+                      : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="text-[10px] text-slate-500 font-bold pt-1">リピート段取シート</div>
+              <div className="grid grid-cols-2 gap-1">
+                {[
+                  {tpl:"repeat_header",  label:"ヘッダ固定部"},
+                  {tpl:"repeat_tooling", label:"ツーリング列"},
+                  {tpl:"repeat_wo",      label:"WO枠"},
+                  {tpl:"repeat_ip",      label:"IP列"},
+                ].map(({tpl,label}) => (
+                  <button key={tpl} onClick={() => { setSelTpl(tpl); setPreviewPage(1); }}
+                    className={`py-1 text-[10px] font-bold rounded border ${selTpl===tpl
+                      ? "bg-violet-600 text-white border-violet-600"
+                      : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
             {/* PDF生成 */}
             <div className="flex gap-1.5 items-center">

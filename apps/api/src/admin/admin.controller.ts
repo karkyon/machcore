@@ -463,6 +463,42 @@ export class AdminController {
     return reply.send(pdf);
   }
 
+
+  /** リピート段取シートPDFプレビュー生成（is_preview=true） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('pdf-repeat-preview')
+  async getRepeatPdfPreview(
+    @Query('mc_id') mcIdStr?: string,
+    @Res() reply?: any,
+  ) {
+    let mcId = mcIdStr ? parseInt(mcIdStr) : 0;
+    if (!mcId) {
+      const first = await this.prisma.mcProgram.findFirst({
+        where: { status: { not: 'NEW' } },
+        orderBy: { id: 'desc' },
+      });
+      if (!first) {
+        const any = await this.prisma.mcProgram.findFirst({ orderBy: { id: 'asc' } });
+        if (!any) throw new BadRequestException('MCプログラムが存在しません');
+        mcId = any.id;
+      } else {
+        mcId = first.id;
+      }
+    }
+    const pdf = await this.mcService.generateRepeatSetupSheetPdf(mcId, 1, {
+      include_tooling:        true,
+      include_clamp:          true,
+      include_work_offsets:   true,
+      include_index_programs: true,
+      is_preview:             true,
+    });
+    reply.header('Content-Type',        'application/pdf');
+    reply.header('Content-Disposition', `inline; filename="repeat-preview-${mcId}.pdf"`);
+    reply.header('Content-Length',      String(pdf.length));
+    return reply.send(pdf);
+  }
+
   // ══ 機械タイムカード (admin用) ══
 
   /** admin用: 全MC機械の当日タイムカード初期生成 */
