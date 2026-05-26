@@ -1237,6 +1237,537 @@ export class McService {
     }));
   }
 
+
+  // ══════════════════════════════════════════════════════
+  // リピート段取シートPDF生成
+  // 構成: ①基本情報ヘッダ ②ツーリング ③WO ④IP → 可変ページ数
+  //       最終ページ: template_p2.pdf（作業記録ページ）
+  // ══════════════════════════════════════════════════════
+  async generateRepeatSetupSheetPdf(
+    mcId:       number,
+    operatorId: number,
+    options: {
+      include_tooling?:        boolean;
+      include_clamp?:          boolean;
+      include_drawings?:       boolean;
+      include_work_offsets?:   boolean;
+      include_index_programs?: boolean;
+      is_reference?:           boolean;
+      is_preview?:             boolean;
+    } = {},
+  ): Promise<Buffer> {
+    const data = await this.getPrintData(mcId) as any;
+    const d    = data as any;
+    const part    = d.part    ?? {};
+    const machine = d.machine ?? {};
+
+    // フォント / ライブラリ
+    const PDFKitMod  = await import('pdfkit');
+    const PDFDocument: any = (PDFKitMod as any).default ?? PDFKitMod;
+    const FONT_PATH  = '/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf';
+
+    const { PDFDocument: PDFLib, rgb, degrees } = await import('pdf-lib');
+    const fontkit = await import('@pdf-lib/fontkit');
+    const fontBytes = fs.readFileSync(FONT_PATH);
+
+    // ── レイアウト定数（新規段取シートと同じ座標系） ──
+    const A4_H = 841.89;
+    const ML   = 30.4;
+    const PW   = 526.2;
+    const MR   = ML + PW;
+    const F    = 'IPA';
+    const lw0  = 0.5;
+    const lw1  = 1.0;
+
+    // ── pdfkitドキュメント生成 ──
+    const doc: any = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false });
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+
+    // ── ヘルパー ──
+    const strokeN = () => doc.strokeColor('#000000').lineWidth(lw0);
+    const strokeB = () => doc.strokeColor('#000000').lineWidth(lw1);
+    const grayCell = (x:number,y:number,w:number,h:number,t:string,fs=6.0) => {
+      strokeN();
+      doc.rect(x,y,w,h).fillAndStroke('#e8e8e8','#000000');
+      doc.font(F).fontSize(fs).fillColor('#000000');
+      const ty = y+(h-fs*0.72)/2;
+      doc.text(t, x+1.5, ty, {width:w-3, lineBreak:false});
+    };
+    const cellR = (x:number,y:number,w:number,h:number) => { strokeN(); doc.rect(x,y,w,h).stroke(); };
+    const cellT = (x:number,y:number,w:number,h:number,t:string,fs:number,al:'left'|'center'='left') => {
+      if(!t) return;
+      doc.font(F).fontSize(fs).fillColor('#000000');
+      const ty = y+(h-fs*0.72)/2;
+      if(al==='center') doc.text(t, x, ty, {width:w, align:'center', lineBreak:false});
+      else doc.text(t, x+2, ty, {width:w-4, lineBreak:false});
+    };
+    const labelVal = (x:number,y:number,lw:number,vw:number,h:number,
+                      label:string,val:string,lfs=6.0,vfs=7.0) => {
+      grayCell(x,y,lw,h,label,lfs);
+      cellR(x+lw,y,vw,h);
+      if(val) cellT(x+lw,y,vw,h,val,vfs);
+    };
+    const fmtCycle = (sec:number|null) => {
+      if(!sec) return '';
+      const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+      return `${h}H ${String(m).padStart(2,'0')}M ${String(s).padStart(2,'0')}S`;
+    };
+    const fmtDate = (d:string|null|undefined) => {
+      if(!d) return '';
+      const dt = new Date(d);
+      return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`;
+    };
+    const fmtVer = (v:string) => v.replace(/^(\d+)\.(\d{4})$/,(_,a,b)=>a+'.'+b.slice(0,2)+' '+b.slice(2));
+    const now = new Date();
+    const nowStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+    // ── ページ管理 ──
+    let curY = 0;
+    let totalContentPages = 0; // コンテンツページ数（作業記録ページを除く）
+    const PAGE_TOP = 39.7;
+    const PAGE_BOTTOM = A4_H - 25; // ページ番号エリア確保
+
+    const addContentPage = () => {
+      doc.addPage({ size: 'A4', margin: 0 });
+      totalContentPages++;
+      curY = PAGE_TOP;
+      // 外枠
+      strokeB();
+      doc.rect(ML, PAGE_TOP, PW, PAGE_BOTTOM - PAGE_TOP).stroke();
+    };
+
+    const ensureSpace = (needed: number) => {
+      if (curY + needed > PAGE_BOTTOM - 2) {
+        drawPageNo(totalContentPages, 0); // 暫定ページ番号（後で上書き）
+        addContentPage();
+        return true;
+      }
+      return false;
+    };
+
+    const drawPageNo = (pageNum:number, totalPages:number) => {
+      const PG_Y = PAGE_BOTTOM;
+      const PG_H = 21.3;
+      const PG_X = MR - 44.2;
+      strokeN();
+      doc.rect(PG_X, PG_Y, 22.1, PG_H).fillAndStroke('#e8e8e8','#000000');
+      doc.font(F).fontSize(5.5).fillColor('#000000');
+      doc.text('ペ', PG_X+1, PG_Y+1,  {width:20,lineBreak:false});
+      doc.text('ー', PG_X+1, PG_Y+7,  {width:20,lineBreak:false});
+      doc.text('ジ', PG_X+1, PG_Y+13, {width:20,lineBreak:false});
+      strokeN();
+      doc.rect(PG_X+22.1, PG_Y, 22.1, PG_H).stroke();
+      const pgLabel = totalPages > 0 ? `${pageNum} / ${totalPages}` : `${pageNum} / ?`;
+      doc.font(F).fontSize(6.5).fillColor('#000000');
+      doc.text(pgLabel, PG_X+22.1, PG_Y+(PG_H-6.5*0.72)/2,
+               {width:22, align:'center', lineBreak:false});
+    };
+
+    // ══════════════════════════════
+    // P1: ①基本情報ヘッダ
+    // ══════════════════════════════
+    addContentPage();
+
+    // タイトル行 h=28.6
+    const T_Y = PAGE_TOP; const T_H = 28.6;
+    const verText = `リピート段取シート　Ver. ${fmtVer(d.version ?? '1.0001')}`;
+    doc.font(F).fontSize(13.5).fillColor('#000000');
+    doc.text(verText, ML+4, T_Y+(T_H-13.5*0.72)/2, {lineBreak:false});
+    // 日付ボックス
+    const dateBoxX = ML+220; const dateBoxW = 130; const dateBoxH = T_H;
+    grayCell(dateBoxX, T_Y, 30, dateBoxH, '出力日時', 5.5);
+    cellR(dateBoxX+30, T_Y, dateBoxW-30, dateBoxH);
+    cellT(dateBoxX+30, T_Y, dateBoxW-30, dateBoxH, nowStr, 7.0);
+    // MC IDボックス
+    const midX = ML+355; const midW = MR-ML-355;
+    grayCell(midX, T_Y, 30, dateBoxH, 'MC-ID', 5.5);
+    cellR(midX+30, T_Y, 38, dateBoxH);
+    doc.font(F).fontSize(11).fillColor('#000000');
+    const mcIdStr = String(d.legacyMcid ?? d.id);
+    doc.text(mcIdStr, midX+30, T_Y+(dateBoxH-11*0.72)/2, {width:38, align:'center', lineBreak:false});
+    grayCell(midX+68, T_Y, 30, dateBoxH, '加工ID', 5.5);
+    cellR(midX+98, T_Y, MR-(midX+98), dateBoxH);
+    doc.font(F).fontSize(11).fillColor('#000000');
+    doc.text(String(d.machiningId ?? ''), midX+98, T_Y+(dateBoxH-11*0.72)/2,
+             {width:MR-(midX+98), align:'center', lineBreak:false});
+
+    curY = T_Y + T_H;
+
+    // 基本情報ブロック（納入先/図番/名称/主機種型式/機械/工程No/ONo/VER/CT/数量）
+    const H1 = 15.0; // 行高
+    const COL1 = 70; // ラベル列幅
+    const halfW = PW / 2;
+
+    // 行1: 納入先
+    labelVal(ML, curY, COL1, PW-COL1, H1, '納入先', part.clientName ?? '');
+    curY += H1;
+    // 行2: 図番
+    labelVal(ML, curY, COL1, PW-COL1, H1, '図面番号', part.drawingNo ?? '');
+    curY += H1;
+    // 行3: 名称
+    labelVal(ML, curY, COL1, PW-COL1, H1, '名称', part.name ?? '');
+    curY += H1;
+    // 行4: 主機種型式
+    labelVal(ML, curY, COL1, PW-COL1, H1, '主機種型式', part.mainModel ?? '');
+    curY += H1;
+    // 行5: 機械 | 工程No | 主Oナンバ
+    const R5_H = H1;
+    const w5a=halfW, w5b=halfW/2, w5c=halfW/2;
+    labelVal(ML, curY, COL1, w5a-COL1, R5_H, '機械', machine.machineCode ?? '');
+    labelVal(ML+w5a, curY, 50, w5b-50, R5_H, '工程No', d.mcProcessNo!=null?String(d.mcProcessNo):'');
+    labelVal(ML+w5a+w5b, curY, 50, w5c-50, R5_H, '主Oナンバ', d.oNumber ?? '');
+    curY += R5_H;
+    // 行6: VER | CT/1P | 加工数量
+    const R6_H = H1;
+    const vw = PW/3;
+    labelVal(ML, curY, 40, vw-40, R6_H, 'VER', fmtVer(d.version ?? '1.0001'));
+    labelVal(ML+vw, curY, 50, vw-50, R6_H, 'CT/1P', fmtCycle(d.cycleTimeSec));
+    labelVal(ML+vw*2, curY, 50, vw-50, R6_H, '加工数量', d.machiningQty!=null?String(d.machiningQty):'');
+    curY += R6_H;
+    // 行7: 承認日 | 登録日
+    const R7_H = H1;
+    labelVal(ML, curY, 50, halfW-50, R7_H, '承認日', fmtDate(d.approvedAt));
+    labelVal(ML+halfW, curY, 50, halfW-50, R7_H, '登録日', fmtDate(d.registeredAt ?? d.createdAt));
+    curY += R7_H;
+
+    // 備考（高さ可変）
+    const noteText = d.note ?? '';
+    const clampText = options.include_clamp !== false ? (d.clampNote ?? '') : '';
+    const NOTE_FS = 7.0;
+    const NOTE_LH = NOTE_FS * 1.4;
+    const noteLines = noteText ? noteText.split(/\n|\r\n/).length : 0;
+    const clampLines = clampText ? clampText.split(/\n|\r\n/).length : 0;
+    if (noteText || clampText) {
+      const NOTE_H = Math.max(H1 * 2, (Math.max(noteLines, 1) + Math.max(clampLines, 1) + 1) * NOTE_LH + 4);
+      grayCell(ML, curY, COL1, NOTE_H/2, '備考', 6.0);
+      cellR(ML+COL1, curY, PW-COL1, NOTE_H/2);
+      if (noteText) {
+        doc.font(F).fontSize(NOTE_FS).fillColor('#000000');
+        doc.text(noteText, ML+COL1+2, curY+3, {width:PW-COL1-4, lineBreak:true});
+      }
+      grayCell(ML, curY+NOTE_H/2, COL1, NOTE_H/2, 'クランプ', 6.0);
+      cellR(ML+COL1, curY+NOTE_H/2, PW-COL1, NOTE_H/2);
+      if (clampText) {
+        doc.font(F).fontSize(NOTE_FS).fillColor('#000000');
+        doc.text(clampText, ML+COL1+2, curY+NOTE_H/2+3, {width:PW-COL1-4, lineBreak:true});
+      }
+      curY += NOTE_H;
+    } else {
+      // 備考なし: 最小高さだけ確保
+      grayCell(ML, curY, COL1, H1, '備考', 6.0);
+      cellR(ML+COL1, curY, PW-COL1, H1);
+      grayCell(ML, curY+H1, COL1, H1, 'クランプ', 6.0);
+      cellR(ML+COL1, curY+H1, PW-COL1, H1);
+      curY += H1 * 2;
+    }
+
+    curY += 4; // セクション区切り
+
+    // ══════════════════════════════
+    // ②ツーリングリスト
+    // ══════════════════════════════
+    const tooling = (options.include_tooling !== false) ? (d.tooling ?? []) : [];
+    if (tooling.length > 0) {
+      const TH = 14.0; // ツーリング行高
+      // ヘッダ列定義
+      const TCOLS = [
+        {w:20,  label:'N',      al:'center' as const},
+        {w:105, label:'工具名称（加工種別）', al:'left' as const},
+        {w:25,  label:'T番号',  al:'center' as const},
+        {w:25,  label:'H値',    al:'center' as const},
+        {w:30,  label:'D登録',  al:'center' as const},
+        {w:30,  label:'D値',    al:'center' as const},
+        {w:55,  label:'サブPG', al:'center' as const},
+        {w:0,   label:'備考',   al:'left' as const},  // 残り幅
+      ];
+      // 残り幅を自動計算
+      const fixedW = TCOLS.slice(0,-1).reduce((s,c)=>s+c.w,0);
+      TCOLS[TCOLS.length-1].w = PW - fixedW;
+
+      // ヘッダ描画関数
+      const drawToolingHeader = () => {
+        let tx = ML;
+        for (const col of TCOLS) {
+          grayCell(tx, curY, col.w, TH, col.label, 5.5);
+          tx += col.w;
+        }
+        curY += TH;
+      };
+
+      // セクションタイトル
+      ensureSpace(TH * 3);
+      const SEC_H = 12;
+      grayCell(ML, curY, PW, SEC_H, '■ ツーリングリスト', 7.0);
+      curY += SEC_H;
+      ensureSpace(TH * 2);
+      drawToolingHeader();
+
+      for (const t of tooling) {
+        if (ensureSpace(TH)) {
+          drawToolingHeader(); // 改ページ後ヘッダ再描画
+        }
+        const vals = [
+          String(t.toolNo ?? ''),
+          t.toolName ?? '',
+          String(t.tNo ?? t.tNumber ?? ''),
+          t.hValue!=null ? String(t.hValue) : (t.lengthOffsetNo ?? ''),
+          t.diaOffsetNo ?? t.dRegister ?? '',
+          t.dValue!=null ? String(t.dValue) : (t.diameter!=null?String(t.diameter):''),
+          t.subPgNo ?? t.subProgram ?? '',
+          t.note ?? '',
+        ];
+        let tx = ML;
+        for (let ci = 0; ci < TCOLS.length; ci++) {
+          const col = TCOLS[ci];
+          cellR(tx, curY, col.w, TH);
+          if (vals[ci]) cellT(tx, curY, col.w, TH, vals[ci], 6.5, col.al);
+          tx += col.w;
+        }
+        curY += TH;
+      }
+      curY += 4;
+    }
+
+    // ══════════════════════════════
+    // ③ワークオフセット（3列横並び）
+    // ══════════════════════════════
+    const workOffsets = (options.include_work_offsets !== false) ? (d.workOffsets ?? []) : [];
+    if (workOffsets.length > 0) {
+      const WH   = 14.0; // 行高
+      const WROW = 3;    // 1段に3レコード横並び
+      const wColW = PW / WROW; // 1列幅
+      const WF_LABELS = ['G', 'X', 'Y', 'Z', 'A/C', 'R/B'];
+      const WF_KEYS   = ['gCode','xOffset','yOffset','zOffset','aOffset','rOffset'];
+      const WF_LW     = 28; // ラベル幅
+      const WF_VW     = wColW - WF_LW;
+
+      ensureSpace(WH * 4);
+      const SEC_H = 12;
+      grayCell(ML, curY, PW, SEC_H, '■ ワークオフセット', 7.0);
+      curY += SEC_H;
+
+      const groups: any[][] = [];
+      for (let i = 0; i < workOffsets.length; i += WROW) {
+        groups.push(workOffsets.slice(i, i+WROW));
+      }
+      for (const group of groups) {
+        // フィールド行ごとに描画 (G, X, Y, Z, A/C, R/B)
+        for (let fi = 0; fi < WF_LABELS.length; fi++) {
+          ensureSpace(WH);
+          for (let ci = 0; ci < WROW; ci++) {
+            const wo = group[ci];
+            const x = ML + ci * wColW;
+            const lbl = WF_LABELS[fi];
+            const val = wo ? (()=>{
+              const raw = wo[WF_KEYS[fi]];
+              if (raw == null) return '';
+              if (typeof raw === 'number') return raw.toFixed(3);
+              return String(raw);
+            })() : '';
+            grayCell(x, curY, WF_LW, WH, lbl, 6.0);
+            cellR(x+WF_LW, curY, WF_VW, WH);
+            if (val) cellT(x+WF_LW, curY, WF_VW, WH, val, 7.0, 'center');
+          }
+          curY += WH;
+        }
+        curY += 2; // レコード間スペース
+      }
+      curY += 4;
+    }
+
+    // ══════════════════════════════
+    // ④インデックスプログラム
+    // ══════════════════════════════
+    const indexPrograms = (options.include_index_programs !== false) ? (d.indexPrograms ?? []) : [];
+    if (indexPrograms.length > 0) {
+      const IH = 14.0;
+      const ICOLS = [
+        {w:25,  label:'No',    al:'center' as const},
+        {w:0,   label:'軸0',   al:'left'   as const},
+        {w:150, label:'軸1',   al:'left'   as const},
+        {w:150, label:'軸2',   al:'left'   as const},
+        {w:100, label:'備考',  al:'left'   as const},
+      ];
+      const fixedW2 = ICOLS.slice(1).reduce((s,c)=>s+c.w,0);
+      ICOLS[1].w = PW - ICOLS[0].w - fixedW2;
+
+      ensureSpace(IH * 3);
+      const SEC_H = 12;
+      grayCell(ML, curY, PW, SEC_H, '■ インデックスプログラム', 7.0);
+      curY += SEC_H;
+
+      const drawIPHeader = () => {
+        let ix = ML;
+        for (const col of ICOLS) {
+          grayCell(ix, curY, col.w, IH, col.label, 5.5);
+          ix += col.w;
+        }
+        curY += IH;
+      };
+
+      ensureSpace(IH * 2);
+      drawIPHeader();
+
+      for (let i = 0; i < indexPrograms.length; i++) {
+        if (ensureSpace(IH)) drawIPHeader();
+        const ip = indexPrograms[i];
+        const vals = [String(ip.sortOrder ?? i+1), ip.axis0??'', ip.axis1??'', ip.axis2??'', ip.note??''];
+        let ix = ML;
+        for (let ci = 0; ci < ICOLS.length; ci++) {
+          const col = ICOLS[ci];
+          cellR(ix, curY, col.w, IH);
+          if (vals[ci]) cellT(ix, curY, col.w, IH, vals[ci], 6.5, col.al);
+          ix += col.w;
+        }
+        curY += IH;
+      }
+    }
+
+    // ── 最終コンテンツページにページ番号（仮）を描画 ──
+    // totalContentPages は後でわかるので、仮ページ番号を描画
+    drawPageNo(totalContentPages, 0);
+
+    // pdfkitを終了してBuffer取得
+    await new Promise<void>(resolve => { doc.end(); doc.once('end', resolve); });
+    // on('data') コールバックが全部呼ばれたら chunks が揃う
+    // ただし end イベントより data が先に来るので少し待つ
+    await new Promise(r => setTimeout(r, 50));
+    const pdfkitBuf = Buffer.concat(chunks);
+
+    // ── pdfkitページ数確認 + pdf-lib で P2（作業記録）をマージ ──
+    const { PDFDocument: PDFDocLib2, rgb: rgb2, degrees: deg2 } = await import('pdf-lib');
+    const fontkit2 = await import('@pdf-lib/fontkit');
+    const fontBytes2 = fs.readFileSync(FONT_PATH);
+
+    const mainDoc   = await PDFDocLib2.load(pdfkitBuf);
+    const totalMain = mainDoc.getPageCount();
+
+    // P2テンプレートをロード
+    const ASSETS = '/home/karkyon/projects/machcore/apps/api/assets';
+    const p2Bytes = fs.readFileSync(`${ASSETS}/template_p2.pdf`);
+    const p2Doc   = await PDFDocLib2.load(p2Bytes);
+    p2Doc.registerFontkit(fontkit2.default ?? fontkit2);
+    const p2Font  = await p2Doc.embedFont(fontBytes2);
+    const p2Page  = p2Doc.getPage(0);
+    const p2H     = p2Page.getHeight();
+
+    // P2フィールドをDBから取得してデータ差し込み
+    const { Pool: PoolP2 } = await import('pg');
+    const DB_URL = process.env.DATABASE_URL || 'postgresql://machcore:machcore_pass_change_me@localhost:5440/machcore_dev?schema=public';
+    const poolP2 = new PoolP2({ connectionString: DB_URL });
+    const qr = await poolP2.query(`
+      SELECT f.field_key, f.x, f.y, f.font_size, f.data_source
+      FROM pdf_templates t JOIN pdf_field_definitions f ON f.template_id = t.id
+      WHERE t.name = 'mc_setup_p2' AND t.is_active = true AND f.is_active = true
+      ORDER BY f.sort_order
+    `);
+    await poolP2.end();
+
+    const resolve2 = (src: string): string => {
+      const keys = src.split('.');
+      let val: any = d;
+      for (const k of keys) { val = val?.[k]; if (val === undefined || val === null) return ''; }
+      if (src === 'version') return fmtVer(String(val ?? '1.0001'));
+      return String(val ?? '');
+    };
+    const totalPages = totalMain + 1; // コンテンツ + 作業記録
+
+    for (const f of qr.rows) {
+      if (f.field_key === '__page_no__') {
+        p2Page.drawText(`${totalPages} / ${totalPages}`, {
+          x: Number(f.x), y: Number(f.y),
+          size: Number(f.font_size), font: p2Font, color: rgb2(0,0,0),
+        });
+        continue;
+      }
+      const text = resolve2(f.data_source);
+      if (!text) continue;
+      p2Page.drawText(text, {
+        x: Number(f.x), y: Number(f.y),
+        size: Number(f.font_size), font: p2Font, color: rgb2(0,0,0),
+      });
+    }
+
+    // mainDoc のページ番号を正しい値に上書き（pdf-libで再描画）
+    mainDoc.registerFontkit(fontkit2.default ?? fontkit2);
+    const mainFont = await mainDoc.embedFont(fontBytes2);
+    // 各ページのページ番号ボックス領域を更新
+    // pdfkitで描画済みの「1 / ?」テキストの上に正しい値を白で塗り潰して上書き
+    for (let pi = 0; pi < mainDoc.getPageCount(); pi++) {
+      const pg     = mainDoc.getPage(pi);
+      const pgSize = pg.getSize();
+      const PG_Y_lib = 25 + 21.3; // pdfkit座標 → pdf-lib座標 (A4_H - pdfkitY)
+      const boxX   = MR - 44.2;
+      const boxY   = pgSize.height - PAGE_BOTTOM - 21.3;
+      // 白矩形で既存テキストを塗り潰す
+      pg.drawRectangle({
+        x: boxX + 22.1, y: boxY - 1,
+        width: 22.1 + 2, height: 21.3 + 2,
+        color: rgb2(1,1,1),
+        borderWidth: 0,
+      });
+      // 正しいページ番号を描画
+      const pgLabel = `${pi + 1} / ${totalPages}`;
+      pg.drawText(pgLabel, {
+        x: boxX + 22.1 + 1,
+        y: boxY + (21.3 - 6.5 * 0.72) / 2,
+        size: 6.5, font: mainFont, color: rgb2(0,0,0),
+      });
+      // 矩形の枠線を再描画
+      pg.drawRectangle({
+        x: boxX + 22.1, y: boxY - 0.5,
+        width: 22.1, height: 21.3,
+        borderColor: rgb2(0,0,0),
+        borderWidth: 0.5,
+        color: rgb2(1,1,1),
+        opacity: 0,
+      });
+    }
+
+    // finalDocを作成してmainDocのページ + p2ページを追加
+    const finalDoc = await PDFDocLib2.create();
+    finalDoc.registerFontkit(fontkit2.default ?? fontkit2);
+    for (let pi = 0; pi < mainDoc.getPageCount(); pi++) {
+      const [copied] = await finalDoc.copyPages(mainDoc, [pi]);
+      finalDoc.addPage(copied);
+    }
+    const [copiedP2] = await finalDoc.copyPages(p2Doc, [0]);
+    finalDoc.addPage(copiedP2);
+
+    // プレビュー透かし
+    if (options.is_preview) {
+      const wFont = await finalDoc.embedFont(fontBytes2);
+      const { degrees: deg3 } = await import('pdf-lib');
+      for (const pg of finalDoc.getPages()) {
+        const { width, height } = pg.getSize();
+        for (const pos of [{x:width*0.15,y:height*0.25},{x:width*0.35,y:height*0.55},{x:width*0.55,y:height*0.75}]) {
+          pg.drawText('プレビュー', {
+            x:pos.x, y:pos.y, size:60, font:wFont,
+            color:rgb2(0.75,0.75,0.75), rotate:deg3(35), opacity:0.35,
+          });
+        }
+      }
+    }
+
+    const pdfFinal = await finalDoc.save();
+    const pdfBuffer = Buffer.from(pdfFinal);
+
+    // DB記録（プレビューでなければ）
+    if (!options.is_preview) {
+      await this.prisma.mcSetupSheetLog.create({
+        data: {
+          mcProgramId: mcId,
+          operatorId,
+          version: d.version ?? null,
+          ...(options.is_reference !== undefined ? { isReference: options.is_reference } : {}),
+        },
+      }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
+    }
+
+    return pdfBuffer;
+  }
+
   // ══════════════════════════════════════════
   // ダイレクト印刷
   // ══════════════════════════════════════════

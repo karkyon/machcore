@@ -339,6 +339,49 @@ export class McController {
     return this.mcFiles.delete(mcId, fileId);
   }
 
+  // ── リピート段取シートPDF（プレビュー）──────────────────────────
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Post(':mc_id/repeat-print')
+  async repeatPrint(
+    @Param('mc_id', ParseIntPipe) id: number,
+    @Body() dto: PrintMcDto,
+    @Req() req: any,
+    @Res() reply: FastifyReply,
+  ) {
+    const opts = { ...dto, is_preview: true };
+    const pdf = await this.mc.generateRepeatSetupSheetPdf(id, req.user.id, opts);
+    reply.header('Content-Type',        'application/pdf');
+    reply.header('Content-Disposition', `inline; filename="mc-repeat-sheet-${id}.pdf"`);
+    reply.header('Content-Length',      String(pdf.length));
+    return reply.send(pdf);
+  }
+
+  // ── リピート段取シート ダイレクト印刷 ──────────────────────────
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Post(':mc_id/repeat-direct-print')
+  async repeatDirectPrint(
+    @Param('mc_id', ParseIntPipe) id: number,
+    @Body() dto: PrintMcDto,
+    @Req() req: any,
+  ) {
+    const pdf = await this.mc.generateRepeatSetupSheetPdf(id, req.user.id, dto);
+    const setting = await this.mc['prisma'].companySetting.findFirst({ select: { printerName: true, mcPrinter: true } });
+    const printerName = (setting as any)?.mcPrinter || (setting as any)?.printerName;
+    if (!printerName) throw new Error('MCプリンタが設定されていません');
+    const tmpPath = `/tmp/machcore-mc-repeat-${id}-${Date.now()}.pdf`;
+    const fs2 = await import('fs');
+    fs2.writeFileSync(tmpPath, pdf);
+    const { execSync: execSync2 } = await import('child_process');
+    try {
+      execSync2(`lp -d ${printerName} -o media=A4 -o fit-to-page "${tmpPath}"`, { timeout: 15000 });
+    } finally {
+      try { fs2.unlinkSync(tmpPath); } catch { /**/ }
+    }
+    return { message: `${printerName} に送信しました` };
+  }
+
   // ── 段取シートPDF / 印刷 ───────────────────────
   @Get(':mc_id/print-data')
   getPrintData(@Param('mc_id', ParseIntPipe) id: number) {
