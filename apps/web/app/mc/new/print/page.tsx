@@ -159,16 +159,16 @@ function McNewPrintInner() {
               この画面を離脱した場合、MCデータは登録されません。
             </div>
             <button onClick={handlePreview} disabled={previewing || printing}
-              className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-bold py-3.5 rounded-xl text-sm">
+              className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-bold py-3.5 rounded-xl text-sm mt-2">
               {previewing ? "PDF生成中..." : "📄 プレビュー（透かし入り・記録なし）"}
             </button>
             <button onClick={handleDirectPrint} disabled={printing || previewing}
-              className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3.5 rounded-xl text-sm">
+              className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3.5 rounded-xl text-sm mt-3">
               {printing ? "登録・送信中..." : "🖨 プリンタに直接印刷（加工IDを確定）"}
             </button>
             <button onClick={() => { logout(); if (typeof window !== "undefined") sessionStorage.removeItem("mc_new_pending"); router.push("/"); }}
               disabled={printing || previewing}
-              className="w-full bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-600 font-bold py-3 rounded-xl text-sm transition-colors">
+              className="w-full bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-600 font-bold py-3 rounded-xl text-sm transition-colors mt-3">
               ✗ キャンセル（ダッシュボードへ戻る）
             </button>
           </div>
