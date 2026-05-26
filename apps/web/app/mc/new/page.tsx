@@ -96,7 +96,7 @@ export default function McNewPage() {
 
       const res = await mcApi.create(body, authToken!);
       const d   = (res as any).data ?? res;
-      router.push(`/mc/${d.mc_id}/print`);
+      router.push(`/mc/${d.mc_id}/print?from=new`);
     } catch (e: any) {
       const msg = e?.response?.data?.message ?? e?.message ?? "登録に失敗しました";
       setSaveError(Array.isArray(msg) ? msg.join(" / ") : msg);

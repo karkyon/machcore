@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { mcApi, McDetail } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,10 +14,13 @@ const STATUS_COLOR: Record<string, string> = {
   APPROVED: "bg-emerald-100 text-emerald-700", CHANGING: "bg-red-100 text-red-700",
 };
 
-export default function McPrintPage() {
+function McPrintPageInner() {
   const { mc_id } = useParams<{ mc_id: string }>();
   const mcId  = parseInt(mc_id);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // 新規登録画面から来た場合のみタブ非活性（マシニングデータ未登録のため）
+  const isNewEntry = searchParams.get('from') === 'new';
 
   const [nc, setNc]   = useState<McDetail | null>(null);
   const { operator, isAuthenticated, logout, token } = useAuth();
@@ -121,8 +124,9 @@ export default function McPrintPage() {
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="bg-slate-800 text-white px-5 py-2.5 flex items-center gap-3 shrink-0">
         <button
-          onClick={() => router.push(`/mc/${mcId}`)}
-          className={`inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors shrink-0 ${false ? "bg-slate-600 border-slate-600 text-slate-400 opacity-40 cursor-not-allowed pointer-events-none" : "bg-slate-700 hover:bg-slate-600 border-slate-600 text-white"}`}
+          onClick={() => !isNewEntry && router.push(`/mc/${mcId}`)}
+          disabled={isNewEntry}
+          className={`inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors shrink-0 ${isNewEntry ? "bg-slate-600 border-slate-600 text-slate-400 opacity-40 cursor-not-allowed pointer-events-none" : "bg-slate-700 hover:bg-slate-600 border-slate-600 text-white"}`}
         >
           <span className="w-5 h-5 rounded-full bg-teal-500 flex items-center justify-center shrink-0">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
@@ -180,16 +184,16 @@ export default function McPrintPage() {
           className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>MC詳細
         </button>
-        <button onClick={() => router.push(`/mc/${mcId}/edit`)}
-          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (false ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
+        <button onClick={() => !isNewEntry && router.push(`/mc/${mcId}/edit`)}
+          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (isNewEntry ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
         </button>
         <button onClick={() => router.push(`/mc/${mcId}/print`)}
           className="px-4 py-1.5 text-[12px] font-bold flex items-center gap-1.5 rounded-t-md border border-b-0 border-[#1b2a41] bg-[#1b2a41] text-white transition-colors">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
         </button>
-        <button onClick={() => router.push(`/mc/${mcId}/record`)}
-          className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
+        <button onClick={() => !isNewEntry && router.push(`/mc/${mcId}/record`)}
+          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (isNewEntry ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録
         </button>
       </nav>
@@ -340,5 +344,13 @@ export default function McPrintPage() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-bold z-50">{toast}</div>
       )}
     </div>
+  );
+}
+
+export default function McPrintPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen text-slate-400">読み込み中…</div>}>
+      <McPrintPageInner />
+    </Suspense>
   );
 }
