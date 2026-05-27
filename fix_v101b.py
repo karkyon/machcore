@@ -1,4 +1,25 @@
-"use client";
+#!/usr/bin/env python3
+"""
+fix_v101b.py
+============
+pdf-editor/page.tsx のレイアウト（ヘッダー・サイドバー）を
+他の管理画面（settings/raw/users）と完全に同じスタイルに修正
+"""
+
+import subprocess, sys
+
+PROJECT = "/home/karkyon/projects/machcore"
+
+def run(cmd, cwd=PROJECT, check=True):
+    r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
+    if check and r.returncode != 0:
+        print(f"ERROR: {cmd}\nSTDOUT:{r.stdout}\nSTDERR:{r.stderr}")
+        sys.exit(1)
+    return r.stdout, r.stderr
+
+PAGE_PATH = f"{PROJECT}/apps/web/app/admin/pdf-editor/page.tsx"
+
+NEW_PAGE = r'''"use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
@@ -549,3 +570,29 @@ export default function PdfEditorPage() {
     </div>
   );
 }
+'''
+
+with open(PAGE_PATH, "w") as f:
+    f.write(NEW_PAGE)
+print(f"OK: pdf-editor/page.tsx 書き込み完了 ({len(NEW_PAGE)} chars)")
+
+# WEBビルド
+print("\n--- WEB ビルド ---")
+out, err = run("pnpm --filter web build", check=False)
+if "ERR_PNPM" in err or "ERR_PNPM" in out:
+    print("WEB ビルド失敗")
+    print(out[-1500:]); print(err[-1500:])
+    sys.exit(1)
+print("WEB ビルド成功!")
+
+print("\n--- PM2 restart ---")
+run("pm2 restart machcore-web")
+print("PM2 再起動完了")
+
+print("\n--- git push ---")
+run("git add -A")
+run('git commit -m "fix(v101b): PDFエディタ ヘッダー・サイドバーを他の管理画面と完全統一"')
+run("git push origin main")
+
+print("\nfix_v101b 完了")
+print("ヘッダー「MachCore 管理パネル / ← ダッシュボード / ログアウト」が他の管理画面と同一になりました")
