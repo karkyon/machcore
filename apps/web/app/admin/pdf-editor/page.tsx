@@ -136,17 +136,16 @@ export default function PdfEditorPage() {
     (async () => {
       try {
         const lib = (window as any).pdfjsLib;
-        // ⑥修正: Uint8Array のコピーを渡す（元の pdfData は detach しない）
         const dataCopy = pdfData.slice(0);
         const pdf = await lib.getDocument({ data: dataCopy }).promise;
         const pageNum = Math.min(previewPage, pdf.numPages);
         const page = await pdf.getPage(pageNum);
-        // scale=1 のネイティブサイズを取得
         const vpNative = page.getViewport({ scale: 1.0 });
         setPdfNativeSize({ w: vpNative.width, h: vpNative.height });
-        // 実際の描画はscale適用
         const viewport = page.getViewport({ scale });
-        const canvas = canvasRef.current!;
+        // canvasRef が unmount されている場合はスキップ
+        if (!canvasRef.current) return;
+        const canvas = canvasRef.current;
         canvas.width  = viewport.width;
         canvas.height = viewport.height;
         const ctx = canvas.getContext("2d")!;
@@ -227,12 +226,32 @@ export default function PdfEditorPage() {
     finally { setPdfLoading(false); }
   };
 
-  // ⑥ 全体プレビュー（リピート段取シート全ブロック結合・値差し込み済み）
+  // 全体プレビュー（リピート段取シート）
   const loadFullPreview = async () => {
     if (!mcIdInput) { showToast("全体プレビューにはMC_IDを入力してください", false); return; }
     setPdfLoading(true);
     try {
+      // MC_IDは内部ID or legacyMcid どちらでも対応（API側でフォールバック検索）
       const endpoint = `/admin/pdf-full-preview?mc_id=${mcIdInput}`;
+      const blob = await apiFetch(endpoint);
+      const ab = await (blob as Blob).arrayBuffer();
+      setPdfData(new Uint8Array(ab));
+      setPreviewPage(1);
+    } catch (e: any) { showToast(`全体プレビュー失敗: ${e.message}`, false); }
+    finally { setPdfLoading(false); }
+  };
+
+  // 全体プレビュー（新規段取シート）
+  const loadNewFullPreview = async () => {
+    if (!mcIdInput) { showToast("全体プレビューにはMC_IDまたは部品IDを入力してください", false); return; }
+    setPdfLoading(true);
+    try {
+      // 数値ならMC_ID(内部ID or legacyMcid)、文字列なら部品IDとして扱う
+      const isNumeric = /^\d+$/.test(mcIdInput.trim());
+      const q = isNumeric
+        ? `mc_id=${mcIdInput.trim()}`
+        : `part_id=${encodeURIComponent(mcIdInput.trim())}`;
+      const endpoint = `/admin/pdf-new-full-preview?${q}`;
       const blob = await apiFetch(endpoint);
       const ab = await (blob as Blob).arrayBuffer();
       setPdfData(new Uint8Array(ab));
@@ -424,7 +443,7 @@ export default function PdfEditorPage() {
             {/* MC_ID + PDF生成 + 全体プレビュー */}
             <div className="shrink-0 px-2 py-1.5 border-b border-slate-100 space-y-1">
               <input type="text" value={mcIdInput} onChange={e => setMcIdInput(e.target.value)}
-                placeholder="MC_ID（省略可）"
+                placeholder={sheetType === "new" ? "MC_ID or 部品ID" : "MC_ID（legacyMCID可）"}
                 className="w-full border border-slate-300 rounded px-2 py-1 text-xs" />
               <div className="flex gap-1.5">
                 <button onClick={loadPreview} disabled={pdfLoading}
@@ -435,16 +454,16 @@ export default function PdfEditorPage() {
                   </svg>
                   {pdfLoading ? "生成中…" : "テンプレート表示"}
                 </button>
-                {sheetType === "repeat" && (
-                  <button onClick={loadFullPreview} disabled={pdfLoading}
-                    className="flex-1 px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-1">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                    {pdfLoading ? "生成中…" : "全体プレビュー"}
-                  </button>
-                )}
+                <button
+                  onClick={sheetType === "repeat" ? loadFullPreview : loadNewFullPreview}
+                  disabled={pdfLoading}
+                  className="flex-1 px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-1">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  {pdfLoading ? "生成中…" : "全体プレビュー"}
+                </button>
               </div>
             </div>
 

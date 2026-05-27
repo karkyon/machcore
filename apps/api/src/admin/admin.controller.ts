@@ -382,6 +382,32 @@ export class AdminController {
 
   // ══ PDFフィールド定義管理 ══
 
+
+  /** MC ID解決: 直接IDでヒットしない場合は legacyMcid で検索 */
+  private async resolveMcId(mcIdStr?: string): Promise<number> {
+    const raw = mcIdStr ? parseInt(mcIdStr) : 0;
+    if (raw > 0) {
+      // まず直接IDで検索
+      const direct = await this.prisma.mcProgram.findUnique({ where: { id: raw } });
+      if (direct) return direct.id;
+      // legacyMcid でフォールバック
+      const byLegacy = await this.prisma.mcProgram.findFirst({
+        where: { legacyMcid: raw },
+        orderBy: { id: 'desc' },
+      });
+      if (byLegacy) return byLegacy.id;
+    }
+    // mc_id 未指定 or 未ヒット → 最新の非NEWレコードを使用
+    const first = await this.prisma.mcProgram.findFirst({
+      where: { status: { not: 'NEW' } },
+      orderBy: { id: 'desc' },
+    });
+    if (first) return first.id;
+    const any = await this.prisma.mcProgram.findFirst({ orderBy: { id: 'asc' } });
+    if (!any) throw new BadRequestException('MCプログラムが存在しません');
+    return any.id;
+  }
+
   /** PDFテンプレート一覧 */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
@@ -577,20 +603,7 @@ export class AdminController {
     @Query('mc_id') mcIdStr?: string,
     @Res() reply?: any,
   ) {
-    let mcId = mcIdStr ? parseInt(mcIdStr) : 0;
-    if (!mcId) {
-      const first = await this.prisma.mcProgram.findFirst({
-        where: { status: { not: 'NEW' } },
-        orderBy: { id: 'desc' },
-      });
-      if (!first) {
-        const any = await this.prisma.mcProgram.findFirst({ orderBy: { id: 'asc' } });
-        if (!any) throw new BadRequestException('MCプログラムが存在しません');
-        mcId = any.id;
-      } else {
-        mcId = first.id;
-      }
-    }
+    const mcId = await this.resolveMcId(mcIdStr);
     const pdf = await this.mcService.generateRepeatSetupSheetPdf(mcId, 1, {
       include_tooling:        true,
       include_clamp:          true,
@@ -600,6 +613,42 @@ export class AdminController {
     });
     reply.header('Content-Type',        'application/pdf');
     reply.header('Content-Disposition', `inline; filename="full-preview-${mcId}.pdf"`);
+    reply.header('Content-Length',      String(pdf.length));
+    return reply.send(pdf);
+  }
+
+
+  /** 新規段取シート フルプレビュー（値差し込み済み）
+   *  ?mc_id=xxx  → 内部ID または legacyMcid で検索
+   *  ?part_id=xx → 部品ID（part.partId 文字列）で検索
+   */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('pdf-new-full-preview')
+  async getNewFullPreview(
+    @Query('mc_id')  mcIdStr?:  string,
+    @Query('part_id') partIdStr?: string,
+    @Res() reply?: any,
+  ) {
+    let mcId: number;
+    if (partIdStr) {
+      // 部品IDで最新のMCプログラムを検索
+      const byPart = await this.prisma.mcProgram.findFirst({
+        where: { part: { partId: partIdStr } },
+        orderBy: { id: 'desc' },
+      });
+      if (!byPart) throw new BadRequestException(`部品ID "${partIdStr}" のMCプログラムが存在しません`);
+      mcId = byPart.id;
+    } else {
+      mcId = await this.resolveMcId(mcIdStr);
+    }
+    const pdf = await this.mcService.generateSetupSheetPdf(mcId, 1, {
+      include_tooling: true,
+      include_clamp:   true,
+      is_preview:      true,
+    } as any);
+    reply.header('Content-Type',        'application/pdf');
+    reply.header('Content-Disposition', `inline; filename="new-full-preview-${mcId}.pdf"`);
     reply.header('Content-Length',      String(pdf.length));
     return reply.send(pdf);
   }
