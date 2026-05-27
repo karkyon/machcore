@@ -437,15 +437,39 @@ export class AdminController {
     });
   }
 
-  /** PDFプレビュー生成（最初のMCプログラムを使用、is_preview=true） */
+  /** PDFプレビュー生成（新規段取シート）
+   *  ?template=mc_setup_p1 → template_p1.pdf をそのまま返す（デザイナー用）
+   *  ?template=mc_setup_p2 → template_p2.pdf をそのまま返す
+   *  template未指定         → generateSetupSheetPdf() でフル生成
+   */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
   @Get('pdf-preview')
   async getPdfPreview(
     @Query('mc_id') mcIdStr?: string,
+    @Query('template') templateName?: string,
     @Res() reply?: any,
   ) {
-    // mc_id が指定されていない場合は最初のMCプログラムを使用
+    const ASSETS = '/home/karkyon/projects/machcore/apps/api/assets';
+    const fs2 = require('fs') as typeof import('fs');
+
+    const NEW_TPL_FILE_MAP: Record<string, string> = {
+      'mc_setup_p1': 'template_p1.pdf',
+      'mc_setup_p2': 'template_p2.pdf',
+    };
+
+    if (templateName && NEW_TPL_FILE_MAP[templateName]) {
+      const filePath = `${ASSETS}/${NEW_TPL_FILE_MAP[templateName]}`;
+      if (fs2.existsSync(filePath)) {
+        const buf = fs2.readFileSync(filePath);
+        reply.header('Content-Type',        'application/pdf');
+        reply.header('Content-Disposition', `inline; filename="${NEW_TPL_FILE_MAP[templateName]}"`);
+        reply.header('Content-Length',      String(buf.length));
+        return reply.send(buf);
+      }
+    }
+
+    // template未指定 or ファイルなし → フル生成（従来動作）
     let mcId = mcIdStr ? parseInt(mcIdStr) : 0;
     if (!mcId) {
       const first = await this.prisma.mcProgram.findFirst({ orderBy: { id: 'asc' } });
@@ -464,7 +488,14 @@ export class AdminController {
   }
 
 
-  /** リピート段取シートPDFプレビュー生成（is_preview=true） */
+  /** リピート段取シートPDFプレビュー生成
+   *  ?template=repeat_header  → repeat_header.pdf をそのまま返す（デザイナー用）
+   *  ?template=repeat_tooling → repeat_tooling.pdf
+   *  ?template=repeat_wo      → repeat_wo.pdf
+   *  ?template=repeat_ip      → repeat_ip.pdf
+   *  ?template=repeat_p2      → template_repeat_p2.pdf
+   *  template未指定           → generateRepeatSetupSheetPdf() でフル生成
+   */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
   @Get('pdf-repeat-preview')
@@ -473,6 +504,40 @@ export class AdminController {
     @Query('template') templateName?: string,
     @Res() reply?: any,
   ) {
+    const ASSETS = '/home/karkyon/projects/machcore/apps/api/assets';
+    const fs2 = require('fs') as typeof import('fs');
+
+    // テンプレート名 → ファイル名マップ
+    const TPL_FILE_MAP: Record<string, string> = {
+      'repeat_header':  'repeat_header.pdf',
+      'repeat_tooling': 'repeat_tooling.pdf',
+      'repeat_wo':      'repeat_wo.pdf',
+      'repeat_ip':      'repeat_ip.pdf',
+      'repeat_p2':      'template_repeat_p2.pdf',
+    };
+
+    // テンプレート名が指定されていてファイルが存在する → そのまま返す
+    if (templateName && TPL_FILE_MAP[templateName]) {
+      const filePath = `${ASSETS}/${TPL_FILE_MAP[templateName]}`;
+      if (fs2.existsSync(filePath)) {
+        const buf = fs2.readFileSync(filePath);
+        reply.header('Content-Type',        'application/pdf');
+        reply.header('Content-Disposition', `inline; filename="${TPL_FILE_MAP[templateName]}"`);
+        reply.header('Content-Length',      String(buf.length));
+        return reply.send(buf);
+      }
+      // ファイルが存在しない場合は空PDFを返す
+      const { PDFDocument } = await import('pdf-lib');
+      const emptyDoc = await PDFDocument.create();
+      emptyDoc.addPage([595, 842]);
+      const emptyBytes = await emptyDoc.save();
+      reply.header('Content-Type',        'application/pdf');
+      reply.header('Content-Disposition', `inline; filename="empty.pdf"`);
+      reply.header('Content-Length',      String(emptyBytes.length));
+      return reply.send(Buffer.from(emptyBytes));
+    }
+
+    // template未指定 → フル段取シート生成（従来動作）
     let mcId = mcIdStr ? parseInt(mcIdStr) : 0;
     if (!mcId) {
       const first = await this.prisma.mcProgram.findFirst({

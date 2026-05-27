@@ -191,11 +191,15 @@ export default function PdfEditorPage() {
       const isRepeat = selTpl.startsWith("repeat_");
       let endpoint: string;
       if (isRepeat) {
+        // リピート: テンプレートPDFをそのまま返す（mc_id不要、template必須）
         const q = new URLSearchParams({ template: selTpl });
         if (mcIdInput) q.set("mc_id", mcIdInput);
         endpoint = `/admin/pdf-repeat-preview?${q.toString()}`;
       } else {
-        endpoint = `/admin/pdf-preview${mcIdInput ? `?mc_id=${mcIdInput}` : ""}`;
+        // 新規段取シート: テンプレートPDFをそのまま返す（mc_id不要、template必須）
+        const q = new URLSearchParams({ template: selTpl });
+        if (mcIdInput) q.set("mc_id", mcIdInput);
+        endpoint = `/admin/pdf-preview?${q.toString()}`;
       }
       const blob = await apiFetch(endpoint);
       const ab = await (blob as Blob).arrayBuffer();
