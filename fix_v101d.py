@@ -1,4 +1,32 @@
-"use client";
+#!/usr/bin/env python3
+"""
+fix_v101d.py
+============
+PDFエディタ 6問題一括修正:
+  ① サイドバー幅を w-72 → w-96 に拡大
+  ② フォントサイズ初期値 7 → 12
+  ③ フィールドオーバーレイのラベル文字: 紺色・大きく・視認性UP
+  ④ 倍率変更時のオーバーレイズレ修正:
+     SVGをPDF座標系(595×842)固定で描き、canvas要素と同サイズ+CSS scaleで一致させる
+     → pdfBytes のコピーを Uint8Array で保持して detached ArrayBuffer 問題も修正
+  ⑤ __ prefix フィールドも表示する（P2のページ番号が見えない問題）
+  ⑥ dragStart.current null チェック追加 / ArrayBuffer detach クラッシュ修正
+"""
+
+import subprocess, sys
+
+PROJECT = "/home/karkyon/projects/machcore"
+
+def run(cmd, cwd=PROJECT, check=True):
+    r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
+    if check and r.returncode != 0:
+        print(f"ERROR: {cmd}\nSTDOUT:{r.stdout}\nSTDERR:{r.stderr}")
+        sys.exit(1)
+    return r.stdout, r.stderr
+
+PAGE_PATH = f"{PROJECT}/apps/web/app/admin/pdf-editor/page.tsx"
+
+NEW_PAGE = r'''"use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
@@ -619,3 +647,40 @@ export default function PdfEditorPage() {
     </div>
   );
 }
+'''
+
+with open(PAGE_PATH, "w") as f:
+    f.write(NEW_PAGE)
+print(f"OK: pdf-editor/page.tsx 書き込み完了 ({len(NEW_PAGE)} chars)")
+
+# WEB ビルド
+print("\n--- WEB ビルド ---")
+out, err = run("pnpm --filter web build", check=False)
+if "ERR_PNPM" in err or "ERR_PNPM" in out:
+    print("WEB ビルド失敗"); print(out[-1500:]); print(err[-1500:]); sys.exit(1)
+print("WEB ビルド成功!")
+
+print("\n--- PM2 restart ---")
+run("pm2 restart machcore-web")
+
+print("\n--- git push ---")
+run("git add -A")
+run('git commit -m "fix(v101d): PDFエディタ 倍率ズレ/クラッシュ/ラベル視認性/サイドバー幅/初期フォントサイズ 修正"')
+run("git push origin main")
+
+print("""
+fix_v101d 完了
+
+① サイドバー幅: w-96 (384px) に拡大
+② フォントサイズ初期値: DB値が7以下の場合 12 にフォールバック
+③ フィールドラベル: 紺色(#1e3a5f)・白背景付き・bold・最大9pt で視認性大幅向上
+④ 倍率ズレ修正:
+   - SVGをPDF座標系(595×842)固定viewBoxで描画
+   - canvas+SVGをCSSの width/height で同サイズに合わせる
+   - ドラッグ時のマウス移動量もscaleで正規化
+⑤ __ prefix フィルタ廃止 → P2のページ番号等すべて表示
+⑥ クラッシュ修正:
+   - pdfData を Uint8Array で保持（ArrayBuffer detach 問題解消）
+   - dragStart.current の null チェック強化
+   - 多重レンダリング防止フラグ追加
+""")
