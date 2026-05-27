@@ -1276,7 +1276,7 @@ export class McService {
       SELECT t.name as tpl_name, f.field_key, f.label, f.x, f.y, f.font_size, f.data_source, f.sort_order, f.note
       FROM pdf_templates t
       JOIN pdf_field_definitions f ON f.template_id = t.id
-      WHERE t.name IN ('repeat_header','repeat_tooling','repeat_wo','repeat_ip','mc_setup_p2')
+      WHERE t.name IN ('repeat_header','repeat_tooling','repeat_wo','repeat_ip','mc_setup_p2','repeat_p2')
         AND t.is_active = true AND f.is_active = true
       ORDER BY t.id, f.sort_order
     `);
@@ -1309,6 +1309,14 @@ export class McService {
       if (src2 === 'machiningQty')        return d.machiningQty != null ? String(d.machiningQty) : '';
       if (src2 === 'approvedAt')          return fmtDate(d.approvedAt);
       if (src2 === 'registeredAt')        return fmtDate(d.registeredAt ?? d.createdAt);
+      // ① 部品ID / 加工ID / MCID
+      if (src2 === 'part.partId')         return part.partId    ?? '';
+      if (src2 === 'machiningId')         return d.machiningId  != null ? String(d.machiningId) : '';
+      if (src2 === 'id')                  return String(d.id ?? mcId);
+      // ④ repeat_p2 フィールド
+      if (src2 === 'registrar.name')      return d.registrar?.name  ?? '';
+      if (src2 === 'approver.name')       return d.approver?.name   ?? '';
+      if (src2 === 'machine.machineCode') return machine.machineCode ?? '';
       return '';
     };
 

@@ -227,6 +227,20 @@ export default function PdfEditorPage() {
     finally { setPdfLoading(false); }
   };
 
+  // ⑥ 全体プレビュー（リピート段取シート全ブロック結合・値差し込み済み）
+  const loadFullPreview = async () => {
+    if (!mcIdInput) { showToast("全体プレビューにはMC_IDを入力してください", false); return; }
+    setPdfLoading(true);
+    try {
+      const endpoint = `/admin/pdf-full-preview?mc_id=${mcIdInput}`;
+      const blob = await apiFetch(endpoint);
+      const ab = await (blob as Blob).arrayBuffer();
+      setPdfData(new Uint8Array(ab));
+      setPreviewPage(1);
+    } catch (e: any) { showToast(`全体プレビュー失敗: ${e.message}`, false); }
+    finally { setPdfLoading(false); }
+  };
+
   const handleUpload = async (file: File) => {
     const tplInfo = tplInfoMap[selTpl];
     if (!tplInfo) { showToast("テンプレートIDが不明です", false); return; }
@@ -407,19 +421,31 @@ export default function PdfEditorPage() {
               </div>
             </div>
 
-            {/* MC_ID + PDF生成 */}
-            <div className="shrink-0 px-2 py-1.5 border-b border-slate-100 flex gap-1.5 items-center">
+            {/* MC_ID + PDF生成 + 全体プレビュー */}
+            <div className="shrink-0 px-2 py-1.5 border-b border-slate-100 space-y-1">
               <input type="text" value={mcIdInput} onChange={e => setMcIdInput(e.target.value)}
                 placeholder="MC_ID（省略可）"
-                className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs" />
-              <button onClick={loadPreview} disabled={pdfLoading}
-                className="shrink-0 px-2 py-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded disabled:opacity-50 whitespace-nowrap flex items-center gap-1">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14,2 14,8 20,8"/>
-                </svg>
-                {pdfLoading ? "生成中…" : "PDF生成"}
-              </button>
+                className="w-full border border-slate-300 rounded px-2 py-1 text-xs" />
+              <div className="flex gap-1.5">
+                <button onClick={loadPreview} disabled={pdfLoading}
+                  className="flex-1 px-2 py-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-1">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                  </svg>
+                  {pdfLoading ? "生成中…" : "テンプレート表示"}
+                </button>
+                {sheetType === "repeat" && (
+                  <button onClick={loadFullPreview} disabled={pdfLoading}
+                    className="flex-1 px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-1">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    {pdfLoading ? "生成中…" : "全体プレビュー"}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* 倍率 + 一括保存 */}

@@ -566,6 +566,44 @@ export class AdminController {
   }
 
 
+
+  /** リピート段取シート フルプレビュー（全ブロック結合・値差し込み済み）
+   *  ?mc_id= 必須。デザインモードではなくレポートプレビュー用。
+   */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('pdf-full-preview')
+  async getFullPreview(
+    @Query('mc_id') mcIdStr?: string,
+    @Res() reply?: any,
+  ) {
+    let mcId = mcIdStr ? parseInt(mcIdStr) : 0;
+    if (!mcId) {
+      const first = await this.prisma.mcProgram.findFirst({
+        where: { status: { not: 'NEW' } },
+        orderBy: { id: 'desc' },
+      });
+      if (!first) {
+        const any = await this.prisma.mcProgram.findFirst({ orderBy: { id: 'asc' } });
+        if (!any) throw new BadRequestException('MCプログラムが存在しません');
+        mcId = any.id;
+      } else {
+        mcId = first.id;
+      }
+    }
+    const pdf = await this.mcService.generateRepeatSetupSheetPdf(mcId, 1, {
+      include_tooling:        true,
+      include_clamp:          true,
+      include_work_offsets:   true,
+      include_index_programs: true,
+      is_preview:             true,
+    });
+    reply.header('Content-Type',        'application/pdf');
+    reply.header('Content-Disposition', `inline; filename="full-preview-${mcId}.pdf"`);
+    reply.header('Content-Length',      String(pdf.length));
+    return reply.send(pdf);
+  }
+
   /** PDFテンプレートファイルアップロード（差し替え） */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
