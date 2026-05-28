@@ -1239,21 +1239,22 @@ export class McService {
 
 
   // ══════════════════════════════════════════════════════
-  // リピート段取シートPDF生成 v5
+  // リピート段取シートPDF生成 v4
   //
   // 生成方式:
-  //   [P1] repeat_header.pdf をロードし基本情報(備考・クランプ除く)を差し込み
-  //        → curY = __header_end_y__(pdfkit座標) から変換した位置
-  //        → 備考ブロック: ラベル+外枠+テキストを動的高さで描画
-  //        → クランプブロック: 同上
-  //        → ツーリング明細(カラムヘッダ + 明細行 + 行罫線)
-  //        → WO枠
-  //        → IP列
-  //        → ページが足りなければ空白ページ追加
+  //   [P1] repeat_header.pdf をロードし基本情報を差し込み
+  //        → 同ページにツーリングカラムヘッダ + 明細行を連続描画
+  //        → 同ページにWO枠(余裕あれば)
+  //        → 同ページにIP列(余裕あれば)
+  //        → ページが足りなければ新ページ追加
   //   [最終P] template_repeat_p2.pdf を最終ページとして結合
   //
+  //   各ブロックの「開始Y(pdf-lib座標)」は前ブロックの終了Yから
+  //   マージン8ptを引いた値
   //   pdf-lib座標系: Y=0が下, Y=pageHeightが上
   //   ページ下マージン: 30pt
+  //
+  //   ツーリング・WO・IP明細行の下に罫線(水平線)を引く
   // ══════════════════════════════════════════════════════
   async generateRepeatSetupSheetPdf(
     mcId:       number,
@@ -1303,16 +1304,32 @@ export class McService {
       const dt = new Date(v);
       return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`;
     };
-    const fmtVer = (v: string) => v ? v.replace(/^(\d+)\.(\d{4})$/,(_:any,a:any,b:any)=>a+'.'+b) : '';
+    const fmtVer = (v: string) => v.replace(/^(\d+)\.(\d{4})$/,(_:any,a:any,b:any)=>a+'.'+b.slice(0,2)+' '+b.slice(2));
+    const fmtCycle = (sec: number|null) => {
+      if (!sec) return '';
+      const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+      return `${h}H ${String(m).padStart(2,'0')}M ${String(s).padStart(2,'0')}S`;
+    };
     const resolveVal = (src: string): string => {
-      if (!src || src.startsWith('__')) return '';
-      if (src === 'approvedAt')   return fmtDate(d.approvedAt);
-      if (src === 'registeredAt') return fmtDate(d.registeredAt);
-      if (src === 'version')      return fmtVer(d.version ?? '');
-      if (src === 'cycleTimeSec') return d.cycleTimeSec != null ? String(d.cycleTimeSec) : '';
-      if (src === 'part.partId')  return part.partId  ?? '';
-      if (src === 'machiningId')  return d.machiningId ?? '';
-      if (src === 'id')           return String(mcId);
+      if (src === 'part.clientName')      return part.clientName    ?? '';
+      if (src === 'part.drawingNo')       return part.drawingNo     ?? '';
+      if (src === 'part.name')            return part.name          ?? '';
+      if (src === 'part.mainModel')       return part.mainModel     ?? '';
+      if (src === 'part.partId')          return part.partId        ?? '';
+      if (src === 'machine.machineCode')  return machine.machineCode ?? '';
+      if (src === 'mcProcessNo')          return d.mcProcessNo != null ? String(d.mcProcessNo) : '';
+      if (src === 'oNumber')              return d.oNumber     ?? '';
+      if (src === 'version')              return fmtVer(String(d.version ?? '1.0001'));
+      if (src === 'cycleTimeSec')         return fmtCycle(d.cycleTimeSec);
+      if (src === 'machiningQty')         return d.machiningQty != null ? String(d.machiningQty) : '';
+      if (src === 'approvedAt')           return fmtDate(d.approvedAt);
+      if (src === 'registeredAt')         return fmtDate(d.registeredAt ?? d.createdAt);
+      if (src === 'machiningId')          return d.machiningId != null ? String(d.machiningId) : '';
+      if (src === 'id')                   return String(d.id ?? mcId);
+      if (src === 'registrar.name')       return d.registrar?.name  ?? '';
+      if (src === 'approver.name')        return d.approver?.name   ?? '';
+      if (src === 'note')                 return d.note ?? '';
+      if (src === 'clampNote')            return d.clampNote ?? '';
       const keys = src.split('.');
       let val: any = d;
       for (const k of keys) { val = val?.[k]; if (val == null) return ''; }
@@ -1335,20 +1352,17 @@ export class McService {
     let totalPages = 0;
 
     // 定数
-    const PAGE_BOTTOM_MARGIN = 30;
-    const BLOCK_MARGIN       = 6;
-    const ROW_LINE_COLOR     = rgb(0.6, 0.6, 0.6);
+    const PAGE_BOTTOM_MARGIN = 30; // ページ下マージン(pt)
+    const BLOCK_MARGIN       = 8;  // ブロック間マージン(pt)
+    const ROW_LINE_COLOR     = rgb(0.6, 0.6, 0.6); // 罫線色(薄いグレー)
     const ROW_LINE_W         = 0.4;
-    const BOX_LINE_COLOR     = rgb(0.3, 0.3, 0.3);
-    const BOX_LINE_W         = 0.6;
-    const LABEL_BG_COLOR     = rgb(0.92, 0.92, 0.92);
 
-    // 現在の作業ページ・Y座標
+    // 現在の作業ページと現在Y座標（pdf-lib座標: 下からの距離）
     let curPage: any = null;
     let curPageH = 0;
-    let curY = 0;
+    let curY = 0; // 現在の「描画済み下端」のpdf-lib Y座標
 
-    // 新ページ追加
+    // 新ページ追加: テンプレートPDFからコピー、またはブランクページ
     const addNewPage = async (tplDoc: any, tplPageIdx = 0) => {
       let pg: any;
       if (tplDoc) {
@@ -1360,42 +1374,31 @@ export class McService {
       totalPages++;
       curPage  = finalDoc.getPage(finalDoc.getPageCount() - 1);
       curPageH = curPage.getSize().height;
-      curY     = curPageH - PAGE_BOTTOM_MARGIN;
+      curY     = curPageH - PAGE_BOTTOM_MARGIN; // 上端から開始
       return curPage;
     };
 
     // テキスト描画
-    const drawTxt = (text: string, x: number, y: number, size: number, color = rgb(0,0,0)) => {
+    const drawTxt = (text: string, x: number, y: number, size: number) => {
       if (!text || !curPage) return;
-      try { curPage.drawText(text, { x, y, size, font: finalFont, color }); } catch(_) {}
+      try { curPage.drawText(text, { x, y, size, font: finalFont, color: rgb(0, 0, 0) }); } catch(_) {}
     };
 
-    // 水平罫線
-    const drawHLine = (x1: number, x2: number, y: number, w = ROW_LINE_W, color = ROW_LINE_COLOR) => {
-      if (!curPage) return;
-      try { curPage.drawLine({ start:{x:x1,y}, end:{x:x2,y}, thickness:w, color }); } catch(_) {}
-    };
-
-    // 矩形描画（枠線のみ）
-    const drawRect = (x: number, y: number, w: number, h: number) => {
+    // 水平罫線（行の下端に）
+    const drawHLine = (x1: number, x2: number, y: number) => {
       if (!curPage) return;
       try {
-        curPage.drawRectangle({
-          x, y, width: w, height: h,
-          borderWidth: BOX_LINE_W,
-          borderColor: BOX_LINE_COLOR,
-          color: rgb(1,1,1),
+        curPage.drawLine({
+          start: { x: x1, y },
+          end:   { x: x2, y },
+          thickness: ROW_LINE_W,
+          color: ROW_LINE_COLOR,
         });
       } catch(_) {}
     };
 
-    // 白塗り矩形（テキスト背景消し用）
-    const drawWhiteRect = (x: number, y: number, w: number, h: number) => {
-      if (!curPage) return;
-      try { curPage.drawRectangle({ x, y, width:w, height:h, color:rgb(1,1,1), borderWidth:0 }); } catch(_) {}
-    };
-
-    // ページ残高チェック
+    // 残り高さチェック: needPt 分の高さが足りなければ新ページを追加
+    // tplDoc: 新ページのベーステンプレ（nullなら空白ページ）
     const ensureSpace = async (needPt: number, tplDoc: any = null) => {
       if (!curPage) return;
       if (curY - needPt < PAGE_BOTTOM_MARGIN) {
@@ -1403,196 +1406,92 @@ export class McService {
       }
     };
 
-    // cfg文字列パース: "x=30,w=535,fs=7,label_w=28,min_h=20"
-    const parseCfgStr = (s: string): Record<string,number> => {
-      const m: Record<string,number> = {};
-      (s||'').split(',').forEach(kv => {
-        const [k,v] = kv.split('=');
-        if (k && v) m[k.trim()] = parseFloat(v.trim());
-      });
-      return m;
-    };
-
-    // ─────────────────────────────────────────────────────
-    // ① repeat_header.pdf に基本情報（備考・クランプ除く）を差し込み
-    // ─────────────────────────────────────────────────────
+    // ══════════════════════════════════════════
+    // ① repeat_header.pdf に基本情報を差し込み
+    // ══════════════════════════════════════════
     const headerTpl = await loadTpl('repeat_header.pdf');
-    await addNewPage(headerTpl);
-
-    const SKIP_KEYS_HEADER = new Set([
-      '__note_start_y__', '__clamp_start_y__',
-      '__note_cfg__', '__clamp_cfg__', '__header_end_y__', '__page_no__',
-      'note', 'clamp_note',
-    ]);
+    await addNewPage(headerTpl); // P1を追加
 
     if (headerTpl) {
-      // 基本フィールドを差し込み（備考・クランプ・特殊キーは除外）
-      for (const f of fieldsByTpl('repeat_header')) {
-        if (SKIP_KEYS_HEADER.has(f.field_key)) continue;
-        if (f.field_key.startsWith('__')) continue;
+      // ヘッダテンプレートのフィールドを差し込み
+      for (const f of fieldsByTpl('repeat_header').filter((ff:any) => !ff.field_key.startsWith('__'))) {
         const text = resolveVal(f.data_source);
         if (!text) continue;
-        try {
-          curPage.drawText(text, {
-            x: Number(f.x), y: Number(f.y),
-            size: Number(f.font_size) || 7,
-            font: finalFont, color: rgb(0,0,0),
+        const x = Number(f.x), y = Number(f.y), sz = Number(f.font_size) || 7;
+        if ((f.field_key === 'note' || f.field_key === 'clamp_note') && text.includes('\n')) {
+          const lh = sz * 1.4;
+          text.split(/\n|\r\n/).forEach((line: string, i: number) => {
+            if (!line.trim()) return;
+            curPage.drawText(line, { x, y: y - i * lh, size: sz, font: finalFont, color: rgb(0,0,0) });
           });
-        } catch(_) {}
+        } else {
+          curPage.drawText(text, { x, y, size: sz, font: finalFont, color: rgb(0,0,0) });
+        }
       }
 
-      // ヘッダ固定部の下端Y（pdfkit座標 → pdf-lib座標に変換）
-      const headerEndCfg = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__header_end_y__');
-      const headerEndPK  = headerEndCfg ? parseFloat(headerEndCfg.note || '152.8') : 152.8;
-      // pdfkit Y → pdf-lib Y = pageH - pdfkitY
-      curY = curPageH - headerEndPK - BLOCK_MARGIN;
+      // ヘッダテンプレートの「使用済み下端Y」を求める
+      // repeat_header の __clamp_start_y__ (pdfkit Y座標) + 備考/クランプ高さ
+      // pdfkit Y → pdf-lib Y: pdfLibY = pageH - pdfkitY
+      const clampCfg = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__clamp_start_y__');
+      const noteCfg  = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__note_start_y__');
+
+      // 備考・クランプのテキスト高さを推定
+      const noteText  = d.note     ?? '';
+      const clampText = d.clampNote ?? '';
+      const NOTE_FS   = 7.0;
+      const NOTE_LH   = NOTE_FS * 1.4;
+      const H1        = 21.3;
+      const noteLines  = noteText  ? noteText.split(/\n|\r\n/).length  : 1;
+      const clampLines = clampText ? clampText.split(/\n|\r\n/).length : 1;
+      const NOTE_H  = Math.max(H1 * 2, (noteLines  + 1) * NOTE_LH + 4);
+      const CLAMP_H = Math.max(H1 * 2, (clampLines + 1) * NOTE_LH + 4);
+
+      // pdfkit座標での備考開始Y
+      const noteStartPK   = noteCfg  ? parseFloat(noteCfg.note  || '152.8') : 152.8;
+      const headerBottomPK = noteStartPK + NOTE_H + CLAMP_H + 4; // クランプ+マージン4
+
+      // pdf-lib座標に変換 (ページ下端からの距離)
+      curY = curPageH - headerBottomPK - BLOCK_MARGIN;
     } else {
-      curY = curPageH - 155;
+      // テンプレートなし: ページ上部 250pt を使用済みとして扱う
+      curY = curPageH - 250;
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // ①-B 備考ブロック（動的高さ・外枠・ラベル付き）
-    // ─────────────────────────────────────────────────────────────
-    const noteCfgF   = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__note_cfg__');
-    const noteCfgStr = noteCfgF?.note || 'x=30,w=535,fs=7,label_w=28,min_h=20';
-    const noteCfg    = parseCfgStr(noteCfgStr);
-
-    const NOTE_X       = noteCfg.x       ?? 30;
-    const NOTE_W       = noteCfg.w       ?? 535;
-    const NOTE_FS      = noteCfg.fs      ?? 7;
-    const NOTE_LBL_W   = noteCfg.label_w ?? 28;
-    const NOTE_MIN_H   = noteCfg.min_h   ?? 20;
-    const NOTE_LH      = NOTE_FS * 1.55;  // 行高
-    const NOTE_PAD_V   = 4;               // 上下内側余白
-    const NOTE_PAD_H   = 3;               // 左右内側余白
-
-    const noteText  = d.note ?? '';
-    const clampText = d.clampNote ?? '';
-
-    // テキストを指定幅で折り返して行配列を返す（簡易実装: 文字数ベース）
-    const wrapLines = (text: string, maxW: number, fs: number): string[] => {
-      if (!text) return [];
-      // 1文字あたり幅: 全角=fs*0.95, 半角=fs*0.55 の平均で近似
-      const charW = fs * 0.75;
-      const maxChars = Math.max(1, Math.floor(maxW / charW));
-      const lines: string[] = [];
-      for (const raw of text.split(/\r\n|\n/)) {
-        if (raw.length <= maxChars) { lines.push(raw); continue; }
-        let s = 0;
-        while (s < raw.length) { lines.push(raw.slice(s, s+maxChars)); s += maxChars; }
-      }
-      return lines;
-    };
-
-    // 備考ブロック描画関数
-    const drawNoteBlock = async (
-      label: string, text: string,
-      x: number, w: number, fs: number,
-      lblW: number, minH: number, lh: number,
-      padV: number, padH: number,
-    ) => {
-      const textAreaW = w - lblW - padH * 2;
-      const lines     = wrapLines(text, textAreaW, fs);
-      const blockH    = Math.max(minH, lines.length * lh + padV * 2);
-
-      await ensureSpace(blockH + 2);
-
-      const blockY = curY - blockH; // pdf-lib: 左下Y
-
-      // 外枠（全体）
-      drawRect(x, blockY, w, blockH);
-
-      // ラベル列背景（薄いグレー）
-      try {
-        curPage.drawRectangle({
-          x: x, y: blockY, width: lblW, height: blockH,
-          color: LABEL_BG_COLOR, borderWidth: 0,
-        });
-      } catch(_) {}
-
-      // ラベル・テキスト列の仕切り縦線
-      drawHLine(x + lblW, x + lblW, blockY, BOX_LINE_W, BOX_LINE_COLOR);
-      try {
-        curPage.drawLine({
-          start: { x: x + lblW, y: blockY },
-          end:   { x: x + lblW, y: blockY + blockH },
-          thickness: BOX_LINE_W, color: BOX_LINE_COLOR,
-        });
-      } catch(_) {}
-
-      // ラベルテキスト（縦中央）
-      const lblTxtY = blockY + blockH / 2 - fs * 0.36;
-      drawTxt(label, x + 2, lblTxtY, fs, rgb(0.15,0.15,0.15));
-
-      // 本文テキスト
-      const txtX0 = x + lblW + padH;
-      lines.forEach((line, i) => {
-        const lineY = blockY + blockH - padV - (i + 1) * lh + lh * 0.28;
-        drawTxt(line, txtX0, lineY, fs);
-      });
-
-      curY -= (blockH + BLOCK_MARGIN);
-    };
-
-    // 備考
-    await drawNoteBlock(
-      '備考', noteText,
-      NOTE_X, NOTE_W, NOTE_FS, NOTE_LBL_W, NOTE_MIN_H, NOTE_LH,
-      NOTE_PAD_V, NOTE_PAD_H,
-    );
-
-    // ─────────────────────────────────────────────────────────────
-    // ①-C クランプブロック（備考と同構造）
-    // ─────────────────────────────────────────────────────────────
-    const clampCfgF   = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__clamp_cfg__');
-    const clampCfgStr = clampCfgF?.note || 'x=30,w=535,fs=7,label_w=28,min_h=20';
-    const clampCfg    = parseCfgStr(clampCfgStr);
-
-    await drawNoteBlock(
-      'クランプ', clampText,
-      clampCfg.x ?? 30, clampCfg.w ?? 535, clampCfg.fs ?? 7,
-      clampCfg.label_w ?? 28, clampCfg.min_h ?? 20, NOTE_LH,
-      NOTE_PAD_V, NOTE_PAD_H,
-    );
-
-    curY -= BLOCK_MARGIN; // ブロック後の追加余白
-
     // ══════════════════════════════════════════════════════════
-    // ② ツーリング明細（同ページ連続描画）
+    // ② ツーリング明細を同ページに連続描画
     // ══════════════════════════════════════════════════════════
     const tooling: any[] = (options.include_tooling !== false) ? (d.tooling ?? []) : [];
     if (tooling.length > 0) {
       const toolingTplDoc = await loadTpl('repeat_tooling.pdf');
-      const tFields   = fieldsByTpl('repeat_tooling');
-      const rowCfg    = tFields.find((f:any) => f.field_key === '__row_cfg__');
-      const colFields = tFields.filter((f:any) => f.field_key.startsWith('col_'));
+      const tFields    = fieldsByTpl('repeat_tooling');
+      const rowCfg     = tFields.find((f:any) => f.field_key === '__row_cfg__');
+      const colFields  = tFields.filter((f:any) => f.field_key.startsWith('col_'));
 
-      const ROW_H       = rowCfg ? parseFloat(rowCfg.font_size) : 14.0;
-      const ROW_MARGIN  = 2.0;
-      const COL_HDR_H   = ROW_H + 2;
+      // 行高・カラムヘッダ高さ
+      const ROW_H      = rowCfg ? parseFloat(rowCfg.font_size) : 14.0;
+      const COL_HDR_H  = ROW_H; // カラムヘッダ行も1行分
+      const ROW_MARGIN = 2.0;   // 行間マージン(罫線の下)
       const EFFECTIVE_ROW_H = ROW_H + ROW_MARGIN;
 
-      const getColX = (key: string, def: number) => {
-        const f = colFields.find((c:any) => c.field_key === key);
-        return f ? Number(f.x) : def;
-      };
-
+      // カラム定義 (X座標はDBのフィールド定義から)
+      const getCX = (key:string, def:number) => { const f=colFields.find((c:any)=>c.field_key===key); return f?Number(f.x):def; };
       type TCol = { dataKey: string; x: number; label: string };
       const T_COLS: TCol[] = [
-        { dataKey:'toolNo',    x: getColX('col_n',30),        label:'N'     },
-        { dataKey:'toolName',  x: getColX('col_tool_name',50), label:'工具'  },
-        { dataKey:'tNumber',   x: getColX('col_t_no',155),    label:'T'     },
-        { dataKey:'hValue',    x: getColX('col_h_val',180),   label:'H'     },
-        { dataKey:'dRegister', x: getColX('col_d_reg',205),   label:'D'     },
-        { dataKey:'dValue',    x: getColX('col_d_val',235),   label:'D値'   },
-        { dataKey:'subPgNo',   x: getColX('col_sub_pg',265),  label:'SUB'   },
-        { dataKey:'note',      x: getColX('col_note',320),    label:'コメント'},
+        { dataKey:'toolNo',    x: getCX('col_n',30),          label:'N'              },
+        { dataKey:'toolName',  x: getCX('col_tool_name',50),  label:'工具'           },
+        { dataKey:'tNumber',   x: getCX('col_t_no',155),      label:'T'              },
+        { dataKey:'hValue',    x: getCX('col_h_val',180),     label:'H'              },
+        { dataKey:'dRegister', x: getCX('col_d_reg',205),     label:'D'              },
+        { dataKey:'dValue',    x: getCX('col_d_val',235),     label:'D値'            },
+        { dataKey:'subPgNo',   x: getCX('col_sub_pg',265),    label:'SUB'            },
+        { dataKey:'note',      x: getCX('col_note',320),      label:'コメント'       },
       ];
+      // 罫線右端 = 最後のカラムX + 適当な幅
       const LINE_X_START = T_COLS[0].x;
       const LINE_X_END   = T_COLS[T_COLS.length-1].x + 80;
 
-      const getTV = (t: any, key: string) => {
-        if (key==='toolNo')    return t.sortOrder != null ? String(t.sortOrder) : '';
+      const getTV = (t:any, key:string): string => {
+        if (key==='toolNo')    return t.toolNo ? String(t.toolNo) : (t.sortOrder != null ? String(t.sortOrder) : '');
         if (key==='toolName')  return t.toolName ?? '';
         if (key==='tNumber')   return String(t.tNo ?? t.tNumber ?? '');
         if (key==='hValue')    return t.hValue != null ? String(t.hValue) : (t.lengthOffsetNo ?? '');
@@ -1603,29 +1502,28 @@ export class McService {
         return '';
       };
 
-      // カラムヘッダ描画関数
+      // カラムヘッダ行を描画する関数
       const drawColHeader = async () => {
         await ensureSpace(COL_HDR_H + EFFECTIVE_ROW_H * 2, toolingTplDoc);
         const hdrY = curY - COL_HDR_H + (COL_HDR_H - 6.5 * 0.72) / 2;
-        T_COLS.forEach(col => drawTxt(col.label, col.x + 2, hdrY, 6.0));
+        T_COLS.forEach(col => {
+          drawTxt(col.label, col.x + 2, hdrY, 6.0);
+        });
+        // ヘッダ下罫線
         drawHLine(LINE_X_START, LINE_X_END, curY - COL_HDR_H);
         curY -= COL_HDR_H;
       };
 
+      // カラムヘッダを描画（ヘッダ固定部の直後）
+      await ensureSpace(COL_HDR_H + EFFECTIVE_ROW_H, toolingTplDoc);
       await drawColHeader();
 
-      let needsColHdr = false;
+      // 明細行を描画
       for (const t of tooling) {
-        if (needsColHdr) {
-          await drawColHeader();
-          needsColHdr = false;
-        }
-        const prevY = curY;
         await ensureSpace(EFFECTIVE_ROW_H, toolingTplDoc);
-        // ensureSpaceで新ページになった場合
-        if (curY > prevY) {
-          needsColHdr = true;
-          continue; // このループでもう一度カラムヘッダを描いてから明細
+        // 新ページになった場合はカラムヘッダを再描画
+        if (curY > curPageH - PAGE_BOTTOM_MARGIN - 10) {
+          // 新ページ直後 → カラムヘッダ再描画済み不要（ensureSpaceで追加済み）
         }
         const sz   = 6.5;
         const txtY = curY - ROW_H + (ROW_H - sz * 0.72) / 2;
@@ -1633,6 +1531,7 @@ export class McService {
           const val = getTV(t, col.dataKey);
           if (val) drawTxt(val, col.x + 2, txtY, sz);
         });
+        // 行の下に罫線
         drawHLine(LINE_X_START, LINE_X_END, curY - ROW_H);
         curY -= EFFECTIVE_ROW_H;
       }
@@ -1645,11 +1544,16 @@ export class McService {
     const workOffsets: any[] = (options.include_work_offsets !== false) ? (d.workOffsets ?? []) : [];
     if (workOffsets.length > 0) {
       const woTplDoc = await loadTpl('repeat_wo.pdf');
-      const woCfg    = fieldsByTpl('repeat_wo').find((f:any) => f.field_key === '__wo_cfg__');
-      const cfg      = parseCfgStr(woCfg?.note || 'label_w=28,col_w=175.4,row_h=14.0,start_y=37');
-      const LABEL_W  = cfg.label_w ?? 28;
-      const COL_W    = cfg.col_w   ?? 175.4;
-      const WO_ROW_H = cfg.row_h   ?? 14.0;
+      const woCfg = fieldsByTpl('repeat_wo').find((f:any) => f.field_key === '__wo_cfg__');
+      const parseCfg = (note: string) => {
+        const m: any = {};
+        (note||'').split(',').forEach((kv:string) => { const [k,v]=kv.split('='); if(k&&v) m[k.trim()]=parseFloat(v.trim()); });
+        return m;
+      };
+      const cfg      = parseCfg(woCfg?.note || 'label_w=28,col_w=175.4,row_h=14.0,start_y=37');
+      const LABEL_W  = cfg.label_w  ?? 28;
+      const COL_W    = cfg.col_w    ?? 175.4;
+      const WO_ROW_H = cfg.row_h    ?? 14.0;
       const ML       = 30.4;
       const WO_LABELS = ['G','X','Y','Z','A/C','R/B'];
       const WO_KEYS   = ['gCode','xOffset','yOffset','zOffset','aOffset','rOffset'];
@@ -1657,6 +1561,7 @@ export class McService {
       const WO_LINE_X2 = ML + COL_W * 3;
       const WO_MARGIN  = 1.5;
 
+      // WOグループ(3列横並び)
       const groups: any[][] = [];
       for (let i=0; i<workOffsets.length; i+=3) groups.push(workOffsets.slice(i,i+3));
 
@@ -1667,18 +1572,23 @@ export class McService {
           await ensureSpace(WO_ROW_H + WO_MARGIN, woTplDoc);
           const sz   = 6.5;
           const txtY = curY - WO_ROW_H + (WO_ROW_H - sz * 0.72) / 2;
+          // ラベル
           group.forEach((_: any, ci: number) => {
-            drawTxt(WO_LABELS[li], ML + ci * COL_W + 2, txtY, 6.0);
+            const lx = ML + ci * COL_W;
+            drawTxt(WO_LABELS[li], lx + 2, txtY, 6.0);
           });
+          // 値
           group.forEach((wo: any, ci: number) => {
-            const raw = wo[WO_KEYS[li]];
-            const val = raw == null ? '' : (typeof raw==='number' ? raw.toFixed(3) : String(raw));
-            if (val) drawTxt(val, ML + ci * COL_W + LABEL_W + 2, txtY, sz);
+            const vx   = ML + ci * COL_W + LABEL_W;
+            const raw  = wo[WO_KEYS[li]];
+            const val  = raw == null ? '' : (typeof raw==='number' ? raw.toFixed(3) : String(raw));
+            if (val) drawTxt(val, vx + 2, txtY, sz);
           });
+          // 行下罫線
           drawHLine(WO_LINE_X1, WO_LINE_X2, curY - WO_ROW_H);
           curY -= (WO_ROW_H + WO_MARGIN);
         }
-        curY -= 3;
+        curY -= 3; // グループ間マージン
       }
       curY -= BLOCK_MARGIN;
     }
@@ -1688,14 +1598,13 @@ export class McService {
     // ══════════════════════════════════════════════════════════
     const indexPrograms: any[] = (options.include_index_programs !== false) ? (d.indexPrograms ?? []) : [];
     if (indexPrograms.length > 0) {
-      const ipTplDoc = await loadTpl('repeat_ip.pdf');
-      const ipFields = fieldsByTpl('repeat_ip');
-      const ipRowCfg = ipFields.find((f:any) => f.field_key === '__row_cfg__');
-      const ipCols   = ipFields.filter((f:any) => f.field_key.startsWith('col_'));
-      const IP_ROW_H = ipRowCfg ? parseFloat(ipRowCfg.font_size) : 14.0;
+      const ipTplDoc  = await loadTpl('repeat_ip.pdf');
+      const ipFields  = fieldsByTpl('repeat_ip');
+      const ipRowCfg  = ipFields.find((f:any) => f.field_key === '__row_cfg__');
+      const ipCols    = ipFields.filter((f:any) => f.field_key.startsWith('col_'));
+      const IP_ROW_H  = ipRowCfg ? parseFloat(ipRowCfg.font_size) : 14.0;
       const IP_MARGIN = 2.0;
-      const getIPCX  = (key:string, def:number) => { const f=ipCols.find((c:any)=>c.field_key===key); return f?Number(f.x):def; };
-
+      const getIPCX   = (key:string, def:number) => { const f=ipCols.find((c:any)=>c.field_key===key); return f?Number(f.x):def; };
       type IPCol = { dataKey: string; x: number; label: string };
       const IP_COLS: IPCol[] = [
         { dataKey:'sortOrder', x: getIPCX('col_no',30),     label:'No'   },
@@ -1716,8 +1625,8 @@ export class McService {
 
       for (let i=0; i<indexPrograms.length; i++) {
         await ensureSpace(IP_ROW_H + IP_MARGIN, ipTplDoc);
-        const ip  = indexPrograms[i];
-        const sz  = 6.5;
+        const ip   = indexPrograms[i];
+        const sz   = 6.5;
         const txtY = curY - IP_ROW_H + (IP_ROW_H - sz * 0.72) / 2;
         IP_COLS.forEach(col => {
           const val = col.dataKey==='sortOrder' ? String(ip.sortOrder ?? i+1) : String((ip as any)[col.dataKey] ?? '');
@@ -1732,9 +1641,9 @@ export class McService {
     // ══════════════════════════════════════════
     // ⑤ template_repeat_p2.pdf を最終ページに結合
     // ══════════════════════════════════════════
-    const p2Path = `${ASSETS}/template_repeat_p2.pdf`;
-    if (fs.existsSync(p2Path)) {
-      const p2Doc  = await PDFLib.load(fs.readFileSync(p2Path));
+    const p2File = fs.existsSync(`${ASSETS}/template_repeat_p2.pdf`) ? 'template_repeat_p2.pdf' : null;
+    if (p2File) {
+      const p2Doc  = await PDFLib.load(fs.readFileSync(`${ASSETS}/${p2File}`));
       p2Doc.registerFontkit(fontkit.default ?? fontkit);
       const p2Font = await p2Doc.embedFont(fontBytes);
       const p2Page = p2Doc.getPage(0);
@@ -1785,6 +1694,9 @@ export class McService {
 
     return pdfBuffer;
   }
+
+
+
 
   // ══════════════════════════════════════════
   async directPrint(
