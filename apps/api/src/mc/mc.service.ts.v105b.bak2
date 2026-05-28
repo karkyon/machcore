@@ -1442,8 +1442,7 @@ export class McService {
       const headerEndCfg = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__header_end_y__');
       const headerEndPK  = headerEndCfg ? parseFloat(headerEndCfg.note || '152.8') : 152.8;
       // pdfkit Y → pdf-lib Y = pageH - pdfkitY
-      curY = curPageH - headerEndPK;
-      console.log('[PDF-DEBUG] headerEndPK=', headerEndPK, 'curY=', curY, 'curPageH=', curPageH);
+      curY = curPageH - headerEndPK - BLOCK_MARGIN;
     } else {
       curY = curPageH - 155;
     }
@@ -1482,7 +1481,7 @@ export class McService {
       return lines;
     };
 
-    // 備考ブロック描画関数（try/catchなし・エラーを表面化）
+    // 備考ブロック描画関数
     const drawNoteBlock = async (
       label: string, text: string,
       x: number, w: number, fs: number,
@@ -1491,35 +1490,41 @@ export class McService {
     ) => {
       const textAreaW = w - lblW - padH * 2;
       const lines     = wrapLines(text, textAreaW, fs);
-      // テキストなしでも最低30ptを確保
-      const blockH    = Math.max(minH, lines.length > 0 ? lines.length * lh + padV * 2 : minH);
+      const blockH    = Math.max(minH, lines.length * lh + padV * 2);
 
       await ensureSpace(blockH + 2);
 
       const blockY = curY - blockH; // pdf-lib: 左下Y
-      console.log('[PDF-DEBUG] drawNoteBlock label=', label, 'blockY=', blockY, 'blockH=', blockH, 'curY=', curY, 'lines=', lines.length, 'text.length=', text.length);
 
-      // 外枠 4辺を描画
-      curPage.drawLine({ start:{x, y:blockY},         end:{x:x+w, y:blockY},         thickness:BOX_LINE_W, color:BOX_LINE_COLOR });
-      curPage.drawLine({ start:{x, y:blockY+blockH},  end:{x:x+w, y:blockY+blockH},  thickness:BOX_LINE_W, color:BOX_LINE_COLOR });
-      curPage.drawLine({ start:{x, y:blockY},         end:{x,     y:blockY+blockH},  thickness:BOX_LINE_W, color:BOX_LINE_COLOR });
-      curPage.drawLine({ start:{x:x+w, y:blockY},     end:{x:x+w, y:blockY+blockH}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR });
+      // 外枠（全体）
+      drawRect(x, blockY, w, blockH);
 
       // ラベル列背景（薄いグレー・半透明）
-      curPage.drawRectangle({ x, y:blockY, width:lblW, height:blockH, color:LABEL_BG_COLOR, borderWidth:0, opacity:0.5 });
+      try {
+        curPage.drawRectangle({
+          x: x, y: blockY, width: lblW, height: blockH,
+          color: LABEL_BG_COLOR, borderWidth: 0, opacity: 0.5,
+        });
+      } catch(_) {}
 
       // ラベル・テキスト列の仕切り縦線
-      curPage.drawLine({ start:{x:x+lblW, y:blockY}, end:{x:x+lblW, y:blockY+blockH}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR });
+      try {
+        curPage.drawLine({
+          start: { x: x + lblW, y: blockY },
+          end:   { x: x + lblW, y: blockY + blockH },
+          thickness: BOX_LINE_W, color: BOX_LINE_COLOR,
+        });
+      } catch(_) {}
 
       // ラベルテキスト（縦中央）
       const lblTxtY = blockY + blockH / 2 - fs * 0.36;
-      curPage.drawText(label, { x:x+2, y:lblTxtY, size:fs, font:finalFont, color:rgb(0.15,0.15,0.15) });
+      drawTxt(label, x + 2, lblTxtY, fs, rgb(0.15,0.15,0.15));
 
       // 本文テキスト
       const txtX0 = x + lblW + padH;
       lines.forEach((line, i) => {
         const lineY = blockY + blockH - padV - (i + 1) * lh + lh * 0.28;
-        if (line) curPage.drawText(line, { x:txtX0, y:lineY, size:fs, font:finalFont, color:rgb(0,0,0) });
+        drawTxt(line, txtX0, lineY, fs);
       });
 
       curY -= (blockH + BLOCK_MARGIN);
