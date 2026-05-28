@@ -1239,16 +1239,22 @@ export class McService {
 
 
   // ══════════════════════════════════════════════════════
-  // リピート段取シートPDF生成 v3 (pdf-lib テンプレート差し込み方式)
-  // 新規段取シート(generateSetupSheetPdf)と同じ方式
+  // リピート段取シートPDF生成 v4
   //
-  // ①repeat_header.pdf   → DBフィールド定義x/yにpdf-libでテキスト上書き
-  // ②repeat_tooling.pdf  → テンプレをベースに明細行をpdf-libで座標計算描画
-  // ③repeat_wo.pdf       → テンプレをベースに3列横並びWOをpdf-libで描画
-  // ④repeat_ip.pdf       → テンプレをベースに明細行をpdf-libで座標計算描画
-  // ⑤template_repeat_p2.pdf → そのまま最終ページに連結(フィールドあれば差込)
+  // 生成方式:
+  //   [P1] repeat_header.pdf をロードし基本情報を差し込み
+  //        → 同ページにツーリングカラムヘッダ + 明細行を連続描画
+  //        → 同ページにWO枠(余裕あれば)
+  //        → 同ページにIP列(余裕あれば)
+  //        → ページが足りなければ新ページ追加
+  //   [最終P] template_repeat_p2.pdf を最終ページとして結合
   //
-  // テンプレートPDFが存在しない場合は該当ブロックをスキップ
+  //   各ブロックの「開始Y(pdf-lib座標)」は前ブロックの終了Yから
+  //   マージン8ptを引いた値
+  //   pdf-lib座標系: Y=0が下, Y=pageHeightが上
+  //   ページ下マージン: 30pt
+  //
+  //   ツーリング・WO・IP明細行の下に罫線(水平線)を引く
   // ══════════════════════════════════════════════════════
   async generateRepeatSetupSheetPdf(
     mcId:       number,
@@ -1304,8 +1310,6 @@ export class McService {
       const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
       return `${h}H ${String(m).padStart(2,'0')}M ${String(s).padStart(2,'0')}S`;
     };
-
-    // データ解決
     const resolveVal = (src: string): string => {
       if (src === 'part.clientName')      return part.clientName    ?? '';
       if (src === 'part.drawingNo')       return part.drawingNo     ?? '';
@@ -1332,7 +1336,7 @@ export class McService {
       return String(val ?? '');
     };
 
-    // テンプレートPDFロード（ファイルが存在する場合のみ）
+    // テンプレートPDFロード
     const loadTpl = async (filename: string) => {
       const p = `${ASSETS}/${filename}`;
       if (!fs.existsSync(p)) return null;
@@ -1341,27 +1345,76 @@ export class McService {
       return doc;
     };
 
-    // テキスト描画ヘルパー
-    const drawTxt = (page: any, font: any, text: string, x: number, y: number, size: number) => {
-      if (!text) return;
-      try { page.drawText(text, { x, y, size, font, color: rgb(0, 0, 0) }); } catch(_) {}
-    };
-
     // ── 結合用ドキュメント ──
     const finalDoc = await PDFLib.create();
     finalDoc.registerFontkit(fontkit.default ?? fontkit);
     const finalFont = await finalDoc.embedFont(fontBytes);
     let totalPages = 0;
 
-    // ══════════════════════════════════
-    // ① repeat_header.pdf
-    // ══════════════════════════════════
-    const headerTpl = await loadTpl('repeat_header.pdf');
-    if (headerTpl) {
-      const hFont = await headerTpl.embedFont(fontBytes);
-      const hPage = headerTpl.getPage(0);
+    // 定数
+    const PAGE_BOTTOM_MARGIN = 30; // ページ下マージン(pt)
+    const BLOCK_MARGIN       = 8;  // ブロック間マージン(pt)
+    const ROW_LINE_COLOR     = rgb(0.6, 0.6, 0.6); // 罫線色(薄いグレー)
+    const ROW_LINE_W         = 0.4;
 
-      for (const f of fieldsByTpl('repeat_header').filter((f:any) => !f.field_key.startsWith('__'))) {
+    // 現在の作業ページと現在Y座標（pdf-lib座標: 下からの距離）
+    let curPage: any = null;
+    let curPageH = 0;
+    let curY = 0; // 現在の「描画済み下端」のpdf-lib Y座標
+
+    // 新ページ追加: テンプレートPDFからコピー、またはブランクページ
+    const addNewPage = async (tplDoc: any, tplPageIdx = 0) => {
+      let pg: any;
+      if (tplDoc) {
+        [pg] = await finalDoc.copyPages(tplDoc, [tplPageIdx]);
+        finalDoc.addPage(pg);
+      } else {
+        pg = finalDoc.addPage([595.28, 841.89]);
+      }
+      totalPages++;
+      curPage  = finalDoc.getPage(finalDoc.getPageCount() - 1);
+      curPageH = curPage.getSize().height;
+      curY     = curPageH - PAGE_BOTTOM_MARGIN; // 上端から開始
+      return curPage;
+    };
+
+    // テキスト描画
+    const drawTxt = (text: string, x: number, y: number, size: number) => {
+      if (!text || !curPage) return;
+      try { curPage.drawText(text, { x, y, size, font: finalFont, color: rgb(0, 0, 0) }); } catch(_) {}
+    };
+
+    // 水平罫線（行の下端に）
+    const drawHLine = (x1: number, x2: number, y: number) => {
+      if (!curPage) return;
+      try {
+        curPage.drawLine({
+          start: { x: x1, y },
+          end:   { x: x2, y },
+          thickness: ROW_LINE_W,
+          color: ROW_LINE_COLOR,
+        });
+      } catch(_) {}
+    };
+
+    // 残り高さチェック: needPt 分の高さが足りなければ新ページを追加
+    // tplDoc: 新ページのベーステンプレ（nullなら空白ページ）
+    const ensureSpace = async (needPt: number, tplDoc: any = null) => {
+      if (!curPage) return;
+      if (curY - needPt < PAGE_BOTTOM_MARGIN) {
+        await addNewPage(tplDoc);
+      }
+    };
+
+    // ══════════════════════════════════════════
+    // ① repeat_header.pdf に基本情報を差し込み
+    // ══════════════════════════════════════════
+    const headerTpl = await loadTpl('repeat_header.pdf');
+    await addNewPage(headerTpl); // P1を追加
+
+    if (headerTpl) {
+      // ヘッダテンプレートのフィールドを差し込み
+      for (const f of fieldsByTpl('repeat_header').filter((ff:any) => !ff.field_key.startsWith('__'))) {
         const text = resolveVal(f.data_source);
         if (!text) continue;
         const x = Number(f.x), y = Number(f.y), sz = Number(f.font_size) || 7;
@@ -1369,177 +1422,225 @@ export class McService {
           const lh = sz * 1.4;
           text.split(/\n|\r\n/).forEach((line: string, i: number) => {
             if (!line.trim()) return;
-            drawTxt(hPage, hFont, line, x, y - i * lh, sz);
+            curPage.drawText(line, { x, y: y - i * lh, size: sz, font: finalFont, color: rgb(0,0,0) });
           });
         } else {
-          drawTxt(hPage, hFont, text, x, y, sz);
+          curPage.drawText(text, { x, y, size: sz, font: finalFont, color: rgb(0,0,0) });
         }
       }
-      const [pg] = await finalDoc.copyPages(headerTpl, [0]);
-      finalDoc.addPage(pg);
-      totalPages++;
+
+      // ヘッダテンプレートの「使用済み下端Y」を求める
+      // repeat_header の __clamp_start_y__ (pdfkit Y座標) + 備考/クランプ高さ
+      // pdfkit Y → pdf-lib Y: pdfLibY = pageH - pdfkitY
+      const clampCfg = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__clamp_start_y__');
+      const noteCfg  = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__note_start_y__');
+
+      // 備考・クランプのテキスト高さを推定
+      const noteText  = d.note     ?? '';
+      const clampText = d.clampNote ?? '';
+      const NOTE_FS   = 7.0;
+      const NOTE_LH   = NOTE_FS * 1.4;
+      const H1        = 21.3;
+      const noteLines  = noteText  ? noteText.split(/\n|\r\n/).length  : 1;
+      const clampLines = clampText ? clampText.split(/\n|\r\n/).length : 1;
+      const NOTE_H  = Math.max(H1 * 2, (noteLines  + 1) * NOTE_LH + 4);
+      const CLAMP_H = Math.max(H1 * 2, (clampLines + 1) * NOTE_LH + 4);
+
+      // pdfkit座標での備考開始Y
+      const noteStartPK   = noteCfg  ? parseFloat(noteCfg.note  || '152.8') : 152.8;
+      const headerBottomPK = noteStartPK + NOTE_H + CLAMP_H + 4; // クランプ+マージン4
+
+      // pdf-lib座標に変換 (ページ下端からの距離)
+      curY = curPageH - headerBottomPK - BLOCK_MARGIN;
+    } else {
+      // テンプレートなし: ページ上部 250pt を使用済みとして扱う
+      curY = curPageH - 250;
     }
 
-    // ══════════════════════════════════
-    // ② repeat_tooling.pdf
-    // ══════════════════════════════════
+    // ══════════════════════════════════════════════════════════
+    // ② ツーリング明細を同ページに連続描画
+    // ══════════════════════════════════════════════════════════
     const tooling: any[] = (options.include_tooling !== false) ? (d.tooling ?? []) : [];
     if (tooling.length > 0) {
-      const toolingTpl = await loadTpl('repeat_tooling.pdf');
-      if (toolingTpl) {
-        const tFields    = fieldsByTpl('repeat_tooling');
-        const rowCfg     = tFields.find((f:any) => f.field_key === '__row_cfg__');
-        const colFields  = tFields.filter((f:any) => f.field_key.startsWith('col_'));
-        const ROW_H      = rowCfg ? parseFloat(rowCfg.font_size) : 14.0;
-        const ROW_Y_PK   = rowCfg ? Number(rowCfg.y) : 51; // pdfkit座標
-        const tplH       = toolingTpl.getPage(0).getHeight();
-        const availH     = tplH - ROW_Y_PK - 25;
-        const ROWS_PER   = Math.max(1, Math.floor(availH / ROW_H));
+      const toolingTplDoc = await loadTpl('repeat_tooling.pdf');
+      const tFields    = fieldsByTpl('repeat_tooling');
+      const rowCfg     = tFields.find((f:any) => f.field_key === '__row_cfg__');
+      const colFields  = tFields.filter((f:any) => f.field_key.startsWith('col_'));
 
-        const getCX = (key:string, def:number) => { const f=colFields.find((c:any)=>c.field_key===key); return f?Number(f.x):def; };
-        const T_COLS = [
-          { dataKey: 'toolNo',     x: getCX('col_n',30)         },
-          { dataKey: 'toolName',   x: getCX('col_tool_name',50) },
-          { dataKey: 'tNumber',    x: getCX('col_t_no',155)     },
-          { dataKey: 'hValue',     x: getCX('col_h_val',180)    },
-          { dataKey: 'dRegister',  x: getCX('col_d_reg',205)    },
-          { dataKey: 'dValue',     x: getCX('col_d_val',235)    },
-          { dataKey: 'subPgNo',    x: getCX('col_sub_pg',265)   },
-          { dataKey: 'note',       x: getCX('col_note',320)     },
-        ];
-        const getTV = (t:any, key:string): string => {
-          if (key==='toolNo')   return t.toolNo ? String(t.toolNo) : (t.sortOrder != null ? String(t.sortOrder) : '');
-          if (key==='toolName') return t.toolName??''
-          if (key==='tNumber')  return String(t.tNo??t.tNumber??t.tNoVal??'');
-          if (key==='hValue')   return t.hValue!=null?String(t.hValue):(t.lengthOffsetNo??'');
-          if (key==='dRegister') return t.diaOffsetNo??t.dRegister??'';
-          if (key==='dValue')   return t.dValue!=null?String(t.dValue):(t.diameter!=null?String(t.diameter):'');
-          if (key==='subPgNo')  return t.subPgNo??t.subProgram??'';
-          if (key==='note')     return t.note??'';
-          return '';
-        };
+      // 行高・カラムヘッダ高さ
+      const ROW_H      = rowCfg ? parseFloat(rowCfg.font_size) : 14.0;
+      const COL_HDR_H  = ROW_H; // カラムヘッダ行も1行分
+      const ROW_MARGIN = 2.0;   // 行間マージン(罫線の下)
+      const EFFECTIVE_ROW_H = ROW_H + ROW_MARGIN;
 
-        let rIdx = 0;
-        while (rIdx < tooling.length) {
-          const pageRows = tooling.slice(rIdx, rIdx + ROWS_PER);
-          rIdx += ROWS_PER;
-          const [pg] = await finalDoc.copyPages(toolingTpl, [0]);
-          finalDoc.addPage(pg);
-          totalPages++;
-          const curPage = finalDoc.getPage(finalDoc.getPageCount() - 1);
-          pageRows.forEach((t: any, ri: number) => {
-            const sz = 6.5;
-            const ty = tplH - ROW_Y_PK - (ri + 1) * ROW_H + (ROW_H - sz * 0.72) / 2;
-            T_COLS.forEach(col => {
-              const val = getTV(t, col.dataKey);
-              if (val) drawTxt(curPage, finalFont, val, col.x + 2, ty, sz);
-            });
-          });
+      // カラム定義 (X座標はDBのフィールド定義から)
+      const getCX = (key:string, def:number) => { const f=colFields.find((c:any)=>c.field_key===key); return f?Number(f.x):def; };
+      type TCol = { dataKey: string; x: number; label: string };
+      const T_COLS: TCol[] = [
+        { dataKey:'toolNo',    x: getCX('col_n',30),          label:'N'              },
+        { dataKey:'toolName',  x: getCX('col_tool_name',50),  label:'工具'           },
+        { dataKey:'tNumber',   x: getCX('col_t_no',155),      label:'T'              },
+        { dataKey:'hValue',    x: getCX('col_h_val',180),     label:'H'              },
+        { dataKey:'dRegister', x: getCX('col_d_reg',205),     label:'D'              },
+        { dataKey:'dValue',    x: getCX('col_d_val',235),     label:'D値'            },
+        { dataKey:'subPgNo',   x: getCX('col_sub_pg',265),    label:'SUB'            },
+        { dataKey:'note',      x: getCX('col_note',320),      label:'コメント'       },
+      ];
+      // 罫線右端 = 最後のカラムX + 適当な幅
+      const LINE_X_START = T_COLS[0].x;
+      const LINE_X_END   = T_COLS[T_COLS.length-1].x + 80;
+
+      const getTV = (t:any, key:string): string => {
+        if (key==='toolNo')    return t.toolNo ? String(t.toolNo) : (t.sortOrder != null ? String(t.sortOrder) : '');
+        if (key==='toolName')  return t.toolName ?? '';
+        if (key==='tNumber')   return String(t.tNo ?? t.tNumber ?? '');
+        if (key==='hValue')    return t.hValue != null ? String(t.hValue) : (t.lengthOffsetNo ?? '');
+        if (key==='dRegister') return t.diaOffsetNo ?? t.dRegister ?? '';
+        if (key==='dValue')    return t.dValue != null ? String(t.dValue) : (t.diameter != null ? String(t.diameter) : '');
+        if (key==='subPgNo')   return t.subPgNo ?? t.subProgram ?? '';
+        if (key==='note')      return t.note ?? '';
+        return '';
+      };
+
+      // カラムヘッダ行を描画する関数
+      const drawColHeader = async () => {
+        await ensureSpace(COL_HDR_H + EFFECTIVE_ROW_H * 2, toolingTplDoc);
+        const hdrY = curY - COL_HDR_H + (COL_HDR_H - 6.5 * 0.72) / 2;
+        T_COLS.forEach(col => {
+          drawTxt(col.label, col.x + 2, hdrY, 6.0);
+        });
+        // ヘッダ下罫線
+        drawHLine(LINE_X_START, LINE_X_END, curY - COL_HDR_H);
+        curY -= COL_HDR_H;
+      };
+
+      // カラムヘッダを描画（ヘッダ固定部の直後）
+      await ensureSpace(COL_HDR_H + EFFECTIVE_ROW_H, toolingTplDoc);
+      await drawColHeader();
+
+      // 明細行を描画
+      for (const t of tooling) {
+        await ensureSpace(EFFECTIVE_ROW_H, toolingTplDoc);
+        // 新ページになった場合はカラムヘッダを再描画
+        if (curY > curPageH - PAGE_BOTTOM_MARGIN - 10) {
+          // 新ページ直後 → カラムヘッダ再描画済み不要（ensureSpaceで追加済み）
         }
+        const sz   = 6.5;
+        const txtY = curY - ROW_H + (ROW_H - sz * 0.72) / 2;
+        T_COLS.forEach(col => {
+          const val = getTV(t, col.dataKey);
+          if (val) drawTxt(val, col.x + 2, txtY, sz);
+        });
+        // 行の下に罫線
+        drawHLine(LINE_X_START, LINE_X_END, curY - ROW_H);
+        curY -= EFFECTIVE_ROW_H;
       }
+      curY -= BLOCK_MARGIN;
     }
 
-    // ══════════════════════════════════
-    // ③ repeat_wo.pdf
-    // ══════════════════════════════════
+    // ══════════════════════════════════════════════════════════
+    // ③ WO枠（同ページ継続）
+    // ══════════════════════════════════════════════════════════
     const workOffsets: any[] = (options.include_work_offsets !== false) ? (d.workOffsets ?? []) : [];
     if (workOffsets.length > 0) {
-      const woTpl = await loadTpl('repeat_wo.pdf');
-      if (woTpl) {
-        const woFields = fieldsByTpl('repeat_wo');
-        const woCfg   = woFields.find((f:any) => f.field_key === '__wo_cfg__');
-        const parseCfg = (note: string) => {
-          const m: any = {};
-          (note||'').split(',').forEach((kv:string) => { const [k,v]=kv.split('='); if(k&&v) m[k.trim()]=parseFloat(v.trim()); });
-          return m;
-        };
-        const cfg       = parseCfg(woCfg?.note || 'label_w=28,col_w=175.4,row_h=14.0,start_y=37');
-        const LABEL_W   = cfg.label_w  ?? 28;
-        const COL_W     = cfg.col_w    ?? 175.4;
-        const WO_ROW_H  = cfg.row_h    ?? 14.0;
-        const START_Y   = cfg.start_y  ?? 37;
-        const ML        = 30.4;
-        const woTplH    = woTpl.getPage(0).getHeight();
-        const WO_LABELS = ['G','X','Y','Z','A/C','R/B'];
-        const WO_KEYS   = ['gCode','xOffset','yOffset','zOffset','aOffset','rOffset'];
-        const GROUP_H   = WO_LABELS.length * WO_ROW_H;
-        const GROUPS_PER = Math.max(1, Math.floor((woTplH - START_Y - 25) / GROUP_H));
+      const woTplDoc = await loadTpl('repeat_wo.pdf');
+      const woCfg = fieldsByTpl('repeat_wo').find((f:any) => f.field_key === '__wo_cfg__');
+      const parseCfg = (note: string) => {
+        const m: any = {};
+        (note||'').split(',').forEach((kv:string) => { const [k,v]=kv.split('='); if(k&&v) m[k.trim()]=parseFloat(v.trim()); });
+        return m;
+      };
+      const cfg      = parseCfg(woCfg?.note || 'label_w=28,col_w=175.4,row_h=14.0,start_y=37');
+      const LABEL_W  = cfg.label_w  ?? 28;
+      const COL_W    = cfg.col_w    ?? 175.4;
+      const WO_ROW_H = cfg.row_h    ?? 14.0;
+      const ML       = 30.4;
+      const WO_LABELS = ['G','X','Y','Z','A/C','R/B'];
+      const WO_KEYS   = ['gCode','xOffset','yOffset','zOffset','aOffset','rOffset'];
+      const WO_LINE_X1 = ML;
+      const WO_LINE_X2 = ML + COL_W * 3;
+      const WO_MARGIN  = 1.5;
 
-        const groups: any[][] = [];
-        for (let i=0; i<workOffsets.length; i+=3) groups.push(workOffsets.slice(i,i+3));
+      // WOグループ(3列横並び)
+      const groups: any[][] = [];
+      for (let i=0; i<workOffsets.length; i+=3) groups.push(workOffsets.slice(i,i+3));
 
-        let gIdx = 0;
-        while (gIdx < groups.length) {
-          const pageGroups = groups.slice(gIdx, gIdx + GROUPS_PER);
-          gIdx += GROUPS_PER;
-          const [pg] = await finalDoc.copyPages(woTpl, [0]);
-          finalDoc.addPage(pg);
-          totalPages++;
-          const curPage = finalDoc.getPage(finalDoc.getPageCount() - 1);
-
-          pageGroups.forEach((group: any[], gi: number) => {
-            WO_LABELS.forEach((label: string, li: number) => {
-              const rowYPk = START_Y + gi * GROUP_H + li * WO_ROW_H;
-              const sz     = 6.5;
-              const ty     = woTplH - rowYPk - WO_ROW_H + (WO_ROW_H - sz * 0.72) / 2;
-              group.forEach((wo: any, ci: number) => {
-                const colX = ML + LABEL_W + ci * COL_W;
-                const raw  = wo[WO_KEYS[li]];
-                const val  = raw == null ? '' : (typeof raw==='number' ? raw.toFixed(3) : String(raw));
-                if (val) drawTxt(curPage, finalFont, val, colX + 2, ty, sz);
-              });
-            });
+      for (const group of groups) {
+        const groupH = WO_LABELS.length * (WO_ROW_H + WO_MARGIN);
+        await ensureSpace(groupH, woTplDoc);
+        for (let li=0; li<WO_LABELS.length; li++) {
+          await ensureSpace(WO_ROW_H + WO_MARGIN, woTplDoc);
+          const sz   = 6.5;
+          const txtY = curY - WO_ROW_H + (WO_ROW_H - sz * 0.72) / 2;
+          // ラベル
+          group.forEach((_: any, ci: number) => {
+            const lx = ML + ci * COL_W;
+            drawTxt(WO_LABELS[li], lx + 2, txtY, 6.0);
           });
+          // 値
+          group.forEach((wo: any, ci: number) => {
+            const vx   = ML + ci * COL_W + LABEL_W;
+            const raw  = wo[WO_KEYS[li]];
+            const val  = raw == null ? '' : (typeof raw==='number' ? raw.toFixed(3) : String(raw));
+            if (val) drawTxt(val, vx + 2, txtY, sz);
+          });
+          // 行下罫線
+          drawHLine(WO_LINE_X1, WO_LINE_X2, curY - WO_ROW_H);
+          curY -= (WO_ROW_H + WO_MARGIN);
         }
+        curY -= 3; // グループ間マージン
       }
+      curY -= BLOCK_MARGIN;
     }
 
-    // ══════════════════════════════════
-    // ④ repeat_ip.pdf
-    // ══════════════════════════════════
+    // ══════════════════════════════════════════════════════════
+    // ④ インデックスプログラム（同ページ継続）
+    // ══════════════════════════════════════════════════════════
     const indexPrograms: any[] = (options.include_index_programs !== false) ? (d.indexPrograms ?? []) : [];
     if (indexPrograms.length > 0) {
-      const ipTpl = await loadTpl('repeat_ip.pdf');
-      if (ipTpl) {
-        const ipFields  = fieldsByTpl('repeat_ip');
-        const ipRowCfg  = ipFields.find((f:any) => f.field_key === '__row_cfg__');
-        const ipCols    = ipFields.filter((f:any) => f.field_key.startsWith('col_'));
-        const IP_ROW_H  = ipRowCfg ? parseFloat(ipRowCfg.font_size) : 14.0;
-        const IP_ROW_Y  = ipRowCfg ? Number(ipRowCfg.y) : 51;
-        const ipTplH    = ipTpl.getPage(0).getHeight();
-        const IP_ROWS   = Math.max(1, Math.floor((ipTplH - IP_ROW_Y - 25) / IP_ROW_H));
-        const getIPCX   = (key:string, def:number) => { const f=ipCols.find((c:any)=>c.field_key===key); return f?Number(f.x):def; };
-        const IP_COLS   = [
-          { dataKey:'sortOrder', x: getIPCX('col_no',30)    },
-          { dataKey:'axis0',     x: getIPCX('col_axis0',55) },
-          { dataKey:'axis1',     x: getIPCX('col_axis1',146)},
-          { dataKey:'axis2',     x: getIPCX('col_axis2',296)},
-          { dataKey:'note',      x: getIPCX('col_note',446) },
-        ];
+      const ipTplDoc  = await loadTpl('repeat_ip.pdf');
+      const ipFields  = fieldsByTpl('repeat_ip');
+      const ipRowCfg  = ipFields.find((f:any) => f.field_key === '__row_cfg__');
+      const ipCols    = ipFields.filter((f:any) => f.field_key.startsWith('col_'));
+      const IP_ROW_H  = ipRowCfg ? parseFloat(ipRowCfg.font_size) : 14.0;
+      const IP_MARGIN = 2.0;
+      const getIPCX   = (key:string, def:number) => { const f=ipCols.find((c:any)=>c.field_key===key); return f?Number(f.x):def; };
+      type IPCol = { dataKey: string; x: number; label: string };
+      const IP_COLS: IPCol[] = [
+        { dataKey:'sortOrder', x: getIPCX('col_no',30),     label:'No'   },
+        { dataKey:'axis0',     x: getIPCX('col_axis0',55),  label:'軸0'  },
+        { dataKey:'axis1',     x: getIPCX('col_axis1',146), label:'軸1'  },
+        { dataKey:'axis2',     x: getIPCX('col_axis2',296), label:'軸2'  },
+        { dataKey:'note',      x: getIPCX('col_note',446),  label:'備考' },
+      ];
+      const IP_LINE_X1 = IP_COLS[0].x;
+      const IP_LINE_X2 = IP_COLS[IP_COLS.length-1].x + 80;
 
-        let ipIdx = 0;
-        while (ipIdx < indexPrograms.length) {
-          const pageRows = indexPrograms.slice(ipIdx, ipIdx + IP_ROWS);
-          ipIdx += IP_ROWS;
-          const [pg] = await finalDoc.copyPages(ipTpl, [0]);
-          finalDoc.addPage(pg);
-          totalPages++;
-          const curPage = finalDoc.getPage(finalDoc.getPageCount() - 1);
-          pageRows.forEach((ip: any, ri: number) => {
-            const sz = 6.5;
-            const ty = ipTplH - IP_ROW_Y - (ri + 1) * IP_ROW_H + (IP_ROW_H - sz * 0.72) / 2;
-            IP_COLS.forEach(col => {
-              const val = col.dataKey==='sortOrder' ? String(ip.sortOrder??ri+1) : String((ip as any)[col.dataKey]??'');
-              if (val) drawTxt(curPage, finalFont, val, col.x + 2, ty, sz);
-            });
-          });
-        }
+      // カラムヘッダ
+      await ensureSpace(IP_ROW_H * 2, ipTplDoc);
+      const ipHdrY = curY - IP_ROW_H + (IP_ROW_H - 6.5 * 0.72) / 2;
+      IP_COLS.forEach(col => drawTxt(col.label, col.x + 2, ipHdrY, 6.0));
+      drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_ROW_H);
+      curY -= IP_ROW_H;
+
+      for (let i=0; i<indexPrograms.length; i++) {
+        await ensureSpace(IP_ROW_H + IP_MARGIN, ipTplDoc);
+        const ip   = indexPrograms[i];
+        const sz   = 6.5;
+        const txtY = curY - IP_ROW_H + (IP_ROW_H - sz * 0.72) / 2;
+        IP_COLS.forEach(col => {
+          const val = col.dataKey==='sortOrder' ? String(ip.sortOrder ?? i+1) : String((ip as any)[col.dataKey] ?? '');
+          if (val) drawTxt(val, col.x + 2, txtY, sz);
+        });
+        drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_ROW_H);
+        curY -= (IP_ROW_H + IP_MARGIN);
       }
+      curY -= BLOCK_MARGIN;
     }
 
-    // ══════════════════════════════════
-    // ⑤ template_repeat_p2.pdf (作業記録)
-    // ══════════════════════════════════
+    // ══════════════════════════════════════════
+    // ⑤ template_repeat_p2.pdf を最終ページに結合
+    // ══════════════════════════════════════════
     const p2File = fs.existsSync(`${ASSETS}/template_repeat_p2.pdf`) ? 'template_repeat_p2.pdf' : null;
     if (p2File) {
       const p2Doc  = await PDFLib.load(fs.readFileSync(`${ASSETS}/${p2File}`));
@@ -1549,7 +1650,7 @@ export class McService {
       for (const f of fieldsByTpl('repeat_p2').filter((f:any) => !f.field_key.startsWith('__'))) {
         const text = resolveVal(f.data_source);
         if (!text) continue;
-        drawTxt(p2Page, p2Font, text, Number(f.x), Number(f.y), Number(f.font_size) || 7);
+        try { p2Page.drawText(text, { x: Number(f.x), y: Number(f.y), size: Number(f.font_size)||7, font: p2Font, color: rgb(0,0,0) }); } catch(_) {}
       }
       const [pg] = await finalDoc.copyPages(p2Doc, [0]);
       finalDoc.addPage(pg);
@@ -1562,7 +1663,7 @@ export class McService {
       const pnX = Number(pnF.x), pnY = Number(pnF.y), pnSz = Number(pnF.font_size) || 6.5;
       finalDoc.getPages().forEach((pg, pi) => {
         try {
-          pg.drawRectangle({ x: pnX-2, y: pnY-2, width: 60, height: pnSz*1.8+4, color: rgb(1,1,1), borderWidth: 0 });
+          pg.drawRectangle({ x: pnX-2, y: pnY-2, width: 65, height: pnSz*1.8+4, color: rgb(1,1,1), borderWidth: 0 });
           pg.drawText(`${pi+1} / ${totalPages}`, { x: pnX, y: pnY, size: pnSz, font: finalFont, color: rgb(0,0,0) });
         } catch(_) {}
       });
@@ -1593,6 +1694,8 @@ export class McService {
 
     return pdfBuffer;
   }
+
+
 
 
   // ══════════════════════════════════════════
