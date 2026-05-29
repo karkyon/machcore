@@ -1376,14 +1376,17 @@ export class McService {
       try { curPage.drawLine({ start:{x:x1,y}, end:{x:x2,y}, thickness:w, color }); } catch(_) {}
     };
 
-    // 矩形描画（枠線のみ・塗りなし）
+    // 矩形描画（枠線のみ）
     const drawRect = (x: number, y: number, w: number, h: number) => {
       if (!curPage) return;
-      // 4辺を線で描く（pdf-libのdrawRectangleでcolorを省略すると透明になる）
-      try { curPage.drawLine({ start:{x,y}, end:{x:x+w,y}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(_) {}
-      try { curPage.drawLine({ start:{x,y:y+h}, end:{x:x+w,y:y+h}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(_) {}
-      try { curPage.drawLine({ start:{x,y}, end:{x,y:y+h}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(_) {}
-      try { curPage.drawLine({ start:{x:x+w,y}, end:{x:x+w,y:y+h}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(_) {}
+      try {
+        curPage.drawRectangle({
+          x, y, width: w, height: h,
+          borderWidth: BOX_LINE_W,
+          borderColor: BOX_LINE_COLOR,
+          color: rgb(1,1,1),
+        });
+      } catch(_) {}
     };
 
     // 白塗り矩形（テキスト背景消し用）
@@ -1439,11 +1442,10 @@ export class McService {
       }
 
       // ヘッダ固定部の下端Y（pdfkit座標 → pdf-lib座標に変換）
-      // __header_end_y__ の y列(pdf-lib座標=下から)をそのまま curY に使用
-      // デザイナーでドラッグするだけで反映される
       const headerEndCfg = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__header_end_y__');
-      curY = headerEndCfg ? Number(headerEndCfg.y) : (curPageH - 310);
-      console.log('[PDF-DEBUG] curY from y-col=', curY, 'curPageH=', curPageH);
+      const headerEndPK  = headerEndCfg ? parseFloat(headerEndCfg.note || '152.8') : 152.8;
+      // pdfkit Y → pdf-lib Y = pageH - pdfkitY
+      curY = curPageH - headerEndPK - BLOCK_MARGIN;
     } else {
       curY = curPageH - 155;
     }
@@ -1451,20 +1453,18 @@ export class McService {
     // ─────────────────────────────────────────────────────────────
     // ①-B 備考ブロック（動的高さ・外枠・ラベル付き）
     // ─────────────────────────────────────────────────────────────
-    // __note_cfg__: x列=ブロック左端X, font_size列=フォントサイズ
-    //               note列='w=幅,label_w=ラベル幅,min_h=最小高'
     const noteCfgF   = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__note_cfg__');
-    const noteCfgOpt = parseCfgStr(noteCfgF?.note || 'w=535,label_w=56,min_h=22');
+    const noteCfgStr = noteCfgF?.note || 'x=30,w=535,fs=7,label_w=28,min_h=20';
+    const noteCfg    = parseCfgStr(noteCfgStr);
 
-    const NOTE_X       = noteCfgF ? Number(noteCfgF.x)         : 30;
-    const NOTE_W       = noteCfgOpt.w        ?? 535;
-    const NOTE_FS      = noteCfgF ? Number(noteCfgF.font_size)  : 7;
-    const NOTE_LBL_W   = noteCfgOpt.label_w  ?? 56;
-    const NOTE_MIN_H   = noteCfgOpt.min_h    ?? 22;
+    const NOTE_X       = noteCfg.x       ?? 30;
+    const NOTE_W       = noteCfg.w       ?? 535;
+    const NOTE_FS      = noteCfg.fs      ?? 7;
+    const NOTE_LBL_W   = noteCfg.label_w ?? 28;
+    const NOTE_MIN_H   = noteCfg.min_h   ?? 20;
     const NOTE_LH      = NOTE_FS * 1.55;  // 行高
     const NOTE_PAD_V   = 4;               // 上下内側余白
     const NOTE_PAD_H   = 3;               // 左右内側余白
-    console.log('[PDF-DEBUG] NOTE_X=',NOTE_X,'NOTE_W=',NOTE_W,'NOTE_FS=',NOTE_FS,'NOTE_LBL_W=',NOTE_LBL_W);
 
     const noteText  = d.note ?? '';
     const clampText = d.clampNote ?? '';
@@ -1484,7 +1484,7 @@ export class McService {
       return lines;
     };
 
-    // 備考ブロック描画関数（try/catchなし・エラーを表面化）
+    // 備考ブロック描画関数
     const drawNoteBlock = async (
       label: string, text: string,
       x: number, w: number, fs: number,
@@ -1493,40 +1493,42 @@ export class McService {
     ) => {
       const textAreaW = w - lblW - padH * 2;
       const lines     = wrapLines(text, textAreaW, fs);
-      // テキストなしでも最低30ptを確保
-      const blockH    = Math.max(minH, lines.length > 0 ? lines.length * lh + padV * 2 : minH);
+      const blockH    = Math.max(minH, lines.length * lh + padV * 2);
 
       await ensureSpace(blockH + 2);
 
       const blockY = curY - blockH; // pdf-lib: 左下Y
-      console.log('[PDF-DEBUG] drawNoteBlock label=', label, 'x=',x,'w=',w,'blockY=', blockY, 'blockH=', blockH, 'curY=', curY, 'lines=', lines.length, 'text.length=', text.length, 'pageH=', curPageH);
 
-      // 外枠 4辺を描画（try/catchで保護）
-      try { curPage.drawLine({ start:{x, y:blockY},        end:{x:x+w, y:blockY},        thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(e:any){ console.error('[PDF-ERR] line1',e?.message); }
-      try { curPage.drawLine({ start:{x, y:blockY+blockH}, end:{x:x+w, y:blockY+blockH}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(e:any){ console.error('[PDF-ERR] line2',e?.message); }
-      try { curPage.drawLine({ start:{x, y:blockY},        end:{x,     y:blockY+blockH}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(e:any){ console.error('[PDF-ERR] line3',e?.message); }
-      try { curPage.drawLine({ start:{x:x+w, y:blockY},    end:{x:x+w, y:blockY+blockH},thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(e:any){ console.error('[PDF-ERR] line4',e?.message); }
+      // 外枠（全体）
+      drawRect(x, blockY, w, blockH);
 
-      // ラベル列背景（薄いグレー・半透明）
-      try { curPage.drawRectangle({ x, y:blockY, width:lblW, height:blockH, color:LABEL_BG_COLOR, borderWidth:0, opacity:0.5 }); } catch(e:any){ console.error('[PDF-ERR] rect',e?.message); }
+      // ラベル列背景（薄いグレー）
+      try {
+        curPage.drawRectangle({
+          x: x, y: blockY, width: lblW, height: blockH,
+          color: LABEL_BG_COLOR, borderWidth: 0,
+        });
+      } catch(_) {}
 
       // ラベル・テキスト列の仕切り縦線
-      try { curPage.drawLine({ start:{x:x+lblW, y:blockY}, end:{x:x+lblW, y:blockY+blockH}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(e:any){ console.error('[PDF-ERR] vline',e?.message); }
+      drawHLine(x + lblW, x + lblW, blockY, BOX_LINE_W, BOX_LINE_COLOR);
+      try {
+        curPage.drawLine({
+          start: { x: x + lblW, y: blockY },
+          end:   { x: x + lblW, y: blockY + blockH },
+          thickness: BOX_LINE_W, color: BOX_LINE_COLOR,
+        });
+      } catch(_) {}
 
-      // ラベルテキスト（縦中央・水平センタリング・フォントサイズ-2）
-      const lblFs   = Math.max(4, fs - 2);
-      const lblTxtY = blockY + blockH / 2 - lblFs * 0.36;
-      // 全角文字幅=fs*1.0、半角=fs*0.55 で推定してセンタリング
-      const lblTextW = [...label].reduce((acc, c) => acc + (c.charCodeAt(0) > 0xFF ? lblFs * 1.0 : lblFs * 0.55), 0);
-      const lblTxtX  = x + Math.max(2, (lblW - lblTextW) / 2);
-      try { curPage.drawText(label, { x:lblTxtX, y:lblTxtY, size:lblFs, font:finalFont, color:rgb(0.15,0.15,0.15) }); } catch(e:any){ console.error('[PDF-ERR] label',e?.message); }
+      // ラベルテキスト（縦中央）
+      const lblTxtY = blockY + blockH / 2 - fs * 0.36;
+      drawTxt(label, x + 2, lblTxtY, fs, rgb(0.15,0.15,0.15));
 
-      // 本文テキスト（フォントサイズ fs-1）
-      const bodyFs = Math.max(5, fs - 1);
-      const txtX0  = x + lblW + padH;
+      // 本文テキスト
+      const txtX0 = x + lblW + padH;
       lines.forEach((line, i) => {
         const lineY = blockY + blockH - padV - (i + 1) * lh + lh * 0.28;
-        try { if (line) curPage.drawText(line, { x:txtX0, y:lineY, size:bodyFs, font:finalFont, color:rgb(0,0,0) }); } catch(e:any){ console.error('[PDF-ERR] text',i,e?.message); }
+        drawTxt(line, txtX0, lineY, fs);
       });
 
       curY -= (blockH + BLOCK_MARGIN);
@@ -1543,17 +1545,13 @@ export class McService {
     // ①-C クランプブロック（備考と同構造）
     // ─────────────────────────────────────────────────────────────
     const clampCfgF   = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__clamp_cfg__');
-    const clampCfgOpt = parseCfgStr(clampCfgF?.note || 'w=535,label_w=56,min_h=22');
-    const CLAMP_X     = clampCfgF ? Number(clampCfgF.x)        : NOTE_X;
-    const CLAMP_W     = clampCfgOpt.w       ?? NOTE_W;
-    const CLAMP_FS    = clampCfgF ? Number(clampCfgF.font_size) : NOTE_FS;
-    const CLAMP_LBL_W = clampCfgOpt.label_w ?? NOTE_LBL_W;
-    const CLAMP_MIN_H = clampCfgOpt.min_h   ?? NOTE_MIN_H;
+    const clampCfgStr = clampCfgF?.note || 'x=30,w=535,fs=7,label_w=28,min_h=20';
+    const clampCfg    = parseCfgStr(clampCfgStr);
 
     await drawNoteBlock(
       'クランプ', clampText,
-      CLAMP_X, CLAMP_W, CLAMP_FS,
-      CLAMP_LBL_W, CLAMP_MIN_H, NOTE_LH,
+      clampCfg.x ?? 30, clampCfg.w ?? 535, clampCfg.fs ?? 7,
+      clampCfg.label_w ?? 28, clampCfg.min_h ?? 20, NOTE_LH,
       NOTE_PAD_V, NOTE_PAD_H,
     );
 
@@ -1616,32 +1614,52 @@ export class McService {
 
       await drawColHeader();
 
+      // カラム幅を計算（次カラムX - 自カラムX、最後は固定80pt）
+      const colWidths: number[] = T_COLS.map((col, i) =>
+        i < T_COLS.length - 1 ? T_COLS[i+1].x - col.x - 2 : 80
+      );
+
+      // テキスト折り返し（全角考慮）
+      const wrapTxt = (text: string, maxW: number, fs: number): string[] => {
+        if (!text) return [];
+        const result: string[] = [];
+        const rows = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+        for (const raw of rows) {
+          if (!raw) { result.push(''); continue; }
+          let cur = ''; let curW = 0;
+          for (const ch of [...raw]) {
+            const cw = ch.charCodeAt(0) > 0xFF ? fs * 0.95 : fs * 0.55;
+            if (curW + cw > maxW && cur) { result.push(cur); cur = ch; curW = cw; }
+            else { cur += ch; curW += cw; }
+          }
+          if (cur) result.push(cur);
+        }
+        return result.length ? result : [''];
+      };
+
       let needsColHdr = false;
       for (const t of tooling) {
-        if (needsColHdr) {
-          await drawColHeader();
-          needsColHdr = false;
-        }
+        if (needsColHdr) { await drawColHeader(); needsColHdr = false; }
+        const sz = 6.5;
+        // 各カラムの折り返し行を計算
+        const colLines = T_COLS.map((col, i) => wrapTxt(getTV(t, col.dataKey), colWidths[i], sz));
+        const maxLines = Math.max(1, ...colLines.map(l => l.length));
+        const rowH = Math.max(ROW_H, maxLines * (sz * 1.4));
         const prevY = curY;
-        await ensureSpace(EFFECTIVE_ROW_H, toolingTplDoc);
-        // ensureSpaceで新ページになった場合
-        if (curY > prevY) {
-          needsColHdr = true;
-          continue; // このループでもう一度カラムヘッダを描いてから明細
-        }
-        const sz   = 6.5;
-        const txtY = curY - ROW_H + (ROW_H - sz * 0.72) / 2;
-        T_COLS.forEach(col => {
-          const val = getTV(t, col.dataKey);
-          if (val) drawTxt(val, col.x + 2, txtY, sz);
+        await ensureSpace(rowH + ROW_MARGIN, null); // A4白紙で新ページ（縮小防止）
+        if (curY > prevY) { needsColHdr = true; continue; }
+        T_COLS.forEach((col, ci) => {
+          colLines[ci].forEach((line, li) => {
+            if (line) drawTxt(line, col.x + 2, curY - sz * 1.0 - li * (sz * 1.4), sz);
+          });
         });
-        drawHLine(LINE_X_START, LINE_X_END, curY - ROW_H);
-        curY -= EFFECTIVE_ROW_H;
+        drawHLine(LINE_X_START, LINE_X_END, curY - rowH);
+        curY -= (rowH + ROW_MARGIN);
       }
       curY -= BLOCK_MARGIN;
     }
 
-    // ══════════════════════════════════════════════════════════
+
     // ③ WO枠（同ページ継続）
     // ══════════════════════════════════════════════════════════
     const workOffsets: any[] = (options.include_work_offsets !== false) ? (d.workOffsets ?? []) : [];
