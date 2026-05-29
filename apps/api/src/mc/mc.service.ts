@@ -1348,30 +1348,24 @@ export class McService {
     let curPageH = 0;
     let curY = 0;
 
-    // 新ページ追加（常にA4=595.28x841.89に強制固定 → テンプレートサイズ違いによる縮小防止）
+    // 新ページ追加（copyPages + scaleContent でA4等倍表示）
     const A4_W_PT = 595.28, A4_H_PT = 841.89;
     const addNewPage = async (tplDoc: any, tplPageIdx = 0) => {
       let pg: any;
       if (tplDoc) {
-        // embedPageでA4等倍フィット（setSizeはコンテンツをスケールしないため）
-        try {
-          const srcPages = await finalDoc.embedPages(
-            await tplDoc.copyPages(tplDoc, [tplPageIdx])
-          );
-          const embeddedPage = srcPages[0];
-          const tplW: number = (embeddedPage as any).width  ?? A4_W_PT;
-          const tplH: number = (embeddedPage as any).height ?? A4_H_PT;
-          pg.drawPage(embeddedPage, {
-            x: 0, y: 0,
-            xScale: A4_W_PT / (tplW || A4_W_PT),
-            yScale: A4_H_PT / (tplH || A4_H_PT),
-          });
-        } catch(embedErr) {
+        [pg] = await finalDoc.copyPages(tplDoc, [tplPageIdx]);
+        finalDoc.addPage(pg);
+        // テンプレートサイズがA4でない場合、コンテンツをスケールしてA4に合わせる
+        const pgSize = pg.getSize();
+        const tplW = pgSize.width  || A4_W_PT;
+        const tplH = pgSize.height || A4_H_PT;
+        if (Math.abs(tplW - A4_W_PT) > 1 || Math.abs(tplH - A4_H_PT) > 1) {
           try {
-            const [copied] = await finalDoc.copyPages(tplDoc, [tplPageIdx]);
-            finalDoc.removePage(finalDoc.getPageCount() - 1);
-            finalDoc.addPage(copied);
-          } catch(_) {}
+            pg.scaleContent(A4_W_PT / tplW, A4_H_PT / tplH);
+            pg.setSize(A4_W_PT, A4_H_PT);
+          } catch(_) {
+            try { pg.setSize(A4_W_PT, A4_H_PT); } catch(_2) {}
+          }
         }
       } else {
         pg = finalDoc.addPage([A4_W_PT, A4_H_PT]);

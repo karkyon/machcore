@@ -1353,10 +1353,26 @@ export class McService {
     const addNewPage = async (tplDoc: any, tplPageIdx = 0) => {
       let pg: any;
       if (tplDoc) {
-        [pg] = await finalDoc.copyPages(tplDoc, [tplPageIdx]);
-        finalDoc.addPage(pg);
-        // テンプレートサイズに関わらずA4に強制リサイズ
-        pg.setSize(A4_W_PT, A4_H_PT);
+        // embedPageでA4等倍フィット（setSizeはコンテンツをスケールしないため）
+        try {
+          const srcPages = await finalDoc.embedPages(
+            await tplDoc.copyPages(tplDoc, [tplPageIdx])
+          );
+          const embeddedPage = srcPages[0];
+          const tplW: number = (embeddedPage as any).width  ?? A4_W_PT;
+          const tplH: number = (embeddedPage as any).height ?? A4_H_PT;
+          pg.drawPage(embeddedPage, {
+            x: 0, y: 0,
+            xScale: A4_W_PT / (tplW || A4_W_PT),
+            yScale: A4_H_PT / (tplH || A4_H_PT),
+          });
+        } catch(embedErr) {
+          try {
+            const [copied] = await finalDoc.copyPages(tplDoc, [tplPageIdx]);
+            finalDoc.removePage(finalDoc.getPageCount() - 1);
+            finalDoc.addPage(copied);
+          } catch(_) {}
+        }
       } else {
         pg = finalDoc.addPage([A4_W_PT, A4_H_PT]);
       }
@@ -1452,9 +1468,9 @@ export class McService {
     // ①-B 備考ブロック（動的高さ・外枠・ラベル付き）
     // ─────────────────────────────────────────────────────────────
     // NOTE_X: x列から取得, NOTE_FS: font_size列から取得
-    // note列: 'w=535,label_w=59,min_h=22' 形式
+    // note列: 'w=490,label_w=59,min_h=22' 形式
     const noteCfgF   = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__note_cfg__');
-    const noteCfgOpt = parseCfgStr(noteCfgF?.note || 'w=515,label_w=59,min_h=22');
+    const noteCfgOpt = parseCfgStr(noteCfgF?.note || 'w=490,label_w=59,min_h=22');
 
     const NOTE_X     = noteCfgF ? Number(noteCfgF.x)         : 30;
     const NOTE_W     = noteCfgOpt.w       ?? 535;
@@ -1551,7 +1567,7 @@ export class McService {
     // ①-C クランプブロック（備考と同構造）
     // ─────────────────────────────────────────────────────────────
     const clampCfgF   = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__clamp_cfg__');
-    const clampCfgOpt = parseCfgStr(clampCfgF?.note || 'w=515,label_w=59,min_h=22');
+    const clampCfgOpt = parseCfgStr(clampCfgF?.note || 'w=490,label_w=59,min_h=22');
     const CLAMP_X     = clampCfgF ? Number(clampCfgF.x)        : NOTE_X;
     const CLAMP_W     = clampCfgOpt.w       ?? NOTE_W;
     const CLAMP_FS    = clampCfgF ? Number(clampCfgF.font_size) : NOTE_FS;
