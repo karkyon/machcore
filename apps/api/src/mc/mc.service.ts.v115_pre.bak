@@ -1618,8 +1618,7 @@ export class McService {
       const LINE_X_START = T_COLS[0].x;
       // LINE_X_END: 最後のカラムX + そのカラムの幅(note列から取得)
       const lastCol = T_COLS[T_COLS.length - 1];
-      // 罫線右端: A4幅(595.28)-右マージン(30)=565 を上限とする
-      const LINE_X_END = Math.min(lastCol.x + lastCol.w, 565);
+      const LINE_X_END = lastCol.x + lastCol.w;
 
       const getTV = (t: any, key: string) => {
         if (key==='toolNo')    return t.sortOrder != null ? String(t.sortOrder) : '';
