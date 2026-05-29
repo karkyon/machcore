@@ -1439,11 +1439,11 @@ export class McService {
       }
 
       // ヘッダ固定部の下端Y（pdfkit座標 → pdf-lib座標に変換）
+      // __header_end_y__ の y列(pdf-lib座標=下から)をそのまま curY に使用
+      // デザイナーでドラッグするだけで反映される
       const headerEndCfg = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__header_end_y__');
-      const headerEndPK  = headerEndCfg ? parseFloat(headerEndCfg.note || '152.8') : 152.8;
-      // pdfkit Y → pdf-lib Y = pageH - pdfkitY
-      curY = curPageH - headerEndPK;
-      console.log('[PDF-DEBUG] headerEndPK=', headerEndPK, 'curY=', curY, 'curPageH=', curPageH);
+      curY = headerEndCfg ? Number(headerEndCfg.y) : (curPageH - 310);
+      console.log('[PDF-DEBUG] curY from y-col=', curY, 'curPageH=', curPageH);
     } else {
       curY = curPageH - 155;
     }
@@ -1451,18 +1451,20 @@ export class McService {
     // ─────────────────────────────────────────────────────────────
     // ①-B 備考ブロック（動的高さ・外枠・ラベル付き）
     // ─────────────────────────────────────────────────────────────
+    // __note_cfg__: x列=ブロック左端X, font_size列=フォントサイズ
+    //               note列='w=幅,label_w=ラベル幅,min_h=最小高'
     const noteCfgF   = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__note_cfg__');
-    const noteCfgStr = noteCfgF?.note || 'x=30,w=535,fs=7,label_w=28,min_h=20';
-    const noteCfg    = parseCfgStr(noteCfgStr);
+    const noteCfgOpt = parseCfgStr(noteCfgF?.note || 'w=535,label_w=56,min_h=22');
 
-    const NOTE_X       = noteCfg.x       ?? 30;
-    const NOTE_W       = noteCfg.w       ?? 535;
-    const NOTE_FS      = noteCfg.fs      ?? 7;
-    const NOTE_LBL_W   = noteCfg.label_w ?? 28;
-    const NOTE_MIN_H   = noteCfg.min_h   ?? 20;
+    const NOTE_X       = noteCfgF ? Number(noteCfgF.x)         : 30;
+    const NOTE_W       = noteCfgOpt.w        ?? 535;
+    const NOTE_FS      = noteCfgF ? Number(noteCfgF.font_size)  : 7;
+    const NOTE_LBL_W   = noteCfgOpt.label_w  ?? 56;
+    const NOTE_MIN_H   = noteCfgOpt.min_h    ?? 22;
     const NOTE_LH      = NOTE_FS * 1.55;  // 行高
     const NOTE_PAD_V   = 4;               // 上下内側余白
     const NOTE_PAD_H   = 3;               // 左右内側余白
+    console.log('[PDF-DEBUG] NOTE_X=',NOTE_X,'NOTE_W=',NOTE_W,'NOTE_FS=',NOTE_FS,'NOTE_LBL_W=',NOTE_LBL_W);
 
     const noteText  = d.note ?? '';
     const clampText = d.clampNote ?? '';
@@ -1536,13 +1538,17 @@ export class McService {
     // ①-C クランプブロック（備考と同構造）
     // ─────────────────────────────────────────────────────────────
     const clampCfgF   = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__clamp_cfg__');
-    const clampCfgStr = clampCfgF?.note || 'x=30,w=535,fs=7,label_w=28,min_h=20';
-    const clampCfg    = parseCfgStr(clampCfgStr);
+    const clampCfgOpt = parseCfgStr(clampCfgF?.note || 'w=535,label_w=56,min_h=22');
+    const CLAMP_X     = clampCfgF ? Number(clampCfgF.x)        : NOTE_X;
+    const CLAMP_W     = clampCfgOpt.w       ?? NOTE_W;
+    const CLAMP_FS    = clampCfgF ? Number(clampCfgF.font_size) : NOTE_FS;
+    const CLAMP_LBL_W = clampCfgOpt.label_w ?? NOTE_LBL_W;
+    const CLAMP_MIN_H = clampCfgOpt.min_h   ?? NOTE_MIN_H;
 
     await drawNoteBlock(
       'クランプ', clampText,
-      clampCfg.x ?? 30, clampCfg.w ?? 535, clampCfg.fs ?? 7,
-      clampCfg.label_w ?? 28, clampCfg.min_h ?? 20, NOTE_LH,
+      CLAMP_X, CLAMP_W, CLAMP_FS,
+      CLAMP_LBL_W, CLAMP_MIN_H, NOTE_LH,
       NOTE_PAD_V, NOTE_PAD_H,
     );
 
