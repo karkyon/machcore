@@ -1348,22 +1348,25 @@ export class McService {
     let curPageH = 0;
     let curY = 0;
 
-    // 新ページ追加（MediaBox/CropBoxをA4に強制設定でサイズ問題解決）
+    // 新ページ追加（copyPages + scaleContent でA4等倍表示）
     const A4_W_PT = 595.28, A4_H_PT = 841.89;
-    const { PDFName } = await import('pdf-lib');
     const addNewPage = async (tplDoc: any, tplPageIdx = 0) => {
       let pg: any;
       if (tplDoc) {
         [pg] = await finalDoc.copyPages(tplDoc, [tplPageIdx]);
         finalDoc.addPage(pg);
-        // MediaBoxとCropBoxを強制的にA4に設定
-        // （テンプレートPDFのページサイズに関わらずA4で表示される）
-        try {
-          const a4box = finalDoc.context.obj([0, 0, A4_W_PT, A4_H_PT]);
-          pg.node.set(PDFName.of('MediaBox'), a4box);
-          // CropBoxを削除（MediaBoxが優先される）
-          pg.node.delete(PDFName.of('CropBox'));
-        } catch(_) {}
+        // テンプレートサイズがA4でない場合、コンテンツをスケールしてA4に合わせる
+        const pgSize = pg.getSize();
+        const tplW = pgSize.width  || A4_W_PT;
+        const tplH = pgSize.height || A4_H_PT;
+        if (Math.abs(tplW - A4_W_PT) > 1 || Math.abs(tplH - A4_H_PT) > 1) {
+          try {
+            pg.scaleContent(A4_W_PT / tplW, A4_H_PT / tplH);
+            pg.setSize(A4_W_PT, A4_H_PT);
+          } catch(_) {
+            try { pg.setSize(A4_W_PT, A4_H_PT); } catch(_2) {}
+          }
+        }
       } else {
         pg = finalDoc.addPage([A4_W_PT, A4_H_PT]);
       }
