@@ -79,8 +79,6 @@ export default function PdfEditorPage() {
   const uploadRef = useRef<HTMLInputElement>(null);
   // ⑥修正: レンダリング中フラグ
   const renderingRef = useRef(false);
-  // プレビューモード: 全体プレビュー後はtrue、テンプレート表示で戻す
-  const [isPreviewMode, setIsPreviewMode] = useState(false);
 
   const showToast = (msg: string, ok: boolean) => {
     setToast({ msg, ok }); setTimeout(() => setToast(null), 3500);
@@ -227,7 +225,6 @@ export default function PdfEditorPage() {
   };
 
   const loadPreview = async () => {
-    setIsPreviewMode(false);
     setPdfLoading(true);
     try {
       const isRepeat = selTpl.startsWith("repeat_");
@@ -257,7 +254,6 @@ export default function PdfEditorPage() {
       setPdfData(new Uint8Array(ab));
       setPreviewPage(1);
       setPdfTotalPages(1);
-      setIsPreviewMode(true);
     } catch (e: any) { showToast(`全体プレビュー失敗: ${e.message}`, false); }
     finally { setPdfLoading(false); }
   };
@@ -278,7 +274,6 @@ export default function PdfEditorPage() {
       setPdfData(new Uint8Array(ab));
       setPreviewPage(1);
       setPdfTotalPages(1);
-      setIsPreviewMode(true);
     } catch (e: any) { showToast(`全体プレビュー失敗: ${e.message}`, false); }
     finally { setPdfLoading(false); }
   };
@@ -516,15 +511,15 @@ export default function PdfEditorPage() {
                 </button>
               ))}
               {fields.filter(f => f._dirty).length > 0 && (
-                <button onClick={saveAll} disabled={saving || isPreviewMode}
+                <button onClick={saveAll} disabled={saving}
                   className="ml-auto px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold rounded disabled:opacity-40 whitespace-nowrap">
                   {saving ? "保存中…" : `💾 一括保存(${fields.filter(f => f._dirty).length})`}
                 </button>
               )}
             </div>
 
-            {/* フィールドリスト: プレビューモード時は操作無効 */}
-            <div className={`flex-1 overflow-y-auto${isPreviewMode ? " opacity-40 pointer-events-none select-none" : ""}`}>
+            {/* フィールドリスト */}
+            <div className="flex-1 overflow-y-auto">
               {loading ? (
                 <div className="p-4 text-center text-slate-400 text-xs">読み込み中…</div>
               ) : fields.length === 0 ? (
@@ -629,8 +624,8 @@ export default function PdfEditorPage() {
               // style={{ width: canvasDisplayW, height: canvasDisplayH }} で CSS スケールに合わせる
               <div className="relative shadow-lg" style={{ width: canvasDisplayW, height: canvasDisplayH }}>
                 <canvas ref={canvasRef} style={{ width: canvasDisplayW, height: canvasDisplayH, display: "block" }} />
-                {/* フィールドオーバーレイ: 編集モードのみ表示 */}
-                {!isPreviewMode && <svg
+                {/* ④修正: SVGはPDF座標系(595×842)固定のviewBoxで描画 */}
+                <svg
                   viewBox={`0 0 ${A4_W} ${A4_H}`}
                   style={{
                     position: "absolute", top: 0, left: 0,
@@ -694,7 +689,7 @@ export default function PdfEditorPage() {
                       <circle cx={ex} cy={svgY} r={3} fill="#0ea5e9" opacity={0.8} />
                     </>);
                   })()}
-                </svg>}
+                </svg>
               </div>
             )}
           </div>
