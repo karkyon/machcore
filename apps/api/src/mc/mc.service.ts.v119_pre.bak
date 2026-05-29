@@ -1692,157 +1692,46 @@ export class McService {
     }
 
 
-    // ③ WO枠（ワークオフセット）
-    // ══════════════════════════════════════════════════════════
-    // 構造:
-    //   workOffsets は gCode='EXT' を区切りとして「加工IDグループ」に分割
-    //   各グループは: EXT行（ヘッダ）+ G54/G55/...行（データ行）
-    //   横並び列数: DBの __wo_cfg__.note の cols_per_row（デフォルト3）
-    //
-    //   各グループの描画:
-    //     [タイトル行] EXT: X=xxx Y=xxx Z=xxx（EXTレコードの値を横並び）
-    //     [データ行]   G | ラベル | 値 | ラベル | 値 ... を6行（X/Y/Z/A/C/R/B）
-    //     外枠 drawRect, ラベル-値間縦罫線 drawVLine
+    // ③ WO枠（同ページ継続）
     // ══════════════════════════════════════════════════════════
     const workOffsets: any[] = (options.include_work_offsets !== false) ? (d.workOffsets ?? []) : [];
     if (workOffsets.length > 0) {
       const woTplDoc = await loadTpl('repeat_wo.pdf');
       const woCfg    = fieldsByTpl('repeat_wo').find((f:any) => f.field_key === '__wo_cfg__');
-      const cfg      = parseCfgStr(woCfg?.note || 'label_w=28,col_w=175.4,row_h=14.0,title_h=12.0,cols_per_row=3');
-      const woFs     = woCfg ? Number(woCfg.font_size) : 8;
+      const cfg      = parseCfgStr(woCfg?.note || 'label_w=28,col_w=175.4,row_h=14.0,start_y=37');
+      const LABEL_W  = cfg.label_w ?? 28;
+      const COL_W    = cfg.col_w   ?? 175.4;
+      const WO_ROW_H = cfg.row_h   ?? 14.0;
+      const ML       = 30.4;
+      const WO_LABELS = ['G','X','Y','Z','A/C','R/B'];
+      const WO_KEYS   = ['gCode','xOffset','yOffset','zOffset','aOffset','rOffset'];
+      const WO_LINE_X1 = ML;
+      const WO_LINE_X2 = ML + COL_W * 3;
+      const WO_MARGIN  = 1.5;
 
-      const LABEL_W    = cfg.label_w    ?? 28;
-      const COL_W      = cfg.col_w      ?? 175.4;  // 1グループの幅（ラベル+値）
-      const WO_ROW_H   = cfg.row_h      ?? 14.0;
-      const TITLE_H    = cfg.title_h    ?? 12.0;   // タイトル行の高さ
-      const COLS_PER_ROW = Math.round(cfg.cols_per_row ?? 3); // 横並びグループ数
-      const ML         = 30.4;                     // 左マージン
-      const ROW_MARGIN = 0.5;
-      const GRP_MARGIN = 4.0;                      // グループ間マージン
-      const WO_LABELS  = ['X','Y','Z','A/C','R/B'];
-      const WO_KEYS    = ['xOffset','yOffset','zOffset','aOffset','rOffset'];
-      const VAL_W      = COL_W - LABEL_W;          // 値列幅
+      const groups: any[][] = [];
+      for (let i=0; i<workOffsets.length; i+=3) groups.push(workOffsets.slice(i,i+3));
 
-      // workOffsets を EXT区切りでグループに分割
-      // グループ = { extRow: WO|null, dataRows: WO[] }
-      const woGroups: { extRow: any|null, dataRows: any[] }[] = [];
-      let curGrp: { extRow: any|null, dataRows: any[] } | null = null;
-      for (const wo of workOffsets) {
-        if (wo.gCode === 'EXT' || wo.gCode === 'ext') {
-          if (curGrp) woGroups.push(curGrp);
-          curGrp = { extRow: wo, dataRows: [] };
-        } else {
-          if (!curGrp) curGrp = { extRow: null, dataRows: [] };
-          curGrp.dataRows.push(wo);
+      for (const group of groups) {
+        const groupH = WO_LABELS.length * (WO_ROW_H + WO_MARGIN);
+        await ensureSpace(groupH, woTplDoc);
+        for (let li=0; li<WO_LABELS.length; li++) {
+          await ensureSpace(WO_ROW_H + WO_MARGIN, woTplDoc);
+          const woFs  = woCfg ? Number(woCfg.font_size) : 8;
+          const txtY  = curY - WO_ROW_H + (WO_ROW_H - woFs * 0.72) / 2;
+          group.forEach((_: any, ci: number) => {
+            drawTxt(WO_LABELS[li], ML + ci * COL_W + 2, txtY, woFs);
+          });
+          group.forEach((wo: any, ci: number) => {
+            const raw = wo[WO_KEYS[li]];
+            const val = raw == null ? '' : (typeof raw==='number' ? raw.toFixed(3) : String(raw));
+            if (val) drawTxt(val, ML + ci * COL_W + LABEL_W + 2, txtY, woFs);
+          });
+          drawHLine(WO_LINE_X1, WO_LINE_X2, curY - WO_ROW_H);
+          curY -= (WO_ROW_H + WO_MARGIN);
         }
+        curY -= 3;
       }
-      if (curGrp && (curGrp.extRow || curGrp.dataRows.length > 0)) woGroups.push(curGrp);
-
-      // グループを COLS_PER_ROW 個ずつ横並びにまとめる
-      const rowGroups: typeof woGroups[] = [];
-      for (let i = 0; i < woGroups.length; i += COLS_PER_ROW) {
-        rowGroups.push(woGroups.slice(i, i + COLS_PER_ROW));
-      }
-
-      // 垂直罫線ヘルパー
-      const drawVLine = (x: number, yBottom: number, yTop: number) => {
-        if (!curPage) return;
-        try { curPage.drawLine({ start:{x, y:yBottom}, end:{x, y:yTop}, thickness: BOX_LINE_W, color: BOX_LINE_COLOR }); } catch(_) {}
-      };
-
-      for (const rg of rowGroups) {
-        // このrowのグループの最大データ行数
-        const maxDataRows = Math.max(1, ...rg.map(g => Math.max(1, g.dataRows.length)));
-        // タイトル行 + WO_LABELS行分の高さ
-        const hasTitle = rg.some(g => g.extRow !== null);
-        const titleH   = hasTitle ? TITLE_H : 0;
-        const dataH    = WO_LABELS.length * (WO_ROW_H + ROW_MARGIN);
-        const blockH   = titleH + dataH + 2; // +2は下パディング
-
-        await ensureSpace(blockH + GRP_MARGIN, woTplDoc);
-
-        const blockTopY = curY;
-
-        // 各グループを横に描画
-        rg.forEach((grp, ci) => {
-          const gx = ML + ci * COL_W;
-          const blockBotY = blockTopY - blockH;
-
-          // ── グループ外枠 ──
-          drawRect(gx, blockBotY, COL_W, blockH);
-
-          // ── タイトル行（EXT行）──
-          if (hasTitle) {
-            const titleY    = blockTopY - titleH;
-            const titleTxtY = titleY + (titleH - woFs * 0.72) / 2;
-            // タイトル行下線
-            drawHLine(gx, gx + COL_W, titleY);
-            if (grp.extRow) {
-              // G列: "EXT"
-              drawTxt('EXT', gx + 2, titleTxtY, woFs);
-              // X/Y/Z値をコンパクトに表示
-              const ext = grp.extRow;
-              const extVals = [
-                ext.xOffset != null ? `X${Number(ext.xOffset).toFixed(3)}` : '',
-                ext.yOffset != null ? `Y${Number(ext.yOffset).toFixed(3)}` : '',
-                ext.zOffset != null ? `Z${Number(ext.zOffset).toFixed(3)}` : '',
-                ext.aOffset != null ? `A${Number(ext.aOffset).toFixed(3)}` : '',
-              ].filter(Boolean).join(' ');
-              if (extVals) drawTxt(extVals, gx + LABEL_W + 2, titleTxtY, Math.max(5, woFs - 1));
-            }
-          }
-
-          // ── データ行（G54/G55/...をG軸方向に展開）──
-          // 各行: ラベル(X/Y/Z/A/C/R/B) + 各データ行のその軸値を横に並べる
-          // 実際の表示: 1列グループにつき「行方向=軸（X/Y/Z...）、列内=Gコード別値」
-          // しかし1グループ内に複数Gコードがある → Gコードをサブカラムとして横に並べる方式は複雑
-          // ここでは: 行=Gコード、カラム内=ラベル(X/Y/Z...)+値の縦リスト方式を採用
-          // つまり1グループ = 縦に Gコード行 × 軸数行
-
-          // Gコードのリストを取得
-          const gRows = grp.dataRows.length > 0 ? grp.dataRows : [];
-          let dY = blockTopY - titleH;
-
-          if (gRows.length === 0) {
-            // データなし: 空グループ
-          } else {
-            // 各Gコード行を縦に並べる
-            // 1グループ内でGコードが複数あるが、縦に全部並べると高さが不定になる
-            // → WO_LABELS(軸)を行として使い、各軸の値を1つのGコードの値で表示する
-            // → 複数Gコードがある場合は Gコードをサブヘッダ行として挿入
-
-            for (const gRow of gRows) {
-              // Gコードのサブヘッダ
-              const subHdrH = WO_ROW_H * 0.7;
-              const subHdrY = dY - subHdrH;
-              const subTxtY = subHdrY + (subHdrH - (woFs - 1) * 0.72) / 2;
-              drawHLine(gx, gx + COL_W, subHdrY);
-              drawTxt(String(gRow.gCode ?? ''), gx + 2, subTxtY, Math.max(5, woFs - 1));
-              dY = subHdrY;
-
-              // 各軸行
-              for (let li = 0; li < WO_LABELS.length; li++) {
-                const rowBotY = dY - WO_ROW_H;
-                const txtY    = rowBotY + (WO_ROW_H - woFs * 0.72) / 2;
-                // ラベル
-                drawTxt(WO_LABELS[li], gx + 2, txtY, woFs);
-                // ラベル-値間縦罫線
-                drawVLine(gx + LABEL_W, rowBotY, dY);
-                // 値
-                const raw = gRow[WO_KEYS[li]];
-                const val = raw == null ? '' : (typeof raw === 'number' ? raw.toFixed(3) : String(raw));
-                if (val) drawTxt(val, gx + LABEL_W + 2, txtY, woFs);
-                // 行下線
-                drawHLine(gx, gx + COL_W, rowBotY);
-                dY = rowBotY;
-              }
-            }
-          }
-        });
-
-        curY -= (blockH + GRP_MARGIN);
-      }
-
       curY -= BLOCK_MARGIN;
     }
 
