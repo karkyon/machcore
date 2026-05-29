@@ -1513,9 +1513,14 @@ export class McService {
       // ラベル・テキスト列の仕切り縦線
       try { curPage.drawLine({ start:{x:x+lblW, y:blockY}, end:{x:x+lblW, y:blockY+blockH}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(e:any){ console.error('[PDF-ERR] vline',e?.message); }
 
-      // ラベルテキスト（縦中央）
-      const lblTxtY = blockY + blockH / 2 - fs * 0.36;
-      try { curPage.drawText(label, { x:x+2, y:lblTxtY, size:fs, font:finalFont, color:rgb(0.15,0.15,0.15) }); } catch(e:any){ console.error('[PDF-ERR] label',e?.message); }
+      // ラベルテキスト（縦中央・水平センタリング・フォントサイズ-1）
+      const lblFs    = Math.max(5, fs - 1);
+      const lblTxtY  = blockY + blockH / 2 - lblFs * 0.36;
+      // 水平センタリング: 文字幅を推定してX位置を調整
+      const lblCharW = lblFs * 0.6;
+      const lblTextW = label.length * lblCharW;
+      const lblTxtX  = x + (lblW - lblTextW) / 2;
+      try { curPage.drawText(label, { x:lblTxtX, y:lblTxtY, size:lblFs, font:finalFont, color:rgb(0.15,0.15,0.15) }); } catch(e:any){ console.error('[PDF-ERR] label',e?.message); }
 
       // 本文テキスト
       const txtX0 = x + lblW + padH;
