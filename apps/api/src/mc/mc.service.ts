@@ -1513,20 +1513,20 @@ export class McService {
       // ラベル・テキスト列の仕切り縦線
       try { curPage.drawLine({ start:{x:x+lblW, y:blockY}, end:{x:x+lblW, y:blockY+blockH}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(e:any){ console.error('[PDF-ERR] vline',e?.message); }
 
-      // ラベルテキスト（縦中央・水平センタリング・フォントサイズ-1）
-      const lblFs    = Math.max(5, fs - 1);
-      const lblTxtY  = blockY + blockH / 2 - lblFs * 0.36;
-      // 水平センタリング: 文字幅を推定してX位置を調整
-      const lblCharW = lblFs * 0.6;
-      const lblTextW = label.length * lblCharW;
-      const lblTxtX  = x + (lblW - lblTextW) / 2;
+      // ラベルテキスト（縦中央・水平センタリング・フォントサイズ-2）
+      const lblFs   = Math.max(4, fs - 2);
+      const lblTxtY = blockY + blockH / 2 - lblFs * 0.36;
+      // 全角文字幅=fs*1.0、半角=fs*0.55 で推定してセンタリング
+      const lblTextW = [...label].reduce((acc, c) => acc + (c.charCodeAt(0) > 0xFF ? lblFs * 1.0 : lblFs * 0.55), 0);
+      const lblTxtX  = x + Math.max(2, (lblW - lblTextW) / 2);
       try { curPage.drawText(label, { x:lblTxtX, y:lblTxtY, size:lblFs, font:finalFont, color:rgb(0.15,0.15,0.15) }); } catch(e:any){ console.error('[PDF-ERR] label',e?.message); }
 
-      // 本文テキスト
-      const txtX0 = x + lblW + padH;
+      // 本文テキスト（フォントサイズ fs-1）
+      const bodyFs = Math.max(5, fs - 1);
+      const txtX0  = x + lblW + padH;
       lines.forEach((line, i) => {
         const lineY = blockY + blockH - padV - (i + 1) * lh + lh * 0.28;
-        try { if (line) curPage.drawText(line, { x:txtX0, y:lineY, size:fs, font:finalFont, color:rgb(0,0,0) }); } catch(e:any){ console.error('[PDF-ERR] text',i,e?.message); }
+        try { if (line) curPage.drawText(line, { x:txtX0, y:lineY, size:bodyFs, font:finalFont, color:rgb(0,0,0) }); } catch(e:any){ console.error('[PDF-ERR] text',i,e?.message); }
       });
 
       curY -= (blockH + BLOCK_MARGIN);
