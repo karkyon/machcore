@@ -1348,31 +1348,22 @@ export class McService {
     let curPageH = 0;
     let curY = 0;
 
-    // 新ページ追加（常にA4=595.28x841.89に強制固定 → テンプレートサイズ違いによる縮小防止）
+    // 新ページ追加（MediaBox/CropBoxをA4に強制設定でサイズ問題解決）
     const A4_W_PT = 595.28, A4_H_PT = 841.89;
+    const { PDFName } = await import('pdf-lib');
     const addNewPage = async (tplDoc: any, tplPageIdx = 0) => {
       let pg: any;
       if (tplDoc) {
-        // embedPageでA4等倍フィット（setSizeはコンテンツをスケールしないため）
+        [pg] = await finalDoc.copyPages(tplDoc, [tplPageIdx]);
+        finalDoc.addPage(pg);
+        // MediaBoxとCropBoxを強制的にA4に設定
+        // （テンプレートPDFのページサイズに関わらずA4で表示される）
         try {
-          const srcPages = await finalDoc.embedPages(
-            await tplDoc.copyPages(tplDoc, [tplPageIdx])
-          );
-          const embeddedPage = srcPages[0];
-          const tplW: number = (embeddedPage as any).width  ?? A4_W_PT;
-          const tplH: number = (embeddedPage as any).height ?? A4_H_PT;
-          pg.drawPage(embeddedPage, {
-            x: 0, y: 0,
-            xScale: A4_W_PT / (tplW || A4_W_PT),
-            yScale: A4_H_PT / (tplH || A4_H_PT),
-          });
-        } catch(embedErr) {
-          try {
-            const [copied] = await finalDoc.copyPages(tplDoc, [tplPageIdx]);
-            finalDoc.removePage(finalDoc.getPageCount() - 1);
-            finalDoc.addPage(copied);
-          } catch(_) {}
-        }
+          const a4box = finalDoc.context.obj([0, 0, A4_W_PT, A4_H_PT]);
+          pg.node.set(PDFName.of('MediaBox'), a4box);
+          // CropBoxを削除（MediaBoxが優先される）
+          pg.node.delete(PDFName.of('CropBox'));
+        } catch(_) {}
       } else {
         pg = finalDoc.addPage([A4_W_PT, A4_H_PT]);
       }
@@ -1603,19 +1594,32 @@ export class McService {
         return f ? Number(f.x) : def;
       };
 
-      type TCol = { dataKey: string; x: number; label: string };
+      // フォントサイズとカラム幅をDBから取得するヘルパー
+      const getColFS = (key: string, def: number) => {
+        const f = colFields.find((c:any) => c.field_key === key);
+        return f ? Number(f.font_size) : def;
+      };
+      const getColW = (key: string, def: number) => {
+        const f = colFields.find((c:any) => c.field_key === key);
+        return f && f.note ? parseFloat(f.note) : def;
+      };
+
+      type TCol = { dataKey: string; x: number; label: string; fs: number; w: number };
       const T_COLS: TCol[] = [
-        { dataKey:'toolNo',    x: getColX('col_n',30),        label:'N'     },
-        { dataKey:'toolName',  x: getColX('col_tool_name',50), label:'工具'  },
-        { dataKey:'tNumber',   x: getColX('col_t_no',155),    label:'T'     },
-        { dataKey:'hValue',    x: getColX('col_h_val',180),   label:'H'     },
-        { dataKey:'dRegister', x: getColX('col_d_reg',205),   label:'D'     },
-        { dataKey:'dValue',    x: getColX('col_d_val',235),   label:'D値'   },
-        { dataKey:'subPgNo',   x: getColX('col_sub_pg',265),  label:'SUB'   },
-        { dataKey:'note',      x: getColX('col_note',320),    label:'コメント'},
+        { dataKey:'toolNo',    x: getColX('col_n',37),         label:'N',       fs: getColFS('col_n',8),         w: getColW('col_n',20)   },
+        { dataKey:'toolName',  x: getColX('col_tool_name',68), label:'工具',    fs: getColFS('col_tool_name',8), w: getColW('col_tool_name',105) },
+        { dataKey:'tNumber',   x: getColX('col_t_no',169.7),   label:'T',       fs: getColFS('col_t_no',8),      w: getColW('col_t_no',25)  },
+        { dataKey:'hValue',    x: getColX('col_h_val',223.3),  label:'H',       fs: getColFS('col_h_val',8),     w: getColW('col_h_val',25) },
+        { dataKey:'dRegister', x: getColX('col_d_reg',278.4),  label:'D',       fs: getColFS('col_d_reg',8),     w: getColW('col_d_reg',30) },
+        { dataKey:'dValue',    x: getColX('col_d_val',320.3),  label:'D値',     fs: getColFS('col_d_val',8),     w: getColW('col_d_val',30) },
+        { dataKey:'subPgNo',   x: getColX('col_sub_pg',369.7), label:'SUB',     fs: getColFS('col_sub_pg',8),    w: getColW('col_sub_pg',55) },
+        { dataKey:'note',      x: getColX('col_note',423.9),   label:'コメント', fs: getColFS('col_note',8),     w: getColW('col_note',236) },
       ];
       const LINE_X_START = T_COLS[0].x;
-      const LINE_X_END   = T_COLS[T_COLS.length-1].x + 80;
+      // LINE_X_END: 最後のカラムX + そのカラムの幅(note列から取得)
+      const lastCol = T_COLS[T_COLS.length - 1];
+      // 罫線右端: A4幅(595.28)-右マージン(30)=565 を上限とする
+      const LINE_X_END = Math.min(lastCol.x + lastCol.w, 565);
 
       const getTV = (t: any, key: string) => {
         if (key==='toolNo')    return t.sortOrder != null ? String(t.sortOrder) : '';
@@ -1632,17 +1636,19 @@ export class McService {
       // カラムヘッダ描画関数
       const drawColHeader = async () => {
         await ensureSpace(COL_HDR_H + EFFECTIVE_ROW_H * 2, toolingTplDoc);
-        const hdrY = curY - COL_HDR_H + (COL_HDR_H - 6.5 * 0.72) / 2;
-        T_COLS.forEach(col => drawTxt(col.label, col.x + 2, hdrY, 6.0));
+        T_COLS.forEach(col => {
+          const hdrY = curY - COL_HDR_H + (COL_HDR_H - col.fs * 0.72) / 2;
+          drawTxt(col.label, col.x + 2, hdrY, col.fs);
+        });
         drawHLine(LINE_X_START, LINE_X_END, curY - COL_HDR_H);
         curY -= COL_HDR_H;
       };
 
       await drawColHeader();
 
-      // カラム幅を計算（次カラムX - 自カラムX、最後は固定80pt）
+      // カラム幅: note列の幅を優先、なければ次カラムXとの差
       const colWidths: number[] = T_COLS.map((col, i) =>
-        i < T_COLS.length - 1 ? T_COLS[i+1].x - col.x - 2 : 80
+        col.w > 0 ? col.w : (i < T_COLS.length - 1 ? T_COLS[i+1].x - col.x - 2 : 80)
       );
 
       // テキスト折り返し（全角考慮）
@@ -1666,17 +1672,17 @@ export class McService {
       let needsColHdr = false;
       for (const t of tooling) {
         if (needsColHdr) { await drawColHeader(); needsColHdr = false; }
-        const sz = 6.5;
-        // 各カラムの折り返し行を計算
-        const colLines = T_COLS.map((col, i) => wrapTxt(getTV(t, col.dataKey), colWidths[i], sz));
+        // 各カラムの折り返し行を計算（カラムごとのフォントサイズ使用）
+        const colLines = T_COLS.map((col, i) => wrapTxt(getTV(t, col.dataKey), colWidths[i], col.fs));
         const maxLines = Math.max(1, ...colLines.map(l => l.length));
-        const rowH = Math.max(ROW_H, maxLines * (sz * 1.4));
+        const maxFs = Math.max(...T_COLS.map(c => c.fs));
+        const rowH = Math.max(ROW_H, maxLines * (maxFs * 1.4));
         const prevY = curY;
-        await ensureSpace(rowH + ROW_MARGIN, null); // A4白紙で新ページ（縮小防止）
+        await ensureSpace(rowH + ROW_MARGIN, null);
         if (curY > prevY) { needsColHdr = true; continue; }
         T_COLS.forEach((col, ci) => {
           colLines[ci].forEach((line, li) => {
-            if (line) drawTxt(line, col.x + 2, curY - sz * 1.0 - li * (sz * 1.4), sz);
+            if (line) drawTxt(line, col.x + 2, curY - col.fs * 1.0 - li * (col.fs * 1.4), col.fs);
           });
         });
         drawHLine(LINE_X_START, LINE_X_END, curY - rowH);
@@ -1686,46 +1692,157 @@ export class McService {
     }
 
 
-    // ③ WO枠（同ページ継続）
+    // ③ WO枠（ワークオフセット）
+    // ══════════════════════════════════════════════════════════
+    // 構造:
+    //   workOffsets は gCode='EXT' を区切りとして「加工IDグループ」に分割
+    //   各グループは: EXT行（ヘッダ）+ G54/G55/...行（データ行）
+    //   横並び列数: DBの __wo_cfg__.note の cols_per_row（デフォルト3）
+    //
+    //   各グループの描画:
+    //     [タイトル行] EXT: X=xxx Y=xxx Z=xxx（EXTレコードの値を横並び）
+    //     [データ行]   G | ラベル | 値 | ラベル | 値 ... を6行（X/Y/Z/A/C/R/B）
+    //     外枠 drawRect, ラベル-値間縦罫線 drawVLine
     // ══════════════════════════════════════════════════════════
     const workOffsets: any[] = (options.include_work_offsets !== false) ? (d.workOffsets ?? []) : [];
     if (workOffsets.length > 0) {
       const woTplDoc = await loadTpl('repeat_wo.pdf');
       const woCfg    = fieldsByTpl('repeat_wo').find((f:any) => f.field_key === '__wo_cfg__');
-      const cfg      = parseCfgStr(woCfg?.note || 'label_w=28,col_w=175.4,row_h=14.0,start_y=37');
-      const LABEL_W  = cfg.label_w ?? 28;
-      const COL_W    = cfg.col_w   ?? 175.4;
-      const WO_ROW_H = cfg.row_h   ?? 14.0;
-      const ML       = 30.4;
-      const WO_LABELS = ['G','X','Y','Z','A/C','R/B'];
-      const WO_KEYS   = ['gCode','xOffset','yOffset','zOffset','aOffset','rOffset'];
-      const WO_LINE_X1 = ML;
-      const WO_LINE_X2 = ML + COL_W * 3;
-      const WO_MARGIN  = 1.5;
+      const cfg      = parseCfgStr(woCfg?.note || 'label_w=28,col_w=175.4,row_h=14.0,title_h=12.0,cols_per_row=3');
+      const woFs     = woCfg ? Number(woCfg.font_size) : 8;
 
-      const groups: any[][] = [];
-      for (let i=0; i<workOffsets.length; i+=3) groups.push(workOffsets.slice(i,i+3));
+      const LABEL_W    = cfg.label_w    ?? 28;
+      const COL_W      = cfg.col_w      ?? 175.4;  // 1グループの幅（ラベル+値）
+      const WO_ROW_H   = cfg.row_h      ?? 14.0;
+      const TITLE_H    = cfg.title_h    ?? 12.0;   // タイトル行の高さ
+      const COLS_PER_ROW = Math.round(cfg.cols_per_row ?? 3); // 横並びグループ数
+      const ML         = 30.4;                     // 左マージン
+      const ROW_MARGIN = 0.5;
+      const GRP_MARGIN = 4.0;                      // グループ間マージン
+      const WO_LABELS  = ['X','Y','Z','A/C','R/B'];
+      const WO_KEYS    = ['xOffset','yOffset','zOffset','aOffset','rOffset'];
+      const VAL_W      = COL_W - LABEL_W;          // 値列幅
 
-      for (const group of groups) {
-        const groupH = WO_LABELS.length * (WO_ROW_H + WO_MARGIN);
-        await ensureSpace(groupH, woTplDoc);
-        for (let li=0; li<WO_LABELS.length; li++) {
-          await ensureSpace(WO_ROW_H + WO_MARGIN, woTplDoc);
-          const sz   = 6.5;
-          const txtY = curY - WO_ROW_H + (WO_ROW_H - sz * 0.72) / 2;
-          group.forEach((_: any, ci: number) => {
-            drawTxt(WO_LABELS[li], ML + ci * COL_W + 2, txtY, 6.0);
-          });
-          group.forEach((wo: any, ci: number) => {
-            const raw = wo[WO_KEYS[li]];
-            const val = raw == null ? '' : (typeof raw==='number' ? raw.toFixed(3) : String(raw));
-            if (val) drawTxt(val, ML + ci * COL_W + LABEL_W + 2, txtY, sz);
-          });
-          drawHLine(WO_LINE_X1, WO_LINE_X2, curY - WO_ROW_H);
-          curY -= (WO_ROW_H + WO_MARGIN);
+      // workOffsets を EXT区切りでグループに分割
+      // グループ = { extRow: WO|null, dataRows: WO[] }
+      const woGroups: { extRow: any|null, dataRows: any[] }[] = [];
+      let curGrp: { extRow: any|null, dataRows: any[] } | null = null;
+      for (const wo of workOffsets) {
+        if (wo.gCode === 'EXT' || wo.gCode === 'ext') {
+          if (curGrp) woGroups.push(curGrp);
+          curGrp = { extRow: wo, dataRows: [] };
+        } else {
+          if (!curGrp) curGrp = { extRow: null, dataRows: [] };
+          curGrp.dataRows.push(wo);
         }
-        curY -= 3;
       }
+      if (curGrp && (curGrp.extRow || curGrp.dataRows.length > 0)) woGroups.push(curGrp);
+
+      // グループを COLS_PER_ROW 個ずつ横並びにまとめる
+      const rowGroups: typeof woGroups[] = [];
+      for (let i = 0; i < woGroups.length; i += COLS_PER_ROW) {
+        rowGroups.push(woGroups.slice(i, i + COLS_PER_ROW));
+      }
+
+      // 垂直罫線ヘルパー
+      const drawVLine = (x: number, yBottom: number, yTop: number) => {
+        if (!curPage) return;
+        try { curPage.drawLine({ start:{x, y:yBottom}, end:{x, y:yTop}, thickness: BOX_LINE_W, color: BOX_LINE_COLOR }); } catch(_) {}
+      };
+
+      for (const rg of rowGroups) {
+        // このrowのグループの最大データ行数
+        const maxDataRows = Math.max(1, ...rg.map(g => Math.max(1, g.dataRows.length)));
+        // タイトル行 + WO_LABELS行分の高さ
+        const hasTitle = rg.some(g => g.extRow !== null);
+        const titleH   = hasTitle ? TITLE_H : 0;
+        const dataH    = WO_LABELS.length * (WO_ROW_H + ROW_MARGIN);
+        const blockH   = titleH + dataH + 2; // +2は下パディング
+
+        await ensureSpace(blockH + GRP_MARGIN, woTplDoc);
+
+        const blockTopY = curY;
+
+        // 各グループを横に描画
+        rg.forEach((grp, ci) => {
+          const gx = ML + ci * COL_W;
+          const blockBotY = blockTopY - blockH;
+
+          // ── グループ外枠 ──
+          drawRect(gx, blockBotY, COL_W, blockH);
+
+          // ── タイトル行（EXT行）──
+          if (hasTitle) {
+            const titleY    = blockTopY - titleH;
+            const titleTxtY = titleY + (titleH - woFs * 0.72) / 2;
+            // タイトル行下線
+            drawHLine(gx, gx + COL_W, titleY);
+            if (grp.extRow) {
+              // G列: "EXT"
+              drawTxt('EXT', gx + 2, titleTxtY, woFs);
+              // X/Y/Z値をコンパクトに表示
+              const ext = grp.extRow;
+              const extVals = [
+                ext.xOffset != null ? `X${Number(ext.xOffset).toFixed(3)}` : '',
+                ext.yOffset != null ? `Y${Number(ext.yOffset).toFixed(3)}` : '',
+                ext.zOffset != null ? `Z${Number(ext.zOffset).toFixed(3)}` : '',
+                ext.aOffset != null ? `A${Number(ext.aOffset).toFixed(3)}` : '',
+              ].filter(Boolean).join(' ');
+              if (extVals) drawTxt(extVals, gx + LABEL_W + 2, titleTxtY, Math.max(5, woFs - 1));
+            }
+          }
+
+          // ── データ行（G54/G55/...をG軸方向に展開）──
+          // 各行: ラベル(X/Y/Z/A/C/R/B) + 各データ行のその軸値を横に並べる
+          // 実際の表示: 1列グループにつき「行方向=軸（X/Y/Z...）、列内=Gコード別値」
+          // しかし1グループ内に複数Gコードがある → Gコードをサブカラムとして横に並べる方式は複雑
+          // ここでは: 行=Gコード、カラム内=ラベル(X/Y/Z...)+値の縦リスト方式を採用
+          // つまり1グループ = 縦に Gコード行 × 軸数行
+
+          // Gコードのリストを取得
+          const gRows = grp.dataRows.length > 0 ? grp.dataRows : [];
+          let dY = blockTopY - titleH;
+
+          if (gRows.length === 0) {
+            // データなし: 空グループ
+          } else {
+            // 各Gコード行を縦に並べる
+            // 1グループ内でGコードが複数あるが、縦に全部並べると高さが不定になる
+            // → WO_LABELS(軸)を行として使い、各軸の値を1つのGコードの値で表示する
+            // → 複数Gコードがある場合は Gコードをサブヘッダ行として挿入
+
+            for (const gRow of gRows) {
+              // Gコードのサブヘッダ
+              const subHdrH = WO_ROW_H * 0.7;
+              const subHdrY = dY - subHdrH;
+              const subTxtY = subHdrY + (subHdrH - (woFs - 1) * 0.72) / 2;
+              drawHLine(gx, gx + COL_W, subHdrY);
+              drawTxt(String(gRow.gCode ?? ''), gx + 2, subTxtY, Math.max(5, woFs - 1));
+              dY = subHdrY;
+
+              // 各軸行
+              for (let li = 0; li < WO_LABELS.length; li++) {
+                const rowBotY = dY - WO_ROW_H;
+                const txtY    = rowBotY + (WO_ROW_H - woFs * 0.72) / 2;
+                // ラベル
+                drawTxt(WO_LABELS[li], gx + 2, txtY, woFs);
+                // ラベル-値間縦罫線
+                drawVLine(gx + LABEL_W, rowBotY, dY);
+                // 値
+                const raw = gRow[WO_KEYS[li]];
+                const val = raw == null ? '' : (typeof raw === 'number' ? raw.toFixed(3) : String(raw));
+                if (val) drawTxt(val, gx + LABEL_W + 2, txtY, woFs);
+                // 行下線
+                drawHLine(gx, gx + COL_W, rowBotY);
+                dY = rowBotY;
+              }
+            }
+          }
+        });
+
+        curY -= (blockH + GRP_MARGIN);
+      }
+
       curY -= BLOCK_MARGIN;
     }
 
@@ -1742,32 +1859,38 @@ export class McService {
       const IP_MARGIN = 2.0;
       const getIPCX  = (key:string, def:number) => { const f=ipCols.find((c:any)=>c.field_key===key); return f?Number(f.x):def; };
 
-      type IPCol = { dataKey: string; x: number; label: string };
+      const getIPCFS = (key:string, def:number) => { const f=ipCols.find((c:any)=>c.field_key===key); return f?Number(f.font_size):def; };
+      const getIPCW  = (key:string, def:number) => { const f=ipCols.find((c:any)=>c.field_key===key); return f&&f.note?parseFloat(f.note):def; };
+
+      type IPCol = { dataKey: string; x: number; label: string; fs: number; w: number };
       const IP_COLS: IPCol[] = [
-        { dataKey:'sortOrder', x: getIPCX('col_no',30),     label:'No'   },
-        { dataKey:'axis0',     x: getIPCX('col_axis0',55),  label:'軸0'  },
-        { dataKey:'axis1',     x: getIPCX('col_axis1',146), label:'軸1'  },
-        { dataKey:'axis2',     x: getIPCX('col_axis2',296), label:'軸2'  },
-        { dataKey:'note',      x: getIPCX('col_note',446),  label:'備考' },
+        { dataKey:'sortOrder', x: getIPCX('col_no',30),     label:'No',   fs: getIPCFS('col_no',8),    w: getIPCW('col_no',25)    },
+        { dataKey:'axis0',     x: getIPCX('col_axis0',55),  label:'軸0',  fs: getIPCFS('col_axis0',8), w: getIPCW('col_axis0',91) },
+        { dataKey:'axis1',     x: getIPCX('col_axis1',146), label:'軸1',  fs: getIPCFS('col_axis1',8), w: getIPCW('col_axis1',150)},
+        { dataKey:'axis2',     x: getIPCX('col_axis2',296), label:'軸2',  fs: getIPCFS('col_axis2',8), w: getIPCW('col_axis2',150)},
+        { dataKey:'note',      x: getIPCX('col_note',446),  label:'備考', fs: getIPCFS('col_note',8),  w: getIPCW('col_note',110) },
       ];
       const IP_LINE_X1 = IP_COLS[0].x;
-      const IP_LINE_X2 = IP_COLS[IP_COLS.length-1].x + 80;
+      const ipLastCol  = IP_COLS[IP_COLS.length - 1];
+      const IP_LINE_X2 = Math.min(ipLastCol.x + ipLastCol.w, 565);
 
       // カラムヘッダ
       await ensureSpace(IP_ROW_H * 2, ipTplDoc);
-      const ipHdrY = curY - IP_ROW_H + (IP_ROW_H - 6.5 * 0.72) / 2;
-      IP_COLS.forEach(col => drawTxt(col.label, col.x + 2, ipHdrY, 6.0));
+      IP_COLS.forEach(col => {
+        const ipHdrY = curY - IP_ROW_H + (IP_ROW_H - col.fs * 0.72) / 2;
+        drawTxt(col.label, col.x + 2, ipHdrY, col.fs);
+      });
       drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_ROW_H);
       curY -= IP_ROW_H;
 
       for (let i=0; i<indexPrograms.length; i++) {
         await ensureSpace(IP_ROW_H + IP_MARGIN, ipTplDoc);
-        const ip  = indexPrograms[i];
-        const sz  = 6.5;
-        const txtY = curY - IP_ROW_H + (IP_ROW_H - sz * 0.72) / 2;
+        const ip   = indexPrograms[i];
         IP_COLS.forEach(col => {
           const val = col.dataKey==='sortOrder' ? String(ip.sortOrder ?? i+1) : String((ip as any)[col.dataKey] ?? '');
-          if (val) drawTxt(val, col.x + 2, txtY, sz);
+          if (!val) return;
+          const txtY = curY - IP_ROW_H + (IP_ROW_H - col.fs * 0.72) / 2;
+          drawTxt(val, col.x + 2, txtY, col.fs);
         });
         drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_ROW_H);
         curY -= (IP_ROW_H + IP_MARGIN);
