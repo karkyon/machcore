@@ -1497,29 +1497,29 @@ export class McService {
       await ensureSpace(blockH + 2);
 
       const blockY = curY - blockH; // pdf-lib: 左下Y
-      console.log('[PDF-DEBUG] drawNoteBlock label=', label, 'blockY=', blockY, 'blockH=', blockH, 'curY=', curY, 'lines=', lines.length, 'text.length=', text.length);
+      console.log('[PDF-DEBUG] drawNoteBlock label=', label, 'x=',x,'w=',w,'blockY=', blockY, 'blockH=', blockH, 'curY=', curY, 'lines=', lines.length, 'text.length=', text.length, 'pageH=', curPageH);
 
-      // 外枠 4辺を描画
-      curPage.drawLine({ start:{x, y:blockY},         end:{x:x+w, y:blockY},         thickness:BOX_LINE_W, color:BOX_LINE_COLOR });
-      curPage.drawLine({ start:{x, y:blockY+blockH},  end:{x:x+w, y:blockY+blockH},  thickness:BOX_LINE_W, color:BOX_LINE_COLOR });
-      curPage.drawLine({ start:{x, y:blockY},         end:{x,     y:blockY+blockH},  thickness:BOX_LINE_W, color:BOX_LINE_COLOR });
-      curPage.drawLine({ start:{x:x+w, y:blockY},     end:{x:x+w, y:blockY+blockH}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR });
+      // 外枠 4辺を描画（try/catchで保護）
+      try { curPage.drawLine({ start:{x, y:blockY},        end:{x:x+w, y:blockY},        thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(e:any){ console.error('[PDF-ERR] line1',e?.message); }
+      try { curPage.drawLine({ start:{x, y:blockY+blockH}, end:{x:x+w, y:blockY+blockH}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(e:any){ console.error('[PDF-ERR] line2',e?.message); }
+      try { curPage.drawLine({ start:{x, y:blockY},        end:{x,     y:blockY+blockH}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(e:any){ console.error('[PDF-ERR] line3',e?.message); }
+      try { curPage.drawLine({ start:{x:x+w, y:blockY},    end:{x:x+w, y:blockY+blockH},thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(e:any){ console.error('[PDF-ERR] line4',e?.message); }
 
       // ラベル列背景（薄いグレー・半透明）
-      curPage.drawRectangle({ x, y:blockY, width:lblW, height:blockH, color:LABEL_BG_COLOR, borderWidth:0, opacity:0.5 });
+      try { curPage.drawRectangle({ x, y:blockY, width:lblW, height:blockH, color:LABEL_BG_COLOR, borderWidth:0, opacity:0.5 }); } catch(e:any){ console.error('[PDF-ERR] rect',e?.message); }
 
       // ラベル・テキスト列の仕切り縦線
-      curPage.drawLine({ start:{x:x+lblW, y:blockY}, end:{x:x+lblW, y:blockY+blockH}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR });
+      try { curPage.drawLine({ start:{x:x+lblW, y:blockY}, end:{x:x+lblW, y:blockY+blockH}, thickness:BOX_LINE_W, color:BOX_LINE_COLOR }); } catch(e:any){ console.error('[PDF-ERR] vline',e?.message); }
 
       // ラベルテキスト（縦中央）
       const lblTxtY = blockY + blockH / 2 - fs * 0.36;
-      curPage.drawText(label, { x:x+2, y:lblTxtY, size:fs, font:finalFont, color:rgb(0.15,0.15,0.15) });
+      try { curPage.drawText(label, { x:x+2, y:lblTxtY, size:fs, font:finalFont, color:rgb(0.15,0.15,0.15) }); } catch(e:any){ console.error('[PDF-ERR] label',e?.message); }
 
       // 本文テキスト
       const txtX0 = x + lblW + padH;
       lines.forEach((line, i) => {
         const lineY = blockY + blockH - padV - (i + 1) * lh + lh * 0.28;
-        if (line) curPage.drawText(line, { x:txtX0, y:lineY, size:fs, font:finalFont, color:rgb(0,0,0) });
+        try { if (line) curPage.drawText(line, { x:txtX0, y:lineY, size:fs, font:finalFont, color:rgb(0,0,0) }); } catch(e:any){ console.error('[PDF-ERR] text',i,e?.message); }
       });
 
       curY -= (blockH + BLOCK_MARGIN);
