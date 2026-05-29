@@ -1695,94 +1695,67 @@ export class McService {
     // ③ WO枠（ワークオフセット）
     // ══════════════════════════════════════════════════════════
     // repeat_wo.pdf にラベル+罫線が印刷済み → 値のみ差し込む
-    // 方式:
-    //   - WOブロック先頭で必ず addNewPage(woTplDoc) を強制実行
-    //     → テンプレートの罫線・ラベルがページに印刷される
-    //   - テンプレートの各行Y座標（pdf-lib絶対座標）をそのまま使用
-    //   - 4レコード横並び。DBの列幅フィールドのx値(=201.3)をCOL_Wとして使用
-    //   - 4レコード超えたら addNewPage(woTplDoc) で次ページへ
-    //   - フォントサイズ: DBの各行フィールドのfont_size(=12)
+    // 1ブロック = COLS(3)レコード横並び。DBのcol_w(x=201.3)でオフセット
+    // ブロック高さ = 各行Y値（pdf-lib座標）の最大-最小+ROW_H で算出
+    // curY基準で相対描画: 行Y = curY - BLK_H + (rowY_db - minY_db)
     // ══════════════════════════════════════════════════════════
     const workOffsets: any[] = (options.include_work_offsets !== false) ? (d.workOffsets ?? []) : [];
     if (workOffsets.length > 0) {
       const woTplDoc  = await loadTpl('repeat_wo.pdf');
       const woFields  = fieldsByTpl('repeat_wo');
+      const woCfg     = woFields.find((f:any) => f.field_key === '__wo_cfg__');
+      const cfg       = parseCfgStr(woCfg?.note || 'row_h=14.0,cols=3');
+      const woFs      = woCfg ? Number(woCfg.font_size) : 8;
 
-      // WO設定フィールド（__wo_cfg__）
-      const woCfgF = woFields.find((f:any) => f.field_key === '__wo_cfg__' || f.label === 'WO設定');
-      const cfg    = parseCfgStr(woCfgF?.note || 'cols=4');
-      const COLS   = Math.round(cfg.cols ?? 4); // 横並びレコード数（デフォルト4）
-
-      // 値行フィールド（G行/X行/Y行/Z行/A/C行/R/B行）sort_order順
+      // 値を差し込む6行フィールド（sort_order順・G行〜R/B行）
       const WO_ROW_FIELDS = woFields
-        .filter((f:any) => {
-          const k = f.field_key;
-          // __で始まる特殊フィールドと列幅フィールドを除外
-          if (k.startsWith('__')) return false;
-          if (k === '列幅(3列)' || f.label === '列幅(3列)') return false;
-          if (k === 'WO設定' || f.label === 'WO設定') return false;
-          return true;
-        })
+        .filter((f:any) => !f.field_key.startsWith('__') && f.field_key !== '列幅(3列)')
         .sort((a:any,b:any) => a.sort_order - b.sort_order);
 
-      // 列幅フィールド（'列幅(3列)'のx座標 = 1列分の幅）
-      // 4列対応: テンプレートは3列設計なので COL_W = 列幅フィールドのx値 = 201.3
-      // 4列の場合は用紙幅に合わせて調整: (565 - 左マージン) / 4
-      const colWF = woFields.find((f:any) =>
-        f.label === '列幅(3列)' || f.field_key === '列幅(3列)' || f.field_key === '__col_w__'
+      // 列幅フィールド（field_key='列幅(3列)' または '__col_w__'）
+      const colWField = woFields.find((f:any) =>
+        f.field_key === '列幅(3列)' || f.field_key === '__col_w__' || f.label === '列幅(3列)'
       );
-      // テンプレートの1列幅。4列に対応するため列1のX座標から計算する
-      // 列1のX=103, 全体右端≒565 → (565-103)/4 ≒ 115.5 が4列の列幅
-      // ただしDBのcol_wを優先する
-      const tpl3ColW = colWF ? Number(colWF.x) : 201.3; // テンプレートの3列設計時の列幅
-      // 4列の場合: ページ幅に収まる列幅を再計算
-      // 列1の左端X = WO_ROW_FIELDSの最小X
-      const col1X   = WO_ROW_FIELDS.length > 0 ? Math.min(...WO_ROW_FIELDS.map((f:any) => Number(f.x))) : 103;
-      const pageEnd = 565; // 右端マージン
-      const COL_W   = cfg.col_w ? cfg.col_w : Math.floor((pageEnd - col1X) / COLS);
+      const COL_W  = colWField ? Number(colWField.x) : (cfg.col_w ?? 175.4);
+      const COLS   = Math.round(cfg.cols ?? 3);
+      const ROW_H  = cfg.row_h ?? 14.0;
 
-      // フォントサイズ（各行フィールドのfont_size=12）
-      const woFs = WO_ROW_FIELDS.length > 0 ? Number(WO_ROW_FIELDS[0].font_size) : 12;
+      // DB各行のY値（pdf-lib座標）からブロック高さ算出
+      const rowYvals = WO_ROW_FIELDS.map((f:any) => Number(f.y));
+      const maxRowY  = Math.max(...rowYvals); // 最上行Y（最大値 = 上）
+      const minRowY  = Math.min(...rowYvals); // 最下行Y（最小値 = 下）
+      const BLK_H    = maxRowY - minRowY + ROW_H + 2; // +2はパディング
 
-      // 各行の値キー（sort_order順に対応: G行→gCode, X行→xOffset, ...）
-      const WO_DATA_KEYS = ['gCode','xOffset','yOffset','zOffset','aOffset','rOffset'];
+      // 各行の値キー（sort_order順に対応）
+      const WO_KEYS = ['gCode','xOffset','yOffset','zOffset','aOffset','rOffset'];
 
-      // 4レコードずつチャンクに分割
+      // 3レコードずつチャンクに分割
       const chunks: any[][] = [];
       for (let i = 0; i < workOffsets.length; i += COLS) {
         chunks.push(workOffsets.slice(i, i + COLS));
       }
 
-      // WOブロック先頭: 必ず新しい woTplDoc ページを追加
-      await addNewPage(woTplDoc);
+      for (const chunk of chunks) {
+        // 余白チェック: BLK_H 分必要。不足なら woTplDoc でページ追加
+        await ensureSpace(BLK_H + 4, woTplDoc);
 
-      for (let ci2 = 0; ci2 < chunks.length; ci2++) {
-        const chunk = chunks[ci2];
-
-        // 2ブロック目以降: 新ページ
-        if (ci2 > 0) {
-          await addNewPage(woTplDoc);
-        }
-
-        // 各レコードを列オフセットで差し込む
-        // テンプレートのY座標はページ絶対座標（pdf-lib: 下から）をそのまま使用
-        chunk.forEach((wo: any, ri: number) => {
-          const xOff = ri * COL_W;
+        // 各レコードを横列に差し込む
+        chunk.forEach((wo: any, ci: number) => {
+          const xOff = ci * COL_W;
           WO_ROW_FIELDS.forEach((f: any, fi: number) => {
-            if (fi >= WO_DATA_KEYS.length) return;
-            const raw = wo[WO_DATA_KEYS[fi]];
+            if (fi >= WO_KEYS.length) return;
+            const raw = wo[WO_KEYS[fi]];
             if (raw == null || raw === '') return;
             const val = typeof raw === 'number' ? raw.toFixed(3) : String(raw);
-            // テンプレートのY座標をそのまま使用（絶対座標）
-            drawTxt(val, Number(f.x) + xOff, Number(f.y), woFs);
+            // curY基準でY座標を計算
+            // テンプレートの最上行(maxRowY)を curY に対応させる
+            // 行Y_pdflib = curY - (maxRowY - f.y)
+            const absY = curY - (maxRowY - Number(f.y));
+            drawTxt(val, Number(f.x) + xOff, absY, woFs);
           });
         });
 
-        // curY をブロック下端に合わせる（次ブロックは新ページなので不要だが一応更新）
-        if (WO_ROW_FIELDS.length > 0) {
-          const minY = Math.min(...WO_ROW_FIELDS.map((f:any) => Number(f.y)));
-          curY = minY - BLOCK_MARGIN;
-        }
+        curY -= (BLK_H + 4);
       }
 
       curY -= BLOCK_MARGIN;
