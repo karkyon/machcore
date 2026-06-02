@@ -1661,10 +1661,16 @@ export class McService {
 
       await drawColHeader();
 
-      // カラム幅: note列の幅を優先、なければ次カラムXとの差
-      const colWidths: number[] = T_COLS.map((col, i) =>
-        col.w > 0 ? col.w : (i < T_COLS.length - 1 ? T_COLS[i+1].x - col.x - 2 : 80)
-      );
+      // カラム幅: DBのnote設定値を優先。最終列はLINE_X_END基準で実際のページ幅に合わせる
+      const colWidths: number[] = T_COLS.map((col, i) => {
+        if (col.w > 0) {
+          // 最終列かつ右端を超える場合はLINE_X_END - col.x に制限
+          if (i === T_COLS.length - 1) return Math.min(col.w, LINE_X_END - col.x - 2);
+          return col.w;
+        }
+        // w未設定: 次カラムXとの差 or 最終列はLINE_X_END基準
+        return i < T_COLS.length - 1 ? T_COLS[i+1].x - col.x - 2 : LINE_X_END - col.x - 2;
+      });
 
       // テキスト折り返し（全角考慮）
       const wrapTxt = (text: string, maxW: number, fs: number): string[] => {
@@ -1851,27 +1857,12 @@ export class McService {
       const ipLastCol  = IP_COLS[IP_COLS.length - 1];
       const IP_LINE_X2 = Math.min(ipLastCol.x + ipLastCol.w, 565);
 
-      // (9) カラムヘッダ描画を関数化（改ページ後の再描画に使い回す）
-      const drawIPColHeader = () => {
-        IP_COLS.forEach(col => {
-          const ipHdrY = curY - IP_ROW_H + (IP_ROW_H - col.fs * 0.72) / 2;
-          drawTxt(col.label, col.x + 2, ipHdrY, col.fs);
-        });
-        drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_ROW_H);
-        curY -= IP_ROW_H;
-      };
-
-      // 初回カラムヘッダ
-      await ensureSpace(IP_ROW_H * 2 + IP_MARGIN, ipTplDoc);
-      drawIPColHeader();
-
-      let ipNeedsColHdr = false;
+      // テンプレートPDF(repeat_ip.pdf)に「STEP/N 第1軸 第2軸」ヘッダが印刷済み
+      // → コードでのヘッダ行描画は不要。改ページ後も新テンプレートページがヘッダを持つ
       for (let i=0; i<indexPrograms.length; i++) {
-        // (9) 改ページ後にカラムヘッダを再描画
-        if (ipNeedsColHdr) { drawIPColHeader(); ipNeedsColHdr = false; }
         const prevIPY = curY;
         await ensureSpace(IP_ROW_H + IP_MARGIN, ipTplDoc);
-        if (curY > prevIPY) { ipNeedsColHdr = true; i--; continue; }
+        if (curY > prevIPY) { i--; continue; } // 新ページ→同行を再試行
         const ip   = indexPrograms[i];
         IP_COLS.forEach(col => {
           const val = col.dataKey==='sortOrder' ? String(i) : String((ip as any)[col.dataKey] ?? '');
