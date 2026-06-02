@@ -1,4 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { CronJob } from 'cron';
 import { AppLoggerService } from '../common/app-logger.service';
 import { Cron } from '@nestjs/schedule';
 import * as fs from 'fs';
@@ -17,7 +19,57 @@ export class McService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: AppLoggerService,
+    private readonly scheduler: SchedulerRegistry,
   ) {}
+
+  async onModuleInit() {
+    // DB設定でCronを動的登録
+    await this.reloadCronTimecards();
+  }
+
+  async reloadCronTimecards() {
+    const settings = await this.getSystemSettings();
+    const enabled  = settings['cron_timecard_enabled'] !== 'false';
+    const hour     = parseInt(settings['cron_timecard_hour'] ?? '5');
+    const minute   = parseInt(settings['cron_timecard_minute'] ?? '0');
+    const cronName = 'init_timecards';
+
+    // 既存のCronJobを削除
+    try { this.scheduler.deleteCronJob(cronName); } catch {}
+
+    if (!enabled) {
+      this.logger.info('CRON', `タイムカードCron 無効化済み`);
+      return;
+    }
+
+    const job = new CronJob(`${minute} ${hour} * * *`, async () => {
+      const today = new Date();
+      const workDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      this.logger.info('CRON', `機械タイムカード自動生成 開始: ${workDate}`);
+      try {
+        const result = await this.initTimecards(workDate, 1);
+        this.logger.info('CRON', `機械タイムカード自動生成 完了: ${workDate}`, { created: result.created });
+      } catch (e: any) {
+        this.logger.error('CRON', `機械タイムカード自動生成 失敗: ${workDate}`, { error: e?.message ?? String(e) });
+      }
+    });
+    this.scheduler.addCronJob(cronName, job);
+    job.start();
+    this.logger.info('CRON', `タイムカードCron 登録: ${minute} ${hour} * * *`);
+  }
+
+  async getSystemSettings(): Promise<Record<string, string>> {
+    const rows = await this.prisma.systemSetting.findMany();
+    return Object.fromEntries(rows.map(r => [r.key, r.value]));
+  }
+
+  async updateSystemSetting(key: string, value: string): Promise<void> {
+    await this.prisma.systemSetting.upsert({
+      where: { key },
+      update: { value },
+      create: { key, value },
+    });
+  }
 
   // ══════════════════════════════════════════
   // MC-01: 部品検索
@@ -808,19 +860,7 @@ export class McService {
     });
   }
 
-  // 毎朝5:00に全MC機械のデフォルトタイムカード自動生成
-  @Cron('0 5 * * *')
-  async cronInitTimecards() {
-    const today = new Date();
-    const workDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-    this.logger.info('CRON', `機械タイムカード自動生成 開始: ${workDate}`);
-    try {
-      const result = await this.initTimecards(workDate, 1);
-      this.logger.info('CRON', `機械タイムカード自動生成 完了: ${workDate}`, { created: result.created });
-    } catch (e: any) {
-      this.logger.error('CRON', `機械タイムカード自動生成 失敗: ${workDate}`, { error: e?.message ?? String(e) });
-    }
-  }
+
 
   // 全activeマシンの当日デフォルトレコード一括生成（upsert: 既存があれば何もしない）
   async initTimecards(workDate: string, operatorId: number) {

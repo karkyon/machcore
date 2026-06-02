@@ -795,4 +795,86 @@ export class AdminController {
     return { deleted: result.count, message: `${parseInt(days)}日以前のログを${result.count}件削除しました` };
   }
 
+
+  /** SYS-SETTING: システム設定一覧取得 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('system-settings')
+  async getSystemSettings() {
+    const rows = await this.prisma.systemSetting.findMany({ orderBy: { key: 'asc' } });
+    return { data: rows };
+  }
+
+  /** SYS-SETTING: システム設定更新 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Put('system-settings')
+  async updateSystemSettings(
+    @Body() body: { settings: { key: string; value: string }[] },
+    @Req() req: any,
+  ) {
+    for (const s of body.settings) {
+      await this.prisma.systemSetting.upsert({
+        where:  { key: s.key },
+        update: { value: s.value },
+        create: { key: s.key, value: s.value },
+      });
+    }
+    // Cron 関連の設定が含まれていればリロード
+    const cronKeys = ['cron_timecard_enabled', 'cron_timecard_hour', 'cron_timecard_minute'];
+    if (body.settings.some(s => cronKeys.includes(s.key))) {
+      await this.mcService.reloadCronTimecards();
+    }
+    return { message: '設定を保存しました' };
+  }
+
+  /** PM2: プロセス一覧 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('pm2/status')
+  getPm2Status() {
+    try {
+      const out = execSync('pm2 jlist', { encoding: 'utf8', timeout: 5000 });
+      const list = JSON.parse(out);
+      return { data: list.map((p: any) => ({
+        name:   p.name,
+        pid:    p.pid,
+        status: p.pm2_env?.status,
+        uptime: p.pm2_env?.pm_uptime,
+        cpu:    p.monit?.cpu,
+        memory: p.monit?.memory,
+        restarts: p.pm2_env?.restart_time,
+      })) };
+    } catch (e: any) {
+      return { data: [], error: e.message };
+    }
+  }
+
+  /** PM2: プロセス再起動 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('pm2/restart')
+  restartPm2(@Body() body: { name?: string }) {
+    try {
+      const target = body.name ?? 'all';
+      execSync(`pm2 restart ${target}`, { encoding: 'utf8', timeout: 30000 });
+      return { message: `pm2 restart ${target} 完了` };
+    } catch (e: any) {
+      return { message: `失敗: ${e.message}` };
+    }
+  }
+
+  /** PM2: pm2 save */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('pm2/save')
+  savePm2() {
+    try {
+      execSync('pm2 save', { encoding: 'utf8', timeout: 10000 });
+      return { message: 'pm2 save 完了' };
+    } catch (e: any) {
+      return { message: `失敗: ${e.message}` };
+    }
+  }
+
 }

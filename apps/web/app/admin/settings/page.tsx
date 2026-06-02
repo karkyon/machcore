@@ -41,13 +41,34 @@ export default function AdminSettingsPage() {
   // NC設定
   const [ncStoragePath, setNcStoragePath] = useState("");
   const [ncPrinter,     setNcPrinter]     = useState("");
+  // Cron設定
+  const [cronEnabled,  setCronEnabled]  = useState(true);
+  const [cronHour,     setCronHour]     = useState("5");
+  const [cronMinute,   setCronMinute]   = useState("0");
+  const [tcDefStart,   setTcDefStart]   = useState("08:00");
+  const [tcDefEnd,     setTcDefEnd]     = useState("17:00");
+  const [cronSaving,   setCronSaving]   = useState(false);
+  // PM2
+  const [pm2List,      setPm2List]      = useState<any[]>([]);
+  const [pm2Loading,   setPm2Loading]   = useState(false);
+  const [pm2Restarting, setPm2Restarting] = useState<string | null>(null);
 
   const getToken = () => sessionStorage.getItem("admin_token") ?? "";
 
   useEffect(() => {
     const token = getToken();
     if (!token) { router.replace("/admin/login"); return; }
-    Promise.all([
+      fetch("/api/admin/system-settings", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).then(d => {
+      const rows: any[] = d.data ?? [];
+      const get = (k: string, def: string) => rows.find((r: any) => r.key === k)?.value ?? def;
+      setCronEnabled(get("cron_timecard_enabled", "true") === "true");
+      setCronHour(get("cron_timecard_hour", "5"));
+      setCronMinute(get("cron_timecard_minute", "0"));
+      setTcDefStart(get("timecard_default_start", "08:00"));
+      setTcDefEnd(get("timecard_default_end", "17:00"));
+    }).catch(() => {});
+    fetch("/api/admin/pm2/status", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).then(d => setPm2List(d.data ?? [])).catch(() => {});
+        Promise.all([
       adminSettingsApi.getCompany(token),
       adminPrinterApi.list(token),
       // MC/NC設定
@@ -93,6 +114,54 @@ export default function AdminSettingsPage() {
     finally { setSaving(false); }
   };
 
+
+  const saveCronSettings = async () => {
+    const token = getToken();
+    setCronSaving(true);
+    try {
+      await fetch("/api/admin/system-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ settings: [
+          { key: "cron_timecard_enabled",  value: String(cronEnabled) },
+          { key: "cron_timecard_hour",     value: cronHour },
+          { key: "cron_timecard_minute",   value: cronMinute },
+          { key: "timecard_default_start", value: tcDefStart },
+          { key: "timecard_default_end",   value: tcDefEnd },
+        ]}),
+      });
+      showToast("Cron設定を保存しました", true);
+    } catch (e: any) { showToast("保存失敗: " + e.message, false); }
+    finally { setCronSaving(false); }
+  };
+
+  const restartPm2 = async (name?: string) => {
+    const token = getToken();
+    setPm2Restarting(name ?? "all");
+    try {
+      const r = await fetch("/api/admin/pm2/restart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name }),
+      });
+      const d = await r.json();
+      showToast(d.message, true);
+      setTimeout(() => {
+        fetch("/api/admin/pm2/status", { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.json()).then(d => setPm2List(d.data ?? [])).catch(() => {});
+      }, 2000);
+    } catch (e: any) { showToast("失敗: " + e.message, false); }
+    finally { setPm2Restarting(null); }
+  };
+
+  const savePm2 = async () => {
+    const token = getToken();
+    try {
+      const r = await fetch("/api/admin/pm2/save", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const d = await r.json();
+      showToast(d.message, true);
+    } catch (e: any) { showToast("失敗: " + e.message, false); }
+  };
   return (
     <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
       <header className="bg-white border-b border-slate-200 px-5 py-2.5 flex items-center gap-3 shrink-0">
