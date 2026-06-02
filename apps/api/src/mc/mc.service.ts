@@ -1635,13 +1635,15 @@ export class McService {
       const LINE_X_END = Math.min(lastCol.x + lastCol.w, 565);
 
       const getTV = (t: any, key: string) => {
-        if (key==='toolNo')    return t.sortOrder != null ? String(t.sortOrder) : '';
+        // ①⑩ toolNo: t.toolNoが正しいフィールド(N30,N60等)
+        if (key==='toolNo')    return t.toolNo ?? '';
         if (key==='toolName')  return t.toolName ?? '';
         if (key==='tNumber')   return String(t.tNo ?? t.tNumber ?? '');
-        if (key==='hValue')    return t.hValue != null ? String(t.hValue) : (t.lengthOffsetNo ?? '');
-        if (key==='dRegister') return t.diaOffsetNo ?? t.dRegister ?? '';
-        if (key==='dValue')    return t.dValue != null ? String(t.dValue) : (t.d_value != null ? String(t.d_value) : (t.diameter != null ? String(t.diameter) : ''));
-        if (key==='subPgNo')   return t.subPgNo ?? t.subProgram ?? '';
+        if (key==='hValue')    return t.lengthOffsetNo ?? '';
+        if (key==='dRegister') return t.diaOffsetNo ?? '';
+        // ①⑩ D値: dValueContent が正しいフィールド名
+        if (key==='dValue')    return t.dValueContent ?? '';
+        if (key==='subPgNo')   return t.subPgNo ?? '';
         if (key==='note')      return t.note ?? '';
         return '';
       };
@@ -1694,8 +1696,9 @@ export class McService {
         await ensureSpace(rowH + ROW_MARGIN, null);
         if (curY > prevY) { needsColHdr = true; continue; }
         T_COLS.forEach((col, ci) => {
+          // ③ 折り返し: 行上端からline_heightずつ下げる
           colLines[ci].forEach((line, li) => {
-            if (line) drawTxt(line, col.x + 2, curY - col.fs * 1.0 - li * (col.fs * 1.4), col.fs);
+            if (line) drawTxt(line, col.x + 2, curY - col.fs * 1.2 - li * (col.fs * 1.4), col.fs);
           });
         });
         drawHLine(LINE_X_START, LINE_X_END, curY - rowH);
@@ -1742,12 +1745,12 @@ export class McService {
       const WO_LBL_W  = 28.0;   // ラベル列幅(pt)
       // 列幅フィールドのx値 = 1列分の幅（3列設計）
       const colWF = woFields.find((f:any) => f.label === '\u5217\u5e45(3\u5217)' || f.label === '__col_w__');
-      const COL_W3 = colWF ? Number(colWF.x) : 201.3; // 3列設計の列幅
-      // 4列に変更: ページ左端X〜右端565の範囲を4等分
-      const WO_X0    = WO_ROW_FIELDS.length > 0 ? Number(WO_ROW_FIELDS[0].x) - WO_LBL_W : 75; // ブロック左端X
-      const WO_X_END = 565;    // ブロック右端X
-      const COLS     = 4;      // 横並び列数
-      const COL_W    = Math.floor((WO_X_END - WO_X0) / COLS); // 1列幅 = (565-75)/4 = 122.5 → 122
+      // ② WO枠レイアウト: 左端30・右端565・4枠・GAP8で均等配置
+      const WO_X0    = 30;     // ページ左端マージン固定
+      const WO_X_END = 565;    // ページ右端
+      const COLS     = 4;      // 横並び枠数
+      const WO_GAP   = 8;      // 枠間ギャップ(pt)
+      const COL_W    = Math.floor((WO_X_END - WO_X0 - WO_GAP * (COLS - 1)) / COLS); // (535-24)/4=127
       const BLK_H    = N_ROWS * WO_ROW_H + 2; // ブロック高さ（余白2pt含む）
 
       // 各行の値キー（sort_order順）
@@ -1766,8 +1769,7 @@ export class McService {
 
         // 各列の枠・罫線・値を描画
         for (let ci = 0; ci < COLS; ci++) {
-          // (2) 均等配置: 枠間GAP=(全幅 - COL_W*COLS)/(COLS-1)
-          const gx    = WO_X0 + ci * (COL_W + (COLS > 1 ? Math.max(2, (WO_X_END - WO_X0 - COL_W * COLS) / (COLS - 1)) : 0));
+          const gx    = WO_X0 + ci * (COL_W + WO_GAP);
           const valX  = gx + WO_LBL_W;
           const valW  = COL_W - WO_LBL_W;
 
