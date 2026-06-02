@@ -1324,8 +1324,10 @@ export class McService {
       // (4) MCIDは旧MCID(legacyMcid)を表示
       if (src === 'legacyMcid')   return String(d.legacyMcid ?? '');
       if (src === 'id')           return String(d.legacyMcid ?? mcId);
-      // (6) ファイル名
-      if (src === 'fileName')     return d.fileName ?? '';
+      // (6) ファイル名・フォルダ名
+      if (src === 'fileName')  return d.fileName ?? '';
+      if (src === 'folder1')   return d.folder1  ?? '';
+      if (src === 'folder2')   return d.folder2  ?? '';
       const keys = src.split('.');
       let val: any = d;
       for (const k of keys) { val = val?.[k]; if (val == null) return ''; }
@@ -1859,18 +1861,20 @@ export class McService {
       const IP_LINE_X2 = Math.min(ipLastCol.x + ipLastCol.w, 565);
       const IP_HDR_H   = IP_ROW_H + 2;
 
-      // カラムヘッダ描画関数（初回+改ページ後に使用）
+      // カラムヘッダ描画関数（改ページ後の白紙ページ用）
       const drawIPHdr = async (useTpl: boolean) => {
-        // 改ページ: 初回はipTplDoc(テンプレート)、2ページ目以降は白紙
         await addNewPage(useTpl ? ipTplDoc : null);
-        // ヘッダ行を描画
-        const hdrY = curY - IP_HDR_H + (IP_HDR_H - IP_COLS[0].fs * 0.72) / 2;
-        IP_COLS.forEach(col => drawTxt(col.label, col.x + 2, hdrY, col.fs));
-        drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_HDR_H, 0.6, rgb(0,0,0));
-        curY -= IP_HDR_H;
+        // 初回: テンプレートPDFにヘッダ印刷済み → コードでは描画しない
+        // 改ページ後(useTpl=false,白紙): コードでヘッダを描画
+        if (!useTpl) {
+          const hdrY = curY - IP_HDR_H + (IP_HDR_H - IP_COLS[0].fs * 0.72) / 2;
+          IP_COLS.forEach(col => drawTxt(col.label, col.x + 2, hdrY, col.fs));
+          drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_HDR_H, 0.6, rgb(0,0,0));
+          curY -= IP_HDR_H;
+        }
       };
 
-      // 初回: テンプレートページ+ヘッダ
+      // 初回: テンプレートページ(ヘッダはPDF印刷済みのため描画スキップ)
       await drawIPHdr(true);
 
       for (let i=0; i<indexPrograms.length; i++) {
