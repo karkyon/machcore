@@ -25,7 +25,21 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
-    return localStorage.getItem("work_token");
+    const t = localStorage.getItem("work_token");
+    if (!t) return null;
+    // JWTのexpを確認（base64デコードのみ、ライブラリ不要）
+    try {
+      const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        // 期限切れ → 即クリア
+        localStorage.removeItem("work_token");
+        return null;
+      }
+    } catch {
+      localStorage.removeItem("work_token");
+      return null;
+    }
+    return t;
   });
   const [operator, setOperator] = useState<Operator | null>(null);
   const [sessionType, setSessionType] = useState<string | null>(null);

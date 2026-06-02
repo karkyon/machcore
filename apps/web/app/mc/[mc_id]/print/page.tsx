@@ -71,7 +71,8 @@ function McPrintPageInner() {
     if (!token) { setPrintError("認証が必要です"); return; }
     setPrinting(true); setPrintError(null);
     try {
-      const endpoint = isNew ? `/api/mc/${mcId}/print` : `/api/mc/${mcId}/repeat-print`;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3011/api";
+      const endpoint = isNew ? `${apiBase}/mc/${mcId}/print` : `${apiBase}/mc/${mcId}/repeat-print`;
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
@@ -92,7 +93,8 @@ function McPrintPageInner() {
     if (!token) { setPrintError("認証が必要です"); return; }
     setDirectPrinting(true); setPrintError(null);
     try {
-      const endpoint = isNew ? `/api/mc/${mcId}/direct-print` : `/api/mc/${mcId}/repeat-direct-print`;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3011/api";
+      const endpoint = isNew ? `${apiBase}/mc/${mcId}/direct-print` : `${apiBase}/mc/${mcId}/repeat-direct-print`;
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
