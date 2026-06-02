@@ -823,7 +823,7 @@ function McRecordPageInner() {
           <div className={!isAuthenticated && !sbMode ? "opacity-40 pointer-events-none select-none px-5 pb-5" : "px-5 pb-5 pt-4"}>
             {/* Ver・登録日・回収日時・オペレータ（表示専用）*/}
             {detail && (
-              <div className="bg-slate-100 rounded-xl border border-slate-200 p-3 mb-4">
+              <div className="bg-slate-100 rounded-xl border border-slate-200 p-3 mb-4 max-w-3xl">
                 <div className="grid grid-cols-4 gap-3 text-xs">
                   <div>
                     <span className="text-slate-400 block mb-0.5">Ver</span>
@@ -846,7 +846,7 @@ function McRecordPageInner() {
             )}
 
             {/* モードバー */}
-            <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold mb-4 ${
+            <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold mb-4 max-w-3xl ${
               editRecordId ? "bg-amber-100 border border-amber-300 text-amber-800" : "bg-teal-50 border border-teal-200 text-teal-700"
             }`}>
               <span>{editRecordId ? "✏️ 編集モード" : "＋ 新規入力モード"}</span>
@@ -936,19 +936,6 @@ function McRecordPageInner() {
                         <button className="ml-auto shrink-0 text-amber-500 hover:text-amber-700" onClick={() => setTcWarnMsg(null)}>✕</button>
                       </div>
                     )}
-                    {detail?.machine && startedAt && (
-                      <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
-                        <div className="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
-                          {setupKadouMin !== null && <span className="text-xs text-blue-700 font-bold">{"段取稼働: " + Math.floor(setupKadouMin/60) + "H " + (setupKadouMin%60) + "M"}</span>}
-                          {machKadouMin  !== null && <span className="text-xs text-green-700 font-bold">{"量産稼働: " + Math.floor(machKadouMin/60)  + "H " + (machKadouMin%60)  + "M"}</span>}
-                          {setupKadouMin === null && machKadouMin === null && <span className="text-xs text-slate-400">タイムカードを確認して稼働時間を参照</span>}
-                        </div>
-                        <button type="button" onClick={() => setTcModalOpen(true)}
-                          className="shrink-0 flex items-center gap-1.5 text-xs px-3 py-1.5 bg-white border border-slate-300 hover:bg-teal-50 hover:border-teal-400 text-slate-700 hover:text-teal-700 rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm">
-                          &#128197; 機械タイムカード参照
-                        </button>
-                      </div>
-                    )}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">段取開始</label>
@@ -999,6 +986,28 @@ function McRecordPageInner() {
                   </div>
                 </div>
               </div>
+
+              {/* 機械タイムカード参照バー（段取・量産共通） */}
+              {detail?.machine && (
+                <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0 flex items-center gap-4 flex-wrap">
+                    <span className="text-xs font-bold text-slate-600">&#128197; 機械タイムカード</span>
+                    {setupKadouMin !== null && (
+                      <span className="text-xs text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded">{"段取稼働: " + Math.floor(setupKadouMin/60) + "H " + (setupKadouMin%60) + "M"}</span>
+                    )}
+                    {machKadouMin !== null && (
+                      <span className="text-xs text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded">{"量産稼働: " + Math.floor(machKadouMin/60) + "H " + (machKadouMin%60) + "M"}</span>
+                    )}
+                    {setupKadouMin === null && machKadouMin === null && (
+                      <span className="text-xs text-slate-400">タイムカードを参照して稼働時間を確認できます</span>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => setTcModalOpen(true)}
+                    className="shrink-0 flex items-center gap-1.5 text-xs px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm">
+                    タイムカード参照
+                  </button>
+                </div>
+              )}
 
               {/* 量産グループ */}
               <div className="bg-green-50 rounded-xl border border-green-200 p-4 space-y-3">

@@ -987,28 +987,6 @@ function McRecordPageInner() {
                 </div>
               </div>
 
-              {/* 機械タイムカード参照バー（段取・量産共通） */}
-              {detail?.machine && (
-                <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center gap-3">
-                  <div className="flex-1 min-w-0 flex items-center gap-4 flex-wrap">
-                    <span className="text-xs font-bold text-slate-600">&#128197; 機械タイムカード</span>
-                    {setupKadouMin !== null && (
-                      <span className="text-xs text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded">{"段取稼働: " + Math.floor(setupKadouMin/60) + "H " + (setupKadouMin%60) + "M"}</span>
-                    )}
-                    {machKadouMin !== null && (
-                      <span className="text-xs text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded">{"量産稼働: " + Math.floor(machKadouMin/60) + "H " + (machKadouMin%60) + "M"}</span>
-                    )}
-                    {setupKadouMin === null && machKadouMin === null && (
-                      <span className="text-xs text-slate-400">タイムカードを参照して稼働時間を確認できます</span>
-                    )}
-                  </div>
-                  <button type="button" onClick={() => setTcModalOpen(true)}
-                    className="shrink-0 flex items-center gap-1.5 text-xs px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm">
-                    タイムカード参照
-                  </button>
-                </div>
-              )}
-
               {/* 量産グループ */}
               <div className="bg-green-50 rounded-xl border border-green-200 p-4 space-y-3">
                 <h3 className="text-xs font-bold text-green-700 border-b border-green-200 pb-2">⚙️ 量産</h3>
@@ -1070,6 +1048,28 @@ function McRecordPageInner() {
                   <div />
                 </div>
               </div>
+
+              {/* 機械タイムカード参照バー（段取・量産共通） */}
+              {machineId && (
+                <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0 flex items-center gap-4 flex-wrap">
+                    <span className="text-xs font-bold text-slate-600">&#128197; 機械タイムカード</span>
+                    {setupKadouMin !== null && (
+                      <span className="text-xs text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded">{"段取稼働: " + Math.floor(setupKadouMin/60) + "H " + (setupKadouMin%60) + "M"}</span>
+                    )}
+                    {machKadouMin !== null && (
+                      <span className="text-xs text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded">{"量産稼働: " + Math.floor(machKadouMin/60) + "H " + (machKadouMin%60) + "M"}</span>
+                    )}
+                    {setupKadouMin === null && machKadouMin === null && (
+                      <span className="text-xs text-slate-400">機械のタイムカードを確認・編集して稼働時間を参照できます</span>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => setTcModalOpen(true)}
+                    className="shrink-0 flex items-center gap-1.5 text-xs px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm">
+                    タイムカード参照
+                  </button>
+                </div>
+              )}
 
               {/* プログラム */}
               <div className="bg-purple-50 rounded-xl border border-purple-200 p-4 space-y-3">
@@ -1181,11 +1181,11 @@ function McRecordPageInner() {
         </div>
       </div>
 
-      {tcModalOpen && detail?.machine && (
+      {tcModalOpen && machineId && (
         <TimecardModal
           open={tcModalOpen}
           onClose={() => setTcModalOpen(false)}
-          machineCode={detail.machine.machineCode}
+          machineCode={machines.find(m => String(m.id) === machineId)?.machineCode ?? ""}
           machineId={parseInt(machineId) || 0}
           startedAt={startedAt}
           checkedAt={checkedAt}
