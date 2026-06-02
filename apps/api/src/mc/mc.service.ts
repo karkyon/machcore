@@ -1845,27 +1845,42 @@ export class McService {
       const getIPCFS = (key:string, def:number) => { const f=ipCols.find((c:any)=>c.field_key===key); return f?Number(f.font_size):def; };
       const getIPCW  = (key:string, def:number) => { const f=ipCols.find((c:any)=>c.field_key===key); return f&&f.note?parseFloat(f.note):def; };
 
+      // IP列: STEP/N=axis0, 第1軸=axis1, 第2軸=axis2, 備考=note
+      // sortOrder列(No)は削除 - テンプレートのSTEP/Nにaxis0の値を使う
       type IPCol = { dataKey: string; x: number; label: string; fs: number; w: number };
       const IP_COLS: IPCol[] = [
-        { dataKey:'sortOrder', x: getIPCX('col_no',30),     label:'No',   fs: getIPCFS('col_no',8),    w: getIPCW('col_no',25)    },
-        { dataKey:'axis0',     x: getIPCX('col_axis0',55),  label:'軸0',  fs: getIPCFS('col_axis0',8), w: getIPCW('col_axis0',91) },
-        { dataKey:'axis1',     x: getIPCX('col_axis1',146), label:'軸1',  fs: getIPCFS('col_axis1',8), w: getIPCW('col_axis1',150)},
-        { dataKey:'axis2',     x: getIPCX('col_axis2',296), label:'軸2',  fs: getIPCFS('col_axis2',8), w: getIPCW('col_axis2',150)},
-        { dataKey:'note',      x: getIPCX('col_note',446),  label:'備考', fs: getIPCFS('col_note',8),  w: getIPCW('col_note',110) },
+        { dataKey:'axis0', x: getIPCX('col_no',30),     label:'STEP/N', fs: getIPCFS('col_no',8),    w: getIPCW('col_no',80)    },
+        { dataKey:'axis1', x: getIPCX('col_axis1',130), label:'第1軸',  fs: getIPCFS('col_axis1',8), w: getIPCW('col_axis1',190)},
+        { dataKey:'axis2', x: getIPCX('col_axis2',320), label:'第2軸',  fs: getIPCFS('col_axis2',8), w: getIPCW('col_axis2',150)},
+        { dataKey:'note',  x: getIPCX('col_note',470),  label:'備考',   fs: getIPCFS('col_note',8),  w: getIPCW('col_note',90)  },
       ];
       const IP_LINE_X1 = IP_COLS[0].x;
       const ipLastCol  = IP_COLS[IP_COLS.length - 1];
       const IP_LINE_X2 = Math.min(ipLastCol.x + ipLastCol.w, 565);
+      const IP_HDR_H   = IP_ROW_H + 2;
 
-      // テンプレートPDF(repeat_ip.pdf)に「STEP/N 第1軸 第2軸」ヘッダが印刷済み
-      // → コードでのヘッダ行描画は不要。改ページ後も新テンプレートページがヘッダを持つ
+      // カラムヘッダ描画関数（初回+改ページ後に使用）
+      const drawIPHdr = async (useTpl: boolean) => {
+        // 改ページ: 初回はipTplDoc(テンプレート)、2ページ目以降は白紙
+        await addNewPage(useTpl ? ipTplDoc : null);
+        // ヘッダ行を描画
+        const hdrY = curY - IP_HDR_H + (IP_HDR_H - IP_COLS[0].fs * 0.72) / 2;
+        IP_COLS.forEach(col => drawTxt(col.label, col.x + 2, hdrY, col.fs));
+        drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_HDR_H, 0.6, rgb(0,0,0));
+        curY -= IP_HDR_H;
+      };
+
+      // 初回: テンプレートページ+ヘッダ
+      await drawIPHdr(true);
+
       for (let i=0; i<indexPrograms.length; i++) {
-        const prevIPY = curY;
-        await ensureSpace(IP_ROW_H + IP_MARGIN, ipTplDoc);
-        if (curY > prevIPY) { i--; continue; } // 新ページ→同行を再試行
-        const ip   = indexPrograms[i];
+        // スペース不足時: 新ページ(白紙)+ヘッダ再描画
+        if (curY - (IP_ROW_H + IP_MARGIN) < PAGE_BOTTOM_MARGIN) {
+          await drawIPHdr(false);
+        }
+        const ip = indexPrograms[i];
         IP_COLS.forEach(col => {
-          const val = col.dataKey==='sortOrder' ? String(i) : String((ip as any)[col.dataKey] ?? '');
+          const val = String((ip as any)[col.dataKey] ?? '');
           if (!val) return;
           const txtY = curY - IP_ROW_H + (IP_ROW_H - col.fs * 0.72) / 2;
           drawTxt(val, col.x + 2, txtY, col.fs);
