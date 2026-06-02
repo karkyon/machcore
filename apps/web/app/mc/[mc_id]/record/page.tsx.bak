@@ -153,8 +153,6 @@ function McRecordPageInner() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [timeValidErr, setTimeValidErr] = useState<string | null>(null);
-  const [tcWarnMsg, setTcWarnMsg] = useState<string | null>(null);
 
   // ── 入力mode ──────────────────────────────────
   const [timeMode, setTimeMode] = useState<"hm" | "datetime">("datetime");
@@ -380,90 +378,48 @@ function McRecordPageInner() {
 
   const times = calcTimes();
 
-
-  // ── 日時バリデーション: 段取開始 < 段取終了 < 加工終了 ───────────────
-  const validateDateOrder = (sa: string, ca: string, fa: string): string | null => {
-    if (sa && ca) {
-      if (new Date(ca) <= new Date(sa)) return "段取終了は段取開始より後の日時を入力してください";
-    }
-    if (ca && fa) {
-      if (new Date(fa) <= new Date(ca)) return "加工終了は段取終了（チェックTime）より後の日時を入力してください";
-    }
-    if (sa && fa && !ca) {
-      if (new Date(fa) <= new Date(sa)) return "加工終了は段取開始より後の日時を入力してください";
-    }
-    return null;
-  };
-
   // 機械タイムカードから中断時間を算出（HowLong関数準拠）
   const fetchTimecardStop = async (phase: "setup" | "work") => {
     if (!detail?.machine) return;
     const refStart = phase === "setup" ? startedAt  : checkedAt;
     const refEnd   = phase === "setup" ? checkedAt  : finishedAt;
     if (!refStart) { alert("開始日時を先に入力してください"); return; }
-    const machCode = detail.machine?.machineCode;
-    const ws = new Date(refStart);
-    const we = refEnd ? new Date(refEnd) : null;
-    const startDate = refStart.slice(0, 10);
-    const endDate   = refEnd   ? refEnd.slice(0, 10) : startDate;
-
+    const workDate = refStart.slice(0, 10);
     try {
-      // 開始日〜終了日のタイムカードを全て取得（複数日またがり対応）
-      const dateSet: string[] = [];
-      let d = new Date(startDate);
-      const dEnd = new Date(endDate);
-      while (d <= dEnd) {
-        dateSet.push(d.toISOString().slice(0, 10));
-        d.setDate(d.getDate() + 1);
+      const r = await mcApi.timecardsByDate(workDate);
+      const allCards: any[] = (r as any).data ?? [];
+      // この機械のタイムカードを抽出（machineCodeで突き合わせ）
+      const machCode = detail.machine?.machineCode;
+      const cards = allCards.filter((c: any) => c.machine?.machineCode === machCode);
+      if (cards.length === 0) {
+        alert(`${workDate} の機械(${machCode})のタイムカードがありません`);
+        return;
       }
-
-      const allCardsByDate: Record<string, any[]> = {};
-      for (const dt of dateSet) {
-        const r = await mcApi.timecardsByDate(dt);
-        const cards: any[] = ((r as any).data ?? []).filter((c: any) => c.machine?.machineCode === machCode);
-        if (cards.length > 0) allCardsByDate[dt] = cards;
-      }
-
-      const missingDates = dateSet.filter(dt => !allCardsByDate[dt]);
-      if (missingDates.length > 0) {
-        setTcWarnMsg(`⚠️ 機械(${machCode})のタイムカードが未登録の日付があります: ${missingDates.join(", ")} — 正確な中断時間を計算できません`);
-        // タイムカードが一切ない場合は中断できない
-        if (Object.keys(allCardsByDate).length === 0) return;
-      } else {
-        setTcWarnMsg(null);
-      }
-
-      /**
-       * HowLong関数 準拠の稼働時間計算
-       * 正しい昼跨ぎ判定: 作業区間 (ws〜we) が 12:00未満〜13:00以降をまたぐか
-       * ただしタイムカードの実稼働記録と作業区間のoverlapを使う
-       */
-      const LUNCH_MIN = 60; // 昼休み60分
-
-      // タイムカードの overlap 稼働時間を合算
+      // HowLong関数：タイムカードから稼働時間を計算
+      // 参照区間（phase開始〜終了）に被るタイムカードを合算
+      // 昼跨ぎ（開始<13:00 && 終了>=13:00）は-60分
+      const ws = refStart ? new Date(refStart) : null;
+      const we = refEnd   ? new Date(refEnd)   : null;
       let totalKadouMin = 0;
-      for (const [dt, cards] of Object.entries(allCardsByDate)) {
-        for (const c of cards) {
-          const tcS = new Date(`${dt}T${(c.start_time ?? "00:00:00").slice(0, 8)}`);
-          const tcE = new Date(`${dt}T${(c.end_time   ?? "00:00:00").slice(0, 8)}`);
-          // タイムカードと作業区間のoverlap
-          const ovS = tcS > ws ? tcS : ws;
-          const ovE = we ? (tcE < we ? tcE : we) : tcE;
-          let diffMin = Math.round((ovE.getTime() - ovS.getTime()) / 60000);
-          if (diffMin <= 0) continue;
-
-          // 昼跨ぎ補正: overlap区間が 12:00未満 → 13:00以降 をまたぐ場合 -60分
-          const ovSh = ovS.getHours() + ovS.getMinutes() / 60;
-          const ovEh = ovE.getHours() + ovE.getMinutes() / 60;
-          if (ovSh < 12 && ovEh > 13) diffMin -= LUNCH_MIN;
-
-          if (diffMin > 0) totalKadouMin += diffMin;
-        }
+      for (const c of cards) {
+        const tcDate = c.work_date?.slice(0, 10) ?? workDate;
+        const tcS = new Date(`${tcDate}T${c.start_time?.slice(0, 8) ?? "00:00:00"}`);
+        const tcE = new Date(`${tcDate}T${c.end_time?.slice(0,   8) ?? "00:00:00"}`);
+        // タイムカードと参照区間の重複を計算
+        const overlapS = ws ? (tcS > ws ? tcS : ws) : tcS;
+        const overlapE = we ? (tcE < we ? tcE : we) : tcE;
+        let diffMin = Math.round((overlapE.getTime() - overlapS.getTime()) / 60000);
+        if (diffMin <= 0) continue;
+        // 昼跨ぎ補正（-60分）
+        const sh = tcS.getHours();
+        const eh = tcE.getHours();
+        if (sh < 13 && eh >= 13) diffMin -= 60;
+        if (diffMin > 0) totalKadouMin += diffMin;
       }
-
-      // 参照区間の経過時間 (単純な時刻差)
-      const elapsedMin = we ? Math.round((we.getTime() - ws.getTime()) / 60000) : 0;
-
+      // 参照区間の経過時間
+      let elapsedMin = 0;
+      if (ws && we) elapsedMin = Math.round((we.getTime() - ws.getTime()) / 60000);
+      else if (ws)  elapsedMin = 0;
       // 中断時間 = 経過時間 - 機械稼働時間
       const stopMin = Math.max(0, elapsedMin - totalKadouMin);
       const h = Math.floor(stopMin / 60);
@@ -480,12 +436,6 @@ function McRecordPageInner() {
   const handleSubmit = async () => {
     console.log("[STEP2] handleSubmit sbMode=", sbMode, "token=", token ? "あり" : "なし", "isAuthenticated=", isAuthenticated);
     if (!token) { setSaveError("認証セッションが切れています。再認証してください。"); setAuthOpen(true); return; }
-    // 日時バリデーション
-    if (timeMode === "datetime") {
-      const vErr = validateDateOrder(startedAt, checkedAt, finishedAt);
-      if (vErr) { setTimeValidErr(vErr); return; }
-    }
-    setTimeValidErr(null);
     setSaving(true); setSaveError(null);
     try {
       const cycSec = cycleH * 3600 + cycleM * 60 + cycleS;
@@ -770,36 +720,16 @@ function McRecordPageInner() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {/* 日時バリデーションエラー */}
-                    {timeValidErr && (
-                      <div className="flex items-center gap-2 bg-red-50 border border-red-300 rounded-lg px-3 py-2 text-xs text-red-700 font-bold">
-                        <span>⛔</span><span>{timeValidErr}</span>
-                      </div>
-                    )}
-                    {/* タイムカード未登録警告 */}
-                    {tcWarnMsg && (
-                      <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 text-xs text-amber-800">
-                        <span className="shrink-0 mt-0.5">⚠️</span>
-                        <div>
-                          <p className="font-bold">機械タイムカード未登録</p>
-                          <p className="mt-0.5 font-normal">{tcWarnMsg.replace("⚠️ ", "")}</p>
-                          <p className="mt-1 text-amber-600">中断時間を手動で入力してください</p>
-                        </div>
-                        <button className="ml-auto shrink-0 text-amber-500 hover:text-amber-700" onClick={() => setTcWarnMsg(null)}>✕</button>
-                      </div>
-                    )}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">段取開始</label>
-                        <input type="datetime-local" value={startedAt}
-                          onChange={e => { setStartedAt(e.target.value); setTimeValidErr(validateDateOrder(e.target.value, checkedAt, finishedAt)); }}
+                        <input type="datetime-local" value={startedAt} onChange={e => setStartedAt(e.target.value)}
                           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
                       </div>
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">段取終了（ﾁｪｯｸTime）</label>
-                        <input type="datetime-local" value={checkedAt}
-                          onChange={e => { setCheckedAt(e.target.value); setTimeValidErr(validateDateOrder(startedAt, e.target.value, finishedAt)); }}
-                          className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 ${timeValidErr && timeValidErr.includes("段取終了") ? "border-red-400 bg-red-50" : "border-slate-200"}`} />
+                        <input type="datetime-local" value={checkedAt} onChange={e => setCheckedAt(e.target.value)}
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
                       </div>
                     </div>
                     {startedAt && checkedAt && (() => {
@@ -815,7 +745,7 @@ function McRecordPageInner() {
                           {detail?.machine && startedAt && (
                             <button type="button" onClick={() => fetchTimecardStop("setup")}
                               className="text-[10px] px-2 py-1 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded font-bold transition-colors whitespace-nowrap ml-1">
-                              📋 機械タイムカード参照
+                              📋 TC参照
                             </button>
                           )}
                         </div>
@@ -866,9 +796,8 @@ function McRecordPageInner() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">加工終了</label>
-                        <input type="datetime-local" value={finishedAt}
-                          onChange={e => { setFinishedAt(e.target.value); setTimeValidErr(validateDateOrder(startedAt, checkedAt, e.target.value)); }}
-                          className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 ${timeValidErr && timeValidErr.includes("加工終了") ? "border-red-400 bg-red-50" : "border-slate-200"}`} />
+                        <input type="datetime-local" value={finishedAt} onChange={e => setFinishedAt(e.target.value)}
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
                       </div>
                       <div />
                     </div>
@@ -885,7 +814,7 @@ function McRecordPageInner() {
                           {detail?.machine && checkedAt && (
                             <button type="button" onClick={() => fetchTimecardStop("work")}
                               className="text-[10px] px-2 py-1 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded font-bold transition-colors whitespace-nowrap ml-1">
-                              📋 機械タイムカード参照
+                              📋 TC参照
                             </button>
                           )}
                         </div>
