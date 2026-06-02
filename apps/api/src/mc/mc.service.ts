@@ -1861,12 +1861,21 @@ export class McService {
       const IP_LINE_X2 = Math.min(ipLastCol.x + ipLastCol.w, 565);
       const IP_HDR_H   = IP_ROW_H + 2;
 
+      // テンプレートPDFのヘッダ行下端Y: DBのcol_noフィールドのy座標を使用
+      // (PDFエディタでcol_noのYをヘッダ行下端に合わせることで調整可能)
+      const ipHdrEndY = ipCols.find((f:any) => f.field_key==='col_no')
+        ? Number(ipCols.find((f:any) => f.field_key==='col_no')!.y)
+        : 780; // デフォルト(テンプレートのヘッダ行下端)
+
       // カラムヘッダ描画関数（改ページ後の白紙ページ用）
       const drawIPHdr = async (useTpl: boolean) => {
         await addNewPage(useTpl ? ipTplDoc : null);
-        // 初回: テンプレートPDFにヘッダ印刷済み → コードでは描画しない
-        // 改ページ後(useTpl=false,白紙): コードでヘッダを描画
-        if (!useTpl) {
+        if (useTpl) {
+          // 初回: テンプレートPDFにヘッダ印刷済み
+          // curYをテンプレートのヘッダ行下端に合わせる
+          curY = ipHdrEndY;
+        } else {
+          // 改ページ後(白紙): コードでヘッダを描画
           const hdrY = curY - IP_HDR_H + (IP_HDR_H - IP_COLS[0].fs * 0.72) / 2;
           IP_COLS.forEach(col => drawTxt(col.label, col.x + 2, hdrY, col.fs));
           drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_HDR_H, 0.6, rgb(0,0,0));
@@ -1874,7 +1883,7 @@ export class McService {
         }
       };
 
-      // 初回: テンプレートページ(ヘッダはPDF印刷済みのため描画スキップ)
+      // 初回: テンプレートページ(ヘッダ印刷済み、curYをヘッダ下端に設定)
       await drawIPHdr(true);
 
       for (let i=0; i<indexPrograms.length; i++) {
