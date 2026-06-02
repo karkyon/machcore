@@ -1766,7 +1766,8 @@ export class McService {
 
         // 各列の枠・罫線・値を描画
         for (let ci = 0; ci < COLS; ci++) {
-          const gx    = WO_X0 + ci * COL_W;
+          // (2) 均等配置: 枠間GAP=(全幅 - COL_W*COLS)/(COLS-1)
+          const gx    = WO_X0 + ci * (COL_W + (COLS > 1 ? Math.max(2, (WO_X_END - WO_X0 - COL_W * COLS) / (COLS - 1)) : 0));
           const valX  = gx + WO_LBL_W;
           const valW  = COL_W - WO_LBL_W;
 
@@ -1871,7 +1872,7 @@ export class McService {
         if (curY > prevIPY) { ipNeedsColHdr = true; i--; continue; }
         const ip   = indexPrograms[i];
         IP_COLS.forEach(col => {
-          const val = col.dataKey==='sortOrder' ? String(i) : String((ip as any)[col.dataKey] ?? // (8) 0始まり連番 '');
+          const val = col.dataKey==='sortOrder' ? String(i) : String((ip as any)[col.dataKey] ?? '');
           if (!val) return;
           const txtY = curY - IP_ROW_H + (IP_ROW_H - col.fs * 0.72) / 2;
           drawTxt(val, col.x + 2, txtY, col.fs);
