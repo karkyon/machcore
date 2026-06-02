@@ -1841,7 +1841,6 @@ export class McService {
       const ipRowCfg = ipFields.find((f:any) => f.field_key === '__row_cfg__');
       const ipCols   = ipFields.filter((f:any) => f.field_key.startsWith('col_'));
       const IP_ROW_H = ipRowCfg ? parseFloat(ipRowCfg.font_size) : 14.0;
-      const IP_MARGIN = 2.0;
       const getIPCX  = (key:string, def:number) => { const f=ipCols.find((c:any)=>c.field_key===key); return f?Number(f.x):def; };
 
       const getIPCFS = (key:string, def:number) => { const f=ipCols.find((c:any)=>c.field_key===key); return f?Number(f.font_size):def; };
@@ -1859,7 +1858,7 @@ export class McService {
       const IP_LINE_X1 = IP_COLS[0].x;
       const ipLastCol  = IP_COLS[IP_COLS.length - 1];
       const IP_LINE_X2 = Math.min(ipLastCol.x + ipLastCol.w, 565);
-      const IP_HDR_H   = IP_ROW_H + 2;
+      const IP_HDR_H   = IP_ROW_H;
 
       // テンプレートPDFのヘッダ行下端Y: DBのcol_noフィールドのy座標を使用
       // (PDFエディタでcol_noのYをヘッダ行下端に合わせることで調整可能)
@@ -1879,7 +1878,7 @@ export class McService {
           const hdrY = curY - IP_HDR_H + (IP_HDR_H - IP_COLS[0].fs * 0.72) / 2;
           IP_COLS.forEach(col => drawTxt(col.label, col.x + 2, hdrY, col.fs));
           drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_HDR_H, 0.6, rgb(0,0,0));
-          curY -= IP_HDR_H;
+          curY -= IP_ROW_H;
         }
       };
 
@@ -1888,7 +1887,7 @@ export class McService {
 
       for (let i=0; i<indexPrograms.length; i++) {
         // スペース不足時: 新ページ(白紙)+ヘッダ再描画
-        if (curY - (IP_ROW_H + IP_MARGIN) < PAGE_BOTTOM_MARGIN) {
+        if (curY - IP_ROW_H < PAGE_BOTTOM_MARGIN) {
           await drawIPHdr(false);
         }
         const ip = indexPrograms[i];
@@ -1899,7 +1898,7 @@ export class McService {
           drawTxt(val, col.x + 2, txtY, col.fs);
         });
         drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_ROW_H);
-        curY -= (IP_ROW_H + IP_MARGIN);
+        curY -= IP_ROW_H;
       }
       curY -= BLOCK_MARGIN;
     }
