@@ -1871,8 +1871,9 @@ export class McService {
         await addNewPage(useTpl ? ipTplDoc : null);
         if (useTpl) {
           // 初回: テンプレートPDFにヘッダ印刷済み
-          // curYをテンプレートのヘッダ行下端に合わせる
-          curY = ipHdrEndY;
+          // addNewPage後のcurY(=pageH-PAGE_BOTTOM_MARGIN)からIP_HDR_H分下げてデータ開始
+          // → 改ページ後と完全同一の計算でヘッダ行高さを統一
+          curY = curY - IP_HDR_H;
         } else {
           // 改ページ後(白紙): コードでヘッダを描画
           const hdrY = curY - IP_HDR_H + (IP_HDR_H - IP_COLS[0].fs * 0.72) / 2;
