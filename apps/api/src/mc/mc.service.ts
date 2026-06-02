@@ -1025,7 +1025,7 @@ export class McService {
           hour:'2-digit', minute:'2-digit', second:'2-digit' });
         try {
           p2Page.drawRectangle({ x: 29, y: Number(f.y)-1, width: 115, height: 10, color: rgb(1,1,1), borderWidth: 0 });
-          p2Page.drawText(`発行: ${issuedAtNew}`, { x: 30, y: Number(f.y), size: 6.5, font: font2, color: rgb(0.4,0.4,0.4) });
+          p2Page.drawText(`発行: ${issuedAtNew}`, { x: 30, y: Number(f.y), size: 10.5, font: font2, color: rgb(0.4,0.4,0.4) });
         } catch(_) {}
         continue;
       }
@@ -1057,7 +1057,7 @@ export class McService {
         year:'numeric', month:'2-digit', day:'2-digit',
         hour:'2-digit', minute:'2-digit', second:'2-digit' });
       const dtText = `発行: ${issuedAtStr}`;
-      const dtSz = 6.5;
+      const dtSz = 10.5;
       const dtY  = 15;
       const dtX  = 30;
       // finalDoc用フォントを埋め込み（p1/p2のfont1/font2はそれぞれのdocに属し再利用不可）
@@ -1956,7 +1956,7 @@ export class McService {
       const pnX = pnF ? Number(pnF.x) : 500;
       const pnY = pnF ? Number(pnF.y) : 15;
       const pnSz = pnF ? (Number(pnF.font_size) || 6.5) : 6.5;
-      const dtSz = 6.5;
+      const dtSz = 10.5;
       // 発行日時はページ番号の左隣（x=30, y=pnY）
       const dtX = 30;
       finalDoc.getPages().forEach((pg, pi) => {
