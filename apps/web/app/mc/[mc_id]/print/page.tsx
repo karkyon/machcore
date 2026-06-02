@@ -30,8 +30,8 @@ function McPrintPageInner() {
   const [includeTooling,        setIncludeTooling]        = useState(true);
   const [includeClamp,          setIncludeClamp]          = useState(true);
   const [includeDrawings,       setIncludeDrawings]       = useState(false);
-  const [includeWorkOffsets,    setIncludeWorkOffsets]    = useState(false);
-  const [includeIndexPrograms,  setIncludeIndexPrograms]  = useState(false);
+  const [includeWorkOffsets,    setIncludeWorkOffsets]    = useState(true);
+  const [includeIndexPrograms,  setIncludeIndexPrograms]  = useState(true);
   const [isReference,           setIsReference]           = useState(false);
 
   const [printing,       setPrinting]       = useState(false);
