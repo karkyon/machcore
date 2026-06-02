@@ -1019,6 +1019,14 @@ export class McService {
         p2Page.drawText('2 / 2', {
           x: Number(f.x), y: Number(f.y), size: Number(f.font_size), font: font2, color: rgb(0,0,0),
         });
+        // 発行日時をp2の左下余白に印字
+        const issuedAtNew = new Date().toLocaleString('ja-JP', { timeZone:'Asia/Tokyo',
+          year:'numeric', month:'2-digit', day:'2-digit',
+          hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        try {
+          p2Page.drawRectangle({ x: 29, y: Number(f.y)-1, width: 115, height: 10, color: rgb(1,1,1), borderWidth: 0 });
+          p2Page.drawText(`発行: ${issuedAtNew}`, { x: 30, y: Number(f.y), size: 5.5, font: font2, color: rgb(0.4,0.4,0.4) });
+        } catch(_) {}
         continue;
       }
       const text = resolve(f.data_source);
@@ -1043,6 +1051,19 @@ export class McService {
     const [copiedP2] = await finalDoc.copyPages(p2Doc, [0]);
     finalDoc.addPage(copiedP1);
     finalDoc.addPage(copiedP2);
+    // p1にも発行日時を印字
+    {
+      const issuedAtP1 = new Date().toLocaleString('ja-JP', { timeZone:'Asia/Tokyo',
+        year:'numeric', month:'2-digit', day:'2-digit',
+        hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      const p1pg = finalDoc.getPage(0);
+      const p1pgH = p1pg.getSize().height;
+      const dtY = 15;
+      try {
+        p1pg.drawRectangle({ x: 29, y: dtY-1, width: 115, height: 10, color: rgb(1,1,1), borderWidth: 0 });
+        p1pg.drawText(`発行: ${issuedAtP1}`, { x: 30, y: dtY, size: 5.5, font: font1, color: rgb(0.4,0.4,0.4) });
+      } catch(_) {}
+    }
 
     // ── プレビュー透かし処理 ──
     const isPreview = (options as any).is_preview === true;
@@ -1920,14 +1941,26 @@ export class McService {
       totalPages++;
     }
 
-    // ── ページ番号書き込み ──
+    // ── ページ番号 + 発行日時 書き込み ──
     const pnF = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__page_no__');
-    if (pnF && totalPages > 0) {
-      const pnX = Number(pnF.x), pnY = Number(pnF.y), pnSz = Number(pnF.font_size) || 6.5;
+    const issuedAt = new Date().toLocaleString('ja-JP', { timeZone:'Asia/Tokyo',
+      year:'numeric', month:'2-digit', day:'2-digit',
+      hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    if (totalPages > 0) {
+      const pnX = pnF ? Number(pnF.x) : 500;
+      const pnY = pnF ? Number(pnF.y) : 15;
+      const pnSz = pnF ? (Number(pnF.font_size) || 6.5) : 6.5;
+      const dtSz = 5.5;
+      // 発行日時はページ番号の左隣（x=30, y=pnY）
+      const dtX = 30;
       finalDoc.getPages().forEach((pg, pi) => {
         try {
+          // ページ番号
           pg.drawRectangle({ x: pnX-2, y: pnY-2, width: 65, height: pnSz*1.8+4, color: rgb(1,1,1), borderWidth: 0 });
           pg.drawText(`${pi+1} / ${totalPages}`, { x: pnX, y: pnY, size: pnSz, font: finalFont, color: rgb(0,0,0) });
+          // 発行日時
+          pg.drawRectangle({ x: dtX-1, y: pnY-1, width: 115, height: dtSz*1.8+2, color: rgb(1,1,1), borderWidth: 0 });
+          pg.drawText(`発行: ${issuedAt}`, { x: dtX, y: pnY, size: dtSz, font: finalFont, color: rgb(0.4,0.4,0.4) });
         } catch(_) {}
       });
     }
