@@ -1309,23 +1309,10 @@ export class McService {
       if (src === 'approvedAt')   return fmtDate(d.approvedAt);
       if (src === 'registeredAt') return fmtDate(d.registeredAt);
       if (src === 'version')      return fmtVer(d.version ?? '');
-      // (5) cycleTimeSec -> XH YM ZS 形式
-      if (src === 'cycleTimeSec') {
-        if (d.cycleTimeSec == null) return '';
-        const totalSec = Math.round(Number(d.cycleTimeSec));
-        const h = Math.floor(totalSec / 3600);
-        const m = Math.floor((totalSec % 3600) / 60);
-        const s = totalSec % 60;
-        return `${h}H ${m}M ${s}S`;
-      }
-      if (src === 'part.partId')  return String(part.partId  ?? '');
-      // (4) 加工ID
-      if (src === 'machiningId')  return String(d.machiningId ?? '');
-      // (4) MCIDは旧MCID(legacyMcid)を表示
-      if (src === 'legacyMcid')   return String(d.legacyMcid ?? '');
-      if (src === 'id')           return String(d.legacyMcid ?? mcId);
-      // (6) ファイル名
-      if (src === 'fileName')     return d.fileName ?? '';
+      if (src === 'cycleTimeSec') return d.cycleTimeSec != null ? String(d.cycleTimeSec) : '';
+      if (src === 'part.partId')  return part.partId  ?? '';
+      if (src === 'machiningId')  return d.machiningId ?? '';
+      if (src === 'id')           return String(mcId);
       const keys = src.split('.');
       let val: any = d;
       for (const k of keys) { val = val?.[k]; if (val == null) return ''; }
@@ -1640,7 +1627,7 @@ export class McService {
         if (key==='tNumber')   return String(t.tNo ?? t.tNumber ?? '');
         if (key==='hValue')    return t.hValue != null ? String(t.hValue) : (t.lengthOffsetNo ?? '');
         if (key==='dRegister') return t.diaOffsetNo ?? t.dRegister ?? '';
-        if (key==='dValue')    return t.dValue != null ? String(t.dValue) : (t.d_value != null ? String(t.d_value) : (t.diameter != null ? String(t.diameter) : ''));
+        if (key==='dValue')    return t.dValue != null ? String(t.dValue) : (t.diameter != null ? String(t.diameter) : '');
         if (key==='subPgNo')   return t.subPgNo ?? t.subProgram ?? '';
         if (key==='note')      return t.note ?? '';
         return '';
@@ -1797,7 +1784,7 @@ export class McService {
             if (ri < WO_DATA_KEYS.length) {
               const raw = wo[WO_DATA_KEYS[ri]];
               if (raw != null && raw !== '') {
-                const val = typeof raw === 'number' ? raw.toFixed(3) : (parseFloat(String(raw)) === parseFloat(String(raw)) ? parseFloat(String(raw)).toFixed(3) : String(raw)); // (7) 0->0.000
+                const val = typeof raw === 'number' ? raw.toFixed(3) : String(raw);
                 drawTxt(val, valX + 2, txtY, woFs);
               }
             }
@@ -1848,30 +1835,20 @@ export class McService {
       const ipLastCol  = IP_COLS[IP_COLS.length - 1];
       const IP_LINE_X2 = Math.min(ipLastCol.x + ipLastCol.w, 565);
 
-      // (9) カラムヘッダ描画を関数化（改ページ後の再描画に使い回す）
-      const drawIPColHeader = () => {
-        IP_COLS.forEach(col => {
-          const ipHdrY = curY - IP_ROW_H + (IP_ROW_H - col.fs * 0.72) / 2;
-          drawTxt(col.label, col.x + 2, ipHdrY, col.fs);
-        });
-        drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_ROW_H);
-        curY -= IP_ROW_H;
-      };
+      // カラムヘッダ
+      await ensureSpace(IP_ROW_H * 2, ipTplDoc);
+      IP_COLS.forEach(col => {
+        const ipHdrY = curY - IP_ROW_H + (IP_ROW_H - col.fs * 0.72) / 2;
+        drawTxt(col.label, col.x + 2, ipHdrY, col.fs);
+      });
+      drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_ROW_H);
+      curY -= IP_ROW_H;
 
-      // 初回カラムヘッダ
-      await ensureSpace(IP_ROW_H * 2 + IP_MARGIN, ipTplDoc);
-      drawIPColHeader();
-
-      let ipNeedsColHdr = false;
       for (let i=0; i<indexPrograms.length; i++) {
-        // (9) 改ページ後にカラムヘッダを再描画
-        if (ipNeedsColHdr) { drawIPColHeader(); ipNeedsColHdr = false; }
-        const prevIPY = curY;
         await ensureSpace(IP_ROW_H + IP_MARGIN, ipTplDoc);
-        if (curY > prevIPY) { ipNeedsColHdr = true; i--; continue; }
         const ip   = indexPrograms[i];
         IP_COLS.forEach(col => {
-          const val = col.dataKey==='sortOrder' ? String(i) : String((ip as any)[col.dataKey] ?? // (8) 0始まり連番 '');
+          const val = col.dataKey==='sortOrder' ? String(ip.sortOrder ?? i+1) : String((ip as any)[col.dataKey] ?? '');
           if (!val) return;
           const txtY = curY - IP_ROW_H + (IP_ROW_H - col.fs * 0.72) / 2;
           drawTxt(val, col.x + 2, txtY, col.fs);
