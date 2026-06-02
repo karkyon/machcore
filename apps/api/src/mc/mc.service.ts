@@ -1,8 +1,5 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { SchedulerRegistry } from '@nestjs/schedule';
-import { CronJob } from 'cron';
 import { AppLoggerService } from '../common/app-logger.service';
-import { Cron } from '@nestjs/schedule';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
 import { PrismaService } from '../prisma/prisma.service';
@@ -19,8 +16,9 @@ export class McService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: AppLoggerService,
-    private readonly scheduler: SchedulerRegistry,
   ) {}
+
+  private cronTimer: NodeJS.Timeout | null = null;
 
   async onModuleInit() {
     // DB設定でCronを動的登録
@@ -28,21 +26,31 @@ export class McService {
   }
 
   async reloadCronTimecards() {
+    // 既存タイマーをクリア
+    if (this.cronTimer) { clearTimeout(this.cronTimer); this.cronTimer = null; }
+
     const settings = await this.getSystemSettings();
     const enabled  = settings['cron_timecard_enabled'] !== 'false';
     const hour     = parseInt(settings['cron_timecard_hour'] ?? '5');
     const minute   = parseInt(settings['cron_timecard_minute'] ?? '0');
-    const cronName = 'init_timecards';
-
-    // 既存のCronJobを削除
-    try { this.scheduler.deleteCronJob(cronName); } catch {}
 
     if (!enabled) {
-      this.logger.info('CRON', `タイムカードCron 無効化済み`);
+      this.logger.info('CRON', 'タイムカードCron 無効化済み');
       return;
     }
 
-    const job = new CronJob(`${minute} ${hour} * * *`, async () => {
+    this.scheduleCronTimecards(hour, minute);
+    this.logger.info('CRON', `タイムカードCron 登録: ${hour}:${String(minute).padStart(2,'0')} 毎日`);
+  }
+
+  private scheduleCronTimecards(hour: number, minute: number) {
+    const now  = new Date();
+    const next = new Date(now);
+    next.setHours(hour, minute, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1); // 過去なら翌日
+    const ms = next.getTime() - now.getTime();
+
+    this.cronTimer = setTimeout(async () => {
       const today = new Date();
       const workDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
       this.logger.info('CRON', `機械タイムカード自動生成 開始: ${workDate}`);
@@ -52,10 +60,9 @@ export class McService {
       } catch (e: any) {
         this.logger.error('CRON', `機械タイムカード自動生成 失敗: ${workDate}`, { error: e?.message ?? String(e) });
       }
-    });
-    this.scheduler.addCronJob(cronName, job);
-    job.start();
-    this.logger.info('CRON', `タイムカードCron 登録: ${minute} ${hour} * * *`);
+      // 翌日の同時刻に再スケジュール
+      this.scheduleCronTimecards(hour, minute);
+    }, ms);
   }
 
   async getSystemSettings(): Promise<Record<string, string>> {
