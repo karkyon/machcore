@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { AppLoggerService } from '../common/app-logger.service';
 import { Cron } from '@nestjs/schedule';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
@@ -13,7 +14,10 @@ import { PrintMcDto } from './dto/print-mc.dto';
 
 @Injectable()
 export class McService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
   // ══════════════════════════════════════════
   // MC-01: 部品検索
@@ -809,11 +813,12 @@ export class McService {
   async cronInitTimecards() {
     const today = new Date();
     const workDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    this.logger.info('CRON', `機械タイムカード自動生成 開始: ${workDate}`);
     try {
-      await this.initTimecards(workDate, 1); // operatorId=1 (admin)
-      console.log(`[Cron] ${workDate} 機械タイムカード自動生成完了`);
-    } catch (e) {
-      console.error('[Cron] タイムカード自動生成エラー', e);
+      const result = await this.initTimecards(workDate, 1);
+      this.logger.info('CRON', `機械タイムカード自動生成 完了: ${workDate}`, { created: result.created });
+    } catch (e: any) {
+      this.logger.error('CRON', `機械タイムカード自動生成 失敗: ${workDate}`, { error: e?.message ?? String(e) });
     }
   }
 

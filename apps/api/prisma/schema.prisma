@@ -617,3 +617,16 @@ model PdfFieldDefinition {
   @@index([templateId])
   @@map("pdf_field_definitions")
 }
+
+model SystemLog {
+  id        Int      @id @default(autoincrement())
+  level     String   @db.VarChar(10)   // INFO WARN ERROR DEBUG
+  category  String   @db.VarChar(50)   // CRON AUTH API PDF etc
+  message   String   @db.Text
+  detail    Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([level, createdAt])
+  @@index([category, createdAt])
+  @@map("system_logs")
+}

@@ -754,4 +754,45 @@ export class AdminController {
     return cards;
   }
 
+
+  /** SYS-LOG: システムログ一覧 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('system-logs')
+  async getSystemLogs(
+    @Query('level')     level?: string,
+    @Query('category')  category?: string,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to')   dateTo?: string,
+    @Query('page')      page = '1',
+    @Query('limit')     limit = '100',
+  ) {
+    const where: any = {};
+    if (level)    where.level    = level;
+    if (category) where.category = category;
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo)   where.createdAt.lte = new Date(dateTo + 'T23:59:59Z');
+    }
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = parseInt(limit);
+    const [rows, total] = await Promise.all([
+      this.prisma.systemLog.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
+      this.prisma.systemLog.count({ where }),
+    ]);
+    return { total, page: parseInt(page), limit: parseInt(limit), data: rows };
+  }
+
+  /** SYS-LOG: システムログ削除（古いログ） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Delete('system-logs/purge')
+  async purgeSystemLogs(@Query('days') days = '30') {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - parseInt(days));
+    const result = await this.prisma.systemLog.deleteMany({ where: { createdAt: { lt: cutoff } } });
+    return { deleted: result.count, message: `${parseInt(days)}日以前のログを${result.count}件削除しました` };
+  }
+
 }

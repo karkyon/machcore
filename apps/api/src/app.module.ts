@@ -1,3 +1,4 @@
+import { AppLoggerService } from './common/app-logger.service';
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { LoggerMiddleware } from './common/logger.middleware';
 import { ConfigModule } from '@nestjs/config';
