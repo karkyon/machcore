@@ -1860,11 +1860,9 @@ export class McService {
       const IP_LINE_X2 = Math.min(ipLastCol.x + ipLastCol.w, 565);
       const IP_HDR_H   = IP_ROW_H;
 
-      // テンプレートPDFのヘッダ行下端Y: DBのcol_noフィールドのy座標を使用
-      // (PDFエディタでcol_noのYをヘッダ行下端に合わせることで調整可能)
-      const ipHdrEndY = ipCols.find((f:any) => f.field_key==='col_no')
-        ? Number(ipCols.find((f:any) => f.field_key==='col_no')!.y)
-        : 780; // デフォルト(テンプレートのヘッダ行下端)
+      // テンプレートPDFの実測ヘッダ罫線Y座標(pdfplumber計測: 788.3)
+      // ヘッダ罫線のすぐ下からデータ開始
+      const ipHdrEndY = 788.3;
 
       // カラムヘッダ描画関数（改ページ後の白紙ページ用）
       const drawIPHdr = async (useTpl: boolean) => {
