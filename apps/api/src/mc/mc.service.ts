@@ -887,26 +887,21 @@ export class McService {
     // UNIQUE(machine_id, work_date)制約を利用してupsert
     const created: number[] = [];
     for (const m of machines) {
-      try {
-        const tc = await this.prisma.machineTimecard.upsert({
-          where: {
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore — Prisma generates compound unique key after migration
-            machine_timecards_machine_id_work_date_key: { machineId: m.id, workDate: new Date(workDate) },
-          },
-          update: {}, // 既存レコードは更新しない
-          create: {
-            machineId:  m.id,
-            operatorId,
-            workDate:   new Date(workDate),
-            startTime:  new Date(`${workDate}T08:00:00`),
-            endTime:    new Date(`${workDate}T17:00:00`),
-          },
-        });
-        created.push(tc.id);
-      } catch {
-        // UNIQUE制約違反（既存あり）は無視
-      }
+      const exists = await this.prisma.machineTimecard.findFirst({
+        where: { machineId: m.id, workDate: new Date(workDate) },
+        select: { id: true },
+      });
+      if (exists) continue;
+      const tc = await this.prisma.machineTimecard.create({
+        data: {
+          machineId:  m.id,
+          operatorId,
+          workDate:   new Date(workDate),
+          startTime:  new Date(`${workDate}T08:00:00`),
+          endTime:    new Date(`${workDate}T17:00:00`),
+        },
+      });
+      created.push(tc.id);
     }
     return { created: created.length, message: `処理完了` };
   }

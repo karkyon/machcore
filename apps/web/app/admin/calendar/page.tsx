@@ -110,17 +110,25 @@ export default function CalendarPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5 overflow-y-auto">
           <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">メニュー</div>
-          {SIDEBAR_ITEMS.map(item => (
+          {SIDEBAR_ITEMS.filter(i => i.href !== "/admin/pdf-editor").map(item => (
             <a key={item.href} href={item.href}
               className={"mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors " + (pathname === item.href ? "bg-sky-50 text-sky-700 font-bold border border-sky-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900")}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={item.icon} /></svg>
               {item.label}
             </a>
           ))}
+          <div className="mx-3 my-1 border-t border-slate-200" />
+          {(() => { const item = SIDEBAR_ITEMS.find(i => i.href === "/admin/pdf-editor")!; return (
+            <a key={item.href} href={item.href}
+              className={"mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors " + (pathname === item.href ? "bg-sky-50 text-sky-700 font-bold border border-sky-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900")}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={item.icon} /></svg>
+              {item.label}
+            </a>
+          ); })()}
         </aside>
 
-        <main className="flex-1 overflow-y-auto flex flex-col p-5 gap-3">
-          <div className="space-y-4">
+        <main className="flex-1 overflow-hidden flex flex-col p-4 gap-2">
+          <div className="flex flex-col gap-2 min-h-0 flex-1">
             <div className="flex items-center justify-between shrink-0">
               <h1 className="text-xl font-bold text-slate-800">営業カレンダー</h1>
               <div className="flex items-center gap-2">
@@ -131,8 +139,8 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-2">
+              <div className="flex items-center justify-between mb-1">
                 <button onClick={prevMonth} className="p-1.5 rounded hover:bg-slate-100 text-slate-600">&#8592;</button>
                 <div className="flex items-center gap-3">
                   <select value={year} onChange={e => setYear(parseInt(e.target.value))}
@@ -151,7 +159,7 @@ export default function CalendarPage() {
                 <button onClick={nextMonth} className="p-1.5 rounded hover:bg-slate-100 text-slate-600">&#8594;</button>
               </div>
 
-              <div className="grid grid-cols-7 gap-1 mb-2">
+              <div className="grid grid-cols-7 gap-0.5 mb-1">
                 {DOW.map((d, i) => (
                   <div key={d} className={"text-center text-xs font-bold py-1 " + (i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-slate-500")}>
                     {d}
@@ -162,7 +170,7 @@ export default function CalendarPage() {
               {loading ? (
                 <div className="flex items-center justify-center h-48 text-slate-400">読み込み中...</div>
               ) : (
-                <div className="grid grid-cols-7 gap-1">
+                <div className="grid grid-cols-7 gap-0.5">
                   {Array.from({length: firstDow}).map((_, i) => <div key={"empty"+i} />)}
                   {Array.from({length: daysInMonth}, (_, i) => {
                     const d = i + 1;
@@ -176,7 +184,7 @@ export default function CalendarPage() {
                     return (
                       <button key={d} onClick={() => setHoliday(dt, !isHoliday, entry?.note ?? undefined)}
                         title={entry?.note ?? (isWeekend ? (dow===0?"日曜":"土曜") : "")}
-                        className={"relative aspect-square rounded-lg flex flex-col items-center justify-center text-sm font-bold transition-colors border " +
+                        className={"relative h-12 rounded flex flex-col items-center justify-center text-xs font-bold transition-colors border " +
                           (isToday ? "ring-2 ring-sky-400 " : "") +
                           (isHoliday
                             ? "bg-red-50 border-red-200 text-red-600 hover:bg-red-100"
