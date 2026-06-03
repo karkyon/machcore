@@ -559,13 +559,16 @@ export default function McDetailPage() {
                   <tbody>
                     {d.tooling.map((t, i) => (
                       <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                        <td className="px-3 py-2 font-mono font-bold text-teal-600">{t.toolNo}</td>
-                        <td className="px-3 py-2">{t.toolName ?? "—"}</td>
-                        <td className="px-3 py-2 text-center">{t.diameter ? Number(t.diameter).toFixed(1) : "—"}</td>
+                        <td className="px-3 py-2 text-center font-mono text-slate-400 w-10">{t.sortOrder}</td>
+                        <td className="px-3 py-2 font-mono font-bold text-teal-700">{t.toolNo ?? "—"}</td>
+                        <td className="px-3 py-2 font-mono text-slate-700">{t.tNo ?? "—"}</td>
+                        <td className="px-3 py-2 text-slate-500 text-[11px] max-w-[120px] truncate" title={t.dValueContent ?? ""}>{t.dValueContent ?? "—"}</td>
                         <td className="px-3 py-2 text-center font-mono">{t.lengthOffsetNo ?? "—"}</td>
                         <td className="px-3 py-2 text-center font-mono">{t.diaOffsetNo ?? "—"}</td>
-                        <td className="px-3 py-2">{t.toolType ?? ""}</td>
-                        <td className="px-3 py-2 text-slate-400">{t.note ?? ""}</td>
+                        <td className="px-3 py-2 text-center font-mono">{t.diameter ? Number(t.diameter).toFixed(3) : "—"}</td>
+                        <td className="px-3 py-2 font-mono text-slate-500">{t.subPgNo ?? "—"}</td>
+                        <td className="px-3 py-2">{t.toolType ?? "—"}</td>
+                        <td className="px-3 py-2 text-slate-500">{t.note ?? "—"}</td>
                       </tr>
                     ))}
                   </tbody>
