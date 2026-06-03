@@ -405,7 +405,7 @@ export default function McEditPage() {
       </nav>
 
       {/* セッションバナー */}
-      {isAuthenticated && operator && (sbMode || sbRepeatMode) && (
+      {isAuthenticated && (sbMode || sbRepeatMode) && (
         <div className={`${sbRepeatMode ? "bg-amber-700" : "bg-blue-700"} text-white px-5 py-2 flex items-center justify-between text-xs shrink-0`}>
           <div className="flex items-center gap-3">
             <span className="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center font-bold shrink-0">1</span>
@@ -432,11 +432,11 @@ export default function McEditPage() {
           </div>
         </div>
       )}
-      {isAuthenticated && operator && !sbMode && !sbRepeatMode && (
+      {isAuthenticated && !sbMode && !sbRepeatMode && (
         <div className="bg-red-600 text-white px-5 py-1.5 flex items-center justify-between text-xs shrink-0">
           <div className="flex items-center gap-3">
             <span className="w-2 h-2 bg-red-300 rounded-full animate-pulse" />
-            <span>編集セッション: {operator.name}</span>
+            <span>編集セッション: {operator?.name ?? "（作業中）"}</span>
           </div>
           <div className="flex gap-3">
             <button onClick={() => {
