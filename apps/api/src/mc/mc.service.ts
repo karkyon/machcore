@@ -828,22 +828,54 @@ export class McService {
   // 機械タイムカード
   // ══════════════════════════════════════════
   async getTimecardsByDate(workDate: string) {
-    return this.prisma.machineTimecard.findMany({
+    const rows = await this.prisma.machineTimecard.findMany({
       where:   { workDate: new Date(workDate) },
-      orderBy: [{ machineId: 'asc' }, { startTime: 'asc' }],
+      orderBy: [{ machine: { sortOrder: 'asc' } }, { startTime: 'asc' }],
       include: {
         operator: { select: { name: true } },
-        machine:  { select: { machineCode: true, machineName: true } },
+        machine:  { select: { machineCode: true, machineName: true, isActive: true, sortOrder: true } },
       },
     });
+    const fmtTime = (d: Date) => {
+      const h = String(d.getUTCHours()).padStart(2, '0');
+      const m = String(d.getUTCMinutes()).padStart(2, '0');
+      return `${h}:${m}:00`;
+    };
+    const fmtDate = (d: Date) => {
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+    };
+    return rows.map(r => ({
+      id:           r.id,
+      machine_id:   r.machineId,
+      work_date:    fmtDate(r.workDate),
+      start_time:   fmtTime(r.startTime),
+      end_time:     fmtTime(r.endTime),
+      note:         r.note,
+      machine:      r.machine,
+      operator:     r.operator,
+    }));
   }
 
   async getTimecards(machineId: number, workDate: string) {
-    return this.prisma.machineTimecard.findMany({
+    const rows = await this.prisma.machineTimecard.findMany({
       where:   { machineId, workDate: new Date(workDate) },
       orderBy: { startTime: 'asc' },
       include: { operator: { select: { name: true } } },
     });
+    const fmtTime = (d: Date) => {
+      const h = String(d.getUTCHours()).padStart(2, '0');
+      const m = String(d.getUTCMinutes()).padStart(2, '0');
+      return `${h}:${m}:00`;
+    };
+    return rows.map(r => ({
+      id:         r.id,
+      machine_id: r.machineId,
+      work_date:  r.workDate.toISOString().slice(0, 10),
+      start_time: fmtTime(r.startTime),
+      end_time:   fmtTime(r.endTime),
+      note:       r.note,
+      operator:   r.operator,
+    }));
   }
 
   async deleteTimecard(id: number) {

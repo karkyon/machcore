@@ -160,7 +160,7 @@ export default function AdminUsersPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5 overflow-y-auto">
           <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">メニュー</div>
-          {SIDEBAR_ITEMS.map(item => (
+          {SIDEBAR_ITEMS.filter(i => i.href !== "/admin/pdf-editor").map(item => (
             <a key={item.href} href={item.href}
               className={`mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors ${
                 pathname === item.href ? "bg-sky-50 text-sky-700 font-bold border border-sky-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}>
@@ -168,6 +168,15 @@ export default function AdminUsersPage() {
               {item.label}
             </a>
           ))}
+          <div className="mx-3 my-1 border-t border-slate-200" />
+          {(() => { const item = SIDEBAR_ITEMS.find(i => i.href === "/admin/pdf-editor")!; return (
+            <a key={item.href} href={item.href}
+              className={`mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors ${
+                pathname === item.href ? "bg-sky-50 text-sky-700 font-bold border border-sky-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={item.icon}/></svg>
+              {item.label}
+            </a>
+          ); })()}
         </aside>
 
         <main className="flex-1 overflow-hidden flex flex-col p-5 gap-3">
