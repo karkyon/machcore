@@ -141,7 +141,7 @@ export default function CalendarPage() {
 
             <div className="bg-white rounded-xl border border-slate-200 p-2">
               <div className="flex items-center justify-between mb-1">
-                <button onClick={prevMonth} className="p-1.5 rounded hover:bg-slate-100 text-slate-600">&#8592;</button>
+                <button onClick={prevMonth} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-sm font-medium transition-colors shadow-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>前月</button>
                 <div className="flex items-center gap-3">
                   <select value={year} onChange={e => setYear(parseInt(e.target.value))}
                     className="text-sm border border-slate-200 rounded px-2 py-1 focus:outline-none">
@@ -156,7 +156,7 @@ export default function CalendarPage() {
                     ))}
                   </select>
                 </div>
-                <button onClick={nextMonth} className="p-1.5 rounded hover:bg-slate-100 text-slate-600">&#8594;</button>
+                <button onClick={nextMonth} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-sm font-medium transition-colors shadow-sm">次月<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
               </div>
 
               <div className="grid grid-cols-7 gap-0.5 mb-1">
