@@ -29,11 +29,12 @@ async function bootstrap() {
   );
 
   app.enableCors({
+    // HTTPS:8443 (通常ブラウザ) + localhost (開発) + HTTP:3010 (Next.js内部rewrite) のみ許可
     origin: [
-      process.env.WEB_URL || 'http://localhost:3010',
-      'http://192.168.1.11:3010',
       'https://192.168.1.11:8443',
-      /^http:\/\/192\.168\.1\.\d+:\d+$/,
+      'http://localhost:3010',
+      'http://localhost:3011',
+      'http://192.168.1.11:3010',  // Next.js→API内部rewrite用（サーバサイド）
     ],
     credentials: true,
   });
