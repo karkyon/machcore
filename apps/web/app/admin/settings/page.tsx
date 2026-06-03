@@ -305,6 +305,101 @@ export default function AdminSettingsPage() {
                   RAWデータ閲覧 →
                 </button>
               </section>
+
+              {/* ── タイムカードCron設定 ── */}
+              <section className="bg-white rounded-xl shadow p-6 space-y-4">
+                <h2 className="text-base font-bold text-slate-700 border-b border-slate-100 pb-2">⏰ タイムカード自動生成（Cron）設定</h2>
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-bold text-slate-600">自動生成</label>
+                  <button onClick={() => setCronEnabled(v => !v)}
+                    className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+                      cronEnabled ? "bg-green-600 text-white" : "bg-slate-200 text-slate-600"
+                    }`}>
+                    {cronEnabled ? "有効" : "無効"}
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">実行時刻（時）</label>
+                    <input type="number" min="0" max="23" value={cronHour} onChange={e => setCronHour(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">実行時刻（分）</label>
+                    <input type="number" min="0" max="59" value={cronMinute} onChange={e => setCronMinute(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">デフォルト開始時刻</label>
+                    <input type="time" value={tcDefStart} onChange={e => setTcDefStart(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">デフォルト終了時刻</label>
+                    <input type="time" value={tcDefEnd} onChange={e => setTcDefEnd(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400">毎日 {cronHour}:{String(cronMinute).padStart(2,"0")} に有効機械全台のタイムカードを自動生成します（営業カレンダーの休日はスキップ）</p>
+                <div className="flex justify-end">
+                  <button onClick={saveCronSettings} disabled={cronSaving}
+                    className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors">
+                    {cronSaving ? "保存中…" : "保存"}
+                  </button>
+                </div>
+              </section>
+
+              {/* ── PM2プロセス管理 ── */}
+              <section className="bg-white rounded-xl shadow p-6 space-y-4">
+                <h2 className="text-base font-bold text-slate-700 border-b border-slate-100 pb-2">⚙️ PM2プロセス管理</h2>
+                <div className="flex gap-2 mb-2">
+                  <button onClick={() => restartPm2()} disabled={pm2Restarting !== null}
+                    className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-xs font-bold rounded-lg">
+                    {pm2Restarting === "all" ? "再起動中…" : "全プロセス再起動"}
+                  </button>
+                  <button onClick={savePm2}
+                    className="px-3 py-1.5 bg-slate-600 hover:bg-slate-700 text-white text-xs font-bold rounded-lg">
+                    pm2 save
+                  </button>
+                </div>
+                {pm2List.length === 0 ? (
+                  <p className="text-sm text-slate-400">プロセス情報を取得中…</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-500">
+                          <th className="px-3 py-2 text-left font-bold">名前</th>
+                          <th className="px-3 py-2 text-left font-bold">状態</th>
+                          <th className="px-3 py-2 text-left font-bold">CPU</th>
+                          <th className="px-3 py-2 text-left font-bold">再起動</th>
+                          <th className="px-3 py-2 text-left font-bold">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {pm2List.map((p: any) => (
+                          <tr key={p.name}>
+                            <td className="px-3 py-2 font-mono font-bold">{p.name}</td>
+                            <td className="px-3 py-2">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                p.status === "online" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                              }`}>{p.status}</span>
+                            </td>
+                            <td className="px-3 py-2">{p.cpu ?? "—"}%</td>
+                            <td className="px-3 py-2">{p.restarts ?? 0}回</td>
+                            <td className="px-3 py-2">
+                              <button onClick={() => restartPm2(p.name)} disabled={pm2Restarting !== null}
+                                className="px-2 py-0.5 bg-sky-100 hover:bg-sky-200 text-sky-700 text-[10px] font-bold rounded disabled:opacity-40">
+                                {pm2Restarting === p.name ? "…" : "再起動"}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
             </>
           )}
         </main>
