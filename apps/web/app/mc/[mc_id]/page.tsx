@@ -877,6 +877,27 @@ export default function McDetailPage() {
           onCancel={() => setAuthOpen(false)} />
       )}
 
+      {/* 📋 Ridoc図面 認証モーダル */}
+      {drawingAuthOpen && (
+        <AuthModal isOpen={true} mcProgramId={mcId} sessionType="edit"
+          onSuccess={async () => {
+            setDrawingAuthOpen(false);
+            setDrawingModal(true);
+            setDrawingLoading(true);
+            try {
+              const t = localStorage.getItem("work_token") ?? "";
+              const res = await fetch(`/api/mc/${mcId}/drawing-image?imgType=ORG`, {
+                headers: t ? { Authorization: `Bearer ${t}` } : {},
+              });
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const blob = await res.blob();
+              setDrawingBlobUrl(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob); });
+            } catch { setDrawingBlobUrl(null); }
+            finally { setDrawingLoading(false); }
+          }}
+          onCancel={() => setDrawingAuthOpen(false)} />
+      )}
+
       {/* 📋 Ridoc図面モーダル */}
       {drawingModal && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-0"
@@ -885,25 +906,31 @@ export default function McDetailPage() {
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-slate-50 shrink-0 gap-2">
               <p className="text-sm font-bold text-slate-700">📋 図面 — {d.part.drawingNo}</p>
               <div className="flex items-center gap-2">
-                <a href={`/api/mc/${mcId}/drawing-image?imgType=ORG`} target="_blank" rel="noopener noreferrer"
-                  className="px-2.5 py-1 text-xs font-bold rounded border bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100">
-                  🔍 原寸を新規タブで開く
-                </a>
+                {drawingBlobUrl && (
+                  <a href={drawingBlobUrl} download={`drawing-${d.part.drawingNo}.jpg`}
+                    className="px-2.5 py-1 text-xs font-bold rounded border bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100">
+                    ⬇ ダウンロード
+                  </a>
+                )}
                 <button onClick={() => setDrawingModal(false)}
                   className="ml-1 text-slate-400 hover:text-slate-700 text-lg px-1.5">✕</button>
               </div>
             </div>
             <div className="flex-1 overflow-auto bg-slate-900 flex items-center justify-center">
-              <img src={`/api/mc/${mcId}/drawing-image?imgType=ORG`} alt={`図面 ${d.part.drawingNo}`}
-                className="max-w-full max-h-full object-contain"
-                onError={e => {
-                  const el=e.target as HTMLImageElement; el.style.display="none";
-                  const p=el.parentElement;
-                  if(p && !p.querySelector(".no-draw-msg")){
-                    const m=document.createElement("p"); m.className="no-draw-msg text-slate-400 text-sm text-center";
-                    m.textContent="図面を取得できませんでした（RidocサーバーまたはRIDOC_API_URL未設定）"; p.appendChild(m);
-                  }
-                }} />
+              {drawingLoading ? (
+                <div className="flex flex-col items-center gap-3 text-slate-400">
+                  <div className="w-8 h-8 border-2 border-slate-500 border-t-white rounded-full animate-spin" />
+                  <span className="text-sm">図面を取得中…</span>
+                </div>
+              ) : drawingBlobUrl ? (
+                <img src={drawingBlobUrl} alt={`図面 ${d.part.drawingNo}`}
+                  className="max-w-full max-h-full object-contain" />
+              ) : (
+                <p className="text-slate-400 text-sm text-center px-8">
+                  図面を取得できませんでした<br />
+                  <span className="text-xs text-slate-500">（Ridocサーバー未応答またはRIDOC_API_URL未設定）</span>
+                </p>
+              )}
             </div>
           </div>
         </div>
