@@ -513,210 +513,412 @@ export class McService {
     });
   }
 
-  /** ツーリングプログラムテキスト解析（旧VBA完全互換版）
-   *  フェーズ1: 全行を構造化（括弧コメント・制御構文スキップ）
-   *  フェーズ2: 各行からN/T/H/D/D値/SUB/コメント抽出
-   *  フェーズ3: T番号循環シフト（MCの先読み慣習を補正）
-   *  フェーズ4: sort_order 10刻み採番
+  /** ツーリングプログラムテキスト解析 v2
+   *  after.pdf / group.pdf / XLSX仕様完全対応
+   *  - Oグループ境界分割
+   *  - /M0, M1/M01(ESCAPE), (GOTO***), G65P8001対応
+   *  - 空欄圧縮（同一Nグループ内 SUB/コメント上詰め）
+   *  - T番号循環シフト（先頭T+M6なしパターン対応）
    */
   parseToolingProgram(text: string) {
-    // 制御構文キーワード（これらを含む行はスキップ）
-    const SKIP_KEYWORDS = ['GOTO', 'IF', 'ROUND', 'SQRT', 'WHILE', 'WEND', 'DO', 'END'];
 
     // ─────────────────────────────────────────
-    // フェーズ1: 全行を構造化
+    // ユーティリティ
     // ─────────────────────────────────────────
-    const rawLines = text.split(/\r?\n/);
-    const parsed: McParsedLine[] = rawLines.map(raw => {
-      const line = raw.trim();
-      if (!line || line.startsWith('%')) return { raw: line, body: null, comment: null, skip: false };
 
-      // 括弧コメント抽出
-      let body = line;
-      let comment: string | null = null;
-      const k1 = line.indexOf('(');
-      const k2 = line.indexOf(')');
-      if (k1 !== -1 && k2 > k1) {
-        comment = line.slice(k1 + 1, k2).trim();
-        if (k1 === 0 && k2 === line.length - 1) {
-          // 行全体が括弧: bodyはnull
-          body = '';
-        } else {
-          body = (line.slice(0, k1) + line.slice(k2 + 1)).trim();
-        }
-      }
+    /** 括弧コメントを抽出。{body, comment} を返す */
+    const extractComment = (raw: string): { body: string; comment: string | null } => {
+      const k1 = raw.indexOf('(');
+      const k2 = raw.lastIndexOf(')');
+      if (k1 === -1 || k2 < k1) return { body: raw, comment: null };
+      const comment = raw.slice(k1 + 1, k2).trim();
+      const body    = (raw.slice(0, k1) + raw.slice(k2 + 1)).trim();
+      return { body, comment };
+    };
 
-      // 制御構文スキップ判定
-      const upper = body ? body.toUpperCase() : '';
-      const skip = SKIP_KEYWORDS.some(kw => upper.includes(kw));
-
-      return { raw: line, body: skip ? null : (body || null), comment, skip };
-    });
-
-    // ─────────────────────────────────────────
-    // フェーズ2: フィールド抽出
-    // ─────────────────────────────────────────
-    const entries: McToolEntry[] = [];
-
-    const extractNum = (str: string, prefix: string, maxDigits: number): string | null => {
-      const idx = str.toUpperCase().indexOf(prefix.toUpperCase());
+    /** アドレス + 数字を抽出。例: "H1T2" → H="H1", T="T2" */
+    const extractAddr = (str: string, addr: string): string | null => {
+      const upper = str.toUpperCase();
+      const idx   = upper.indexOf(addr.toUpperCase());
       if (idx === -1) return null;
       let digits = '';
-      for (let j = idx + prefix.length; j < str.length && digits.length < maxDigits; j++) {
+      for (let j = idx + addr.length; j < str.length; j++) {
         if (str[j] >= '0' && str[j] <= '9') digits += str[j];
         else break;
       }
-      return digits ? `${prefix.toUpperCase()}${digits}` : null;
+      return digits ? `${addr.toUpperCase()}${digits}` : null;
     };
 
-    const extractSubPg = (str: string): string | null => {
-      const patterns = ['M98P', 'G65P', 'G66P'];
-      const upper = str.toUpperCase();
-      for (const pat of patterns) {
+    /** サブプログラム番号抽出 (M98P / G65P / G66P) */
+    const extractSubPg = (body: string): string | null => {
+      const upper = body.toUpperCase();
+      for (const pat of ['M98P', 'G65P', 'G66P']) {
         const idx = upper.indexOf(pat);
         if (idx === -1) continue;
         let digits = '';
-        for (let j = idx + pat.length; j < str.length && digits.length < 8; j++) {
-          if (str[j] >= '0' && str[j] <= '9') digits += str[j];
+        for (let j = idx + pat.length; j < body.length && digits.length < 8; j++) {
+          if (body[j] >= '0' && body[j] <= '9') digits += body[j];
           else break;
         }
         if (digits) {
           const num = parseInt(digits, 10);
-          // 1〜12は内部マクロ番号のため除外（旧VBAと同じ）
-          if (num > 12) return digits;
+          // M98P2/3/4 は主軸退避・工具交換マクロなので除外（≤12）
+          if (pat === 'M98P' && num <= 12) return null;
+          return digits;
         }
       }
       return null;
     };
 
-    // D値テキスト抽出（例: 4.1D, 2-3D, 8-5.5D）
-    const extractDValueText = (comment: string | null): string | null => {
-      if (!comment) return null;
-      // 数字・小数点・ハイフンの後に D が来るパターン
-      const m = comment.match(/([\d.\-]+\s*D)/i);
-      return m ? m[1].trim() : null;
+    /** O番号の数値正規化: O0001 = O1 */
+    const normalizeO = (digits: string): string => String(parseInt(digits, 10));
+
+    /** M0/M00/M30/M02/M99 等の終端Mコード判定 */
+    const isStopM = (body: string): string | null => {
+      const m = body.toUpperCase().match(/^M(0{1,2}|30|02|99)$/);
+      return m ? `M${parseInt(m[1], 10)}` : null;
     };
 
-    // Oナンバー or コロン記法抽出 → tool_no
-    const extractONo = (body: string | null): string | null => {
-      if (!body) return null;
-      const upper = body.toUpperCase();
-      // "O" + 数字
-      let m = upper.match(/^O(\d{1,4})/);
-      if (m) return `O${m[1]}`;
-      // ":数字"（ファナック系）
-      m = upper.match(/:(\d{1,4})/);
-      if (m) return `O${m[1]}`;
-      return null;
-    };
+    // ─────────────────────────────────────────
+    // フェーズ1: 全行を構造化
+    // ─────────────────────────────────────────
+    interface RawRow {
+      raw:      string;
+      body:     string;       // 括弧除去後
+      comment:  string | null;
+    }
 
-    // Nシーケンス番号抽出
-    const extractNNo = (body: string | null): string | null => {
-      if (!body) return null;
-      const m = body.toUpperCase().match(/N(\d{1,7})/);
-      return m ? `N${m[1]}` : null;
-    };
+    const rows: RawRow[] = text.split(/\r?\n/).map(line => {
+      const raw = line.trim();
+      if (!raw) return { raw, body: '', comment: null };
+      const { body, comment } = extractComment(raw);
+      return { raw, body, comment };
+    });
 
-    // M0/M30抽出
-    const extractMStop = (body: string | null): string | null => {
-      if (!body) return null;
-      const m = body.toUpperCase().match(/M(0|30)(?:\D|$)/);
-      return m ? `M${m[1]}` : null;
-    };
+    // ─────────────────────────────────────────
+    // フェーズ2: Oグループに分割
+    //   O**** が現れるたびに新グループ開始
+    //   グループ内の各行を解析してエントリ候補を生成
+    // ─────────────────────────────────────────
+    interface GroupEntry {
+      type:     'O' | 'N' | 'M21' | 'ESCAPE' | 'STOP' | 'SPECIAL';
+      tool_no:  string | null;
+      tool_name: string | null;
+      t_no:     string | null;
+      h:        string | null;
+      d:        string | null;
+      d_value:  string | null;
+      sub_pg_no: string | null;
+      note:     string | null;
+      raw:      string;
+      subs:     string[];   // このグループ内の M98P 番号リスト（空欄圧縮用）
+      comments: string[];   // このグループ内のコメントリスト（空欄圧縮用）
+    }
 
-    let prevSubPg: string | null = null;
+    const finalEntries: McToolEntry[] = [];
 
-    for (let i = 0; i < parsed.length; i++) {
-      const p = parsed[i];
-      if (!p.body && !p.comment) continue;
+    // Oグループの配列を構築
+    const groups: { oEntry: GroupEntry; inner: RawRow[] }[] = [];
+    let currentGroup: { oEntry: GroupEntry; inner: RawRow[] } | null = null;
 
-      // tool_no の決定（O番号 > Nシーケンス > M0/M30）
-      let tool_no = extractONo(p.body)
-                 ?? extractNNo(p.body)
-                 ?? extractMStop(p.body);
+    // プログラム先頭からO行が出てくる前の行をpreGroupとして扱う
+    const preGroup: RawRow[] = [];
 
-      // T番号
-      const t_no = extractNum(p.body ?? '', 'T', 4);
+    for (const row of rows) {
+      if (!row.body && !row.comment) continue; // 空行スキップ
+      if (row.body === '%') continue;          // EOP
 
-      // H番号
-      const length_offset_no = extractNum(p.body ?? '', 'H', 4);
+      const upper = row.body.toUpperCase();
 
-      // D番号
-      const dia_offset_no = extractNum(p.body ?? '', 'D', 4);
-
-      // D値テキスト（コメントから）
-      const d_value_content = extractDValueText(p.comment);
-
-      // SUBプログラム番号（重複除外）
-      const subRaw = extractSubPg(p.body ?? '');
-      const sub_pg_no = (subRaw && subRaw !== prevSubPg) ? subRaw : null;
-      if (subRaw) prevSubPg = subRaw;
-
-      // 工具名: 同一行の括弧コメント（D値でない場合）or 次行の括弧コメント
-      let tool_name: string | null = null;
-      let note: string | null = null;
-      if (p.comment) {
-        if (d_value_content && p.comment.toUpperCase().replace(/\s/g,'').includes(d_value_content.toUpperCase().replace(/\s/g,''))) {
-          // D値コメントはnoteへ
-          note = p.comment;
-        } else {
-          tool_name = p.comment;
-        }
+      // O行判定
+      const oMatch = row.body.match(/^O(\d+)/i);
+      if (oMatch) {
+        // 前のグループを確定
+        if (currentGroup) groups.push(currentGroup);
+        const oNum = normalizeO(oMatch[1]);
+        currentGroup = {
+          oEntry: {
+            type: 'O',
+            tool_no:   `O${oNum}`,
+            tool_name: row.comment ?? null,
+            t_no: null, h: null, d: null, d_value: null,
+            sub_pg_no: null, note: null, raw: row.raw,
+            subs: [], comments: [],
+          },
+          inner: [],
+        };
       } else {
-        // 次行が括弧コメントのみなら工具名として使用
-        const next = parsed[i + 1];
-        if (next && !next.body && next.comment) {
-          tool_name = next.comment;
+        if (currentGroup) currentGroup.inner.push(row);
+        else              preGroup.push(row);
+      }
+    }
+    if (currentGroup) groups.push(currentGroup);
+
+    // ─────────────────────────────────────────
+    // フェーズ3: 各Oグループを解析し、ツーリング行を生成
+    //   Nグループごとに H/T/D/SUB/コメントを集約し1行生成
+    //   空欄圧縮: 複数SUB/コメントがある場合は別行として追加
+    // ─────────────────────────────────────────
+
+    // プログラム先頭部分 (O行前) の特殊行を処理
+    for (const row of preGroup) {
+      const sp = parseSpecialRow(row);
+      if (sp) finalEntries.push(sp);
+    }
+
+    // 主グループ処理
+    const tNosForShift: Array<{ idx: number; val: string }> = [];
+
+    for (const grp of groups) {
+      // O行自体を1行追加
+      const oIdx = finalEntries.length;
+      finalEntries.push({
+        raw_program_line: grp.oEntry.raw,
+        tool_no:          grp.oEntry.tool_no,
+        t_no:             null,
+        tool_name:        grp.oEntry.tool_name,
+        length_offset_no: null,
+        dia_offset_no:    null,
+        d_value_content:  null,
+        sub_pg_no:        null,
+        note:             null,
+        sort_order:       0,
+      });
+
+      // グループ内の行をNセクションごとに処理
+      let curN: {
+        tool_no: string | null; tool_name: string | null;
+        t: string | null; h: string | null; d: string | null;
+        d_value: string | null;
+        subs: string[]; comments: string[]; raw: string;
+      } | null = null;
+
+      const flushN = () => {
+        if (!curN) return;
+        // 主行
+        const mainSub  = curN.subs[0]      ?? null;
+        const mainNote = curN.comments[0]  ?? null;
+        const eIdx = finalEntries.length;
+        finalEntries.push({
+          raw_program_line: curN.raw,
+          tool_no:          curN.tool_no,
+          t_no:             curN.t,
+          tool_name:        curN.tool_name,
+          length_offset_no: curN.h,
+          dia_offset_no:    curN.d,
+          d_value_content:  curN.d_value,
+          sub_pg_no:        mainSub,
+          note:             mainNote,
+          sort_order:       0,
+        });
+        if (curN.t) tNosForShift.push({ idx: eIdx, val: curN.t });
+        // 追加行（空欄圧縮: 2番目以降のSUBとコメントを独立行に）
+        const maxExtra = Math.max(curN.subs.length - 1, curN.comments.length - 1);
+        for (let i = 0; i < maxExtra; i++) {
+          finalEntries.push({
+            raw_program_line: '',
+            tool_no:          null,
+            t_no:             null,
+            tool_name:        null,
+            length_offset_no: null,
+            dia_offset_no:    null,
+            d_value_content:  null,
+            sub_pg_no:        curN.subs[i + 1]     ?? null,
+            note:             curN.comments[i + 1] ?? null,
+            sort_order:       0,
+          });
+        }
+        curN = null;
+      };
+
+      for (const row of grp.inner) {
+        const upper = row.body.toUpperCase().trim();
+
+        // N行 → 新しいNセクション開始
+        const nMatch = row.body.match(/^N(\d+)/i);
+        if (nMatch) {
+          flushN();
+          curN = {
+            tool_no:   `N${nMatch[1]}`,  // ゼロパディング保持
+            tool_name: row.comment ?? null,
+            t: null, h: null, d: null, d_value: null,
+            subs: [], comments: [],
+            raw: row.raw,
+          };
+          continue;
+        }
+
+        // M1 / M01 → ESCAPE 独立行
+        if (/^M0?1$/.test(upper)) {
+          flushN();
+          finalEntries.push({
+            raw_program_line: row.raw,
+            tool_no: null, t_no: null, tool_name: null,
+            length_offset_no: null, dia_offset_no: null,
+            d_value_content: null, sub_pg_no: null,
+            note: 'ESCAPE', sort_order: 0,
+          });
+          continue;
+        }
+
+        // /M0 (オプショナルストップ) → tool_no に記録
+        if (upper === '/M0' || upper === '/M00') {
+          flushN();
+          finalEntries.push({
+            raw_program_line: row.raw,
+            tool_no: upper, t_no: null, tool_name: null,
+            length_offset_no: null, dia_offset_no: null,
+            d_value_content: null, sub_pg_no: null, note: null,
+            sort_order: 0,
+          });
+          continue;
+        }
+
+        // M0 / M00 → tool_no に記録
+        if (/^M0{1,2}$/.test(upper)) {
+          flushN();
+          finalEntries.push({
+            raw_program_line: row.raw,
+            tool_no: `M${parseInt(upper.slice(1), 10)}`, t_no: null, tool_name: null,
+            length_offset_no: null, dia_offset_no: null,
+            d_value_content: null, sub_pg_no: null, note: null,
+            sort_order: 0,
+          });
+          continue;
+        }
+
+        // M30 / M02 / M99 → 終端行
+        const stopM = isStopM(upper);
+        if (stopM) {
+          flushN();
+          finalEntries.push({
+            raw_program_line: row.raw,
+            tool_no: stopM, t_no: null, tool_name: null,
+            length_offset_no: null, dia_offset_no: null,
+            d_value_content: null, sub_pg_no: null,
+            note: '/////////////',
+            sort_order: 0,
+          });
+          continue;
+        }
+
+        // M21 (割出盤) → コメント付きで独立行
+        if (/^M21$/.test(upper)) {
+          flushN();
+          finalEntries.push({
+            raw_program_line: row.raw,
+            tool_no: 'M21', t_no: null, tool_name: null,
+            length_offset_no: null, dia_offset_no: null,
+            d_value_content: null, sub_pg_no: null,
+            note: row.comment ?? null,
+            sort_order: 0,
+          });
+          continue;
+        }
+
+        // 括弧のみ行（コメント独立行）
+        if (!row.body && row.comment) {
+          const cUpper = row.comment.toUpperCase();
+          const isGoto = cUpper.startsWith('GOTO') || cUpper.includes('GOTO');
+          flushN();
+          finalEntries.push({
+            raw_program_line: row.raw,
+            tool_no: isGoto ? row.comment : null,
+            t_no: null, tool_name: null,
+            length_offset_no: null, dia_offset_no: null,
+            d_value_content: null, sub_pg_no: null,
+            note: isGoto ? null : row.comment,
+            sort_order: 0,
+          });
+          continue;
+        }
+
+        // Nセクション内の H/T/D/SUB/コメント収集
+        if (curN) {
+          // H番号（同じ行にT番号も含む場合がある: G43H1T2）
+          const hv = extractAddr(row.body, 'H');
+          if (hv && !curN.h) curN.h = hv;
+
+          // T番号（次工具先読み: H1T2 の T2 は次工具呼出）
+          // ここでは T をそのまま記録し循環シフトは後で実施
+          const tv = extractAddr(row.body, 'T');
+          if (tv && !curN.t) curN.t = tv;
+
+          // D番号
+          const dv = extractAddr(row.body, 'D');
+          if (dv && !curN.d) curN.d = dv;
+
+          // SUBプログラム番号
+          const sv = extractSubPg(row.body);
+          if (sv && !curN.subs.includes(sv)) curN.subs.push(sv);
+
+          // コメント (M98P1001(1-3.3D Z-9) のような付きコメント)
+          if (row.comment && !curN.comments.includes(row.comment)) {
+            // D値パターン: "1-3.3D Z-9" など
+            curN.comments.push(row.comment);
+          }
         }
       }
-
-      // T番号または意味のある情報がある行のみエントリ追加
-      if (t_no || tool_no || tool_name || length_offset_no || sub_pg_no) {
-        entries.push({
-          raw_program_line: p.raw,
-          tool_no,
-          t_no,
-          tool_name,
-          length_offset_no,
-          dia_offset_no,
-          d_value_content,
-          sub_pg_no,
-          note,
-          sort_order: 0, // フェーズ4で設定
-        });
-      }
+      flushN();
     }
 
     // ─────────────────────────────────────────
-    // フェーズ3: T番号循環シフト（旧VBA toolingcopy と同一ロジック）
-    // MCプログラムはT番号を「次に使う工具」として1つ先を指定する慣習があるため
-    // 収集したT番号を1つ後ろにずらし、最後を先頭へ移動する
+    // フェーズ4: T番号循環シフト
     // ─────────────────────────────────────────
-    const tNos: Array<{ idx: number; val: string }> = [];
-    for (let i = 0; i < entries.length; i++) {
-      if (entries[i].t_no) tNos.push({ idx: i, val: entries[i].t_no! });
-    }
-    const j = tNos.length;
+    const j = tNosForShift.length;
     if (j === 2) {
-      // 2本: 前後入れ替え
-      entries[tNos[0].idx].t_no = tNos[1].val;
-      entries[tNos[1].idx].t_no = tNos[0].val;
+      finalEntries[tNosForShift[0].idx].t_no = tNosForShift[1].val;
+      finalEntries[tNosForShift[1].idx].t_no = tNosForShift[0].val;
     } else if (j >= 3) {
-      // 3本以上: 先頭←最後, 2番目以降←1つ前
-      const orig = tNos.map(x => x.val);
-      entries[tNos[0].idx].t_no = orig[j - 1];
+      const orig = tNosForShift.map(x => x.val);
+      finalEntries[tNosForShift[0].idx].t_no = orig[j - 1];
       for (let k = 1; k < j; k++) {
-        entries[tNos[k].idx].t_no = orig[k - 1];
+        finalEntries[tNosForShift[k].idx].t_no = orig[k - 1];
       }
     }
-    // 1本の場合はそのまま
 
     // ─────────────────────────────────────────
-    // フェーズ4: sort_order 10刻み採番
+    // フェーズ5: sort_order 10刻み採番
     // ─────────────────────────────────────────
-    entries.forEach((e, i) => { e.sort_order = (i + 1) * 10; });
+    finalEntries.forEach((e, i) => { e.sort_order = (i + 1) * 10; });
 
-    return { count: entries.length, items: entries };
+    return { count: finalEntries.length, items: finalEntries };
+
+    // ─── ローカル関数: O行前の特殊行処理 ───
+    function parseSpecialRow(row: RawRow): McToolEntry | null {
+      if (!row.body && !row.comment) return null;
+      const upper = row.body.toUpperCase().trim();
+      // /M0
+      if (upper === '/M0' || upper === '/M00') {
+        return { raw_program_line: row.raw, tool_no: upper, t_no: null, tool_name: null,
+          length_offset_no: null, dia_offset_no: null, d_value_content: null,
+          sub_pg_no: null, note: null, sort_order: 0 };
+      }
+      // M1/M01 → ESCAPE
+      if (/^M0?1$/.test(upper)) {
+        return { raw_program_line: row.raw, tool_no: null, t_no: null, tool_name: null,
+          length_offset_no: null, dia_offset_no: null, d_value_content: null,
+          sub_pg_no: null, note: 'ESCAPE', sort_order: 0 };
+      }
+      // G65P8001 → SUB=8001
+      const gSub = extractSubPg(row.body);
+      if (gSub) {
+        return { raw_program_line: row.raw, tool_no: null, t_no: null, tool_name: row.comment ?? null,
+          length_offset_no: null, dia_offset_no: null, d_value_content: null,
+          sub_pg_no: gSub, note: null, sort_order: 0 };
+      }
+      // 括弧のみ行
+      if (!row.body && row.comment) {
+        const cUp = row.comment.toUpperCase();
+        return { raw_program_line: row.raw,
+          tool_no: (cUp.startsWith('GOTO') || cUp.includes('GOTO')) ? row.comment : null,
+          t_no: null, tool_name: null,
+          length_offset_no: null, dia_offset_no: null, d_value_content: null,
+          sub_pg_no: null, note: (cUp.startsWith('GOTO') || cUp.includes('GOTO')) ? null : row.comment,
+          sort_order: 0 };
+      }
+      return null;
+    }
   }
 
   // ══════════════════════════════════════════
