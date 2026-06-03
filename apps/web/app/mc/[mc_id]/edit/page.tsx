@@ -1423,8 +1423,7 @@ export default function McEditPage() {
                 setPgContent(newContent);
                 showToast("置換しました");
               }} className="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded font-bold">全置換</button>
-              <span className="text-[10px] text-slate-400 ml-2">{pgContent.split('
-').length}行 / {pgContent.length}文字</span>
+              <span className="text-[10px] text-slate-400 ml-2">{pgContent.split('\n').length}行 / {pgContent.length}文字</span>
             </div>
             <div className="flex-1 overflow-hidden">
               <textarea
