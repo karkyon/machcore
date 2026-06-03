@@ -11,6 +11,28 @@ import { SaveWorkOffsetsDto } from './dto/save-work-offsets.dto';
 import { SaveIndexProgramsDto } from './dto/save-index-programs.dto';
 import { PrintMcDto } from './dto/print-mc.dto';
 
+/** ツーリング解析: 行パース中間型 */
+type McParsedLine = {
+  raw:      string;
+  body:     string | null;
+  comment:  string | null;
+  skip:     boolean;
+};
+
+/** ツーリング解析: 工具エントリ型 */
+export type McToolEntry = {
+  raw_program_line: string;
+  tool_no:          string | null;
+  t_no:             string | null;
+  tool_name:        string | null;
+  length_offset_no: string | null;
+  dia_offset_no:    string | null;
+  d_value_content:  string | null;
+  sub_pg_no:        string | null;
+  note:             string | null;
+  sort_order:       number;
+};
+
 @Injectable()
 export class McService {
   constructor(
@@ -504,15 +526,8 @@ export class McService {
     // ─────────────────────────────────────────
     // フェーズ1: 全行を構造化
     // ─────────────────────────────────────────
-    interface ParsedLine {
-      raw:      string;
-      body:     string | null;  // 括弧除去後の本体
-      comment:  string | null;  // 括弧内コメント
-      skip:     boolean;        // 制御構文フラグ
-    }
-
     const rawLines = text.split(/\r?\n/);
-    const parsed: ParsedLine[] = rawLines.map(raw => {
+    const parsed: McParsedLine[] = rawLines.map(raw => {
       const line = raw.trim();
       if (!line || line.startsWith('%')) return { raw: line, body: null, comment: null, skip: false };
 
@@ -541,20 +556,7 @@ export class McService {
     // ─────────────────────────────────────────
     // フェーズ2: フィールド抽出
     // ─────────────────────────────────────────
-    interface ToolEntry {
-      raw_program_line: string;
-      tool_no:          string | null;  // N列: O番号 or Nシーケンス
-      t_no:             string | null;  // T列: 工具番号
-      tool_name:        string | null;  // 工具名（括弧コメント）
-      length_offset_no: string | null;  // H列
-      dia_offset_no:    string | null;  // D列
-      d_value_content:  string | null;  // D値テキスト（4.1D, 2-3D 等）
-      sub_pg_no:        string | null;  // M98P/G65P/G66P
-      note:             string | null;  // コメント（工具名以外）
-      sort_order:       number;
-    }
-
-    const entries: ToolEntry[] = [];
+    const entries: McToolEntry[] = [];
 
     const extractNum = (str: string, prefix: string, maxDigits: number): string | null => {
       const idx = str.toUpperCase().indexOf(prefix.toUpperCase());
