@@ -606,28 +606,25 @@ export default function McEditPage() {
                     <button onClick={() => setToolingRows(prev => [...prev, { sort_order: (prev.length + 1) * 10, tool_no: "", tool_name: "", length_offset_no: "", dia_offset_no: "" }])}
                       className="text-xs text-teal-600 font-bold">+ 追加</button>
                   </div>
-                  <div className="overflow-hidden">
-                    <table className="w-full text-xs table-fixed">
-                      <colgroup>
-                        <col style={{width:"80px"}}/><col style={{width:"90px"}}/><col style={{width:"160px"}}/>
-                        <col style={{width:"60px"}}/><col style={{width:"60px"}}/><col style={{width:"60px"}}/>
-                        <col style={{width:"70px"}}/><col style={{width:"70px"}}/><col style={{width:"200px"}}/>
-                        <col style={{width:"70px"}}/><col style={{width:"60px"}}/>
-                      </colgroup>
+                  <div className="overflow-x-auto">
+                    <table className="text-xs w-full" style={{minWidth:"1050px"}}>
                       <thead className="bg-teal-50 sticky top-0 z-10">
-                        <tr>{["","N","工具","T","H","D","D値","SUB","コメント","順番",""].map(h =>
-                          <th key={h} className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 whitespace-nowrap">{h}</th>)}</tr>
+                        <tr>
+                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-20 whitespace-nowrap"></th>
+                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-24 whitespace-nowrap">N</th>
+                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 min-w-[160px] whitespace-nowrap">工具</th>
+                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-14 whitespace-nowrap">T</th>
+                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-14 whitespace-nowrap">H</th>
+                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-14 whitespace-nowrap">D</th>
+                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-16 whitespace-nowrap">D値</th>
+                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-16 whitespace-nowrap">SUB</th>
+                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 min-w-[180px] whitespace-nowrap">コメント</th>
+                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-16 whitespace-nowrap">順番</th>
+                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-14 whitespace-nowrap"></th>
+                        </tr>
                       </thead>
-                    </table>
-                    <div className="overflow-y-auto max-h-[55vh]">
-                    <table className="w-full text-xs table-fixed">
-                      <colgroup>
-                        <col style={{width:"80px"}}/><col style={{width:"90px"}}/><col style={{width:"160px"}}/>
-                        <col style={{width:"60px"}}/><col style={{width:"60px"}}/><col style={{width:"60px"}}/>
-                        <col style={{width:"70px"}}/><col style={{width:"70px"}}/><col style={{width:"200px"}}/>
-                        <col style={{width:"70px"}}/><col style={{width:"60px"}}/>
-                      </colgroup>
                     <tbody>
+
                       {toolingRows.map((t, i) => (
                         <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                           <td className="px-1 py-1 w-20">
@@ -686,7 +683,6 @@ export default function McEditPage() {
                       ))}
                     </tbody>
                     </table>
-                    </div>
                   </div>
                 </div>
               </div>

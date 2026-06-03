@@ -541,7 +541,7 @@ export default function McDetailPage() {
 
         {/* ─── ツーリング ─── */}
         {mainTab === "tooling" && (
-          <div className="max-w-6xl mx-auto">
+          <div className="w-full px-2">
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-600">ツーリングリスト ({d.tooling.length}レコード)</span>
@@ -551,44 +551,37 @@ export default function McDetailPage() {
               {d.tooling.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 text-sm">ツーリングデータがありません</div>
               ) : (
-                <div className="overflow-hidden">
-                  <table className="w-full text-xs table-fixed">
-                    <colgroup>
-                      <col style={{width:"90px"}}/><col style={{width:"180px"}}/><col style={{width:"55px"}}/>
-                      <col style={{width:"55px"}}/><col style={{width:"55px"}}/><col style={{width:"70px"}}/>
-                      <col style={{width:"65px"}}/><col style={{width:"200px"}}/><col style={{width:"55px"}}/>
-                    </colgroup>
-                    <thead className="bg-teal-50 text-teal-700 sticky top-0 z-10">
+                <div className="overflow-x-auto">
+                  <table className="text-xs w-full" style={{minWidth:"900px"}}>
+                    <thead className="bg-teal-50 text-teal-700">
                       <tr>
-                        {[["N","90px"],["工具","180px"],["T","55px"],["H","55px"],["D","55px"],["D値","70px"],["SUB","65px"],["コメント","200px"],["順番","55px"]].map(([h]) =>
-                          <th key={h} className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">{h}</th>)}
+                        <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap w-24">N</th>
+                        <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap min-w-[160px]">工具</th>
+                        <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap w-14">T</th>
+                        <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap w-14">H</th>
+                        <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap w-14">D</th>
+                        <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap w-16">D値</th>
+                        <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap w-16">SUB</th>
+                        <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap min-w-[180px]">コメント</th>
+                        <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap w-14">順番</th>
                       </tr>
                     </thead>
+                    <tbody>
+                      {d.tooling.map((t, i) => (
+                        <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                          <td className="px-3 py-2 font-mono font-bold text-teal-700 whitespace-nowrap">{t.toolNo ?? "—"}</td>
+                          <td className="px-3 py-2">{t.toolName ?? "—"}</td>
+                          <td className="px-3 py-2 font-mono text-center whitespace-nowrap">{t.tNo ?? "—"}</td>
+                          <td className="px-3 py-2 font-mono text-center whitespace-nowrap">{t.lengthOffsetNo ?? "—"}</td>
+                          <td className="px-3 py-2 font-mono text-center whitespace-nowrap">{t.diaOffsetNo ?? "—"}</td>
+                          <td className="px-3 py-2 text-center font-mono whitespace-nowrap">{t.dValueContent ?? "—"}</td>
+                          <td className="px-3 py-2 font-mono text-slate-500 whitespace-nowrap">{t.subPgNo ?? "—"}</td>
+                          <td className="px-3 py-2 text-slate-500 text-[11px]">{t.note ?? "—"}</td>
+                          <td className="px-3 py-2 text-center font-mono text-slate-400 whitespace-nowrap">{t.sortOrder}</td>
+                        </tr>
+                      ))}
+                    </tbody>
                   </table>
-                  <div className="overflow-y-auto max-h-[60vh]">
-                    <table className="w-full text-xs table-fixed">
-                      <colgroup>
-                        <col style={{width:"90px"}}/><col style={{width:"180px"}}/><col style={{width:"55px"}}/>
-                        <col style={{width:"55px"}}/><col style={{width:"55px"}}/><col style={{width:"70px"}}/>
-                        <col style={{width:"65px"}}/><col style={{width:"200px"}}/><col style={{width:"55px"}}/>
-                      </colgroup>
-                      <tbody>
-                        {d.tooling.map((t, i) => (
-                          <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                            <td className="px-3 py-2 font-mono font-bold text-teal-700">{t.toolNo ?? "—"}</td>
-                            <td className="px-3 py-2">{t.toolName ?? "—"}</td>
-                            <td className="px-3 py-2 font-mono text-center">{t.tNo ?? "—"}</td>
-                            <td className="px-3 py-2 font-mono text-center">{t.lengthOffsetNo ?? "—"}</td>
-                            <td className="px-3 py-2 font-mono text-center">{t.diaOffsetNo ?? "—"}</td>
-                            <td className="px-3 py-2 text-center font-mono">{t.dValueContent ?? "—"}</td>
-                            <td className="px-3 py-2 font-mono text-slate-500">{t.subPgNo ?? "—"}</td>
-                            <td className="px-3 py-2 text-slate-500 text-[11px]">{t.note ?? "—"}</td>
-                            <td className="px-3 py-2 text-center font-mono text-slate-400">{t.sortOrder}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
                 </div>
               )}
             </div>
