@@ -595,7 +595,7 @@ export default function McEditPage() {
                   </div>
                   <table className="w-full text-xs">
                     <thead className="bg-teal-50">
-                      <tr>{["T番号","工具名","H補正","D補正","種別",""].map(h =>
+                      <tr>{["N(工具記号)","T番号","工具名","H補正番号","D補正番号","径(mm)","SUB","種別",""].map(h =>
                         <th key={h} className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100">{h}</th>)}</tr>
                     </thead>
                     <tbody>
