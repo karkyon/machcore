@@ -5,8 +5,11 @@ export class ToolingItemDto {
   @IsInt() @Min(0)
   sort_order: number;
 
-  @IsString() @MaxLength(10)
-  tool_no: string;
+  @IsOptional() @IsString() @MaxLength(20)
+  tool_no?: string;
+
+  @IsOptional() @IsString() @MaxLength(10)
+  t_no?: string;
 
   @IsOptional() @IsString() @MaxLength(100)
   tool_name?: string;
@@ -22,6 +25,12 @@ export class ToolingItemDto {
 
   @IsOptional() @IsString() @MaxLength(50)
   tool_type?: string;
+
+  @IsOptional() @IsString() @MaxLength(20)
+  sub_pg_no?: string;
+
+  @IsOptional() @IsString() @MaxLength(50)
+  d_value_content?: string;
 
   @IsOptional() @IsString()
   note?: string;

@@ -508,11 +508,14 @@ export type McSearchResult = {
 export type McTooling = {
   id:              number;
   sortOrder:       number;
-  toolNo:          string;
+  toolNo:          string | null;
+  tNo:             string | null;
   toolName:        string | null;
   diameter:        string | null;
   lengthOffsetNo:  string | null;
   diaOffsetNo:     string | null;
+  dValueContent:   string | null;
+  subPgNo:         string | null;
   toolType:        string | null;
   note:            string | null;
   rawProgramLine:  string | null;

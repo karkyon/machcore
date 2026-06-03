@@ -471,6 +471,8 @@ export class McService {
             diameter:       item.diameter        ?? null,
             lengthOffsetNo: item.length_offset_no ?? null,
             diaOffsetNo:    item.dia_offset_no   ?? null,
+            dValueContent:  item.d_value_content ?? null,
+            subPgNo:        item.sub_pg_no       ?? null,
             toolType:       item.tool_type       ?? null,
             note:           item.note            ?? null,
             rawProgramLine: item.raw_program_line ?? null,
