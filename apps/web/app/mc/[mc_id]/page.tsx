@@ -44,7 +44,10 @@ export default function McDetailPage() {
   const [prints,  setPrints]  = useState<McSetupSheetLog[]| null>(null);
   const [histLoading, setHistLoading] = useState(false);
   const [previewFile, setPreviewFile] = useState<typeof d.files[0] | null>(null);
-  const [drawingModal, setDrawingModal] = useState(false);
+  const [drawingModal,   setDrawingModal]   = useState(false);
+  const [drawingBlobUrl, setDrawingBlobUrl] = useState<string | null>(null);
+  const [drawingLoading, setDrawingLoading] = useState(false);
+  const [drawingAuthOpen, setDrawingAuthOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState<"fit" | "real" | number>("fit");
 
   // 認証
@@ -724,7 +727,20 @@ export default function McDetailPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-white rounded-xl border-2 border-indigo-300 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => setDrawingModal(true)}>
+                    onClick={async () => {
+                      if (!isAuthenticated) { setDrawingAuthOpen(true); return; }
+                      setDrawingModal(true);
+                      setDrawingLoading(true);
+                      try {
+                        const res = await fetch(`/api/mc/${mcId}/drawing-image?imgType=ORG`, {
+                          headers: token ? { Authorization: `Bearer ${token}` } : {},
+                        });
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        const blob = await res.blob();
+                        setDrawingBlobUrl(prev => { if(prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob); });
+                      } catch { setDrawingBlobUrl(null); }
+                      finally { setDrawingLoading(false); }
+                    }}>
                     <div className="aspect-square bg-indigo-50 flex items-center justify-center overflow-hidden">
                       <img src={`/api/mc/${mcId}/drawing-image?imgType=TN`} alt={`図面 ${d.part.drawingNo}`}
                         className="w-full h-full object-contain" loading="lazy"
