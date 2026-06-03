@@ -32,6 +32,7 @@ async function bootstrap() {
     origin: [
       process.env.WEB_URL || 'http://localhost:3010',
       'http://192.168.1.11:3010',
+      'https://192.168.1.11:8443',
       /^http:\/\/192\.168\.1\.\d+:\d+$/,
     ],
     credentials: true,
