@@ -664,8 +664,8 @@ export default function McDetailPage() {
                     ))}
                   </tbody>
                 </table>
-              )}
                 </div>
+              )}
             </div>
           </div>
         )}
