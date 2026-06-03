@@ -606,24 +606,38 @@ export default function McEditPage() {
                     <button onClick={() => setToolingRows(prev => [...prev, { sort_order: (prev.length + 1) * 10, tool_no: "", tool_name: "", length_offset_no: "", dia_offset_no: "" }])}
                       className="text-xs text-teal-600 font-bold">+ 追加</button>
                   </div>
-                  <div>
-                    <table className="text-xs w-full" style={{minWidth:"1400px"}}>
+                  <div className="overflow-y-auto max-h-[55vh]">
+                    <table className="text-xs w-full border-collapse">
+                      <colgroup>
+                        <col style={{width:"72px"}}/>
+                        <col style={{width:"90px"}}/>
+                        <col style={{width:"140px"}}/>
+                        <col style={{width:"54px"}}/>
+                        <col style={{width:"54px"}}/>
+                        <col style={{width:"54px"}}/>
+                        <col style={{width:"60px"}}/>
+                        <col style={{width:"60px"}}/>
+                        <col/>
+                        <col style={{width:"60px"}}/>
+                        <col style={{width:"54px"}}/>
+                      </colgroup>
                       <thead className="bg-teal-50 sticky top-0 z-10">
                         <tr>
-                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-20 whitespace-nowrap"></th>
-                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-24 whitespace-nowrap">N</th>
-                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 min-w-[160px] whitespace-nowrap">工具</th>
-                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-14 whitespace-nowrap">T</th>
-                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-14 whitespace-nowrap">H</th>
-                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-14 whitespace-nowrap">D</th>
-                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-16 whitespace-nowrap">D値</th>
-                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-16 whitespace-nowrap">SUB</th>
-                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 min-w-[180px] whitespace-nowrap">コメント</th>
-                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-16 whitespace-nowrap">順番</th>
-                          <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-14 whitespace-nowrap"></th>
+                          <th className="px-1 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">N</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">工具</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">T</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">H</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">D</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">D値</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">SUB</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">コメント</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">順番</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
                         </tr>
                       </thead>
-                    <tbody>
+                      <tbody>
+
 
                       {toolingRows.map((t, i) => (
                         <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
@@ -681,7 +695,7 @@ export default function McEditPage() {
                             className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">删除</button></td>
                         </tr>
                       ))}
-                    </tbody>
+                      </tbody>
                     </table>
                   </div>
                 </div>
