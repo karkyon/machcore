@@ -541,7 +541,7 @@ export default function McDetailPage() {
 
         {/* ─── ツーリング ─── */}
         {mainTab === "tooling" && (
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-6xl mx-auto">
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-600">ツーリングリスト ({d.tooling.length}レコード)</span>
@@ -553,13 +553,25 @@ export default function McDetailPage() {
               ) : (
                 <div className="overflow-hidden">
                   <table className="w-full text-xs table-fixed">
+                    <colgroup>
+                      <col style={{width:"90px"}}/><col style={{width:"180px"}}/><col style={{width:"55px"}}/>
+                      <col style={{width:"55px"}}/><col style={{width:"55px"}}/><col style={{width:"70px"}}/>
+                      <col style={{width:"65px"}}/><col style={{width:"200px"}}/><col style={{width:"55px"}}/>
+                    </colgroup>
                     <thead className="bg-teal-50 text-teal-700 sticky top-0 z-10">
-                      <tr>{["N","工具","T","H","D","D値","SUB","コメント","順番"].map(h =>
-                        <th key={h} className="px-3 py-2 text-left font-bold border-b border-teal-100">{h}</th>)}</tr>
+                      <tr>
+                        {[["N","90px"],["工具","180px"],["T","55px"],["H","55px"],["D","55px"],["D値","70px"],["SUB","65px"],["コメント","200px"],["順番","55px"]].map(([h]) =>
+                          <th key={h} className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">{h}</th>)}
+                      </tr>
                     </thead>
                   </table>
                   <div className="overflow-y-auto max-h-[60vh]">
                     <table className="w-full text-xs table-fixed">
+                      <colgroup>
+                        <col style={{width:"90px"}}/><col style={{width:"180px"}}/><col style={{width:"55px"}}/>
+                        <col style={{width:"55px"}}/><col style={{width:"55px"}}/><col style={{width:"70px"}}/>
+                        <col style={{width:"65px"}}/><col style={{width:"200px"}}/><col style={{width:"55px"}}/>
+                      </colgroup>
                       <tbody>
                         {d.tooling.map((t, i) => (
                           <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>

@@ -608,13 +608,25 @@ export default function McEditPage() {
                   </div>
                   <div className="overflow-hidden">
                     <table className="w-full text-xs table-fixed">
+                      <colgroup>
+                        <col style={{width:"80px"}}/><col style={{width:"90px"}}/><col style={{width:"160px"}}/>
+                        <col style={{width:"60px"}}/><col style={{width:"60px"}}/><col style={{width:"60px"}}/>
+                        <col style={{width:"70px"}}/><col style={{width:"70px"}}/><col style={{width:"200px"}}/>
+                        <col style={{width:"70px"}}/><col style={{width:"60px"}}/>
+                      </colgroup>
                       <thead className="bg-teal-50 sticky top-0 z-10">
                         <tr>{["","N","工具","T","H","D","D値","SUB","コメント","順番",""].map(h =>
-                          <th key={h} className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100">{h}</th>)}</tr>
+                          <th key={h} className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 whitespace-nowrap">{h}</th>)}</tr>
                       </thead>
                     </table>
                     <div className="overflow-y-auto max-h-[55vh]">
                     <table className="w-full text-xs table-fixed">
+                      <colgroup>
+                        <col style={{width:"80px"}}/><col style={{width:"90px"}}/><col style={{width:"160px"}}/>
+                        <col style={{width:"60px"}}/><col style={{width:"60px"}}/><col style={{width:"60px"}}/>
+                        <col style={{width:"70px"}}/><col style={{width:"70px"}}/><col style={{width:"200px"}}/>
+                        <col style={{width:"70px"}}/><col style={{width:"60px"}}/>
+                      </colgroup>
                     <tbody>
                       {toolingRows.map((t, i) => (
                         <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
@@ -650,26 +662,26 @@ export default function McEditPage() {
                               }} className="text-[10px] px-1 py-0.5 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded">+</button>
                             </div>
                           </td>
-                          <td className="px-2 py-1"><input value={t.tool_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, tool_no: e.target.value} : x))}
-                            className="w-16 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
-                          <td className="px-2 py-1"><input value={t.tool_name ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, tool_name: e.target.value} : x))}
-                            className="w-32 border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
-                          <td className="px-2 py-1"><input value={t.t_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, t_no: e.target.value} : x))}
-                            className="w-12 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
-                          <td className="px-2 py-1"><input value={t.length_offset_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, length_offset_no: e.target.value} : x))}
-                            className="w-12 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
-                          <td className="px-2 py-1"><input value={t.dia_offset_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, dia_offset_no: e.target.value} : x))}
-                            className="w-12 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
-                          <td className="px-2 py-1"><input value={t.diameter != null ? String(t.diameter) : ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, diameter: e.target.value === "" ? null : Number(e.target.value)} : x))}
-                            className="w-16 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-right" type="number" step="0.001" /></td>
-                          <td className="px-2 py-1"><input value={t.sub_pg_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, sub_pg_no: e.target.value} : x))}
-                            className="w-16 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
-                          <td className="px-2 py-1"><input value={t.note ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, note: e.target.value} : x))}
-                            className="w-32 border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
-                          <td className="px-2 py-1"><input value={t.sort_order != null ? String(t.sort_order) : ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, sort_order: e.target.value === "" ? 0 : Number(e.target.value)} : x))}
-                            className="w-14 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-right" type="number" /></td>
-                          <td className="px-2 py-1"><button onClick={() => setToolingRows(r => r.filter((_,j) => j !== i))}
-                            className="text-red-400 hover:text-red-600 text-xs">削除</button></td>
+                          <td className="px-1 py-1"><input value={t.tool_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, tool_no: e.target.value} : x))}
+                            className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                          <td className="px-1 py-1"><input value={t.tool_name ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, tool_name: e.target.value} : x))}
+                            className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                          <td className="px-1 py-1"><input value={t.t_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, t_no: e.target.value} : x))}
+                            className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                          <td className="px-1 py-1"><input value={t.length_offset_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, length_offset_no: e.target.value} : x))}
+                            className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                          <td className="px-1 py-1"><input value={t.dia_offset_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, dia_offset_no: e.target.value} : x))}
+                            className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                          <td className="px-1 py-1"><input value={t.diameter != null ? String(t.diameter) : ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, diameter: e.target.value === "" ? null : Number(e.target.value)} : x))}
+                            className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-right" type="number" step="0.001" /></td>
+                          <td className="px-1 py-1"><input value={t.sub_pg_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, sub_pg_no: e.target.value} : x))}
+                            className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                          <td className="px-1 py-1"><input value={t.note ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, note: e.target.value} : x))}
+                            className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                          <td className="px-1 py-1"><input value={t.sort_order != null ? String(t.sort_order) : ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, sort_order: e.target.value === "" ? 0 : Number(e.target.value)} : x))}
+                            className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-right" type="number" /></td>
+                          <td className="px-1 py-1 text-center"><button onClick={() => setToolingRows(r => r.filter((_,j) => j !== i))}
+                            className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">删除</button></td>
                         </tr>
                       ))}
                     </tbody>
