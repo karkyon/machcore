@@ -60,7 +60,6 @@ function calcKadouMin(start: string, end: string): number {
 function fmtMin(min: number): string {
   if (min <= 0) return "—";
   return `${min}m`;
-}h${m > 0 ? m+"m" : ""}` : `${m}m`;
 }
 
 interface RowState {
