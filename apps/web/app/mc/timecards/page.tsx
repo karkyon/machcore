@@ -66,6 +66,7 @@ function fmtMin(min: number): string {
 interface RowState {
   id: number;
   machineName: string;
+  systemType: string;
   startTime: string;
   endTime: string;
   note: string;
@@ -78,6 +79,7 @@ export default function TimecardPage() {
   const pathname = usePathname();
   const [adminUser,  setAdminUser]  = useState<{ name: string } | null>(null);
   const [workDate,   setWorkDate]   = useState(TODAY());
+  const [sysType,    setSysType]    = useState<"MC"|"NC">("MC");
   const [rows,       setRows]       = useState<RowState[]>([]);
   const [loading,    setLoading]    = useState(false);
   const [toast,      setToast]      = useState<string | null>(null);
@@ -102,6 +104,7 @@ export default function TimecardPage() {
       setRows(cards.map((c: any) => ({
         id:          c.id,
         machineName: c.machine?.machineName ?? c.machine?.machineCode ?? String(c.machine_id),
+        systemType:  c.machine?.systemType ?? "MC",
         startTime:   fmtTime(c.start_time),
         endTime:     fmtTime(c.end_time),
         note:        c.note ?? "",
@@ -137,7 +140,7 @@ export default function TimecardPage() {
   }, [rows, showToast]);
 
   const handleAllUpdate = useCallback(async () => {
-    const dirtyRows = rows.filter(r => r.dirty && r.startTime && r.endTime);
+    const dirtyRows = filteredRows.filter(r => r.dirty && r.startTime && r.endTime);
     if (dirtyRows.length === 0) { showToast("変更なし"); return; }
     setRows(prev => prev.map(r => r.dirty ? { ...r, saving: true } : r));
     let ok = 0, ng = 0;
@@ -160,7 +163,8 @@ export default function TimecardPage() {
     showToast(`全機械の${field === "startTime" ? "開始" : "終了"}を${val}にセット`);
   };
 
-  const dirtyCount = rows.filter(r => r.dirty).length;
+  const filteredRows = rows.filter(r => r.systemType === sysType);
+  const dirtyCount = filteredRows.filter(r => r.dirty).length;
 
   return (
     <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
@@ -221,7 +225,15 @@ export default function TimecardPage() {
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none" />
             <button onClick={() => setWorkDate(TODAY())} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold">今日</button>
             <button onClick={() => loadData(workDate)} className="text-xs px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg font-bold">↺ 再読込</button>
-            <span className="text-xs text-slate-400">{rows.length}件</span>
+            <div className="flex items-center gap-1 ml-2">
+              {(["MC","NC"] as const).map(t => (
+                <button key={t} onClick={() => setSysType(t)}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-bold border transition-colors ${
+                    sysType === t ? "bg-sky-600 text-white border-sky-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                  }`}>{t}</button>
+              ))}
+            </div>
+            <span className="text-xs text-slate-400">{filteredRows.length}件</span>
             <div className="ml-auto flex items-center gap-2 flex-wrap">
               <button onClick={() => setAllTime("startTime","08:00")} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg font-bold whitespace-nowrap">全機械 08:00開始</button>
               <button onClick={() => setAllTime("endTime","17:00")} className="text-xs px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-200 rounded-lg font-bold whitespace-nowrap">全機械 17:00終了</button>
@@ -269,7 +281,7 @@ export default function TimecardPage() {
                     <col className="w-20"/><col className="w-44"/><col className="w-20"/>
                   </colgroup>
                   <tbody className="divide-y divide-slate-100">
-                    {rows.map((row, idx) => {
+                    {filteredRows.map((row, idx) => {
                       const kadou = calcKadouMin(row.startTime, row.endTime);
                       return (
                         <tr key={row.id} className={`${row.dirty ? "bg-orange-50" : idx%2===0?"bg-white":"bg-slate-50/30"}`}>
