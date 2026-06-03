@@ -602,18 +602,54 @@ export default function McEditPage() {
 
                 <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                   <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-600">ツーリングリスト ({toolingRows.length}本)</span>
-                    <button onClick={() => setToolingRows(prev => [...prev, { sort_order: prev.length, tool_no: "", tool_name: "", length_offset_no: "", dia_offset_no: "" }])}
+                    <span className="text-xs font-bold text-slate-600">ツーリングリスト ({toolingRows.length}レコード)</span>
+                    <button onClick={() => setToolingRows(prev => [...prev, { sort_order: (prev.length + 1) * 10, tool_no: "", tool_name: "", length_offset_no: "", dia_offset_no: "" }])}
                       className="text-xs text-teal-600 font-bold">+ 追加</button>
                   </div>
-                  <table className="w-full text-xs">
-                    <thead className="bg-teal-50">
-                      <tr>{["N","工具","T","H","D","D値","SUB","コメント","順番",""].map(h =>
-                        <th key={h} className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100">{h}</th>)}</tr>
-                    </thead>
+                  <div className="overflow-hidden">
+                    <table className="w-full text-xs table-fixed">
+                      <thead className="bg-teal-50 sticky top-0 z-10">
+                        <tr>{["","N","工具","T","H","D","D値","SUB","コメント","順番",""].map(h =>
+                          <th key={h} className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100">{h}</th>)}</tr>
+                      </thead>
+                    </table>
+                    <div className="overflow-y-auto max-h-[55vh]">
+                    <table className="w-full text-xs table-fixed">
                     <tbody>
                       {toolingRows.map((t, i) => (
                         <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                          <td className="px-1 py-1 w-20">
+                            <div className="flex gap-0.5">
+                              <button onClick={() => {
+                                if (i === 0) return;
+                                setToolingRows(r => {
+                                  const a = [...r];
+                                  const so1 = a[i-1].sort_order; const so2 = a[i].sort_order;
+                                  [a[i-1], a[i]] = [a[i], a[i-1]];
+                                  a[i-1] = {...a[i-1], sort_order: so1}; a[i] = {...a[i], sort_order: so2};
+                                  return a;
+                                });
+                              }} disabled={i===0} className="text-[10px] px-1 py-0.5 bg-slate-100 hover:bg-slate-200 rounded disabled:opacity-30">↑</button>
+                              <button onClick={() => {
+                                if (i === toolingRows.length - 1) return;
+                                setToolingRows(r => {
+                                  const a = [...r];
+                                  const so1 = a[i].sort_order; const so2 = a[i+1].sort_order;
+                                  [a[i], a[i+1]] = [a[i+1], a[i]];
+                                  a[i] = {...a[i], sort_order: so1}; a[i+1] = {...a[i+1], sort_order: so2};
+                                  return a;
+                                });
+                              }} disabled={i===toolingRows.length-1} className="text-[10px] px-1 py-0.5 bg-slate-100 hover:bg-slate-200 rounded disabled:opacity-30">↓</button>
+                              <button onClick={() => {
+                                setToolingRows(r => {
+                                  const a = [...r];
+                                  const newSo = a[i].sort_order;
+                                  a.splice(i + 1, 0, { sort_order: newSo + 5, tool_no: "", tool_name: "", length_offset_no: "", dia_offset_no: "" });
+                                  return a;
+                                });
+                              }} className="text-[10px] px-1 py-0.5 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded">+</button>
+                            </div>
+                          </td>
                           <td className="px-2 py-1"><input value={t.tool_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, tool_no: e.target.value} : x))}
                             className="w-16 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
                           <td className="px-2 py-1"><input value={t.tool_name ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, tool_name: e.target.value} : x))}
@@ -637,7 +673,9 @@ export default function McEditPage() {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                    </table>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

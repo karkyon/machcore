@@ -544,34 +544,40 @@ export default function McDetailPage() {
           <div className="max-w-4xl mx-auto">
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-600">ツーリングデータ ({d.tooling.length}本)</span>
+                <span className="text-xs font-bold text-slate-600">ツーリングリスト ({d.tooling.length}レコード)</span>
                 <button onClick={() => router.push(`/mc/${mcId}/edit`)}
                   className="text-xs text-teal-600 hover:text-teal-700 font-bold">✏️ 編集</button>
               </div>
               {d.tooling.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 text-sm">ツーリングデータがありません</div>
               ) : (
-                <table className="w-full text-xs">
-                  <thead className="bg-teal-50 text-teal-700">
-                    <tr>{["N","工具","T","H","D","D値","SUB","コメント","順番"].map(h =>
-                      <th key={h} className="px-3 py-2 text-left font-bold border-b border-teal-100">{h}</th>)}</tr>
-                  </thead>
-                  <tbody>
-                    {d.tooling.map((t, i) => (
-                      <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                        <td className="px-3 py-2 font-mono font-bold text-teal-700">{t.toolNo ?? "—"}</td>
-                        <td className="px-3 py-2">{t.toolName ?? "—"}</td>
-                        <td className="px-3 py-2 font-mono text-center">{t.tNo ?? "—"}</td>
-                        <td className="px-3 py-2 font-mono text-center">{t.lengthOffsetNo ?? "—"}</td>
-                        <td className="px-3 py-2 font-mono text-center">{t.diaOffsetNo ?? "—"}</td>
-                        <td className="px-3 py-2 text-center font-mono">{t.dValueContent ?? "—"}</td>
-                        <td className="px-3 py-2 font-mono text-slate-500">{t.subPgNo ?? "—"}</td>
-                        <td className="px-3 py-2 text-slate-500 text-[11px]">{t.note ?? "—"}</td>
-                        <td className="px-3 py-2 text-center font-mono text-slate-400">{t.sortOrder}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="overflow-hidden">
+                  <table className="w-full text-xs table-fixed">
+                    <thead className="bg-teal-50 text-teal-700 sticky top-0 z-10">
+                      <tr>{["N","工具","T","H","D","D値","SUB","コメント","順番"].map(h =>
+                        <th key={h} className="px-3 py-2 text-left font-bold border-b border-teal-100">{h}</th>)}</tr>
+                    </thead>
+                  </table>
+                  <div className="overflow-y-auto max-h-[60vh]">
+                    <table className="w-full text-xs table-fixed">
+                      <tbody>
+                        {d.tooling.map((t, i) => (
+                          <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                            <td className="px-3 py-2 font-mono font-bold text-teal-700">{t.toolNo ?? "—"}</td>
+                            <td className="px-3 py-2">{t.toolName ?? "—"}</td>
+                            <td className="px-3 py-2 font-mono text-center">{t.tNo ?? "—"}</td>
+                            <td className="px-3 py-2 font-mono text-center">{t.lengthOffsetNo ?? "—"}</td>
+                            <td className="px-3 py-2 font-mono text-center">{t.diaOffsetNo ?? "—"}</td>
+                            <td className="px-3 py-2 text-center font-mono">{t.dValueContent ?? "—"}</td>
+                            <td className="px-3 py-2 font-mono text-slate-500">{t.subPgNo ?? "—"}</td>
+                            <td className="px-3 py-2 text-slate-500 text-[11px]">{t.note ?? "—"}</td>
+                            <td className="px-3 py-2 text-center font-mono text-slate-400">{t.sortOrder}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
             </div>
           </div>
