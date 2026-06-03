@@ -167,7 +167,7 @@ export default function AdminMachinesPage() {
         <main className="flex-1 overflow-hidden flex flex-col p-5 gap-3">
           <div className="flex items-center justify-between shrink-0">
             <h1 className="text-xl font-bold text-slate-800">機械一覧</h1>
-            <button onClick={openCreate} className="bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold px-4 py-2 rounded-lg">＋ 新規機械追加</button>
+            <button onClick={openCreate} className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg">＋ 新規機械追加</button>
           </div>
           <div className="flex flex-wrap gap-2 bg-white p-3 rounded-xl border border-slate-200 shrink-0">
             <input type="text" value={fltName} onChange={e => setFltName(e.target.value)} placeholder="機械名でフィルタ"

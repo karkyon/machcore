@@ -59,8 +59,8 @@ function calcKadouMin(start: string, end: string): number {
 
 function fmtMin(min: number): string {
   if (min <= 0) return "—";
-  const h = Math.floor(min / 60), m = min % 60;
-  return h > 0 ? `${h}h${m > 0 ? m+"m" : ""}` : `${m}m`;
+  return `${min}m`;
+}h${m > 0 ? m+"m" : ""}` : `${m}m`;
 }
 
 interface RowState {
