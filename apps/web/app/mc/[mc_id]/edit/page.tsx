@@ -599,48 +599,47 @@ export default function McEditPage() {
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
                   </div>
                 </div>
-              </div>
 
-              {/* PG情報 */}
-              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-600">プログラム情報</span>
-                  <button onClick={async () => {
-                    setPgLoading(true);
-                    try {
-                      const r = await mcApi.getPgFile(mcId);
-                      const data = (r as any).data ?? r;
-                      setPgContent(data.content ?? "");
-                      setPgOrigName(data.originalName ?? "");
-                      setPgEditorOpen(true);
-                    } catch { showToast("PGファイルが見つかりません"); }
-                    finally { setPgLoading(false); }
-                  }} disabled={pgLoading}
-                    className="px-3 py-1 text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white rounded-lg transition-colors disabled:opacity-50">
-                    {pgLoading ? "読込中..." : "📄 PGエディタを開く"}
-                  </button>
-                </div>
-                <div className="px-4 py-3 grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">PG作成者</label>
-                    <select value={pgCreatedBy} onChange={e => setPgCreatedBy(e.target.value)}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
-                      <option value="">— 選択 —</option>
-                      {users.filter(u => u.isActive).map(u => (
-                        <option key={u.id} value={String(u.id)}>{u.name}</option>
-                      ))}
-                    </select>
+                {/* PG情報 */}
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-600">プログラム情報</span>
+                    <button onClick={async () => {
+                      setPgLoading(true);
+                      try {
+                        const r = await mcApi.getPgFile(mcId);
+                        const data = (r as any).data ?? r;
+                        setPgContent(data.content ?? "");
+                        setPgOrigName(data.originalName ?? "");
+                        setPgEditorOpen(true);
+                      } catch { showToast("PGファイルが見つかりません"); }
+                      finally { setPgLoading(false); }
+                    }} disabled={pgLoading}
+                      className="px-3 py-1 text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white rounded-lg transition-colors disabled:opacity-50">
+                      {pgLoading ? "読込中..." : "📄 PGエディタを開く"}
+                    </button>
                   </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">PG更新日時</label>
-                    <div className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-600 font-mono">
-                      {pgUpdatedAtDisp || "—"}
+                  <div className="px-4 py-3 grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">PG作成者</label>
+                      <select value={pgCreatedBy} onChange={e => setPgCreatedBy(e.target.value)}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
+                        <option value="">— 選択 —</option>
+                        {users.filter(u => u.isActive).map(u => (
+                          <option key={u.id} value={String(u.id)}>{u.name}</option>
+                        ))}
+                      </select>
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-0.5">※ PGアップロード時に自動更新</p>
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">PG更新日時</label>
+                      <div className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-600 font-mono">
+                        {pgUpdatedAtDisp || "—"}
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5">※ PGアップロード時に自動更新</p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
             )}
 
             {/* ツーリング */}
