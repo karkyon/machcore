@@ -595,7 +595,7 @@ export default function McEditPage() {
                     </div>
                   </div>
                   <div className="overflow-y-auto max-h-[55vh]">
-                    <table className="text-xs w-full border-collapse">
+                    <table className="text-xs w-auto border-collapse">
                       <colgroup>
                         <col style={{width:"72px"}}/>
                         <col style={{width:"90px"}}/>
@@ -681,7 +681,7 @@ export default function McEditPage() {
                           <td className="px-1 py-1"><input value={t.sort_order != null ? String(t.sort_order) : ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, sort_order: e.target.value === "" ? 0 : Number(e.target.value)} : x))}
                             className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-right" type="number" /></td>
                           <td className="px-1 py-1 text-center"><button onClick={() => setToolingRows(r => r.filter((_,j) => j !== i))}
-                            className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">删除</button></td>
+                            className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">削除</button></td>
                         </tr>
                       ))}
                       </tbody>
