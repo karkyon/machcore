@@ -111,7 +111,10 @@ export default function AdminRawPage() {
             </a>
           ))}
         </aside>
-        <main className="flex-1 overflow-hidden flex flex-col px-4 py-4 gap-3">
+        <main className="flex-1 overflow-hidden flex flex-col p-5 gap-3">
+        <div className="flex items-center justify-between shrink-0">
+          <h1 className="text-xl font-bold text-slate-800">RAWデータ</h1>
+        </div>
         {/* コントロール */}
         <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-2 shrink-0">
           <div className="flex flex-wrap items-center gap-2">

@@ -198,7 +198,10 @@ export default function AdminSettingsPage() {
           ))}
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+        <main className="flex-1 overflow-y-auto flex flex-col p-5 gap-3">
+          <div className="flex items-center justify-between shrink-0">
+            <h1 className="text-xl font-bold text-slate-800">システム設定</h1>
+          </div>
           {loading ? <div className="text-center py-20 text-slate-400">読み込み中…</div> : (
             <>
               {/* ── 会社情報 ── */}

@@ -386,6 +386,9 @@ export default function PdfEditorPage() {
 
         {/* ── サイドバー ── */}
         <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5 overflow-y-auto">
+          <div className="px-4 py-2 border-b border-slate-100 mb-1">
+            <h1 className="text-sm font-bold text-slate-800">PDFエディタ</h1>
+          </div>
           <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">メニュー</div>
           {SIDEBAR_ITEMS.map(item => (
             <a key={item.href} href={item.href}

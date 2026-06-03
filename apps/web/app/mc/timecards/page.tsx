@@ -200,7 +200,7 @@ export default function TimecardPage() {
         </aside>
 
         <main className="flex-1 overflow-hidden flex flex-col p-5 gap-3">
-          <div className="shrink-0 flex items-center gap-3">
+          <div className="flex items-center justify-between shrink-0">
             <h1 className="text-xl font-bold text-slate-800">機械タイムカード</h1>
             <span className="text-xs text-slate-400">稼働時間一覧（昼休み12:00-13:00跨ぎ -60分補正）</span>
           </div>
