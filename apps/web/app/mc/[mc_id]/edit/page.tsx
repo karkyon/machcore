@@ -82,7 +82,11 @@ export default function McEditPage() {
   const [indexRows, setIndexRows] = useState<any[]>([]);
 
   // PGエディタ
+  const pgTextareaRef = React.useRef<HTMLTextAreaElement>(null);
   const [pgEditorOpen,    setPgEditorOpen]    = useState(false);
+  const [pgMatchCount,    setPgMatchCount]    = useState(0);
+  const [pgMatchIndex,    setPgMatchIndex]    = useState(0);
+  const [pgMatchPositions, setPgMatchPositions] = useState<number[]>([]);
   const [pgContent,       setPgContent]       = useState<string>("");
   const [pgOrigName,      setPgOrigName]      = useState<string>("");
   const [pgLoading,       setPgLoading]       = useState(false);
@@ -1355,29 +1359,49 @@ export default function McEditPage() {
 
       {/* PGエディタモーダル */}
       {pgEditorOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-slate-50 shrink-0">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-2">
+          <div className="bg-white rounded-2xl shadow-2xl flex flex-col" style={{width:"90vw", height:"95vh", maxWidth:"1400px"}}>
+
+            {/* ヘッダー */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50 rounded-t-2xl shrink-0">
               <div className="flex items-center gap-3">
-                <span className="font-bold text-slate-800 text-sm">PGエディタ</span>
-                {pgOrigName && <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded">{pgOrigName}</span>}
+                <span className="text-slate-400 text-lg">📄</span>
+                <span className="font-bold text-slate-800">PGエディタ</span>
+                {pgOrigName && <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded-lg border">{pgOrigName}</span>}
+                <span className="text-xs text-slate-400">{pgContent.split('\n').length}行 / {pgContent.length}文字</span>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={async () => {
-                  // File System Access API でUSBに直接保存
+                  try {
+                    const [fileHandle] = await (window as any).showOpenFilePicker({ multiple: false });
+                    const file = await fileHandle.getFile();
+                    const text = await file.text();
+                    setPgContent(text);
+                    setPgOrigName(file.name);
+                    showToast("✅ ファイルを読み込みました");
+                  } catch (e: any) {
+                    if (e.name !== 'AbortError') showToast("❌ 読み込み失敗: " + (e.message || "不明なエラー"));
+                  }
+                }} className="px-3 py-1.5 text-xs font-bold bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors">
+                  📂 USB/ファイルから読み込み
+                </button>
+                <button onClick={async () => {
+                  if (!('showSaveFilePicker' in window)) {
+                    showToast("❌ 非対応ブラウザです。Chrome/Edgeをご使用ください");
+                    return;
+                  }
                   try {
                     const fileHandle = await (window as any).showSaveFilePicker({
                       suggestedName: pgOrigName || "program.min",
-                      types: [{ description: 'NCプログラム', accept: { 'text/plain': ['.min','.spf','.mpf','.nc','.txt',''] } }],
+                      types: [{ description: 'NCプログラム', accept: { 'text/plain': ['.min','.spf','.mpf','.nc','.txt'] } }],
                     });
                     const writable = await fileHandle.createWritable();
-                    // Shift_JIS でエンコード
-                    const encoder = new TextEncoder();
                     await writable.write(pgContent);
                     await writable.close();
                     showToast("✅ USB/指定先に保存しました");
                   } catch (e: any) {
-                    if (e.name !== 'AbortError') showToast("❌ 保存に失敗しました: " + e.message);
+                    if (e.name === 'AbortError') return;
+                    showToast("❌ 保存失敗: " + (e.message || "USBが接続されているか確認してください"));
                   }
                 }} className="px-3 py-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors">
                   💾 USB/指定先に保存
@@ -1386,181 +1410,319 @@ export default function McEditPage() {
                   if (!token) { showToast("❌ 認証が必要です"); return; }
                   setPgSaving(true);
                   try {
-                    await fetch(`/api/mc/${mcId}/pg-content`, {
+                    const res = await fetch(`/api/mc/${mcId}/pg-content`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                       body: JSON.stringify({ content: pgContent, original_name: pgOrigName }),
                     });
-                    showToast("✅ PGファイルをサーバに保存しました");
-                    // pgUpdatedAt更新
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
-                  } catch { showToast("❌ サーバ保存に失敗しました"); }
-                  finally { setPgSaving(false); }
+                    showToast("✅ PGファイルをサーバに保存しました");
+                  } catch (e: any) {
+                    showToast("❌ サーバ保存に失敗: " + (e.message || ""));
+                  } finally { setPgSaving(false); }
                 }} disabled={pgSaving}
                   className="px-3 py-1.5 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors disabled:opacity-50">
-                  {pgSaving ? "保存中..." : "✓ サーバに保存"}
+                  {pgSaving ? "⏳ 保存中..." : "✓ サーバに保存"}
                 </button>
                 <button onClick={() => setPgEditorOpen(false)}
                   className="px-3 py-1.5 text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg">
-                  閉じる
+                  ✕ 閉じる
                 </button>
               </div>
             </div>
+
             {/* 検索・置換バー */}
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 bg-slate-50 shrink-0">
-              <input value={pgEditorSearch} onChange={e => setPgEditorSearch(e.target.value)}
-                placeholder="検索..." className="border border-slate-300 rounded px-2 py-1 text-xs w-40 font-mono" />
-              <input value={pgEditorReplace} onChange={e => setPgEditorReplace(e.target.value)}
-                placeholder="置換後..." className="border border-slate-300 rounded px-2 py-1 text-xs w-40 font-mono" />
+            <div className="flex items-center gap-2 px-5 py-2 border-b border-slate-100 bg-slate-50 shrink-0">
+              <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2 py-1">
+                <span className="text-slate-400 text-xs">🔍</span>
+                <input
+                  value={pgEditorSearch}
+                  onChange={e => {
+                    const q = e.target.value;
+                    setPgEditorSearch(q);
+                    if (!q) { setPgMatchCount(0); setPgMatchPositions([]); setPgMatchIndex(0); return; }
+                    try {
+                      const esc = q.replace(/[-.*+?^${}()|[\]\\]/g, '\\$&');
+                      const regex = new RegExp(esc, 'gi');
+                      const positions: number[] = [];
+                      let m;
+                      while ((m = regex.exec(pgContent)) !== null) positions.push(m.index);
+                      setPgMatchPositions(positions);
+                      setPgMatchCount(positions.length);
+                      if (positions.length > 0 && pgTextareaRef.current) {
+                        const cursor = pgTextareaRef.current.selectionStart ?? 0;
+                        let idx = positions.findIndex(p => p >= cursor);
+                        if (idx === -1) idx = 0;
+                        setPgMatchIndex(idx);
+                        pgTextareaRef.current.focus();
+                        pgTextareaRef.current.setSelectionRange(positions[idx], positions[idx] + q.length);
+                      }
+                    } catch {}
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && pgMatchPositions.length > 0 && pgTextareaRef.current) {
+                      e.preventDefault();
+                      const next = (pgMatchIndex + (e.shiftKey ? -1 : 1) + pgMatchPositions.length) % pgMatchPositions.length;
+                      setPgMatchIndex(next);
+                      const pos = pgMatchPositions[next];
+                      pgTextareaRef.current.focus();
+                      pgTextareaRef.current.setSelectionRange(pos, pos + pgEditorSearch.length);
+                    }
+                  }}
+                  placeholder="検索（Enterで次へ / Shift+Enterで前へ）"
+                  className="text-xs font-mono w-64 focus:outline-none"
+                />
+                {pgMatchCount > 0 && (
+                  <span className="text-[10px] text-teal-600 font-bold whitespace-nowrap">{pgMatchIndex + 1}/{pgMatchCount}</span>
+                )}
+                {pgEditorSearch && pgMatchCount === 0 && (
+                  <span className="text-[10px] text-red-500 font-bold whitespace-nowrap">見つかりません</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2 py-1">
+                <span className="text-slate-400 text-xs">↩</span>
+                <input value={pgEditorReplace} onChange={e => setPgEditorReplace(e.target.value)}
+                  placeholder="置換後のテキスト" className="text-xs font-mono w-48 focus:outline-none" />
+              </div>
               <button onClick={() => {
-                if (!pgEditorSearch) return;
-                const escaped = pgEditorSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); const count = (pgContent.match(new RegExp(escaped, 'g')) ?? []).length;
-                showToast(`${count}件マッチ`);
-              }} className="px-2 py-1 text-xs bg-slate-200 hover:bg-slate-300 rounded font-bold">検索</button>
+                if (!pgEditorSearch || pgMatchPositions.length === 0 || !pgTextareaRef.current) return;
+                const pos = pgMatchPositions[pgMatchIndex];
+                const newContent = pgContent.slice(0, pos) + pgEditorReplace + pgContent.slice(pos + pgEditorSearch.length);
+                setPgContent(newContent);
+                showToast("1件置換しました");
+              }} className="px-3 py-1.5 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-bold border border-blue-300">置換</button>
               <button onClick={() => {
                 if (!pgEditorSearch) return;
                 const newContent = pgContent.split(pgEditorSearch).join(pgEditorReplace);
                 setPgContent(newContent);
-                showToast("置換しました");
-              }} className="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded font-bold">全置換</button>
-              <span className="text-[10px] text-slate-400 ml-2">{pgContent.split('\n').length}行 / {pgContent.length}文字</span>
+                showToast(pgMatchCount + "件を全置換しました");
+                setPgMatchCount(0); setPgMatchPositions([]);
+              }} className="px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold">全置換</button>
+              <div className="ml-auto text-[10px] text-slate-400">Enter: 次へ | Shift+Enter: 前へ | Ctrl+S: 保存</div>
             </div>
+
+            {/* エディタ本体 */}
             <div className="flex-1 overflow-hidden">
               <textarea
+                ref={pgTextareaRef}
                 value={pgContent}
                 onChange={e => setPgContent(e.target.value)}
-                className="w-full h-full p-4 font-mono text-xs text-green-300 bg-slate-900 resize-none focus:outline-none leading-relaxed"
-                style={{ minHeight: "400px" }}
+                onKeyDown={e => {
+                  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    if (!token || pgSaving) return;
+                    setPgSaving(true);
+                    fetch(`/api/mc/${mcId}/pg-content`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ content: pgContent, original_name: pgOrigName }),
+                    }).then(r => {
+                      if (!r.ok) throw new Error();
+                      setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
+                      showToast("✅ Ctrl+S: 保存しました");
+                    }).catch(() => showToast("❌ 保存失敗")).finally(() => setPgSaving(false));
+                  }
+                }}
+                className="w-full h-full p-5 font-mono text-sm text-green-300 bg-slate-900 resize-none focus:outline-none leading-relaxed"
                 spellCheck={false}
               />
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* 写真 複数プレビュー選択モーダル */}
-      {photoPreviewOpen && photoPreviewFiles.length > 0 && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
-              <div>
-                <span className="font-bold text-slate-800">写真の取り込み確認</span>
-                <span className="ml-2 text-xs text-slate-500">{photoPreviewFiles.filter(f => f.selected).length}/{photoPreviewFiles.length}枚 選択中</span>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setPhotoPreviewFiles(f => f.map(x => ({ ...x, selected: true })))}
-                  className="text-xs text-teal-600 font-bold px-2 py-1 rounded hover:bg-teal-50">全選択</button>
-                <button onClick={() => setPhotoPreviewFiles(f => f.map(x => ({ ...x, selected: false })))}
-                  className="text-xs text-slate-500 font-bold px-2 py-1 rounded hover:bg-slate-100">全解除</button>
-                <button onClick={async () => {
-                  if (!token) return;
-                  const selected = photoPreviewFiles.filter(f => f.selected);
-                  if (!selected.length) { showToast("1枚以上選択してください"); return; }
-                  setBulkUploading(true);
-                  let ok = 0;
-                  for (const item of selected) {
-                    try {
-                      await handleFileUpload(item.file, "PHOTO");
-                      ok++;
-                    } catch { /* ignore */ }
-                  }
-                  setBulkUploading(false);
-                  photoPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
-                  setPhotoPreviewOpen(false);
-                  setPhotoPreviewFiles([]);
-                  showToast(`✅ ${ok}枚の写真をアップロードしました`);
-                }} disabled={bulkUploading}
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold rounded-lg disabled:opacity-50">
-                  {bulkUploading ? "アップロード中..." : `選択した${photoPreviewFiles.filter(f=>f.selected).length}枚を取り込む`}
-                </button>
-                <button onClick={() => {
-                  photoPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
-                  setPhotoPreviewOpen(false); setPhotoPreviewFiles([]);
-                }} className="px-3 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-300">キャンセル</button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="grid grid-cols-4 gap-3">
-                {photoPreviewFiles.map((item, i) => (
-                  <div key={i} onClick={() => setPhotoPreviewFiles(f => f.map((x,j) => j===i ? {...x, selected: !x.selected} : x))}
-                    className={`cursor-pointer rounded-xl overflow-hidden border-3 transition-all ${item.selected ? "border-4 border-teal-500 shadow-lg" : "border-2 border-slate-200 opacity-60"}`}>
-                    <div className="aspect-square bg-slate-100 flex items-center justify-center overflow-hidden">
-                      <img src={item.url} alt={item.file.name} className="w-full h-full object-cover" />
-                    </div>
-                    <div className="px-2 py-1 bg-white">
-                      <p className="text-[10px] text-slate-600 truncate">{item.file.name}</p>
-                      <p className="text-[9px] text-slate-400">{(item.file.size / 1024).toFixed(0)} KB</p>
-                    </div>
-                    {item.selected && <div className="absolute top-1 right-1 w-5 h-5 bg-teal-500 rounded-full flex items-center justify-center text-white text-xs font-bold">✓</div>}
-                  </div>
-                ))}
-              </div>
+            {/* フッター */}
+            <div className="px-5 py-2 border-t border-slate-200 bg-slate-50 rounded-b-2xl shrink-0 flex items-center gap-4 text-[10px] text-slate-400">
+              <span>💡 Ctrl+S: サーバ保存</span>
+              <span>|</span>
+              <span>📂 USB/ファイルから読み込み → 確認後「サーバに保存」</span>
+              <span>|</span>
+              <span>💾 USB/指定先に保存: エディタ内容をUSBに直接書き出し</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* 図 複数プレビュー選択モーダル */}
-      {drawingPreviewOpen && drawingPreviewFiles.length > 0 && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
-              <div>
-                <span className="font-bold text-slate-800">図の取り込み確認</span>
-                <span className="ml-2 text-xs text-slate-500">{drawingPreviewFiles.filter(f => f.selected).length}/{drawingPreviewFiles.length}枚 選択中</span>
+      {/* 写真 アルバムプレビュー選択モーダル */}
+      {photoPreviewOpen && photoPreviewFiles.length > 0 && (() => {
+        const selectedCount = photoPreviewFiles.filter(f => f.selected).length;
+        const [expandedIdx, setExpandedIdx] = React.useState<number|null>(null);
+        return (
+          <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3">
+            <div className="bg-white rounded-2xl shadow-2xl flex flex-col" style={{width:"95vw",height:"95vh"}}>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50 rounded-t-2xl shrink-0">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">📷</span>
+                  <span className="font-bold text-slate-800">写真の選択・取り込み</span>
+                  <span className="bg-teal-100 text-teal-700 text-xs font-bold px-2.5 py-1 rounded-full">{selectedCount}/{photoPreviewFiles.length}枚 選択中</span>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setPhotoPreviewFiles(f => f.map(x => ({ ...x, selected: true })))}
+                    className="text-xs text-teal-600 font-bold px-3 py-1.5 rounded-lg hover:bg-teal-50 border border-teal-300">全選択</button>
+                  <button onClick={() => setPhotoPreviewFiles(f => f.map(x => ({ ...x, selected: false })))}
+                    className="text-xs text-slate-500 font-bold px-3 py-1.5 rounded-lg hover:bg-slate-100 border border-slate-300">全解除</button>
+                  <button onClick={async () => {
+                    const selected = photoPreviewFiles.filter(f => f.selected);
+                    if (!selected.length) { showToast("1枚以上選択してください"); return; }
+                    setBulkUploading(true);
+                    let ok = 0;
+                    for (const item of selected) {
+                      try { await handleFileUpload(item.file, "PHOTO"); ok++; } catch {}
+                    }
+                    setBulkUploading(false);
+                    photoPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
+                    setPhotoPreviewOpen(false); setPhotoPreviewFiles([]);
+                    showToast(`✅ ${ok}枚の写真を保存しました（加工ID連番で命名）`);
+                  }} disabled={bulkUploading || !selectedCount}
+                    className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold rounded-xl disabled:opacity-50 transition-colors">
+                    {bulkUploading ? "⏳ 保存中..." : `📥 選択した${selectedCount}枚を取り込む`}
+                  </button>
+                  <button onClick={() => {
+                    photoPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
+                    setPhotoPreviewOpen(false); setPhotoPreviewFiles([]);
+                  }} className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-300">✕ キャンセル</button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => setDrawingPreviewFiles(f => f.map(x => ({ ...x, selected: true })))}
-                  className="text-xs text-purple-600 font-bold px-2 py-1 rounded hover:bg-purple-50">全選択</button>
-                <button onClick={() => setDrawingPreviewFiles(f => f.map(x => ({ ...x, selected: false })))}
-                  className="text-xs text-slate-500 font-bold px-2 py-1 rounded hover:bg-slate-100">全解除</button>
-                <button onClick={async () => {
-                  if (!token) return;
-                  const selected = drawingPreviewFiles.filter(f => f.selected);
-                  if (!selected.length) { showToast("1枚以上選択してください"); return; }
-                  setBulkUploading(true);
-                  let ok = 0;
-                  for (const item of selected) {
-                    try {
-                      await handleFileUpload(item.file, "DRAWING");
-                      ok++;
-                    } catch { /* ignore */ }
-                  }
-                  setBulkUploading(false);
-                  drawingPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
-                  setDrawingPreviewOpen(false);
-                  setDrawingPreviewFiles([]);
-                  showToast(`✅ ${ok}枚の図をアップロードしました`);
-                }} disabled={bulkUploading}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-lg disabled:opacity-50">
-                  {bulkUploading ? "アップロード中..." : `選択した${drawingPreviewFiles.filter(f=>f.selected).length}枚を取り込む`}
-                </button>
-                <button onClick={() => {
-                  drawingPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
-                  setDrawingPreviewOpen(false); setDrawingPreviewFiles([]);
-                }} className="px-3 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-300">キャンセル</button>
+              <div className="flex-1 overflow-y-auto p-5 bg-slate-900">
+                <div className="grid gap-4" style={{gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))"}}>
+                  {photoPreviewFiles.map((item, i) => (
+                    <div key={i} className={`relative rounded-xl overflow-hidden transition-all group
+                      ${item.selected ? "ring-4 ring-teal-400 shadow-xl" : "ring-2 ring-slate-600 opacity-70 hover:opacity-100"}`}>
+                      <div className="absolute top-2 left-2 z-10"
+                        onClick={e => { e.stopPropagation(); setPhotoPreviewFiles(f => f.map((x,j) => j===i ? {...x, selected: !x.selected} : x)); }}>
+                        <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center font-bold text-sm
+                          ${item.selected ? "bg-teal-500 border-teal-500 text-white" : "bg-black/40 border-white/60 text-transparent"}`}>✓</div>
+                      </div>
+                      <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={e => { e.stopPropagation(); setExpandedIdx(i); }}
+                          className="w-7 h-7 rounded-full bg-black/60 border border-white/40 text-white text-xs flex items-center justify-center">⛶</button>
+                      </div>
+                      <div className="aspect-square bg-slate-800 overflow-hidden cursor-pointer"
+                        onClick={() => setPhotoPreviewFiles(f => f.map((x,j) => j===i ? {...x, selected: !x.selected} : x))}>
+                        <img src={item.url} alt={item.file.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-200" />
+                      </div>
+                      <div className="px-3 py-2 bg-slate-800 border-t border-slate-700">
+                        <p className="text-[11px] text-slate-200 font-medium truncate">{item.file.name}</p>
+                        <p className="text-[10px] text-slate-400">{(item.file.size / 1024).toFixed(0)} KB</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="grid grid-cols-4 gap-3">
-                {drawingPreviewFiles.map((item, i) => (
-                  <div key={i} onClick={() => setDrawingPreviewFiles(f => f.map((x,j) => j===i ? {...x, selected: !x.selected} : x))}
-                    className={`cursor-pointer rounded-xl overflow-hidden transition-all ${item.selected ? "border-4 border-purple-500 shadow-lg" : "border-2 border-slate-200 opacity-60"}`}>
-                    <div className="aspect-square bg-slate-100 flex items-center justify-center overflow-hidden">
-                      {item.url ? <img src={item.url} alt={item.file.name} className="w-full h-full object-cover" /> :
-                        <div className="text-4xl">📄</div>}
-                    </div>
-                    <div className="px-2 py-1 bg-white">
-                      <p className="text-[10px] text-slate-600 truncate">{item.file.name}</p>
-                      <p className="text-[9px] text-slate-400">{(item.file.size / 1024).toFixed(0)} KB</p>
-                    </div>
+              {expandedIdx !== null && (
+                <div className="absolute inset-0 z-20 bg-black/95 flex items-center justify-center rounded-2xl"
+                  onClick={() => setExpandedIdx(null)}>
+                  <button className="absolute top-4 right-4 text-white text-2xl bg-black/50 w-10 h-10 rounded-full flex items-center justify-center">✕</button>
+                  <button disabled={expandedIdx === 0} className="absolute left-4 text-white text-3xl bg-black/50 w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-30"
+                    onClick={e => { e.stopPropagation(); setExpandedIdx(i => i! > 0 ? i! - 1 : i); }}>‹</button>
+                  <img src={photoPreviewFiles[expandedIdx].url} alt="" className="max-w-[85vw] max-h-[85vh] object-contain rounded-lg" onClick={e => e.stopPropagation()} />
+                  <button disabled={expandedIdx === photoPreviewFiles.length - 1} className="absolute right-4 text-white text-3xl bg-black/50 w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-30"
+                    onClick={e => { e.stopPropagation(); setExpandedIdx(i => i! < photoPreviewFiles.length - 1 ? i! + 1 : i); }}>›</button>
+                  <div className="absolute bottom-4 text-slate-300 text-xs text-center">
+                    <p>{photoPreviewFiles[expandedIdx].file.name}</p>
+                    <p className="text-slate-500">{expandedIdx + 1} / {photoPreviewFiles.length}</p>
                   </div>
-                ))}
+                </div>
+              )}
+              <div className="px-5 py-2 border-t border-slate-200 bg-slate-50 rounded-b-2xl shrink-0 text-[10px] text-slate-400">
+                💡 クリックで選択/解除 | ⛶で拡大 | 保存ファイル名: 加工ID-連番（例: 5629-3.jpg）
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* 図 アルバムプレビュー選択モーダル */}
+      {drawingPreviewOpen && drawingPreviewFiles.length > 0 && (() => {
+        const selectedCount2 = drawingPreviewFiles.filter(f => f.selected).length;
+        const [expandedIdx2, setExpandedIdx2] = React.useState<number|null>(null);
+        return (
+          <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3">
+            <div className="bg-white rounded-2xl shadow-2xl flex flex-col" style={{width:"95vw",height:"95vh"}}>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50 rounded-t-2xl shrink-0">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">📐</span>
+                  <span className="font-bold text-slate-800">図の選択・取り込み</span>
+                  <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2.5 py-1 rounded-full">{selectedCount2}/{drawingPreviewFiles.length}件 選択中</span>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setDrawingPreviewFiles(f => f.map(x => ({ ...x, selected: true })))}
+                    className="text-xs text-purple-600 font-bold px-3 py-1.5 rounded-lg hover:bg-purple-50 border border-purple-300">全選択</button>
+                  <button onClick={() => setDrawingPreviewFiles(f => f.map(x => ({ ...x, selected: false })))}
+                    className="text-xs text-slate-500 font-bold px-3 py-1.5 rounded-lg hover:bg-slate-100 border border-slate-300">全解除</button>
+                  <button onClick={async () => {
+                    const selected = drawingPreviewFiles.filter(f => f.selected);
+                    if (!selected.length) { showToast("1件以上選択してください"); return; }
+                    setBulkUploading(true);
+                    let ok = 0;
+                    for (const item of selected) {
+                      try { await handleFileUpload(item.file, "DRAWING"); ok++; } catch {}
+                    }
+                    setBulkUploading(false);
+                    drawingPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
+                    setDrawingPreviewOpen(false); setDrawingPreviewFiles([]);
+                    showToast(`✅ ${ok}件の図を保存しました（加工ID連番で命名）`);
+                  }} disabled={bulkUploading || !selectedCount2}
+                    className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-xl disabled:opacity-50 transition-colors">
+                    {bulkUploading ? "⏳ 保存中..." : `📥 選択した${selectedCount2}件を取り込む`}
+                  </button>
+                  <button onClick={() => {
+                    drawingPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
+                    setDrawingPreviewOpen(false); setDrawingPreviewFiles([]);
+                  }} className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-300">✕ キャンセル</button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5 bg-slate-900">
+                <div className="grid gap-4" style={{gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))"}}>
+                  {drawingPreviewFiles.map((item, i) => (
+                    <div key={i} className={`relative rounded-xl overflow-hidden transition-all group
+                      ${item.selected ? "ring-4 ring-purple-400 shadow-xl" : "ring-2 ring-slate-600 opacity-70 hover:opacity-100"}`}>
+                      <div className="absolute top-2 left-2 z-10"
+                        onClick={e => { e.stopPropagation(); setDrawingPreviewFiles(f => f.map((x,j) => j===i ? {...x, selected: !x.selected} : x)); }}>
+                        <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center font-bold text-sm
+                          ${item.selected ? "bg-purple-500 border-purple-500 text-white" : "bg-black/40 border-white/60 text-transparent"}`}>✓</div>
+                      </div>
+                      {item.url && (
+                        <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={e => { e.stopPropagation(); setExpandedIdx2(i); }}
+                            className="w-7 h-7 rounded-full bg-black/60 border border-white/40 text-white text-xs flex items-center justify-center">⛶</button>
+                        </div>
+                      )}
+                      <div className="aspect-square bg-slate-800 overflow-hidden flex items-center justify-center cursor-pointer"
+                        onClick={() => setDrawingPreviewFiles(f => f.map((x,j) => j===i ? {...x, selected: !x.selected} : x))}>
+                        {item.url
+                          ? <img src={item.url} alt={item.file.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-200" />
+                          : <div className="text-center"><div className="text-5xl mb-2">📄</div><div className="text-xs text-slate-300">{item.file.name.split('.').pop()?.toUpperCase()}</div></div>
+                        }
+                      </div>
+                      <div className="px-3 py-2 bg-slate-800 border-t border-slate-700">
+                        <p className="text-[11px] text-slate-200 font-medium truncate">{item.file.name}</p>
+                        <p className="text-[10px] text-slate-400">{(item.file.size / 1024).toFixed(0)} KB</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {expandedIdx2 !== null && drawingPreviewFiles[expandedIdx2]?.url && (
+                <div className="absolute inset-0 z-20 bg-black/95 flex items-center justify-center rounded-2xl"
+                  onClick={() => setExpandedIdx2(null)}>
+                  <button className="absolute top-4 right-4 text-white text-2xl bg-black/50 w-10 h-10 rounded-full flex items-center justify-center">✕</button>
+                  <button disabled={expandedIdx2 === 0} className="absolute left-4 text-white text-3xl bg-black/50 w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-30"
+                    onClick={e => { e.stopPropagation(); setExpandedIdx2(i => i! > 0 ? i! - 1 : i); }}>‹</button>
+                  <img src={drawingPreviewFiles[expandedIdx2].url} alt="" className="max-w-[85vw] max-h-[85vh] object-contain rounded-lg" onClick={e => e.stopPropagation()} />
+                  <button disabled={expandedIdx2 === drawingPreviewFiles.length - 1} className="absolute right-4 text-white text-3xl bg-black/50 w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-30"
+                    onClick={e => { e.stopPropagation(); setExpandedIdx2(i => i! < drawingPreviewFiles.length - 1 ? i! + 1 : i); }}>›</button>
+                  <div className="absolute bottom-4 text-slate-300 text-xs text-center">
+                    <p>{drawingPreviewFiles[expandedIdx2].file.name}</p>
+                    <p className="text-slate-500">{expandedIdx2 + 1} / {drawingPreviewFiles.length}</p>
+                  </div>
+                </div>
+              )}
+              <div className="px-5 py-2 border-t border-slate-200 bg-slate-50 rounded-b-2xl shrink-0 text-[10px] text-slate-400">
+                💡 クリックで選択/解除 | ⛶で拡大 | 保存ファイル名: 加工ID-連番（例: 5629-3.jpg）
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-bold z-50">{toast}</div>
