@@ -358,7 +358,7 @@ export default function PdfEditorPage() {
     <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
 
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-white text-sm font-bold ${toast.ok ? "bg-emerald-500" : "bg-red-500"}`}>
+        <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-white text-sm font-bold ${toast.ok ? "bg-green-600" : "bg-red-600"}`}>
           {toast.msg}
         </div>
       )}
