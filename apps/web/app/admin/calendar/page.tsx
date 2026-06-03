@@ -105,24 +105,24 @@ export default function CalendarPage() {
         </div>
       </header>
 
-      {toast && <div className={"fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow text-white text-sm font-bold " + (toast.ok ? "bg-emerald-500" : "bg-red-500")}>{toast.msg}</div>}
+      {toast && <div className={"fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow text-white text-sm font-bold " + (toast.ok ? "bg-green-600" : "bg-red-600")}>{toast.msg}</div>}
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5 overflow-y-auto">
           <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">メニュー</div>
           {SIDEBAR_ITEMS.map(item => (
             <a key={item.href} href={item.href}
-              className={"mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors " + (pathname === item.href ? "bg-sky-600 text-white font-bold" : "text-slate-600 hover:bg-slate-100")}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={item.icon} /></svg>
+              className={"mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors " + (pathname === item.href ? "bg-sky-50 text-sky-700 font-bold border border-sky-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900")}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={item.icon} /></svg>
               {item.label}
             </a>
           ))}
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-3xl mx-auto space-y-4">
-            <div className="flex items-center justify-between">
-              <h1 className="text-base font-bold text-slate-800">営業カレンダー</h1>
+        <main className="flex-1 overflow-y-auto flex flex-col p-5 gap-3">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between shrink-0">
+              <h1 className="text-xl font-bold text-slate-800">営業カレンダー</h1>
               <div className="flex items-center gap-2">
                 <button onClick={bulkWeekend}
                   className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-bold">

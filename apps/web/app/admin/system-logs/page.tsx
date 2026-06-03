@@ -7,8 +7,8 @@ const SIDEBAR_ITEMS = [
   { href: "/admin/machines",    label: "機械管理",         icon: "M22 12h-4l-3 9L9 3l-3 9H2" },
   { href: "/mc/timecards",      label: "機械タイムカード", icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
   { href: "/admin/settings",    label: "システム設定",     icon: "M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" },
-  { href: "/admin/raw",         label: "RAWデータ",        icon: "M4 6h16M4 10h16M4 14h16M4 18h16" },
   { href: "/admin/calendar",    label: "営業カレンダー",   icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" },
+  { href: "/admin/raw",         label: "RAWデータ",        icon: "M4 6h16M4 10h16M4 14h16M4 18h16" },
   { href: "/admin/pdf-editor",  label: "PDFエディタ",      icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z" },
   { href: "/admin/system-logs", label: "システムログ",     icon: "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2-2h2a2 2 0 0 0 2 2" },
 ];
@@ -127,7 +127,7 @@ export default function SystemLogsPage() {
       </header>
 
       {toast && (
-        <div className={"fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow text-white text-sm font-bold " + (toast.ok ? "bg-emerald-500" : "bg-red-500")}>
+        <div className={"fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow text-white text-sm font-bold " + (toast.ok ? "bg-green-600" : "bg-red-600")}>
           {toast.msg}
         </div>
       )}
@@ -137,8 +137,8 @@ export default function SystemLogsPage() {
           <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">メニュー</div>
           {SIDEBAR_ITEMS.map(item => (
             <a key={item.href} href={item.href}
-              className={"mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors " + (pathname === item.href ? "bg-sky-600 text-white font-bold" : "text-slate-600 hover:bg-slate-100")}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              className={"mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors " + (pathname === item.href ? "bg-sky-50 text-sky-700 font-bold border border-sky-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900")}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d={item.icon} />
               </svg>
               {item.label}
@@ -146,10 +146,9 @@ export default function SystemLogsPage() {
           ))}
         </aside>
 
-        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200 bg-white shrink-0">
-            <div className="flex items-center justify-between mb-3">
-              <h1 className="text-base font-bold text-slate-800">システムログ</h1>
+        <main className="flex-1 overflow-hidden flex flex-col p-5 gap-3">
+          <div className="flex items-center justify-between shrink-0">
+            <h1 className="text-xl font-bold text-slate-800">システムログ</h1>
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
                   <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)}
@@ -165,26 +164,25 @@ export default function SystemLogsPage() {
                   30日以前を削除
                 </button>
               </div>
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <select value={fLevel} onChange={e => setFLevel(e.target.value)}
+          </div>
+          <div className="flex flex-wrap gap-2 bg-white p-3 rounded-xl border border-slate-200 shrink-0">
+            <select value={fLevel} onChange={e => setFLevel(e.target.value)}
                 className="text-xs border border-slate-200 rounded px-2 py-1.5 focus:outline-none">
                 {LEVELS.map(l => <option key={l} value={l}>{l || "レベル: すべて"}</option>)}
               </select>
-              <select value={fCategory} onChange={e => setFCategory(e.target.value)}
+            <select value={fCategory} onChange={e => setFCategory(e.target.value)}
                 className="text-xs border border-slate-200 rounded px-2 py-1.5 focus:outline-none">
                 {CATEGORIES.map(c => <option key={c} value={c}>{c || "カテゴリ: すべて"}</option>)}
               </select>
-              <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)}
+            <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)}
                 className="text-xs border border-slate-200 rounded px-2 py-1.5 focus:outline-none" />
-              <span className="text-xs text-slate-400">〜</span>
-              <input type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)}
+            <span className="text-xs text-slate-400">〜</span>
+            <input type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)}
                 className="text-xs border border-slate-200 rounded px-2 py-1.5 focus:outline-none" />
-              <span className="text-xs text-slate-500 ml-auto">全 {total} 件</span>
-            </div>
+            <span className="text-xs text-slate-400 self-center">全 {total} 件</span>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto bg-white rounded-xl border border-slate-200">
             {loading ? (
               <div className="flex items-center justify-center h-32 text-slate-400 text-sm">読み込み中...</div>
             ) : logs.length === 0 ? (
