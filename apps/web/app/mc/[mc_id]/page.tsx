@@ -564,9 +564,9 @@ export default function McDetailPage() {
                         <td className="px-3 py-2 font-mono text-center">{t.tNo ?? "—"}</td>
                         <td className="px-3 py-2 font-mono text-center">{t.lengthOffsetNo ?? "—"}</td>
                         <td className="px-3 py-2 font-mono text-center">{t.diaOffsetNo ?? "—"}</td>
-                        <td className="px-3 py-2 text-center">{t.diameter ? Number(t.diameter).toFixed(3) : "—"}</td>
+                        <td className="px-3 py-2 text-center font-mono">{t.dValueContent ?? "—"}</td>
                         <td className="px-3 py-2 font-mono text-slate-500">{t.subPgNo ?? "—"}</td>
-                        <td className="px-3 py-2 text-slate-500 text-[11px]">{t.dValueContent ?? "—"}</td>
+                        <td className="px-3 py-2 text-slate-500 text-[11px]">{t.note ?? "—"}</td>
                         <td className="px-3 py-2 text-center font-mono text-slate-400">{t.sortOrder}</td>
                       </tr>
                     ))}

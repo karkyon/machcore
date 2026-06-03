@@ -608,7 +608,7 @@ export default function McEditPage() {
                   </div>
                   <table className="w-full text-xs">
                     <thead className="bg-teal-50">
-                      <tr>{["N","工具","T","H","D","D値","SUB",""].map(h =>
+                      <tr>{["N","工具","T","H","D","D値","SUB","コメント","順番",""].map(h =>
                         <th key={h} className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100">{h}</th>)}</tr>
                     </thead>
                     <tbody>
@@ -628,6 +628,10 @@ export default function McEditPage() {
                             className="w-16 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-right" type="number" step="0.001" /></td>
                           <td className="px-2 py-1"><input value={t.sub_pg_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, sub_pg_no: e.target.value} : x))}
                             className="w-16 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                          <td className="px-2 py-1"><input value={t.note ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, note: e.target.value} : x))}
+                            className="w-32 border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                          <td className="px-2 py-1"><input value={t.sort_order != null ? String(t.sort_order) : ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, sort_order: e.target.value === "" ? 0 : Number(e.target.value)} : x))}
+                            className="w-14 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-right" type="number" /></td>
                           <td className="px-2 py-1"><button onClick={() => setToolingRows(r => r.filter((_,j) => j !== i))}
                             className="text-red-400 hover:text-red-600 text-xs">削除</button></td>
                         </tr>
