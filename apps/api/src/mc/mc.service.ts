@@ -192,6 +192,16 @@ export class McService {
     }));
   }
 
+  /** Ridoc図面プロキシ用: mc_id → {drawingNo} */
+  async findPartDrawingNo(mcId: number): Promise<{ drawingNo: string | null } | null> {
+    const r = await this.prisma.mcProgram.findUnique({
+      where: { id: mcId },
+      select: { part: { select: { drawingNo: true } } },
+    });
+    if (!r) return null;
+    return { drawingNo: r.part.drawingNo || null };
+  }
+
   // ══════════════════════════════════════════
   // MC-03: MC詳細取得
   // ══════════════════════════════════════════

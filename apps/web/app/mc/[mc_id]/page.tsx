@@ -44,6 +44,7 @@ export default function McDetailPage() {
   const [prints,  setPrints]  = useState<McSetupSheetLog[]| null>(null);
   const [histLoading, setHistLoading] = useState(false);
   const [previewFile, setPreviewFile] = useState<typeof d.files[0] | null>(null);
+  const [drawingModal, setDrawingModal] = useState(false);
   const [previewZoom, setPreviewZoom] = useState<"fit" | "real" | number>("fit");
 
   // 認証
@@ -714,6 +715,36 @@ export default function McDetailPage() {
         {/* ─── 写真・図 ─── */}
         {mainTab === "files" && (
           <div className="max-w-3xl mx-auto space-y-6">
+            {/* 📋 Ridoc図面カード */}
+            {d.part.drawingNo && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs font-bold text-white bg-indigo-600 px-2.5 py-0.5 rounded-full">📋 図面</span>
+                  <span className="text-xs text-slate-400">{d.part.drawingNo}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white rounded-xl border-2 border-indigo-300 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setDrawingModal(true)}>
+                    <div className="aspect-square bg-indigo-50 flex items-center justify-center overflow-hidden">
+                      <img src={`/api/mc/${mcId}/drawing-image?imgType=TN`} alt={`図面 ${d.part.drawingNo}`}
+                        className="w-full h-full object-contain" loading="lazy"
+                        onError={e => {
+                          const el=e.target as HTMLImageElement; el.style.display="none";
+                          const p=el.parentElement;
+                          if(p && !p.querySelector(".no-tn-msg")){
+                            const m=document.createElement("span"); m.className="no-tn-msg text-[10px] text-slate-400 text-center px-2";
+                            m.textContent="図面取得不可"; p.appendChild(m);
+                          }
+                        }} />
+                    </div>
+                    <div className="px-2 py-1.5 bg-indigo-50 border-t border-indigo-200">
+                      <p className="text-[11px] text-indigo-800 font-bold truncate">{d.part.drawingNo}</p>
+                      <p className="text-[10px] text-slate-400">クリックで拡大表示</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             {d.files.filter(f => f.file_type === "PHOTO" || f.file_type === "DRAWING").length === 0 ? (
               <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
                 <div className="text-4xl mb-3">📁</div>
@@ -828,6 +859,38 @@ export default function McDetailPage() {
         <AuthModal isOpen={true} ncProgramId={mcId} mcProgramId={mcId} sessionType={authType}
           onSuccess={() => setAuthOpen(false)}
           onCancel={() => setAuthOpen(false)} />
+      )}
+
+      {/* 📋 Ridoc図面モーダル */}
+      {drawingModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-0"
+          onClick={() => setDrawingModal(false)}>
+          <div className="bg-white flex flex-col w-screen h-screen" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-slate-50 shrink-0 gap-2">
+              <p className="text-sm font-bold text-slate-700">📋 図面 — {d.part.drawingNo}</p>
+              <div className="flex items-center gap-2">
+                <a href={`/api/mc/${mcId}/drawing-image?imgType=ORG`} target="_blank" rel="noopener noreferrer"
+                  className="px-2.5 py-1 text-xs font-bold rounded border bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100">
+                  🔍 原寸を新規タブで開く
+                </a>
+                <button onClick={() => setDrawingModal(false)}
+                  className="ml-1 text-slate-400 hover:text-slate-700 text-lg px-1.5">✕</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto bg-slate-900 flex items-center justify-center">
+              <img src={`/api/mc/${mcId}/drawing-image?imgType=ORG`} alt={`図面 ${d.part.drawingNo}`}
+                className="max-w-full max-h-full object-contain"
+                onError={e => {
+                  const el=e.target as HTMLImageElement; el.style.display="none";
+                  const p=el.parentElement;
+                  if(p && !p.querySelector(".no-draw-msg")){
+                    const m=document.createElement("p"); m.className="no-draw-msg text-slate-400 text-sm text-center";
+                    m.textContent="図面を取得できませんでした（RidocサーバーまたはRIDOC_API_URL未設定）"; p.appendChild(m);
+                  }
+                }} />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 写真・図プレビューモーダル */}
