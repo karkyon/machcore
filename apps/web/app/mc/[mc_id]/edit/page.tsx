@@ -1414,7 +1414,7 @@ export default function McEditPage() {
                 placeholder="置換後..." className="border border-slate-300 rounded px-2 py-1 text-xs w-40 font-mono" />
               <button onClick={() => {
                 if (!pgEditorSearch) return;
-                const count = (pgContent.match(new RegExp(pgEditorSearch.replace(/[.*+?^${}()|[\]\]/g,'\$&'), 'g')) ?? []).length;
+                const escaped = pgEditorSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); const count = (pgContent.match(new RegExp(escaped, 'g')) ?? []).length;
                 showToast(`${count}件マッチ`);
               }} className="px-2 py-1 text-xs bg-slate-200 hover:bg-slate-300 rounded font-bold">検索</button>
               <button onClick={() => {
