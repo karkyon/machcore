@@ -600,14 +600,14 @@ export default function McEditPage() {
                   )}
                 </div>
 
-                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div className="bg-white rounded-xl border border-slate-200">
                   <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-600">ツーリングリスト ({toolingRows.length}レコード)</span>
                     <button onClick={() => setToolingRows(prev => [...prev, { sort_order: (prev.length + 1) * 10, tool_no: "", tool_name: "", length_offset_no: "", dia_offset_no: "" }])}
                       className="text-xs text-teal-600 font-bold">+ 追加</button>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="text-xs w-full" style={{minWidth:"1050px"}}>
+                  <div>
+                    <table className="text-xs w-full" style={{minWidth:"1400px"}}>
                       <thead className="bg-teal-50 sticky top-0 z-10">
                         <tr>
                           <th className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100 w-20 whitespace-nowrap"></th>
