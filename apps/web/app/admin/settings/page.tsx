@@ -44,8 +44,7 @@ export default function AdminSettingsPage() {
   const [ncPrinter,     setNcPrinter]     = useState("");
   // Cron設定
   const [cronEnabled,  setCronEnabled]  = useState(true);
-  const [cronHour,     setCronHour]     = useState("5");
-  const [cronMinute,   setCronMinute]   = useState("0");
+  const [cronTime,     setCronTime]     = useState("05:00");
   const [tcDefStart,   setTcDefStart]   = useState("08:00");
   const [tcDefEnd,     setTcDefEnd]     = useState("17:00");
   const [cronSaving,   setCronSaving]   = useState(false);
@@ -63,8 +62,9 @@ export default function AdminSettingsPage() {
       const rows: any[] = d.data ?? [];
       const get = (k: string, def: string) => rows.find((r: any) => r.key === k)?.value ?? def;
       setCronEnabled(get("cron_timecard_enabled", "true") === "true");
-      setCronHour(get("cron_timecard_hour", "5"));
-      setCronMinute(get("cron_timecard_minute", "0"));
+      const h = get("cron_timecard_hour", "5").padStart(2,"0");
+      const m = get("cron_timecard_minute", "0").padStart(2,"0");
+      setCronTime(`${h}:${m}`);
       setTcDefStart(get("timecard_default_start", "08:00"));
       setTcDefEnd(get("timecard_default_end", "17:00"));
     }).catch(() => {});
@@ -125,8 +125,8 @@ export default function AdminSettingsPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ settings: [
           { key: "cron_timecard_enabled",  value: String(cronEnabled) },
-          { key: "cron_timecard_hour",     value: cronHour },
-          { key: "cron_timecard_minute",   value: cronMinute },
+          { key: "cron_timecard_hour",     value: cronTime.split(":")[0] },
+          { key: "cron_timecard_minute",   value: cronTime.split(":")[1] },
           { key: "timecard_default_start", value: tcDefStart },
           { key: "timecard_default_end",   value: tcDefEnd },
         ]}),
@@ -320,13 +320,8 @@ export default function AdminSettingsPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">実行時刻（時）</label>
-                    <input type="number" min="0" max="23" value={cronHour} onChange={e => setCronHour(e.target.value)}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">実行時刻（分）</label>
-                    <input type="number" min="0" max="59" value={cronMinute} onChange={e => setCronMinute(e.target.value)}
+                    <label className="block text-xs font-bold text-slate-500 mb-1">実行時刻（24時間表記）</label>
+                    <input type="time" value={cronTime} onChange={e => setCronTime(e.target.value)}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
                   </div>
                   <div>
@@ -340,7 +335,7 @@ export default function AdminSettingsPage() {
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
                   </div>
                 </div>
-                <p className="text-xs text-slate-400">毎日 {cronHour}:{String(cronMinute).padStart(2,"0")} に有効機械全台のタイムカードを自動生成します（営業カレンダーの休日はスキップ）</p>
+                <p className="text-xs text-slate-400">毎日 {cronTime} に有効機械全台のタイムカードを自動生成します（営業カレンダーの休日はスキップ）</p>
                 <div className="flex justify-end">
                   <button onClick={saveCronSettings} disabled={cronSaving}
                     className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors">
