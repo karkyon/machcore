@@ -169,7 +169,7 @@ export default function CalendarPage() {
                     const dt = `${year}-${String(month).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
                     const dow = new Date(year, month - 1, d).getDay();
                     const entry = entryMap[dt];
-                    const isHoliday = entry?.isHoliday ?? (dow === 0 || dow === 6);
+                    const isHoliday = entry?.is_holiday ?? (dow === 0 || dow === 6);
                     const isWeekend = dow === 0 || dow === 6;
                     const isToday = dt === today.toISOString().slice(0, 10);
 
