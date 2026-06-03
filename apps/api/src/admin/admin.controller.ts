@@ -876,11 +876,32 @@ export class AdminController {
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
   @Post('pm2/restart')
-  restartPm2(@Body() body: { name?: string }) {
+  async restartPm2(@Body() body: { name?: string }) {
     try {
       const target = body.name ?? 'all';
-      execSync(`pm2 restart ${target}`, { encoding: 'utf8', timeout: 30000 });
-      return { message: `pm2 restart ${target} 完了` };
+      if (target === 'all') {
+        // 自プロセス(machcore-api)を含む全体restart → 自身を除いて個別restart後、自身は遅延restart
+        const listOut = execSync('pm2 jlist', { encoding: 'utf8', timeout: 5000 });
+        const list: any[] = JSON.parse(listOut);
+        const others = list.map((p: any) => p.name).filter((n: string) => n !== 'machcore-api');
+        for (const name of others) {
+          try { execSync(`pm2 restart ${name}`, { encoding: 'utf8', timeout: 15000 }); } catch {}
+        }
+        // machcore-api自身は応答返却後に遅延restart
+        setTimeout(() => {
+          try { execSync('pm2 restart machcore-api', { encoding: 'utf8', timeout: 15000 }); } catch {}
+        }, 1500);
+        return { message: '全プロセス再起動完了（machcore-apiは1.5秒後に再起動）' };
+      } else if (target === 'machcore-api') {
+        // 自身のrestartは応答返却後に遅延実行
+        setTimeout(() => {
+          try { execSync('pm2 restart machcore-api', { encoding: 'utf8', timeout: 15000 }); } catch {}
+        }, 1000);
+        return { message: 'machcore-api を再起動します（1秒後）' };
+      } else {
+        execSync(`pm2 restart ${target}`, { encoding: 'utf8', timeout: 15000 });
+        return { message: `pm2 restart ${target} 完了` };
+      }
     } catch (e: any) {
       return { message: `失敗: ${e.message}` };
     }
