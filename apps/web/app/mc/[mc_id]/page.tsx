@@ -47,6 +47,9 @@ export default function McDetailPage() {
   const [drawingModal,   setDrawingModal]   = useState(false);
   const [drawingBlobUrl, setDrawingBlobUrl] = useState<string | null>(null);
   const [drawingLoading, setDrawingLoading] = useState(false);
+  const [drawingZoom,    setDrawingZoom]    = useState<number | "fit">("fit");
+  const [drawingPan,     setDrawingPan]     = useState({ x: 0, y: 0 });
+  const drawingDrag = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
   const [drawingAuthOpen, setDrawingAuthOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState<"fit" | "real" | number>("fit");
 
@@ -901,30 +904,92 @@ export default function McDetailPage() {
       {/* 📋 Ridoc図面モーダル */}
       {drawingModal && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-0"
-          onClick={() => setDrawingModal(false)}>
+          onClick={() => { setDrawingModal(false); setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}>
           <div className="bg-white flex flex-col w-screen h-screen" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-slate-50 shrink-0 gap-2">
               <p className="text-sm font-bold text-slate-700">📋 図面 — {d.part.drawingNo}</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* ズームコントロール */}
+                <button onClick={() => { setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}
+                  className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${drawingZoom === "fit" ? "bg-teal-600 text-white border-teal-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
+                  FIT
+                </button>
+                <button onClick={() => { setDrawingZoom(100); setDrawingPan({x:0,y:0}); }}
+                  className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${drawingZoom === 100 ? "bg-teal-600 text-white border-teal-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
+                  100%
+                </button>
+                <button onClick={() => setDrawingZoom(z => { const cur = typeof z === "number" ? z : 100; return Math.max(10, cur - 20); })}
+                  className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">－</button>
+                <span className="text-xs text-slate-500 w-12 text-center font-mono">
+                  {drawingZoom === "fit" ? "FIT" : `${drawingZoom}%`}
+                </span>
+                <button onClick={() => setDrawingZoom(z => { const cur = typeof z === "number" ? z : 100; return Math.min(800, cur + 20); })}
+                  className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">＋</button>
+                <div className="w-px h-5 bg-slate-200 mx-1" />
                 {drawingBlobUrl && (
                   <a href={drawingBlobUrl} download={`drawing-${d.part.drawingNo}.jpg`}
                     className="px-2.5 py-1 text-xs font-bold rounded border bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100">
                     ⬇ ダウンロード
                   </a>
                 )}
-                <button onClick={() => setDrawingModal(false)}
+                <button onClick={() => { setDrawingModal(false); setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}
                   className="ml-1 text-slate-400 hover:text-slate-700 text-lg px-1.5">✕</button>
               </div>
             </div>
-            <div className="flex-1 overflow-auto bg-slate-900 flex items-center justify-center">
+            <div
+              className="flex-1 relative overflow-hidden bg-slate-900 flex items-center justify-center"
+              style={{ cursor: drawingZoom !== "fit" ? (drawingDrag.current ? "grabbing" : "grab") : "default" }}
+              onWheel={e => {
+                if (!drawingBlobUrl) return;
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -20 : 20;
+                setDrawingZoom(z => {
+                  const cur = typeof z === "number" ? z : 100;
+                  const next = Math.max(10, Math.min(800, cur + delta));
+                  return next;
+                });
+              }}
+              onMouseDown={e => {
+                if (drawingZoom === "fit") return;
+                drawingDrag.current = { startX: e.clientX, startY: e.clientY, panX: drawingPan.x, panY: drawingPan.y };
+              }}
+              onMouseMove={e => {
+                if (!drawingDrag.current) return;
+                setDrawingPan({
+                  x: drawingDrag.current.panX + (e.clientX - drawingDrag.current.startX),
+                  y: drawingDrag.current.panY + (e.clientY - drawingDrag.current.startY),
+                });
+              }}
+              onMouseUp={() => { drawingDrag.current = null; }}
+              onMouseLeave={() => { drawingDrag.current = null; }}
+            >
               {drawingLoading ? (
                 <div className="flex flex-col items-center gap-3 text-slate-400">
                   <div className="w-8 h-8 border-2 border-slate-500 border-t-white rounded-full animate-spin" />
                   <span className="text-sm">図面を取得中…</span>
                 </div>
               ) : drawingBlobUrl ? (
-                <img src={drawingBlobUrl} alt={`図面 ${d.part.drawingNo}`}
-                  className="max-w-full max-h-full object-contain" />
+                <div
+                  style={{
+                    transform: drawingZoom === "fit"
+                      ? `translate(${drawingPan.x}px, ${drawingPan.y}px)`
+                      : `translate(${drawingPan.x}px, ${drawingPan.y}px) scale(${(drawingZoom as number) / 100})`,
+                    transformOrigin: "center center",
+                    transition: drawingDrag.current ? "none" : "transform 0.1s ease",
+                    userSelect: "none",
+                  }}
+                >
+                  <img
+                    src={drawingBlobUrl}
+                    alt={`図面 ${d.part.drawingNo}`}
+                    draggable={false}
+                    style={
+                      drawingZoom === "fit"
+                        ? { maxWidth: "95vw", maxHeight: "calc(100vh - 60px)", objectFit: "contain", display: "block" }
+                        : { width: "auto", height: "auto", display: "block" }
+                    }
+                  />
+                </div>
               ) : (
                 <p className="text-slate-400 text-sm text-center px-8">
                   図面を取得できませんでした<br />
