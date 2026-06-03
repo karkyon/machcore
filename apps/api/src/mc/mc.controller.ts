@@ -243,6 +243,18 @@ export class McController {
     return this.mcFiles.getPgFile(id);
   }
 
+  /** PGファイルをテキストで保存（エディタ保存用） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Put(':mc_id/pg-content')
+  async savePgContent(
+    @Param('mc_id', ParseIntPipe) id: number,
+    @Body() body: { content: string; original_name?: string },
+    @Req() req: any,
+  ) {
+    return this.mcFiles.savePgContent(id, body.content, body.original_name, req.user.id);
+  }
+
   /** PGファイルをダウンロード（USB書き出し用）
    *  単一ファイル → octet-stream
    *  複数ファイル → zip

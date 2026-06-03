@@ -267,6 +267,68 @@ export class McFilesService {
   }
 
 
+  // ── PGファイルテキスト保存（エディタ保存用）─────────────────────
+  async savePgContent(
+    mcProgramId: number,
+    content: string,
+    originalName: string | undefined,
+    uploadedBy: number,
+  ): Promise<{ message: string }> {
+    const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcProgramId } });
+    if (!mc) throw new NotFoundException(`MC_id ${mcProgramId} が存在しません`);
+
+    const basePath = await this.getBasePath();
+    const machId   = mc.machiningId;
+
+    // 既存MAINファイルを取得
+    const existing = await this.prisma.mcFile.findFirst({
+      where: { mcProgramId, fileType: 'PROGRAM', pgRole: 'MAIN', isDeleted: false },
+      orderBy: { uploadedAt: 'desc' },
+    });
+
+    const iconv = require('iconv-lite') as typeof import('iconv-lite');
+    const buf   = iconv.encode(content, 'Shift_JIS');
+
+    if (existing && fs.existsSync(existing.filePath)) {
+      // 既存ファイルを上書き
+      fs.writeFileSync(existing.filePath, buf);
+      // pg_updated_at を更新
+      await this.prisma.mcProgram.update({
+        where: { id: mcProgramId },
+        data:  { pgUpdatedAt: new Date(), pgCreatedBy: uploadedBy },
+      });
+      return { message: 'PGファイルを保存しました' };
+    }
+
+    // 既存なし → 新規保存
+    const name = originalName ?? `${machId}`;
+    const flatDir = path.join(basePath, 'mc_files', 'pg');
+    this.ensureDir(flatDir);
+    const storedName = `${machId}`;
+    const filePath   = path.join(flatDir, storedName);
+    fs.writeFileSync(filePath, buf);
+
+    await this.prisma.mcFile.create({
+      data: {
+        mcProgramId,
+        fileType:    'PROGRAM',
+        pgRole:      'MAIN',
+        originalName: name,
+        storedName,
+        mimeType:    'text/plain',
+        filePath,
+        fileSize:    buf.length,
+        uploadedBy,
+        sortOrder:   0,
+      },
+    });
+    await this.prisma.mcProgram.update({
+      where: { id: mcProgramId },
+      data:  { pgUpdatedAt: new Date(), pgCreatedBy: uploadedBy },
+    });
+    return { message: 'PGファイルを新規保存しました' };
+  }
+
   // ── PGファイル読み込み（インラインビューア用）──────────────────
   // MAINプログラムを優先、なければ最新PROGRAMを返す
   async getPgFile(mcProgramId: number): Promise<{
