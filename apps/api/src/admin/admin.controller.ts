@@ -781,7 +781,15 @@ export class AdminController {
       this.prisma.systemLog.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
       this.prisma.systemLog.count({ where }),
     ]);
-    return { total, page: parseInt(page), limit: parseInt(limit), data: rows };
+    const data = rows.map(r => ({
+      id:         r.id,
+      level:      r.level,
+      category:   r.category,
+      message:    r.message,
+      detail:     r.detail,
+      created_at: r.createdAt.toISOString(),
+    }));
+    return { total, page: parseInt(page), limit: parseInt(limit), data };
   }
 
   /** SYS-LOG: システムログ削除（古いログ） */
