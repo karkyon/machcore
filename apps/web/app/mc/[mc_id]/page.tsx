@@ -553,22 +553,20 @@ export default function McDetailPage() {
               ) : (
                 <table className="w-full text-xs">
                   <thead className="bg-teal-50 text-teal-700">
-                    <tr>{["順番","N(工具記号)","T番号","コメント","H補正","D補正","径(mm)","SUB","種別","備考"].map(h =>
+                    <tr>{["N(工具記号)","T番号","H補正","D補正","径(mm)","SUB","コメント","順番"].map(h =>
                       <th key={h} className="px-3 py-2 text-left font-bold border-b border-teal-100">{h}</th>)}</tr>
                   </thead>
                   <tbody>
                     {d.tooling.map((t, i) => (
                       <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                        <td className="px-3 py-2 text-center font-mono text-slate-400 w-10">{t.sortOrder}</td>
                         <td className="px-3 py-2 font-mono font-bold text-teal-700">{t.toolNo ?? "—"}</td>
                         <td className="px-3 py-2 font-mono text-slate-700">{t.tNo ?? "—"}</td>
-                        <td className="px-3 py-2 text-slate-500 text-[11px] max-w-[120px] truncate" title={t.dValueContent ?? ""}>{t.dValueContent ?? "—"}</td>
                         <td className="px-3 py-2 text-center font-mono">{t.lengthOffsetNo ?? "—"}</td>
                         <td className="px-3 py-2 text-center font-mono">{t.diaOffsetNo ?? "—"}</td>
                         <td className="px-3 py-2 text-center font-mono">{t.diameter ? Number(t.diameter).toFixed(3) : "—"}</td>
                         <td className="px-3 py-2 font-mono text-slate-500">{t.subPgNo ?? "—"}</td>
-                        <td className="px-3 py-2">{t.toolType ?? "—"}</td>
-                        <td className="px-3 py-2 text-slate-500">{t.note ?? "—"}</td>
+                        <td className="px-3 py-2 text-slate-500 text-[11px]">{t.dValueContent ?? "—"}</td>
+                        <td className="px-3 py-2 text-center font-mono text-slate-400">{t.sortOrder}</td>
                       </tr>
                     ))}
                   </tbody>

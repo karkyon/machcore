@@ -119,7 +119,20 @@ export default function McEditPage() {
       }
       setCreatorId(d.creatorId ? String(d.creatorId) : "");
       setSheetCreatedAt(d.sheetCreatedAt ? d.sheetCreatedAt.slice(0, 10) : "");
-      setToolingRows(d.tooling ?? []);
+      setToolingRows((d.tooling ?? []).map((t: any) => ({
+        sort_order:       t.sortOrder       ?? t.sort_order       ?? 0,
+        tool_no:          t.toolNo          ?? t.tool_no          ?? "",
+        t_no:             t.tNo             ?? t.t_no             ?? "",
+        tool_name:        t.toolName        ?? t.tool_name        ?? "",
+        length_offset_no: t.lengthOffsetNo  ?? t.length_offset_no ?? "",
+        dia_offset_no:    t.diaOffsetNo     ?? t.dia_offset_no    ?? "",
+        diameter:         t.diameter        != null ? Number(t.diameter) : null,
+        d_value_content:  t.dValueContent   ?? t.d_value_content  ?? "",
+        sub_pg_no:        t.subPgNo         ?? t.sub_pg_no        ?? "",
+        tool_type:        t.toolType        ?? t.tool_type        ?? "",
+        note:             t.note            ?? "",
+        raw_program_line: t.rawProgramLine  ?? t.raw_program_line ?? "",
+      })));
       setOffsetRows(d.workOffsets ?? []);
       setIndexRows(d.indexPrograms ?? []);
     }).catch(() => {});
