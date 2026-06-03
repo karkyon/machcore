@@ -735,9 +735,95 @@ export default function McEditPage() {
                     )}
                   </div>
                   {parseResult && (
-                    <div className="mt-3 text-xs text-amber-700">{parseResult.length}本の工具を検出しました。「取り込む」で確定します。</div>
+                    <div className="mt-3 text-xs text-amber-700 font-bold">{parseResult.length}本の工具を検出しました。内容を確認して「取り込む」で確定します。</div>
                   )}
                 </div>
+
+                {/* 解析結果プレビューテーブル */}
+                {parseResult && parseResult.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+                    <div className="bg-amber-100 px-4 py-2 border-b border-amber-200 flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-800">📋 解析プレビュー（{parseResult.length}件）— 取り込み前に確認</span>
+                      <button
+                        onClick={() => setParseResult(null)}
+                        className="text-xs text-amber-600 hover:text-amber-800 font-bold px-2 py-0.5 rounded hover:bg-amber-200">
+                        ✕ 閉じる
+                      </button>
+                    </div>
+                    <div className="overflow-y-auto max-h-[40vh]">
+                      <table className="text-xs w-auto border-collapse">
+                        <colgroup>
+                          <col style={{width:"36px"}} />
+                          <col style={{width:"70px"}} />
+                          <col style={{width:"60px"}} />
+                          <col style={{width:"180px"}} />
+                          <col style={{width:"50px"}} />
+                          <col style={{width:"50px"}} />
+                          <col style={{width:"60px"}} />
+                          <col style={{width:"60px"}} />
+                          <col style={{width:"180px"}} />
+                          <col style={{width:"60px"}} />
+                        </colgroup>
+                        <thead className="sticky top-0 z-10 bg-amber-200">
+                          <tr>
+                            <th className="px-2 py-1.5 text-center text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">#</th>
+                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">N</th>
+                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">T</th>
+                            <th className="px-2 py-1.5 text-left text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">工具名</th>
+                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">H</th>
+                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">D</th>
+                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">D値</th>
+                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">SUB</th>
+                            <th className="px-2 py-1.5 text-left text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">コメント</th>
+                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">順番</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {parseResult.map((item, i) => (
+                            <tr key={i} className={i % 2 === 0 ? "bg-white hover:bg-amber-50" : "bg-amber-50 hover:bg-amber-100"}>
+                              <td className="px-2 py-1 text-center text-slate-400 font-mono">{i + 1}</td>
+                              <td className="px-2 py-1 font-mono font-bold text-teal-700">{item.tool_no ?? "—"}</td>
+                              <td className="px-2 py-1 font-mono text-slate-700">{item.t_no ?? "—"}</td>
+                              <td className="px-2 py-1 text-slate-800 max-w-[180px] truncate" title={item.tool_name ?? ""}>{item.tool_name || "—"}</td>
+                              <td className="px-2 py-1 font-mono text-center text-slate-600">{item.length_offset_no ?? "—"}</td>
+                              <td className="px-2 py-1 font-mono text-center text-slate-600">{item.dia_offset_no ?? "—"}</td>
+                              <td className="px-2 py-1 text-center text-slate-600">{item.d_value_content || "—"}</td>
+                              <td className="px-2 py-1 font-mono text-center text-indigo-600">{item.sub_pg_no || "—"}</td>
+                              <td className="px-2 py-1 text-slate-500 max-w-[180px] truncate" title={item.note ?? ""}>{item.note || "—"}</td>
+                              <td className="px-2 py-1 text-center text-slate-400 font-mono">{item.sort_order}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="px-4 py-2 border-t border-amber-200 flex justify-end">
+                      <button
+                        onClick={() => {
+                          if (!parseResult) return;
+                          setToolingRows(parseResult.map((item, i) => ({
+                            sort_order:       item.sort_order       ?? (i + 1) * 10,
+                            tool_no:          item.tool_no          ?? "",
+                            t_no:             item.t_no             ?? "",
+                            tool_name:        item.tool_name        ?? "",
+                            length_offset_no: item.length_offset_no ?? "",
+                            dia_offset_no:    item.dia_offset_no    ?? "",
+                            diameter:         item.diameter         ?? null,
+                            d_value_content:  item.d_value_content  ?? "",
+                            sub_pg_no:        item.sub_pg_no        ?? "",
+                            tool_type:        item.tool_type        ?? "",
+                            note:             item.note             ?? "",
+                            raw_program_line: item.raw_program_line ?? "",
+                          })));
+                          setParseResult(null);
+                          setToolingText("");
+                          showToast("ツーリングデータを取り込みました");
+                        }}
+                        className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-6 py-2 rounded-lg font-bold">
+                        ✅ {parseResult.length}本を取り込む
+                      </button>
+                    </div>
+                  </div>
+                )}
 
               </div>
             )}
