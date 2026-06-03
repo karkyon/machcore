@@ -602,13 +602,19 @@ export default function McEditPage() {
                       {toolingRows.map((t, i) => (
                         <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                           <td className="px-2 py-1"><input value={t.tool_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, tool_no: e.target.value} : x))}
-                            className="w-16 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                            className="w-20 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" placeholder="N10" /></td>
+                          <td className="px-2 py-1"><input value={t.t_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, t_no: e.target.value} : x))}
+                            className="w-14 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" placeholder="T01" /></td>
                           <td className="px-2 py-1"><input value={t.tool_name ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, tool_name: e.target.value} : x))}
-                            className="w-40 border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                            className="w-36 border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
                           <td className="px-2 py-1"><input value={t.length_offset_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, length_offset_no: e.target.value} : x))}
-                            className="w-14 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                            className="w-14 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" placeholder="H1" /></td>
                           <td className="px-2 py-1"><input value={t.dia_offset_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, dia_offset_no: e.target.value} : x))}
-                            className="w-14 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                            className="w-14 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" placeholder="D1" /></td>
+                          <td className="px-2 py-1"><input value={t.diameter != null ? String(t.diameter) : ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, diameter: e.target.value === "" ? null : Number(e.target.value)} : x))}
+                            className="w-16 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-right" placeholder="0.000" type="number" step="0.001" /></td>
+                          <td className="px-2 py-1"><input value={t.sub_pg_no ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, sub_pg_no: e.target.value} : x))}
+                            className="w-16 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" placeholder="1001" /></td>
                           <td className="px-2 py-1"><input value={t.tool_type ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, tool_type: e.target.value} : x))}
                             className="w-20 border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
                           <td className="px-2 py-1"><button onClick={() => setToolingRows(r => r.filter((_,j) => j !== i))}

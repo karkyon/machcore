@@ -553,7 +553,7 @@ export default function McDetailPage() {
               ) : (
                 <table className="w-full text-xs">
                   <thead className="bg-teal-50 text-teal-700">
-                    <tr>{["T番号","工具名","径(mm)","H補正","D補正","種別","備考"].map(h =>
+                    <tr>{["順番","N(工具記号)","T番号","コメント","H補正","D補正","径(mm)","SUB","種別","備考"].map(h =>
                       <th key={h} className="px-3 py-2 text-left font-bold border-b border-teal-100">{h}</th>)}</tr>
                   </thead>
                   <tbody>
