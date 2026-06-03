@@ -290,17 +290,8 @@ export default function McEditPage() {
   const applyParseResult = () => {
     if (!parseResult) return;
     setToolingRows(parseResult.map((item, i) => ({
-      sort_order:       item.sort_order       ?? (i + 1) * 10,
-      tool_no:          item.tool_no          ?? "",
-      t_no:             item.t_no             ?? "",
-      tool_name:        item.tool_name        ?? "",
-      length_offset_no: item.length_offset_no ?? "",
-      dia_offset_no:    item.dia_offset_no    ?? "",
-      diameter:         item.diameter         ?? null,
-      d_value_content:  item.d_value_content  ?? "",
-      sub_pg_no:        item.sub_pg_no        ?? "",
-      tool_type:        item.tool_type        ?? "",
-      note:             item.note             ?? "",
+      sort_order: i, tool_no: item.tool_no, tool_name: item.tool_name ?? "",
+      length_offset_no: item.length_offset_no ?? "", dia_offset_no: item.dia_offset_no ?? "",
       raw_program_line: item.raw_program_line ?? "",
     })));
     setParseResult(null);
