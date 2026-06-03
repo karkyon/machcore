@@ -746,12 +746,26 @@ export class AdminController {
   @Roles('ADMIN')
   @Get('timecards')
   async adminGetTimecards(@Query('work_date') workDate: string) {
+    if (!workDate || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return [];
     const cards = await this.prisma.machineTimecard.findMany({
-      where: { workDate: new Date(workDate) },
-      include: { machine: { select: { machineCode: true, machineName: true, systemType: true } } },
+      where: { workDate: new Date(workDate + 'T00:00:00.000Z') },
+      include: { machine: { select: { machineCode: true, machineName: true, systemType: true, sortOrder: true, isActive: true } } },
       orderBy: [{ machine: { sortOrder: 'asc' } }, { id: 'asc' }],
     });
-    return cards;
+    const fmtT = (d: Date) => {
+      const h = String(d.getUTCHours()).padStart(2, '0');
+      const m = String(d.getUTCMinutes()).padStart(2, '0');
+      return `${h}:${m}`;
+    };
+    return cards.map(c => ({
+      id:          c.id,
+      machine_id:  c.machineId,
+      work_date:   workDate,
+      start_time:  fmtT(c.startTime),
+      end_time:    fmtT(c.endTime),
+      note:        c.note ?? '',
+      machine:     c.machine,
+    }));
   }
 
 
