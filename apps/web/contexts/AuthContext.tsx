@@ -41,15 +41,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     return t;
   });
-  const [operator, setOperator] = useState<Operator | null>(null);
-  const [sessionType, setSessionType] = useState<string | null>(null);
+  const [operator, setOperator] = useState<Operator | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const s = localStorage.getItem("work_operator");
+      return s ? JSON.parse(s) : null;
+    } catch { return null; }
+  });
+  const [sessionType, setSessionType] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("work_session_type") ?? null;
+  });
 
   const login = useCallback((res: WorkSessionResponse) => {
     setToken(res.access_token);
     setOperator(res.operator);
     setSessionType(res.session_type);
     if (typeof window !== "undefined") {
-      localStorage.setItem("work_token", res.access_token);
+      localStorage.setItem("work_token",        res.access_token);
+      localStorage.setItem("work_operator",     JSON.stringify(res.operator));
+      localStorage.setItem("work_session_type", res.session_type);
     }
   }, []);
 
@@ -62,6 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionType(null);
     if (typeof window !== "undefined") {
       localStorage.removeItem("work_token");
+      localStorage.removeItem("work_operator");
+      localStorage.removeItem("work_session_type");
     }
   }, [token]);
 
