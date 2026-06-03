@@ -138,6 +138,7 @@ export default function AdminSettingsPage() {
 
   const restartPm2 = async (name?: string) => {
     const token = getToken();
+    const isAll = !name || name === "all";
     setPm2Restarting(name ?? "all");
     try {
       const r = await fetch("/api/admin/pm2/restart", {
@@ -147,11 +148,24 @@ export default function AdminSettingsPage() {
       });
       const d = await r.json();
       showToast(d.message, true);
-      setTimeout(() => {
-        fetch("/api/admin/pm2/status", { headers: { Authorization: `Bearer ${token}` } })
-          .then(r => r.json()).then(d => setPm2List(d.data ?? [])).catch(() => {});
-      }, 2000);
-    } catch (e: any) { showToast("失敗: " + e.message, false); }
+      if (isAll) {
+        // 全プロセス再起動: APIも再起動するので3秒後にページリロード
+        setTimeout(() => { window.location.reload(); }, 3000);
+      } else {
+        setTimeout(() => {
+          fetch("/api/admin/pm2/status", { headers: { Authorization: `Bearer ${token}` } })
+            .then(r => r.json()).then(d => setPm2List(d.data ?? [])).catch(() => {});
+        }, 2000);
+      }
+    } catch {
+      // APIが自己再起動中でレスポンスが返らない場合は正常扱い
+      if (isAll || name === "machcore-api") {
+        showToast("再起動中…3秒後にページを再読み込みします", true);
+        setTimeout(() => { window.location.reload(); }, 3000);
+      } else {
+        showToast("再起動に失敗しました", false);
+      }
+    }
     finally { setPm2Restarting(null); }
   };
 
