@@ -568,7 +568,7 @@ export default function McEditPage() {
 
             {/* ツーリング */}
             {activeSection === "tooling" && (
-              <div className="space-y-4">
+              <div className="space-y-4 max-w-[978px]">
 
                 {/* ツーリングリスト */}
                 <div className="bg-white rounded-xl border border-slate-200">
@@ -603,8 +603,8 @@ export default function McEditPage() {
                         className="text-xs text-teal-600 font-bold">+ 追加</button>
                     </div>
                   </div>
-                  <div className="overflow-y-auto max-h-[55vh]" style={{display:"inline-block",minWidth:"100%"}}>
-                    <table className="text-xs border-collapse">
+                  <div className="overflow-y-auto max-h-[55vh]">
+                    <table className="text-xs w-full border-collapse">
                       <colgroup>
                         <col style={{width:"72px"}}/>
                         <col style={{width:"90px"}}/>
