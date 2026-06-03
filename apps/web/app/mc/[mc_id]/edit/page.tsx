@@ -559,59 +559,47 @@ export default function McEditPage() {
 
             {/* ツーリング */}
             {activeSection === "tooling" && (
-              <div className="max-w-4xl space-y-4">
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                  <p className="text-xs font-bold text-amber-700 mb-3">ツーリングプログラム読取り（MC専用機能）</p>
-                  <textarea value={toolingText} onChange={e => setToolingText(e.target.value)}
-                    onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("border-amber-500","bg-amber-100"); }}
-                    onDragLeave={e => { e.currentTarget.classList.remove("border-amber-500","bg-amber-100"); }}
-                    onDrop={e => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove("border-amber-500","bg-amber-100");
-                      const f = e.dataTransfer.files[0];
-                      if (f) { const reader = new FileReader(); reader.onload = ev => setToolingText(ev.target?.result as string ?? ""); reader.readAsText(f); }
-                    }}
-                    placeholder="ツーリングプログラムをここに貼り付け、またはファイルをドラッグ＆ドロップ..."
-                    rows={6}
-                    className="w-full border border-amber-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none resize-none" />
-                  <div className="flex items-center gap-2 mt-2 mb-2">
-                    <label className="px-3 py-1.5 bg-white border border-amber-400 text-amber-700 text-xs font-bold rounded cursor-pointer hover:bg-amber-50 transition-colors">
-                      ファイルを選択
-                      <input type="file" className="hidden"
-                        onChange={e => {
-                          const f2 = e.target.files?.[0];
-                          if (f2) { const reader = new FileReader(); reader.onload = ev => setToolingText(ev.target?.result as string ?? ""); reader.readAsText(f2); e.target.value = ""; }
-                        }} />
-                    </label>
-                    <span className="text-[10px] text-amber-600">またはテキストを貼り付け / D&D</span>
-                  </div>
-                  <div className="flex gap-2">
-                  <button onClick={handleParseTooling}
-                      className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-4 py-2 rounded-lg font-bold">解析・プレビュー</button>
-                    {parseResult && (
-                      <button onClick={applyParseResult}
-                        className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-4 py-2 rounded-lg font-bold">
-                        {parseResult.length}本を取り込む
-                      </button>
-                    )}
-                  </div>
-                  {parseResult && (
-                    <div className="mt-3 text-xs text-amber-700">{parseResult.length}本の工具を検出しました。「取り込む」で確定します。</div>
-                  )}
-                </div>
+              <div className="space-y-4">
 
+                {/* ツーリングリスト */}
                 <div className="bg-white rounded-xl border border-slate-200">
                   <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-600">ツーリングリスト ({toolingRows.length}レコード)</span>
-                    <button onClick={() => setToolingRows(prev => [...prev, { sort_order: (prev.length + 1) * 10, tool_no: "", tool_name: "", length_offset_no: "", dia_offset_no: "" }])}
-                      className="text-xs text-teal-600 font-bold">+ 追加</button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={async () => {
+                          if (!token) { alert("認証が必要です"); return; }
+                          try {
+                            await mcApi.saveTooling(mcId, toolingRows.map((t, idx) => ({
+                              sort_order:       t.sort_order       ?? idx,
+                              tool_no:          t.tool_no          ?? "",
+                              t_no:             t.t_no             ?? undefined,
+                              tool_name:        t.tool_name        ?? undefined,
+                              length_offset_no: t.length_offset_no ?? undefined,
+                              dia_offset_no:    t.dia_offset_no    ?? undefined,
+                              diameter:         t.diameter         ?? undefined,
+                              d_value_content:  t.d_value_content  ?? undefined,
+                              sub_pg_no:        t.sub_pg_no        ?? undefined,
+                              tool_type:        t.tool_type        ?? undefined,
+                              note:             t.note             ?? undefined,
+                              raw_program_line: t.raw_program_line ?? undefined,
+                            })), token);
+                            showToast("✅ ツーリングを保存しました");
+                          } catch { showToast("❌ 保存に失敗しました"); }
+                        }}
+                        className="px-3 py-1 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors">
+                        ✓ ツーリングを保存
+                      </button>
+                      <button onClick={() => setToolingRows(prev => [...prev, { sort_order: (prev.length + 1) * 10, tool_no: "", tool_name: "", length_offset_no: "", dia_offset_no: "" }])}
+                        className="text-xs text-teal-600 font-bold">+ 追加</button>
+                    </div>
                   </div>
                   <div className="overflow-y-auto max-h-[55vh]">
                     <table className="text-xs w-full border-collapse">
                       <colgroup>
                         <col style={{width:"72px"}}/>
                         <col style={{width:"90px"}}/>
-                        <col style={{width:"140px"}}/>
+                        <col style={{width:"210px"}}/>
                         <col style={{width:"54px"}}/>
                         <col style={{width:"54px"}}/>
                         <col style={{width:"54px"}}/>
@@ -637,6 +625,7 @@ export default function McEditPage() {
                         </tr>
                       </thead>
                       <tbody>
+
 
 
                       {toolingRows.map((t, i) => (
@@ -699,6 +688,48 @@ export default function McEditPage() {
                     </table>
                   </div>
                 </div>
+
+                {/* プログラム読取り（リストの下） */}
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <p className="text-xs font-bold text-amber-700 mb-3">ツーリングプログラム読取り（MC専用機能）</p>
+                  <textarea value={toolingText} onChange={e => setToolingText(e.target.value)}
+                    onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("border-amber-500","bg-amber-100"); }}
+                    onDragLeave={e => { e.currentTarget.classList.remove("border-amber-500","bg-amber-100"); }}
+                    onDrop={e => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove("border-amber-500","bg-amber-100");
+                      const f = e.dataTransfer.files[0];
+                      if (f) { const reader = new FileReader(); reader.onload = ev => setToolingText(ev.target?.result as string ?? ""); reader.readAsText(f); }
+                    }}
+                    placeholder="ツーリングプログラムをここに貼り付け、またはファイルをドラッグ＆ドロップ..."
+                    rows={6}
+                    className="w-full border border-amber-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none resize-none" />
+                  <div className="flex items-center gap-2 mt-2 mb-2">
+                    <label className="px-3 py-1.5 bg-white border border-amber-400 text-amber-700 text-xs font-bold rounded cursor-pointer hover:bg-amber-50 transition-colors">
+                      ファイルを選択
+                      <input type="file" className="hidden"
+                        onChange={e => {
+                          const f2 = e.target.files?.[0];
+                          if (f2) { const reader = new FileReader(); reader.onload = ev => setToolingText(ev.target?.result as string ?? ""); reader.readAsText(f2); e.target.value = ""; }
+                        }} />
+                    </label>
+                    <span className="text-[10px] text-amber-600">またはテキストを貼り付け / D&D</span>
+                  </div>
+                  <div className="flex gap-2">
+                  <button onClick={handleParseTooling}
+                      className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-4 py-2 rounded-lg font-bold">解析・プレビュー</button>
+                    {parseResult && (
+                      <button onClick={applyParseResult}
+                        className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-4 py-2 rounded-lg font-bold">
+                        {parseResult.length}本を取り込む
+                      </button>
+                    )}
+                  </div>
+                  {parseResult && (
+                    <div className="mt-3 text-xs text-amber-700">{parseResult.length}本の工具を検出しました。「取り込む」で確定します。</div>
+                  )}
+                </div>
+
               </div>
             )}
 
