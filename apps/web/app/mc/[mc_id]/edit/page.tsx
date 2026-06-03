@@ -568,7 +568,7 @@ export default function McEditPage() {
 
             {/* ツーリング */}
             {activeSection === "tooling" && (
-              <div className="space-y-4 max-w-[978px]">
+              <div className="space-y-4 max-w-[1188px]">
 
                 {/* ツーリングリスト */}
                 <div className="bg-white rounded-xl border border-slate-200">
@@ -614,7 +614,7 @@ export default function McEditPage() {
                         <col style={{width:"54px"}}/>
                         <col style={{width:"60px"}}/>
                         <col style={{width:"60px"}}/>
-                        <col style={{width:"210px"}}/>
+                        <col style={{width:"420px"}}/>
                         <col style={{width:"60px"}}/>
                         <col style={{width:"54px"}}/>
                       </colgroup>
