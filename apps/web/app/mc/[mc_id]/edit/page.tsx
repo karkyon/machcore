@@ -850,7 +850,7 @@ export default function McEditPage() {
                     <span className="text-xs font-bold text-slate-600">ワークオフセット ({offsetRows.length}レコード)</span>
                     <div className="flex items-center gap-2">
                       <button onClick={async () => {
-                        const token = sessionStorage.getItem("admin_token") || "";
+                        if (!token) { showToast("❌ 認証が必要です"); return; }
                         try {
                           await mcApi.saveWorkOffsets(mcId, offsetRows.map((o: any) => ({
                             g_code:   o.g_code   ?? o.gCode   ?? "",
@@ -956,7 +956,7 @@ export default function McEditPage() {
                     <span className="text-xs font-bold text-slate-600">インデックスプログラム ({indexRows.length}レコード)</span>
                     <div className="flex items-center gap-2">
                       <button onClick={async () => {
-                        const token = sessionStorage.getItem("admin_token") || "";
+                        if (!token) { showToast("❌ 認証が必要です"); return; }
                         try {
                           await mcApi.saveIndexPrograms(mcId, indexRows.map((r: any, idx: number) => ({
                             sort_order: idx,
