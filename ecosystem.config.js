@@ -9,7 +9,7 @@ module.exports = {
       autorestart: true,
       watch:   false,
       max_memory_restart: '512M',
-      env: { NODE_ENV: 'production', API_PORT: 3011 },
+      env: { NODE_ENV: 'production', API_PORT: 3011, RIDOC_API_URL: 'http://192.168.1.207:5087' },
       error_file: '/home/karkyon/.pm2/logs/machcore-api-error.log',
       out_file:   '/home/karkyon/.pm2/logs/machcore-api-out.log',
     },
