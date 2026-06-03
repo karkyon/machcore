@@ -133,22 +133,8 @@ export default function McEditPage() {
         note:             t.note            ?? "",
         raw_program_line: t.rawProgramLine  ?? t.raw_program_line ?? "",
       })));
-      setOffsetRows((d.workOffsets ?? []).map((o: any) => ({
-        g_code:   o.gCode   ?? o.g_code   ?? "",
-        x_offset: o.xOffset != null ? String(o.xOffset) : (o.x_offset != null ? String(o.x_offset) : ""),
-        y_offset: o.yOffset != null ? String(o.yOffset) : (o.y_offset != null ? String(o.y_offset) : ""),
-        z_offset: o.zOffset != null ? String(o.zOffset) : (o.z_offset != null ? String(o.z_offset) : ""),
-        a_offset: o.aOffset != null ? String(o.aOffset) : (o.a_offset != null ? String(o.a_offset) : ""),
-        r_offset: o.rOffset != null ? String(o.rOffset) : (o.r_offset != null ? String(o.r_offset) : ""),
-        note:     o.note    ?? "",
-      })));
-      setIndexRows((d.indexPrograms ?? []).map((p: any) => ({
-        sort_order: p.sortOrder ?? p.sort_order ?? 0,
-        axis_0:     p.axis0    ?? p.axis_0     ?? "",
-        axis_1:     p.axis1    ?? p.axis_1     ?? "",
-        axis_2:     p.axis2    ?? p.axis_2     ?? "",
-        note:       p.note     ?? "",
-      })));
+      setOffsetRows(d.workOffsets ?? []);
+      setIndexRows(d.indexPrograms ?? []);
     }).catch(() => {});
     machinesApi.list().then(r => setMachines((r as any).data ?? [])).catch(() => {});
     usersApi.list().then(r => setUsers((r as any).data ?? [])).catch(() => {});
@@ -844,106 +830,35 @@ export default function McEditPage() {
 
             {/* ワークオフセット */}
             {activeSection === "offset" && (
-              <div className="max-w-[816px]">
-                <div className="bg-white rounded-xl border border-slate-200">
-                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between rounded-t-xl">
-                    <span className="text-xs font-bold text-slate-600">ワークオフセット ({offsetRows.length}レコード)</span>
-                    <div className="flex items-center gap-2">
-                      <button onClick={async () => {
-                        const token = sessionStorage.getItem("admin_token") || "";
-                        try {
-                          await mcApi.saveWorkOffsets(mcId, offsetRows.map((o: any) => ({
-                            g_code:   o.g_code   ?? o.gCode   ?? "",
-                            x_offset: o.x_offset != null && o.x_offset !== "" ? Number(o.x_offset) : undefined,
-                            y_offset: o.y_offset != null && o.y_offset !== "" ? Number(o.y_offset) : undefined,
-                            z_offset: o.z_offset != null && o.z_offset !== "" ? Number(o.z_offset) : undefined,
-                            a_offset: o.a_offset != null && o.a_offset !== "" ? Number(o.a_offset) : undefined,
-                            r_offset: o.r_offset != null && o.r_offset !== "" ? Number(o.r_offset) : undefined,
-                            note:     o.note     ?? undefined,
-                          })), token);
-                          showToast("✅ ワークオフセットを保存しました");
-                        } catch { showToast("❌ 保存に失敗しました"); }
-                      }}
-                        className="px-3 py-1 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors">
-                        ✓ ワークオフセットを保存
-                      </button>
-                      <button onClick={() => setOffsetRows(prev => [...prev, { g_code: `G${54 + prev.length}` }])}
-                        className="text-xs text-teal-600 font-bold">+ 追加</button>
-                    </div>
+              <div className="max-w-3xl">
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-600">ワークオフセット ({offsetRows.length}件)</span>
+                    <button onClick={() => setOffsetRows(prev => [...prev, { g_code: `G${54 + prev.length}` }])}
+                      className="text-xs text-teal-600 font-bold">+ 追加</button>
                   </div>
-                  <div className="overflow-y-auto max-h-[55vh]">
-                    <table className="text-xs w-full border-collapse">
-                      <colgroup>
-                        <col style={{width:"72px"}}/>
-                        <col style={{width:"70px"}}/>
-                        <col style={{width:"100px"}}/>
-                        <col style={{width:"100px"}}/>
-                        <col style={{width:"100px"}}/>
-                        <col style={{width:"100px"}}/>
-                        <col style={{width:"100px"}}/>
-                        <col style={{width:"120px"}}/>
-                        <col style={{width:"54px"}}/>
-                      </colgroup>
-                      <thead className="bg-teal-50 sticky top-0 z-10">
-                        <tr>
-                          <th className="px-1 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">G</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">X</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">Y</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">Z</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">A / C</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">R / B</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">備考</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
+                  <table className="w-full text-xs">
+                    <thead className="bg-teal-50">
+                      <tr>{["G座標","X","Y","Z","A","R",""].map(h =>
+                        <th key={h} className="px-2 py-2 text-center font-bold text-teal-700 border-b border-teal-100">{h}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {offsetRows.map((o, i) => (
+                        <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                          <td className="px-2 py-1"><input value={o.g_code ?? o.gCode ?? ""} onChange={e => setOffsetRows(r => r.map((x,j) => j===i ? {...x, g_code: e.target.value} : x))}
+                            className="w-14 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-center" /></td>
+                          {["x_offset","y_offset","z_offset","a_offset","r_offset"].map(k => (
+                            <td key={k} className="px-2 py-1"><input type="number" step="0.001"
+                              value={o[k] ?? o[k.replace("_offset", "Offset")] ?? ""}
+                              onChange={e => setOffsetRows(r => r.map((x,j) => j===i ? {...x, [k]: e.target.value} : x))}
+                              className="w-20 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-center" /></td>
+                          ))}
+                          <td className="px-2 py-1"><button onClick={() => setOffsetRows(r => r.filter((_,j) => j !== i))}
+                            className="text-red-400 hover:text-red-600 text-xs">削除</button></td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {offsetRows.map((o, i) => (
-                          <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                            <td className="px-1 py-1">
-                              <div className="flex gap-0.5">
-                                <button onClick={() => {
-                                  if (i === 0) return;
-                                  setOffsetRows(r => {
-                                    const a = [...r]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a;
-                                  });
-                                }} disabled={i===0} className="text-[10px] px-1 py-0.5 bg-slate-100 hover:bg-slate-200 rounded disabled:opacity-30">↑</button>
-                                <button onClick={() => {
-                                  if (i === offsetRows.length - 1) return;
-                                  setOffsetRows(r => {
-                                    const a = [...r]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a;
-                                  });
-                                }} disabled={i===offsetRows.length-1} className="text-[10px] px-1 py-0.5 bg-slate-100 hover:bg-slate-200 rounded disabled:opacity-30">↓</button>
-                                <button onClick={() => {
-                                  setOffsetRows(r => {
-                                    const a = [...r];
-                                    a.splice(i + 1, 0, { g_code: "" });
-                                    return a;
-                                  });
-                                }} className="text-[10px] px-1 py-0.5 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded">+</button>
-                              </div>
-                            </td>
-                            <td className="px-1 py-1"><input value={o.g_code ?? o.gCode ?? ""} onChange={e => setOffsetRows(r => r.map((x,j) => j===i ? {...x, g_code: e.target.value} : x))}
-                              className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-center" /></td>
-                            {["x_offset","y_offset","z_offset","a_offset","r_offset"].map(k => (
-                              <td key={k} className="px-1 py-1"><input type="number" step="0.001"
-                                value={o[k] ?? ""}
-                                onChange={e => setOffsetRows(r => r.map((x,j) => j===i ? {...x, [k]: e.target.value} : x))}
-                                className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-center" /></td>
-                            ))}
-                            <td className="px-1 py-1"><input value={o.note ?? ""} onChange={e => setOffsetRows(r => r.map((x,j) => j===i ? {...x, note: e.target.value} : x))}
-                              className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
-                            <td className="px-1 py-1 text-center">
-                              <button onClick={() => setOffsetRows(r => r.filter((_,j) => j !== i))}
-                                className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">
-                                削除
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
