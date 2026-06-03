@@ -31,15 +31,87 @@ Microsoft Access 2010 製の NC/MC 管理データベースを NestJS / Next.js 
 
 ---
 
-## サーバ情報（開発環境）
+## サーバ情報
 
 | 項目 | 値 |
-|------|----|
-| サーバ | omega-dev2 (192.168.1.11) |
+|------|----||
+| サーバ | omega-dev2 (192.168.1.11 / Ubuntu 24.04) |
+| **MachCore Web (HTTPS)** | **https://192.168.1.11:8443** ← 通常利用 |
+| MachCore Web (HTTP) | http://192.168.1.11:3010 |
 | API | http://localhost:3011/api |
-| Web | http://localhost:3010 |
+| 証明書配布ページ | http://192.168.1.11:9100 |
 | DB | localhost:5440 / machcore_dev |
 | Redis | localhost:6390 |
+| nginx | 8443(HTTPS), 8080(redirect), 9100(証明書配布) |
+
+---
+
+## ネットワーク・HTTPS構成
+
+### アクセスURL
+
+| 用途 | URL | 備考 |
+|------|-----|------|
+| **MachCore 本体（通常利用）** | **https://192.168.1.11:8443** | HTTPS必須（File System Access API対応） |
+| MachCore 旧HTTP | http://192.168.1.11:3010 | 引き続き動作 |
+| 証明書インストールページ | http://192.168.1.11:9100 | 初回PC設定時のみ使用 |
+| API直接 | http://192.168.1.11:3011/api | 開発・デバッグ用 |
+
+### 構成図
+
+```
+クライアントPC (Chrome) ──HTTPS:8443──▶ nginx (192.168.1.11)
+                                              │
+                               ┌──────────────┘
+                               │ HTTP proxy
+                               ▼
+                         Next.js :3010
+                               │ rewrite /api/*
+                               ▼
+                         NestJS API :3011
+```
+
+### nginx 設定ファイル
+
+| ファイル | 内容 |
+|---------|------|
+| `/etc/nginx/sites-available/machcore` | MachCore本体 (8443/8080) |
+| `/etc/nginx/sites-available/machcore-cert` | 証明書配布ページ (9100) |
+| `/etc/nginx/ssl/machcore.crt` | mkcert サーバ証明書 |
+| `/etc/nginx/ssl/machcore.key` | 秘密鍵 |
+
+> ⚠️ **ポート80/443はDockerが占有しているため、nginx は 8443/8080 を使用**
+
+### SSL証明書 (mkcert)
+
+- **発行ツール**: mkcert v1.4.4
+- **CA証明書**: `/home/karkyon/.local/share/mkcert/rootCA.pem`
+- **証明書有効期限**: 2028年9月4日
+- **対象ホスト**: `192.168.1.11`, `localhost`, `127.0.0.1`
+
+### 新規PCのセットアップ手順（初回1回のみ）
+
+1. Chromeで `http://192.168.1.11:9100` を開く
+2. 「⚡ 自動インストールスクリプト(.ps1)」をダウンロード
+3. ダウンロードしたファイルを **右クリック→「管理者として実行」**
+4. 「✅ インストール完了！」が表示されたらChromeを再起動
+5. `https://192.168.1.11:8443` にアクセス
+
+### nginx 再起動・証明書更新コマンド
+
+```bash
+# nginx 設定テスト・再起動
+sudo nginx -t && sudo systemctl restart nginx
+
+# 証明書の再発行（有効期限切れ時）
+cd /tmp
+mkcert 192.168.1.11 localhost 127.0.0.1
+sudo cp /tmp/192.168.1.11+2.pem     /etc/nginx/ssl/machcore.crt
+sudo cp /tmp/192.168.1.11+2-key.pem /etc/nginx/ssl/machcore.key
+sudo cp /home/karkyon/.local/share/mkcert/rootCA.pem /var/www/machcore-cert/machcore-rootCA.crt
+sudo systemctl restart nginx
+# ※ 証明書再発行時は各PCで rootCA.pem の再インポートが必要
+```
 
 ---
 
