@@ -877,4 +877,78 @@ export class AdminController {
     }
   }
 
+
+  /** CAL-01: 営業カレンダー取得（年月指定） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('calendar')
+  async getCalendar(
+    @Query('year')  year?: string,
+    @Query('month') month?: string,
+  ) {
+    const y = parseInt(year ?? String(new Date().getFullYear()));
+    const m = parseInt(month ?? String(new Date().getMonth() + 1));
+    const from = new Date(y, m - 1, 1);
+    const to   = new Date(y, m, 0);
+    const rows = await this.prisma.businessCalendar.findMany({
+      where: { workDate: { gte: from, lte: to } },
+      orderBy: { workDate: 'asc' },
+    });
+    return { data: rows.map(r => ({
+      id: r.id,
+      work_date: r.workDate.toISOString().slice(0, 10),
+      is_holiday: r.isHoliday,
+      note: r.note,
+    })) };
+  }
+
+  /** CAL-02: 休日登録 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('calendar')
+  async setCalendar(@Body() body: { work_date: string; is_holiday: boolean; note?: string }) {
+    const d = new Date(body.work_date);
+    const result = await this.prisma.businessCalendar.upsert({
+      where: { workDate: d },
+      update: { isHoliday: body.is_holiday, note: body.note ?? null },
+      create: { workDate: d, isHoliday: body.is_holiday, note: body.note ?? null },
+    });
+    return { id: result.id, work_date: result.workDate.toISOString().slice(0, 10), is_holiday: result.isHoliday };
+  }
+
+  /** CAL-03: 休日削除 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Delete('calendar/:date')
+  async deleteCalendar(@Param('date') date: string) {
+    const d = new Date(date);
+    await this.prisma.businessCalendar.deleteMany({ where: { workDate: d } });
+    return { message: '削除しました' };
+  }
+
+  /** CAL-04: 年間一括登録（土日を休日として登録） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('calendar/bulk-weekend')
+  async bulkWeekend(@Body() body: { year: number }) {
+    const y = body.year;
+    let count = 0;
+    for (let m = 0; m < 12; m++) {
+      const days = new Date(y, m + 1, 0).getDate();
+      for (let d = 1; d <= days; d++) {
+        const dt = new Date(y, m, d);
+        const dow = dt.getDay();
+        if (dow === 0 || dow === 6) {
+          await this.prisma.businessCalendar.upsert({
+            where: { workDate: dt },
+            update: { isHoliday: true },
+            create: { workDate: dt, isHoliday: true, note: dow === 0 ? '日曜' : '土曜' },
+          });
+          count++;
+        }
+      }
+    }
+    return { message: `${y}年の土日 ${count}日を休日登録しました`, count };
+  }
+
 }

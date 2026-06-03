@@ -871,6 +871,15 @@ export class McService {
 
   // 全activeマシンの当日デフォルトレコード一括生成（upsert: 既存があれば何もしない）
   async initTimecards(workDate: string, operatorId: number) {
+    // 営業カレンダーで休日チェック
+    const calEntry = await this.prisma.businessCalendar.findFirst({
+      where: { workDate: new Date(workDate) },
+    });
+    if (calEntry?.isHoliday) {
+      this.logger.info('TIMECARD', `${workDate} は休日のためタイムカード生成スキップ`, { note: calEntry.note });
+      return { created: 0, message: '休日のためスキップ' };
+    }
+
     const machines = await this.prisma.machine.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: 'asc' },
