@@ -605,7 +605,7 @@ export default function McEditPage() {
                         <col style={{width:"54px"}}/>
                         <col style={{width:"60px"}}/>
                         <col style={{width:"60px"}}/>
-                        <col/>
+                        <col style={{width:"300px"}}/>
                         <col style={{width:"60px"}}/>
                         <col style={{width:"54px"}}/>
                       </colgroup>
