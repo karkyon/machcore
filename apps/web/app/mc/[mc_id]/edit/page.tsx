@@ -594,8 +594,8 @@ export default function McEditPage() {
                         className="text-xs text-teal-600 font-bold">+ 追加</button>
                     </div>
                   </div>
-                  <div className="overflow-y-auto max-h-[55vh]">
-                    <table className="text-xs w-auto border-collapse">
+                  <div className="overflow-y-auto max-h-[55vh]" style={{display:"inline-block",minWidth:"100%"}}>
+                    <table className="text-xs border-collapse">
                       <colgroup>
                         <col style={{width:"72px"}}/>
                         <col style={{width:"90px"}}/>
@@ -605,7 +605,7 @@ export default function McEditPage() {
                         <col style={{width:"54px"}}/>
                         <col style={{width:"60px"}}/>
                         <col style={{width:"60px"}}/>
-                        <col style={{width:"300px"}}/>
+                        <col style={{width:"210px"}}/>
                         <col style={{width:"60px"}}/>
                         <col style={{width:"54px"}}/>
                       </colgroup>
