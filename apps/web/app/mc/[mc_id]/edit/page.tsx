@@ -950,41 +950,104 @@ export default function McEditPage() {
 
             {/* インデックスプログラム */}
             {activeSection === "index" && (
-              <div className="max-w-3xl">
-                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-600">インデックスプログラム ({indexRows.length}件)</span>
-                    <button onClick={() => setIndexRows(prev => [...prev, { sort_order: prev.length, axis_0: "", axis_1: "", axis_2: "" }])}
-                      className="text-xs text-teal-600 font-bold">+ 追加</button>
+              <div className="max-w-[1016px]">
+                <div className="bg-white rounded-xl border border-slate-200">
+                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between rounded-t-xl">
+                    <span className="text-xs font-bold text-slate-600">インデックスプログラム ({indexRows.length}レコード)</span>
+                    <div className="flex items-center gap-2">
+                      <button onClick={async () => {
+                        const token = sessionStorage.getItem("admin_token") || "";
+                        try {
+                          await mcApi.saveIndexPrograms(mcId, indexRows.map((r: any, idx: number) => ({
+                            sort_order: idx,
+                            axis_0: r.axis_0 ?? r.axis0 ?? undefined,
+                            axis_1: r.axis_1 ?? r.axis1 ?? undefined,
+                            axis_2: r.axis_2 ?? r.axis2 ?? undefined,
+                            note:   r.note   ?? undefined,
+                          })), token);
+                          showToast("✅ インデックスPGを保存しました");
+                        } catch { showToast("❌ 保存に失敗しました"); }
+                      }}
+                        className="px-3 py-1 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors">
+                        ✓ インデックスPGを保存
+                      </button>
+                      <button onClick={() => setIndexRows(prev => [...prev, { sort_order: prev.length, axis_0: "", axis_1: "", axis_2: "" }])}
+                        className="text-xs text-teal-600 font-bold">+ 追加</button>
+                    </div>
                   </div>
-                  <table className="w-full text-xs">
-                    <thead className="bg-teal-50">
-                      <tr>{["No.","第0軸","第1軸","第2軸","備考",""].map(h =>
-                        <th key={h} className="px-2 py-2 text-left font-bold text-teal-700 border-b border-teal-100">{h}</th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {indexRows.map((p, i) => (
-                        <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                          <td className="px-2 py-1 text-center text-slate-400">{i+1}</td>
-                          {["axis_0","axis_1","axis_2"].map(k => (
-                            <td key={k} className="px-2 py-1"><input value={p[k] ?? p[k.replace("_","").replace("axis",k==="axis_0"?"axis0":k==="axis_1"?"axis1":"axis2")] ?? ""}
-                              onChange={e => setIndexRows(r => r.map((x,j) => j===i ? {...x, [k]: e.target.value} : x))}
-                              className="w-40 border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
-                          ))}
-                          <td className="px-2 py-1"><input value={p.note ?? ""}
-                            onChange={e => setIndexRows(r => r.map((x,j) => j===i ? {...x, note: e.target.value} : x))}
-                            className="w-32 border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
-                          <td className="px-2 py-1"><button onClick={() => setIndexRows(r => r.filter((_,j) => j !== i))}
-                            className="text-red-400 hover:text-red-600 text-xs">削除</button></td>
+                  <div className="overflow-y-auto max-h-[55vh]">
+                    <table className="text-xs w-full border-collapse">
+                      <colgroup>
+                        <col style={{width:"72px"}}/>
+                        <col style={{width:"90px"}}/>
+                        <col style={{width:"240px"}}/>
+                        <col style={{width:"240px"}}/>
+                        <col style={{width:"200px"}}/>
+                        <col style={{width:"120px"}}/>
+                        <col style={{width:"54px"}}/>
+                      </colgroup>
+                      <thead className="bg-teal-50 sticky top-0 z-10">
+                        <tr>
+                          <th className="px-1 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">STEP/N</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">第0軸</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">第1軸</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">第2軸</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">備考</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {indexRows.map((p, i) => (
+                          <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                            <td className="px-1 py-1">
+                              <div className="flex gap-0.5">
+                                <button onClick={() => {
+                                  if (i === 0) return;
+                                  setIndexRows(r => {
+                                    const a = [...r]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a;
+                                  });
+                                }} disabled={i===0} className="text-[10px] px-1 py-0.5 bg-slate-100 hover:bg-slate-200 rounded disabled:opacity-30">↑</button>
+                                <button onClick={() => {
+                                  if (i === indexRows.length - 1) return;
+                                  setIndexRows(r => {
+                                    const a = [...r]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a;
+                                  });
+                                }} disabled={i===indexRows.length-1} className="text-[10px] px-1 py-0.5 bg-slate-100 hover:bg-slate-200 rounded disabled:opacity-30">↓</button>
+                                <button onClick={() => {
+                                  setIndexRows(r => {
+                                    const a = [...r];
+                                    a.splice(i + 1, 0, { sort_order: i + 1, axis_0: "", axis_1: "", axis_2: "" });
+                                    return a;
+                                  });
+                                }} className="text-[10px] px-1 py-0.5 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded">+</button>
+                              </div>
+                            </td>
+                            <td className="px-1 py-1"><input value={p.axis_0 ?? ""} onChange={e => setIndexRows(r => r.map((x,j) => j===i ? {...x, axis_0: e.target.value} : x))}
+                              className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                            <td className="px-1 py-1"><input value={p.axis_0 ?? ""} onChange={e => setIndexRows(r => r.map((x,j) => j===i ? {...x, axis_0: e.target.value} : x))}
+                              className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                            <td className="px-1 py-1"><input value={p.axis_1 ?? ""} onChange={e => setIndexRows(r => r.map((x,j) => j===i ? {...x, axis_1: e.target.value} : x))}
+                              className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                            <td className="px-1 py-1"><input value={p.axis_2 ?? ""} onChange={e => setIndexRows(r => r.map((x,j) => j===i ? {...x, axis_2: e.target.value} : x))}
+                              className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                            <td className="px-1 py-1"><input value={p.note ?? ""} onChange={e => setIndexRows(r => r.map((x,j) => j===i ? {...x, note: e.target.value} : x))}
+                              className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                            <td className="px-1 py-1 text-center">
+                              <button onClick={() => setIndexRows(r => r.filter((_,j) => j !== i))}
+                                className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">
+                                削除
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* 図・写真 */}
             {activeSection === "files" && (
               <div className="max-w-3xl space-y-4">
                 <div className="bg-white border border-slate-200 rounded-xl p-4">

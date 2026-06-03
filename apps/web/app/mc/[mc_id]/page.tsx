@@ -626,6 +626,7 @@ export default function McDetailPage() {
                 </table>
                 </div>
               )}
+                </div>
             </div>
           </div>
         )}
