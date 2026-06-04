@@ -102,7 +102,7 @@ export default function McEditPage() {
   const [pgLoading,       setPgLoading]       = useState(false);
   const [pgSaving,        setPgSaving]        = useState(false);
   const [pgEditorSearch,  setPgEditorSearch]  = useState("");
-  const [pgDarkMode,      setPgDarkMode]      = useState(true);
+  const [pgDarkMode,      setPgDarkMode]      = useState(false);
   const [pgEditorReplace, setPgEditorReplace] = useState("");
   const [pgCreatedBy,     setPgCreatedBy]     = useState<string>("");
   const [pgUpdatedAtDisp, setPgUpdatedAtDisp] = useState<string>("");
@@ -803,6 +803,14 @@ export default function McEditPage() {
       setPgContent(_rawContent);
       console.log("[PGEditor] PGファイル読込完了 raw="+( data.content?.length??0)+" normalized="+_rawContent.length+" name="+(data.originalName??""));
                         setPgOrigName(data.originalName ?? "");
+                        // エディタ開く前に全state/refをリセット
+                        pgUndoStack.current = [];
+                        pgRedoStack.current = [];
+                        pgLastPush.current = 0;
+                        pgClearMatch();
+                        setPgEditorSearch(""); pgEditorSearchRef.current = "";
+                        setPgEditorReplace(""); pgEditorReplaceRef.current = "";
+                        setPgDarkMode(false);
                         setPgEditorOpen(true);
                       } catch { showToast("PGファイルが見つかりません"); }
                       finally { setPgLoading(false); }
@@ -1659,12 +1667,12 @@ export default function McEditPage() {
                 <button onClick={pgUndo} title="Undo (Ctrl+Z)"
                   className="px-2.5 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg border border-slate-300 disabled:opacity-40"
                   disabled={pgUndoStack.current.length === 0}>
-                  ↩ Undo
+                  ↩
                 </button>
                 <button onClick={pgRedo} title="Redo (Ctrl+Y)"
                   className="px-2.5 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg border border-slate-300 disabled:opacity-40"
                   disabled={pgRedoStack.current.length === 0}>
-                  ↪ Redo
+                  ↪
                 </button>
                 <button onClick={() => setPgDarkMode(m => !m)} title="表示切替"
                   className={`px-2.5 py-1.5 text-xs font-bold rounded-lg border transition-colors ${
@@ -1672,19 +1680,19 @@ export default function McEditPage() {
                       ? "bg-slate-700 hover:bg-slate-600 text-slate-200 border-slate-600"
                       : "bg-white hover:bg-slate-50 text-slate-700 border-slate-300"
                   }`}>
-                  {pgDarkMode ? "☀ LIGHT" : "🌙 DARK"}
+                  {pgDarkMode ? "☀" : "🌙"}
                 </button>
                 <button onClick={() => setPgEditorOpen(false)}
-                  className="px-3 py-1.5 text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg">
-                  ✕ 閉じる
+                  className="px-2.5 py-1.5 text-sm font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg" title="閉じる">
+                  ✕
                 </button>
               </div>
             </div>
 
             {/* 検索・置換バー */}
             <div className={`flex items-center gap-2 px-5 py-2 border-b shrink-0 ${pgDarkMode ? "border-slate-700 bg-slate-800" : "border-slate-100 bg-slate-50"}`}>
-              <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2 py-1">
-                <span className="text-slate-400 text-xs">🔍</span>
+              <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2 py-1 shrink-0" style={{width:"220px"}}>
+                <span className="text-slate-400 text-xs shrink-0">🔍</span>
                 <input
                   value={pgEditorSearch}
                   onChange={e => {
@@ -1699,23 +1707,23 @@ export default function McEditPage() {
                       pgClearMatch();
                     }
                   }}
-                  placeholder="キーワードを入力 → 検索ボタンで次へ"
-                  className="text-xs font-mono w-64 focus:outline-none"
+                  placeholder="キーワード入力"
+                  className="text-xs font-mono w-full focus:outline-none min-w-0"
                 />
                 {pgMatchCount > 0 && (
-                  <span className="text-[10px] text-teal-600 font-bold whitespace-nowrap">{pgMatchIndex + 1}/{pgMatchCount}</span>
+                  <span className="text-[10px] text-teal-600 font-bold whitespace-nowrap shrink-0">{pgMatchIndex + 1}/{pgMatchCount}</span>
                 )}
                 {pgEditorSearch && pgMatchCount === 0 && (
-                  <span className="text-[10px] text-red-500 font-bold whitespace-nowrap">見つかりません</span>
+                  <span className="text-[10px] text-red-500 font-bold whitespace-nowrap shrink-0">なし</span>
                 )}
               </div>
-              <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2 py-1">
-                <span className="text-slate-400 text-xs">↩</span>
+              <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2 py-1 shrink-0" style={{width:"180px"}}>
+                <span className="text-slate-400 text-xs shrink-0">↩</span>
                 <input value={pgEditorReplace} onChange={e => { pgEditorReplaceRef.current = e.target.value; setPgEditorReplace(e.target.value); }}
-                  placeholder="置換後のテキスト" className="text-xs font-mono w-48 focus:outline-none" />
+                  placeholder="置換後" className="text-xs font-mono w-full focus:outline-none min-w-0" />
               </div>
               <button onClick={handleSearchBtn}
-                className="px-3 py-1.5 text-xs bg-slate-500 hover:bg-slate-600 text-white rounded-lg font-bold">🔍 検索</button>
+                className="px-3 py-1.5 text-xs bg-slate-500 hover:bg-slate-600 text-white rounded-lg font-bold shrink-0">🔍 検索</button>
                      <button onClick={() => {
                 const sq = pgEditorSearchRef.current;
                 const rq = pgEditorReplaceRef.current;
@@ -1736,7 +1744,7 @@ export default function McEditPage() {
                 showToast("1件置換しました");
                 console.log("[PGEditor] 置換後コンテキスト: ["+newContent.slice(Math.max(0,pos-15), pos+rq.length+15)+"]");
                 execSearchQuery(sq, pos + rq.length);
-              }} className="px-3 py-1.5 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-bold border border-blue-300">置換</button>
+              }} className="px-3 py-1.5 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-bold border border-blue-300 shrink-0">置換</button>
               <button onClick={() => {
                 const sq = pgEditorSearchRef.current;
                 const rq = pgEditorReplaceRef.current;
@@ -1751,8 +1759,8 @@ export default function McEditPage() {
                 pgSetContent(newContent);
                 showToast(count + "件を全置換しました");
                 pgClearMatch();
-              }} className="px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold">全置換</button>
-              <div className="ml-auto text-[10px] text-slate-400">Ctrl+Z: Undo | Ctrl+Y: Redo | Ctrl+S: 保存 | Esc: 検索解除</div>
+              }} className="px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold shrink-0">全置換</button>
+              <div className="ml-auto text-[10px] text-slate-400 shrink-0">Ctrl+S: 保存 | Esc: 解除</div>
             </div>
 
             {/* エディタ本体 */}
