@@ -83,7 +83,10 @@ export default function McEditPage() {
 
   // PGエディタ
   const pgTextareaRef    = React.useRef<HTMLTextAreaElement>(null);
-  const pgSearchInputRef = React.useRef<HTMLInputElement>(null);
+  // Undo/Redo スタック
+  const pgUndoStack      = React.useRef<string[]>([]);
+  const pgRedoStack      = React.useRef<string[]>([]);
+  const pgLastPush       = React.useRef<number>(0);
   const [pgEditorOpen,    setPgEditorOpen]    = useState(false);
   const [pgMatchCount,    setPgMatchCount]    = useState(0);
   const [pgMatchIndex,    setPgMatchIndex]    = useState(0);
@@ -93,6 +96,7 @@ export default function McEditPage() {
   const [pgLoading,       setPgLoading]       = useState(false);
   const [pgSaving,        setPgSaving]        = useState(false);
   const [pgEditorSearch,  setPgEditorSearch]  = useState("");
+  const [pgDarkMode,      setPgDarkMode]      = useState(true);
   const [pgEditorReplace, setPgEditorReplace] = useState("");
   const [pgCreatedBy,     setPgCreatedBy]     = useState<string>("");
   const [pgUpdatedAtDisp, setPgUpdatedAtDisp] = useState<string>("");
@@ -227,46 +231,64 @@ export default function McEditPage() {
     `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 
   // ────────── PG検索ヘルパー ──────────
-  // textareaのcharオフセット→ scrollTop を計算してスクロール（focusは一切しない）
-  const scrollTextareaToMatch = (pos: number) => {
-    const ta = pgTextareaRef.current;
-    if (!ta) return;
-    const text = ta.value.slice(0, pos);
-    const linesBefore = (text.match(/\n/g) || []).length;
-    const lineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 18;
-    const paddingTop = parseFloat(getComputedStyle(ta).paddingTop) || 0;
-    const targetScroll = linesBefore * lineHeight + paddingTop - ta.clientHeight / 2;
-    ta.scrollTop = Math.max(0, targetScroll);
-  };
-
-  const execSearchQuery = (q: string, startFromBeginning = true) => {
-    if (!q) return;
-    const text = pgTextareaRef.current?.value ?? pgContent;
+  const execSearchQuery = (q: string, fromIndex = 0) => {
+    if (!q || !pgTextareaRef.current) return;
+    const ta   = pgTextareaRef.current;
+    const text = ta.value;            // textarea の実際の値
     try {
-      const esc = q.replace(/[-.*+?^${}()|[\\]\\]/g, '\\$&');
-      const regex = new RegExp(esc, 'gi');
+      const esc  = q.replace(/[-.*+?^${}()|[\]\]/g, "\\$&");
+      const regex = new RegExp(esc, "gi");
       const positions: number[] = [];
-      let m;
+      let m: RegExpExecArray | null;
       while ((m = regex.exec(text)) !== null) positions.push(m.index);
       setPgMatchPositions(positions);
       setPgMatchCount(positions.length);
-      if (positions.length > 0) {
-        const idx = startFromBeginning ? 0 : Math.min(pgMatchIndex, positions.length - 1);
-        setPgMatchIndex(idx);
-        scrollTextareaToMatch(positions[idx]);
-      }
+      if (positions.length === 0) return;
+      // fromIndex を超える最初のマッチ（なければ先頭に折り返し）
+      let idx = positions.findIndex(p => p >= fromIndex);
+      if (idx === -1) idx = 0;
+      setPgMatchIndex(idx);
+      // textarea をフォーカスしてハイライト表示
+      ta.focus();
+      ta.setSelectionRange(positions[idx], positions[idx] + q.length);
     } catch {}
-    // フォーカスを検索inputに維持
-    requestAnimationFrame(() => { pgSearchInputRef.current?.focus(); });
   };
 
-  const goNextMatch = (reverse = false) => {
-    if (pgMatchPositions.length === 0) { execSearchQuery(pgEditorSearch, true); return; }
-    const next = (pgMatchIndex + (reverse ? -1 : 1) + pgMatchPositions.length) % pgMatchPositions.length;
-    setPgMatchIndex(next);
-    scrollTextareaToMatch(pgMatchPositions[next]);
-    requestAnimationFrame(() => { pgSearchInputRef.current?.focus(); });
+  // 検索ボタン押下: 連続クリックで次のマッチへ
+  const handleSearchBtn = () => {
+    if (!pgEditorSearch) return;
+    const ta = pgTextareaRef.current;
+    if (!ta) return;
+    if (pgMatchPositions.length === 0) {
+      // 初回: 先頭から検索
+      execSearchQuery(pgEditorSearch, 0);
+    } else {
+      // 次のマッチへ（折り返しあり）
+      const nextIdx = (pgMatchIndex + 1) % pgMatchPositions.length;
+      setPgMatchIndex(nextIdx);
+      ta.focus();
+      ta.setSelectionRange(pgMatchPositions[nextIdx], pgMatchPositions[nextIdx] + pgEditorSearch.length);
+    }
   };
+
+  // Undo: スタックから1つ戻す
+  const pgUndo = () => {
+    if (pgUndoStack.current.length === 0) return;
+    pgRedoStack.current.push(pgContent);
+    const prev = pgUndoStack.current.pop()!;
+    setPgContent(prev);
+    requestAnimationFrame(() => { pgTextareaRef.current?.focus(); });
+  };
+
+  // Redo: スタックから1つ進める
+  const pgRedo = () => {
+    if (pgRedoStack.current.length === 0) return;
+    pgUndoStack.current.push(pgContent);
+    const next = pgRedoStack.current.pop()!;
+    setPgContent(next);
+    requestAnimationFrame(() => { pgTextareaRef.current?.focus(); });
+  };
+
   // PGファイルをUSBから登録（単体 or フォルダ）
   const handlePgUploadFromUSB = async (mode: "file" | "folder") => {
     if (!token) { showToast("❌ 認証が必要です"); return; }
@@ -1503,13 +1525,13 @@ export default function McEditPage() {
       {/* PGエディタモーダル */}
       {pgEditorOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-2">
-          <div className="bg-white rounded-2xl shadow-2xl flex flex-col" style={{width:"90vw", height:"95vh", maxWidth:"1400px"}}>
+          <div style={{width:"90vw", height:"95vh", maxWidth:"1400px"}} className={`${pgDarkMode ? "bg-slate-900" : "bg-white"} rounded-2xl shadow-2xl flex flex-col`}>
 
             {/* ヘッダー */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50 rounded-t-2xl shrink-0">
+            <div className={`flex items-center justify-between px-5 py-3 border-b shrink-0 rounded-t-2xl ${pgDarkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-slate-50"}`}>
               <div className="flex items-center gap-3">
                 <span className="text-slate-400 text-lg">📄</span>
-                <span className="font-bold text-slate-800">PGエディタ</span>
+                <span className={`font-bold ${pgDarkMode ? "text-slate-100" : "text-slate-800"}`}>PGエディタ</span>
                 {pgOrigName && <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded-lg border">{pgOrigName}</span>}
                 {detail?.machiningId && (
                   <span className="text-xs text-slate-400 font-mono">
@@ -1544,7 +1566,7 @@ export default function McEditPage() {
                       types: [{ description: 'NCプログラム', accept: { 'text/plain': ['.min','.spf','.mpf','.nc','.txt'] } }],
                     });
                     const writable = await fileHandle.createWritable();
-                    await writable.write(pgTextareaRef.current?.value ?? pgContent);
+                    await writable.write(pgContent);
                     await writable.close();
                     showToast("✅ USB/指定先に保存しました");
                   } catch (e: any) {
@@ -1561,10 +1583,9 @@ export default function McEditPage() {
                     const res = await fetch(`/api/mc/${mcId}/pg-content`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ content: pgTextareaRef.current?.value ?? pgContent, original_name: pgOrigName }),
+                      body: JSON.stringify({ content: pgContent, original_name: pgOrigName }),
                     });
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    if (pgTextareaRef.current) setPgContent(pgTextareaRef.current.value);
                     setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
                     showToast("✅ PGファイルをサーバに保存しました");
                   } catch (e: any) {
@@ -1574,6 +1595,24 @@ export default function McEditPage() {
                   className="px-3 py-1.5 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors disabled:opacity-50">
                   {pgSaving ? "⏳ 保存中..." : "✓ サーバに保存"}
                 </button>
+                <button onClick={pgUndo} title="Undo (Ctrl+Z)"
+                  className="px-2.5 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg border border-slate-300 disabled:opacity-40"
+                  disabled={pgUndoStack.current.length === 0}>
+                  ↩ Undo
+                </button>
+                <button onClick={pgRedo} title="Redo (Ctrl+Y)"
+                  className="px-2.5 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg border border-slate-300 disabled:opacity-40"
+                  disabled={pgRedoStack.current.length === 0}>
+                  ↪ Redo
+                </button>
+                <button onClick={() => setPgDarkMode(m => !m)} title="表示切替"
+                  className={`px-2.5 py-1.5 text-xs font-bold rounded-lg border transition-colors ${
+                    pgDarkMode
+                      ? "bg-slate-700 hover:bg-slate-600 text-slate-200 border-slate-600"
+                      : "bg-white hover:bg-slate-50 text-slate-700 border-slate-300"
+                  }`}>
+                  {pgDarkMode ? "☀ LIGHT" : "🌙 DARK"}
+                </button>
                 <button onClick={() => setPgEditorOpen(false)}
                   className="px-3 py-1.5 text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg">
                   ✕ 閉じる
@@ -1582,7 +1621,7 @@ export default function McEditPage() {
             </div>
 
             {/* 検索・置換バー */}
-            <div className="flex items-center gap-2 px-5 py-2 border-b border-slate-100 bg-slate-50 shrink-0">
+            <div className={`flex items-center gap-2 px-5 py-2 border-b shrink-0 ${pgDarkMode ? "border-slate-700 bg-slate-800" : "border-slate-100 bg-slate-50"}`}>
               <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2 py-1">
                 <span className="text-slate-400 text-xs">🔍</span>
                 <input
@@ -1593,35 +1632,13 @@ export default function McEditPage() {
                     if (!q) { setPgMatchCount(0); setPgMatchPositions([]); setPgMatchIndex(0); }
                   }}
                   onKeyDown={e => {
-                    if (e.key === 'Enter' && !e.shiftKey && pgMatchPositions.length === 0 && pgEditorSearch) {
-                      // 初回Enter: 検索実行
-                      e.preventDefault();
-                      const q = pgEditorSearch;
-                      try {
-                        const esc = q.replace(/[-.*+?^${}()|[\]\\]/g, '\\$&');
-                        const regex = new RegExp(esc, 'gi');
-                        const positions: number[] = [];
-                        let m;
-                        while ((m = regex.exec(pgContent)) !== null) positions.push(m.index);
-                        setPgMatchPositions(positions);
-                        setPgMatchCount(positions.length);
-                        if (positions.length > 0 && pgTextareaRef.current) {
-                          setPgMatchIndex(0);
-                          pgTextareaRef.current.focus();
-                          pgTextareaRef.current.setSelectionRange(positions[0], positions[0] + q.length);
-                        }
-                      } catch {}
-                      return;
+                    if (e.key === 'Escape') {
+                      setPgEditorSearch('');
+                      setPgMatchCount(0);
+                      setPgMatchPositions([]);
+                      setPgMatchIndex(0);
                     }
-                    if (e.key === 'Enter' && pgMatchPositions.length > 0 && pgTextareaRef.current) {
-                      e.preventDefault();
-                      const next = (pgMatchIndex + (e.shiftKey ? -1 : 1) + pgMatchPositions.length) % pgMatchPositions.length;
-                      setPgMatchIndex(next);
-                      const pos = pgMatchPositions[next];
-                      scrollTextareaToMatch(pgMatchPositions[next]);
-                      requestAnimationFrame(() => { pgSearchInputRef.current?.focus(); });
-                    }
-                  }}
+                  }}}
                   ref={pgSearchInputRef}
                   placeholder="検索キーワードを入力（Enter: 検索/次へ）"
                   className="text-xs font-mono w-64 focus:outline-none"
@@ -1638,7 +1655,7 @@ export default function McEditPage() {
                 <input value={pgEditorReplace} onChange={e => setPgEditorReplace(e.target.value)}
                   placeholder="置換後のテキスト" className="text-xs font-mono w-48 focus:outline-none" />
               </div>
-              <button onClick={() => execSearchQuery(pgEditorSearch, pgMatchPositions.length === 0)}
+              <button onClick={handleSearchBtn}
                 className="px-3 py-1.5 text-xs bg-slate-500 hover:bg-slate-600 text-white rounded-lg font-bold">🔍 検索</button>
               <button onClick={() => {
                 if (!pgEditorSearch || pgMatchPositions.length === 0 || !pgTextareaRef.current) return;
@@ -1654,16 +1671,46 @@ export default function McEditPage() {
                 showToast(pgMatchCount + "件を全置換しました");
                 setPgMatchCount(0); setPgMatchPositions([]);
               }} className="px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold">全置換</button>
-              <div className="ml-auto text-[10px] text-slate-400">Enter: 検索/次へ | Shift+Enter: 前へ | Esc: 解除 | Ctrl+Z: Undo | Ctrl+S: 保存</div>
+              <div className="ml-auto text-[10px] text-slate-400">Ctrl+Z: Undo | Ctrl+Y: Redo | Ctrl+S: 保存 | Esc: 検索解除</div>
             </div>
 
             {/* エディタ本体 */}
             <div className="flex-1 overflow-hidden">
               <textarea
                 ref={pgTextareaRef}
-                defaultValue={pgContent}
+                value={pgContent}
+                onChange={e => {
+                  const newVal = e.target.value;
+                  const now = Date.now();
+                  // 500ms 以上経過したらスタックに積む（細かい入力は1エントリにまとめる）
+                  if (now - pgLastPush.current > 500) {
+                    pgUndoStack.current.push(pgContent);
+                    if (pgUndoStack.current.length > 200) pgUndoStack.current.shift();
+                    pgRedoStack.current = [];
+                    pgLastPush.current = now;
+                  }
+                  setPgContent(newVal);
+                  // 検索結果をリセット（テキスト変更後は再検索が必要）
+                  if (pgMatchPositions.length > 0) {
+                    setPgMatchPositions([]);
+                    setPgMatchCount(0);
+                    setPgMatchIndex(0);
+                  }
+                }}
                 onKeyDown={e => {
-                  // Ctrl+S: サーバ保存（ブラウザのCtrl+Z/YはそのままネイティブUndo/Redoとして動作）
+                  // Ctrl+Z: Undo
+                  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
+                    e.preventDefault();
+                    pgUndo();
+                    return;
+                  }
+                  // Ctrl+Y / Ctrl+Shift+Z: Redo
+                  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+                    e.preventDefault();
+                    pgRedo();
+                    return;
+                  }
+                  // Ctrl+S: サーバ保存
                   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                     e.preventDefault();
                     if (!token || pgSaving) return;
@@ -1671,23 +1718,25 @@ export default function McEditPage() {
                     fetch(`/api/mc/${mcId}/pg-content`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ content: pgTextareaRef.current?.value ?? pgContent, original_name: pgOrigName }),
+                      body: JSON.stringify({ content: pgContent, original_name: pgOrigName }),
                     }).then(r => {
                       if (!r.ok) throw new Error();
-                      // uncontrolled → state に同期
-                      if (pgTextareaRef.current) setPgContent(pgTextareaRef.current.value);
                       setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
                       showToast("✅ Ctrl+S: 保存しました");
                     }).catch(() => showToast("❌ 保存失敗")).finally(() => setPgSaving(false));
                   }
                 }}
-                className="w-full h-full p-5 font-mono text-sm text-green-300 bg-slate-900 resize-none focus:outline-none leading-relaxed"
+                className={`w-full h-full p-5 font-mono text-sm resize-none focus:outline-none leading-relaxed ${
+                  pgDarkMode
+                    ? "text-green-300 bg-slate-900"
+                    : "text-slate-800 bg-white border border-slate-200"
+                }`}
                 spellCheck={false}
               />
             </div>
 
             {/* フッター */}
-            <div className="px-5 py-2 border-t border-slate-200 bg-slate-50 rounded-b-2xl shrink-0 flex items-center gap-4 text-[10px] text-slate-400">
+            <div className={`px-5 py-2 border-t rounded-b-2xl shrink-0 flex items-center gap-4 text-[10px] ${pgDarkMode ? "border-slate-700 bg-slate-800 text-slate-400" : "border-slate-200 bg-slate-50 text-slate-400"}`}>
               <span>💡 Ctrl+S: サーバ保存</span>
               <span>|</span>
               <span>📂 USB/ファイルから読み込み → 確認後「サーバに保存」</span>
