@@ -257,10 +257,28 @@ export default function McEditPage() {
     pgMatchCountRef.current = 0;
     setPgMatchPositions([]); setPgMatchIndex(0); setPgMatchCount(0);
   };
+  const pgFullReset = (content: string, origName?: string) => {
+    const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    pgContentRef.current = normalized;
+    pgUndoStack.current = [];
+    pgRedoStack.current = [];
+    pgLastPush.current = 0;
+    pgEditorSearchRef.current = "";
+    pgEditorReplaceRef.current = "";
+    pgMatchPositionsRef.current = [];
+    pgMatchIndexRef.current = 0;
+    pgMatchCountRef.current = 0;
+    setPgContent(normalized);
+    setPgMatchPositions([]); setPgMatchIndex(0); setPgMatchCount(0);
+    setPgEditorSearch(""); setPgEditorReplace("");
+    setPgDarkMode(false);
+    if (origName !== undefined) setPgOrigName(origName);
+    console.log("[PGEditor] pgFullReset len="+normalized.length+" origName="+(origName??""));
+  };
 
   // textareaの指定文字オフセット位置へスクロール（中央表示）
   const scrollToMatch = (ta: HTMLTextAreaElement, pos: number) => {
-    // pgContentRef.current を使ってスクロール計算（ta.valueはReact非同期のため不正確）
+    if (!pgContentRef.current) { console.warn("[PGEditor] scrollToMatch: empty ref skip"); return; }
     const text   = pgContentRef.current.slice(0, pos);
     const lines  = (text.match(/\n/g) || []).length;
     const style  = getComputedStyle(ta);
@@ -301,20 +319,21 @@ export default function McEditPage() {
 
   // 検索ボタン押下: 連続クリックで次のマッチへ
   const handleSearchBtn = () => {
-    if (!pgEditorSearch) return;
+    const q = pgEditorSearchRef.current;
+    if (!q) return;
     const ta = pgTextareaRef.current;
     if (!ta) return;
-    console.log("[PGEditor] handleSearchBtn q="+pgEditorSearch+" currentMatches="+pgMatchPositionsRef.current.length+" currentIdx="+pgMatchIndexRef.current);
+    console.log("[PGEditor] handleSearchBtn q="+q+" contentLen="+pgContentRef.current.length+" matches="+pgMatchPositionsRef.current.length+" idx="+pgMatchIndexRef.current);
     if (pgMatchPositionsRef.current.length === 0) {
-      execSearchQuery(pgEditorSearch, 0);
+      execSearchQuery(q, 0);
     } else {
       const positions = pgMatchPositionsRef.current;
       const nextIdx = (pgMatchIndexRef.current + 1) % positions.length;
       pgMatchIndexRef.current = nextIdx;
       setPgMatchIndex(nextIdx);
       const _pos2 = positions[nextIdx];
-      const _len2 = pgEditorSearchRef.current.length;
-      console.log("[PGEditor] 次へ nextIdx="+nextIdx+" pos="+_pos2);
+      const _len2 = q.length;
+      console.log("[PGEditor] next nextIdx="+nextIdx+" pos="+_pos2);
       requestAnimationFrame(() => {
         const ta2 = pgTextareaRef.current;
         if (!ta2) return;
@@ -798,19 +817,8 @@ export default function McEditPage() {
                       try {
                         const r = await mcApi.getPgFile(mcId);
                         const data = (r as any).data ?? r;
-                        const _rawContent = (data.content ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-      pgContentRef.current = _rawContent;
-      setPgContent(_rawContent);
-      console.log("[PGEditor] PGファイル読込完了 raw="+( data.content?.length??0)+" normalized="+_rawContent.length+" name="+(data.originalName??""));
-                        setPgOrigName(data.originalName ?? "");
-                        // エディタ開く前に全state/refをリセット
-                        pgUndoStack.current = [];
-                        pgRedoStack.current = [];
-                        pgLastPush.current = 0;
-                        pgClearMatch();
-                        setPgEditorSearch(""); pgEditorSearchRef.current = "";
-                        setPgEditorReplace(""); pgEditorReplaceRef.current = "";
-                        setPgDarkMode(false);
+                        console.log("[PGEditor] PGファイル読込完了 raw="+(data.content?.length??0)+" name="+(data.originalName??""));
+                        pgFullReset(data.content ?? "", data.originalName ?? "");
                         setPgEditorOpen(true);
                       } catch { showToast("PGファイルが見つかりません"); }
                       finally { setPgLoading(false); }
@@ -1615,8 +1623,7 @@ export default function McEditPage() {
                     const [fileHandle] = await (window as any).showOpenFilePicker({ multiple: false });
                     const file = await fileHandle.getFile();
                     const text = await file.text();
-                    setPgContent(text);
-                    setPgOrigName(file.name);
+                    pgFullReset(text, file.name);
                     showToast("✅ ファイルを読み込みました");
                   } catch (e: any) {
                     if (e.name !== 'AbortError') showToast("❌ 読み込み失敗: " + (e.message || "不明なエラー"));
@@ -1682,7 +1689,18 @@ export default function McEditPage() {
                   }`}>
                   {pgDarkMode ? "☀" : "🌙"}
                 </button>
-                <button onClick={() => setPgEditorOpen(false)}
+                <button onClick={() => {
+                  setPgEditorOpen(false);
+                  pgContentRef.current = "";
+                  pgUndoStack.current = [];
+                  pgRedoStack.current = [];
+                  pgMatchPositionsRef.current = [];
+                  pgMatchIndexRef.current = 0;
+                  pgMatchCountRef.current = 0;
+                  pgEditorSearchRef.current = "";
+                  pgEditorReplaceRef.current = "";
+                  console.log("[PGEditor] closed - all refs cleared");
+                }}
                   className="px-2.5 py-1.5 text-sm font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg" title="閉じる">
                   ✕
                 </button>
@@ -1770,6 +1788,10 @@ export default function McEditPage() {
                 value={pgContent}
                 onChange={e => {
                   const newVal = e.target.value;
+                  if (newVal === "" && pgContentRef.current.length > 10) {
+                    console.warn("[PGEditor] onChange empty guard refLen="+pgContentRef.current.length);
+                    return;
+                  }
                   const now = Date.now();
                   // 500ms 以上経過したらスタックに積む（細かい入力は1エントリにまとめる）
                   if (now - pgLastPush.current > 500) {
