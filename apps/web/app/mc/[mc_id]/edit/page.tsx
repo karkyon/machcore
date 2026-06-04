@@ -89,6 +89,7 @@ export default function McEditPage() {
   const pgMatchCountRef     = React.useRef<number>(0);
   const pgEditorSearchRef   = React.useRef<string>("");
   const pgEditorReplaceRef  = React.useRef<string>("");
+  const pgLastSearchRef     = React.useRef<string>("");
   // Undo/Redo スタック
   const pgUndoStack      = React.useRef<string[]>([]);
   const pgRedoStack      = React.useRef<string[]>([]);
@@ -265,6 +266,7 @@ export default function McEditPage() {
     pgLastPush.current = 0;
     pgEditorSearchRef.current = "";
     pgEditorReplaceRef.current = "";
+    pgLastSearchRef.current = "";
     pgMatchPositionsRef.current = [];
     pgMatchIndexRef.current = 0;
     pgMatchCountRef.current = 0;
@@ -323,8 +325,11 @@ export default function McEditPage() {
     if (!q) return;
     const ta = pgTextareaRef.current;
     if (!ta) return;
-    console.log("[PGEditor] handleSearchBtn q="+q+" contentLen="+pgContentRef.current.length+" matches="+pgMatchPositionsRef.current.length+" idx="+pgMatchIndexRef.current);
-    if (pgMatchPositionsRef.current.length === 0) {
+    const keywordChanged = (q !== pgLastSearchRef.current);
+    console.log("[PGEditor] handleSearchBtn q="+q+" contentLen="+pgContentRef.current.length+" matches="+pgMatchPositionsRef.current.length+" idx="+pgMatchIndexRef.current+" keywordChanged="+keywordChanged);
+    // キーワードが変わった場合、またはマッチがない場合は新規検索
+    if (keywordChanged || pgMatchPositionsRef.current.length === 0) {
+      pgLastSearchRef.current = q;
       execSearchQuery(q, 0);
     } else {
       const positions = pgMatchPositionsRef.current;
@@ -1699,6 +1704,7 @@ export default function McEditPage() {
                   pgMatchCountRef.current = 0;
                   pgEditorSearchRef.current = "";
                   pgEditorReplaceRef.current = "";
+                  pgLastSearchRef.current = "";
                   console.log("[PGEditor] closed - all refs cleared");
                 }}
                   className="px-2.5 py-1.5 text-sm font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg" title="閉じる">
