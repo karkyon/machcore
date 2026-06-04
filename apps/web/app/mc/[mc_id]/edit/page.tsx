@@ -798,9 +798,10 @@ export default function McEditPage() {
                       try {
                         const r = await mcApi.getPgFile(mcId);
                         const data = (r as any).data ?? r;
-                        pgContentRef.current = data.content ?? "";
-      setPgContent(data.content ?? "");
-      console.log("[PGEditor] PGファイル読込完了 len="+(data.content?.length??0)+" name="+(data.originalName??""));
+                        const _rawContent = (data.content ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      pgContentRef.current = _rawContent;
+      setPgContent(_rawContent);
+      console.log("[PGEditor] PGファイル読込完了 raw="+( data.content?.length??0)+" normalized="+_rawContent.length+" name="+(data.originalName??""));
                         setPgOrigName(data.originalName ?? "");
                         setPgEditorOpen(true);
                       } catch { showToast("PGファイルが見つかりません"); }
