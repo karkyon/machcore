@@ -1675,13 +1675,16 @@ export default function McEditPage() {
                 const newContent = pgContent.slice(0, pos) + pgEditorReplace + pgContent.slice(pos + pgEditorSearch.length);
                 setPgContent(newContent);
                 showToast("1件置換しました");
+                pgTextareaRef.current.value = newContent;
+                execSearchQuery(pgEditorSearch, pos + pgEditorReplace.length);
               }} className="px-3 py-1.5 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-bold border border-blue-300">置換</button>
               <button onClick={() => {
                 if (!pgEditorSearch) return;
                 const newContent = pgContent.split(pgEditorSearch).join(pgEditorReplace);
                 setPgContent(newContent);
                 showToast(pgMatchCount + "件を全置換しました");
-                setPgMatchCount(0); setPgMatchPositions([]);
+                if (pgTextareaRef.current) pgTextareaRef.current.value = newContent;
+                execSearchQuery(pgEditorSearch, 0);
               }} className="px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold">全置換</button>
               <div className="ml-auto text-[10px] text-slate-400">Ctrl+Z: Undo | Ctrl+Y: Redo | Ctrl+S: 保存 | Esc: 検索解除</div>
             </div>
