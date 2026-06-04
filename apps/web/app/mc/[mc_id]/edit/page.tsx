@@ -1361,21 +1361,28 @@ export default function McEditPage() {
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xs font-bold text-slate-600">📷 写真のアップロード</p>
                     <div className="flex gap-2">
-                      <label className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors">
-                        複数選択・フォルダ
-                        <input type="file" accept="image/*" multiple className="hidden"
-                          onChange={e => {
-                            const files2 = Array.from(e.target.files ?? []);
-                            if (!files2.length) return;
-                            setPhotoPreviewFiles(files2.map(f => ({
-                              file: f,
-                              url: URL.createObjectURL(f),
-                              selected: true,
-                            })));
+                      <button
+                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition-colors"
+                        onClick={async () => {
+                          try {
+                            const dh = await (window as any).showDirectoryPicker({ mode: "read" });
+                            const PHOTO_EXTS = new Set([".jpg",".jpeg",".png",".gif",".bmp",".webp",".heic",".heif"]);
+                            const entries: {file: File; url: string; selected: boolean}[] = [];
+                            for await (const [name, fh] of dh.entries()) {
+                              if (fh.kind !== "file") continue;
+                              const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
+                              if (!PHOTO_EXTS.has(ext)) continue;
+                              const f: File = await (fh as FileSystemFileHandle).getFile();
+                              entries.push({ file: f, url: URL.createObjectURL(f), selected: true });
+                            }
+                            if (entries.length === 0) { showToast("⚠️ 対応する画像ファイルがありません"); return; }
+                            setPhotoPreviewFiles(entries);
                             setPhotoPreviewOpen(true);
-                            e.target.value = "";
-                          }} />
-                      </label>
+                          } catch (e: any) {
+                            if (e.name !== "AbortError") showToast("❌ フォルダ取得失敗: " + e.message);
+                          }
+                        }}
+                      >複数選拡・フォルダ</button>
                       <label className="px-3 py-1.5 bg-teal-100 hover:bg-teal-200 text-teal-700 text-xs font-bold rounded-lg cursor-pointer border border-teal-300 transition-colors">
                         1枚追加
                         <input type="file" accept="image/*" className="hidden"
@@ -1407,21 +1414,29 @@ export default function McEditPage() {
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xs font-bold text-slate-600">📐 図のアップロード</p>
                     <div className="flex gap-2">
-                      <label className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors">
-                        複数選択・フォルダ
-                        <input type="file" multiple className="hidden"
-                          onChange={e => {
-                            const files2 = Array.from(e.target.files ?? []);
-                            if (!files2.length) return;
-                            setDrawingPreviewFiles(files2.map(f => ({
-                              file: f,
-                              url: f.type.startsWith("image/") ? URL.createObjectURL(f) : "",
-                              selected: true,
-                            })));
+                      <button
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-colors"
+                        onClick={async () => {
+                          try {
+                            const dh = await (window as any).showDirectoryPicker({ mode: "read" });
+                            const DRAW_EXTS = new Set([".jpg",".jpeg",".png",".tif",".tiff",".bmp",".pdf",".webp"]);
+                            const entries: {file: File; url: string; selected: boolean}[] = [];
+                            for await (const [name, fh] of dh.entries()) {
+                              if (fh.kind !== "file") continue;
+                              const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
+                              if (!DRAW_EXTS.has(ext)) continue;
+                              const f: File = await (fh as FileSystemFileHandle).getFile();
+                              const url = f.type.startsWith("image/") ? URL.createObjectURL(f) : "";
+                              entries.push({ file: f, url, selected: true });
+                            }
+                            if (entries.length === 0) { showToast("⚠️ 対応するファイルがありません"); return; }
+                            setDrawingPreviewFiles(entries);
                             setDrawingPreviewOpen(true);
-                            e.target.value = "";
-                          }} />
-                      </label>
+                          } catch (e: any) {
+                            if (e.name !== "AbortError") showToast("❌ フォルダ取得失敗: " + e.message);
+                          }
+                        }}
+                      >複数選拡・フォルダ</button>
                       <label className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-bold rounded-lg cursor-pointer border border-purple-300 transition-colors">
                         1枚追加
                         <input type="file" className="hidden"
