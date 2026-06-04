@@ -285,10 +285,17 @@ export default function McEditPage() {
       let idx = positions.findIndex(p => p >= fromIndex);
       if (idx === -1) idx = 0;
       pgSetMatch(positions, idx);
-      // textarea をフォーカスしてハイライト表示、マッチ位置へスクロール
-      ta.focus();
-      ta.setSelectionRange(positions[idx], positions[idx] + q.length);
-      scrollToMatch(ta, positions[idx]);
+      // Reactのrender完了後にsetSelectionRangeを呼ぶ（controlled textareaはrender前はDOMが古い）
+      const _pos = positions[idx];
+      const _len = q.length;
+      requestAnimationFrame(() => {
+        const ta2 = pgTextareaRef.current;
+        if (!ta2) return;
+        ta2.focus();
+        ta2.setSelectionRange(_pos, _pos + _len);
+        scrollToMatch(ta2, _pos);
+        console.log("[PGEditor] rAF setSelectionRange pos="+_pos+" end="+(_pos+_len)+" taValueLen="+ta2.value.length);
+      });
     } catch {}
   };
 
@@ -305,10 +312,16 @@ export default function McEditPage() {
       const nextIdx = (pgMatchIndexRef.current + 1) % positions.length;
       pgMatchIndexRef.current = nextIdx;
       setPgMatchIndex(nextIdx);
-      ta.focus();
-      ta.setSelectionRange(positions[nextIdx], positions[nextIdx] + pgEditorSearch.length);
-      scrollToMatch(ta, positions[nextIdx]);
-      console.log("[PGEditor] 次へ nextIdx="+nextIdx+" pos="+positions[nextIdx]);
+      const _pos2 = positions[nextIdx];
+      const _len2 = pgEditorSearchRef.current.length;
+      console.log("[PGEditor] 次へ nextIdx="+nextIdx+" pos="+_pos2);
+      requestAnimationFrame(() => {
+        const ta2 = pgTextareaRef.current;
+        if (!ta2) return;
+        ta2.focus();
+        ta2.setSelectionRange(_pos2, _pos2 + _len2);
+        scrollToMatch(ta2, _pos2);
+      });
     }
   };
 
