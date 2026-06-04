@@ -372,18 +372,32 @@ export default function McEditPage() {
   };
 
   // PGファイルをUSBから登録（単体 or フォルダ）
+  // アップロード完了後、将来の UploadAgent.exe へ削除依頼を送信（現時点はメッセージのみ）
+  const notifyUploadAgent = async (filePaths: string[]) => {
+    try {
+      await fetch("http://localhost:57300/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paths: filePaths }),
+        signal: AbortSignal.timeout(2000),
+      });
+      console.log("[UploadAgent] 削除依頼送信:", filePaths);
+    } catch {
+      console.log("[UploadAgent] 未接続(未インストール or 起動待ち)");
+    }
+  };
+
+  // PGファイルをUSBから登録（単体 or フォルダ）
   const handlePgUploadFromUSB = async (mode: "file" | "folder") => {
     if (!token) { showToast("❌ 認証が必要です"); return; }
     setPgUploadModalOpen(false);
     setPgUploading(true);
-    // machiningId を detail から取得
     const machId = String(detail?.machiningId ?? "");
     try {
       if (mode === "file") {
         // 単体ファイル: showOpenFilePicker
         const [fileHandle] = await (window as any).showOpenFilePicker({ multiple: false });
         const file: File = await fileHandle.getFile();
-        // ファイル名を加工IDにリネーム（拡張子はそのまま）
         const ext = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : "";
         const newName = machId + ext;
         const renamedFile = new File([file], newName, { type: file.type });
@@ -399,20 +413,20 @@ export default function McEditPage() {
         setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
         const refreshed = await mcApi.findOne(mcId);
         setDetail((refreshed as any).data ?? refreshed);
-        showToast(`✅ PG登録完了（${newName}）。USB上の元ファイルは手動で削除してください`);
+        // UploadAgentへ削除依頼（将来実装備え）
+        await notifyUploadAgent([file.name]);
+        showToast(`✅ ${newName} 登録完了。USB元ファイルの削除は UploadAgent に依頼済み（未インストールの場合は手動で削除してください）`);
       } else {
-        // フォルダ: showDirectoryPicker(readwrite) → 全アップロード後に元ファイル削除
-        const dirHandle = await (window as any).showDirectoryPicker({ mode: "readwrite" });
-        // 先に全ファイルを収集してからアップロード
+        // フォルダ: showDirectoryPicker → 全ファイルを先に収集してからアップロード
+        const dirHandle = await (window as any).showDirectoryPicker({ mode: "read" });
         const fileEntries: Array<{ name: string; file: File }> = [];
         for await (const [name, fh] of dirHandle.entries()) {
           if (fh.kind !== "file") continue;
-          const file: File = await (fh as FileSystemFileHandle).getFile();
-          fileEntries.push({ name, file });
+          const f: File = await (fh as FileSystemFileHandle).getFile();
+          fileEntries.push({ name, file: f });
         }
-        if (fileEntries.length === 0) { showToast("⚠️ フォルダ内にファイルが計ない"); return; }
-        // 1件ずつアップロード＋サーバ確認後に削除
-        let count = 0; let delCount = 0; const delFailed: string[] = [];
+        if (fileEntries.length === 0) { showToast("⚠️ フォルダ内にファイルがありません"); return; }
+        let count = 0;
         for (const entry of fileEntries) {
           const fd = new FormData();
           fd.append("file", entry.file);
@@ -424,21 +438,14 @@ export default function McEditPage() {
           });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           count++;
-          // サーバ登録確認後に元ファイルをUSBから削除
-          try {
-            await dirHandle.removeEntry(entry.name);
-            delCount++;
-          } catch (delErr: any) {
-            console.warn("[PGUpload] USBファイル削除失敗:", entry.name, delErr?.message);
-            delFailed.push(entry.name);
-          }
         }
-        // フォルダ自体も削除試行（空になった場合のみ成功）
-        try { await dirHandle.remove(); } catch { /* ファイル残存時は無視 */ }
         setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
         const refreshed = await mcApi.findOne(mcId);
         setDetail((refreshed as any).data ?? refreshed);
-        showToast(`✅ PGフォルダを登録しました（${count}ファイル、加工ID: ${machId}フォルダとして保存）`);
+        // UploadAgentへ削除依頼（将来実装備え）
+        const agentPaths = fileEntries.map(e => e.name);
+        await notifyUploadAgent(agentPaths);
+        showToast(`✅ ${count}件登録完了。USB元ファイルの削除は UploadAgent に依頼済み（未インストールの場合は手動で削除してください）`);
       }
     } catch (e: any) {
       if (e.name === "AbortError") { setPgUploading(false); return; }
