@@ -83,6 +83,7 @@ export default function McEditPage() {
 
   // PGエディタ
   const pgTextareaRef    = React.useRef<HTMLTextAreaElement>(null);
+  const pgContentRef     = React.useRef<string>("");
   // Undo/Redo スタック
   const pgUndoStack      = React.useRef<string[]>([]);
   const pgRedoStack      = React.useRef<string[]>([]);
@@ -231,6 +232,11 @@ export default function McEditPage() {
     `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 
   // ────────── PG検索ヘルパー ──────────
+  const pgSetContent = (val: string) => {
+    pgContentRef.current = val;
+    setPgContent(val);
+  };
+
   // textareaの指定文字オフセット位置へスクロール（中央表示）
   const scrollToMatch = (ta: HTMLTextAreaElement, pos: number) => {
     const text   = ta.value.slice(0, pos);
@@ -245,7 +251,7 @@ export default function McEditPage() {
   const execSearchQuery = (q: string, fromIndex = 0) => {
     if (!q || !pgTextareaRef.current) return;
     const ta   = pgTextareaRef.current;
-    const text = ta.value;            // textarea の実際の値
+    const text = pgContentRef.current;
     try {
       const esc  = q.replace(new RegExp("[-.*+?^${}()|\\[\\]\\\\]", "g"), "\\$&");
       const regex = new RegExp(esc, "gi");
@@ -287,18 +293,20 @@ export default function McEditPage() {
   // Undo: スタックから1つ戻す
   const pgUndo = () => {
     if (pgUndoStack.current.length === 0) return;
-    pgRedoStack.current.push(pgContent);
+    pgRedoStack.current.push(pgContentRef.current);
     const prev = pgUndoStack.current.pop()!;
-    setPgContent(prev);
+    pgSetContent(prev);
+    setPgMatchPositions([]); setPgMatchCount(0); setPgMatchIndex(0);
     requestAnimationFrame(() => { pgTextareaRef.current?.focus(); });
   };
 
   // Redo: スタックから1つ進める
   const pgRedo = () => {
     if (pgRedoStack.current.length === 0) return;
-    pgUndoStack.current.push(pgContent);
+    pgUndoStack.current.push(pgContentRef.current);
     const next = pgRedoStack.current.pop()!;
-    setPgContent(next);
+    pgSetContent(next);
+    setPgMatchPositions([]); setPgMatchCount(0); setPgMatchIndex(0);
     requestAnimationFrame(() => { pgTextareaRef.current?.focus(); });
   };
 
@@ -753,7 +761,8 @@ export default function McEditPage() {
                       try {
                         const r = await mcApi.getPgFile(mcId);
                         const data = (r as any).data ?? r;
-                        setPgContent(data.content ?? "");
+                        pgContentRef.current = data.content ?? "";
+      setPgContent(data.content ?? "");
                         setPgOrigName(data.originalName ?? "");
                         setPgEditorOpen(true);
                       } catch { showToast("PGファイルが見つかりません"); }
@@ -1596,7 +1605,7 @@ export default function McEditPage() {
                     const res = await fetch(`/api/mc/${mcId}/pg-content`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ content: pgContent, original_name: pgOrigName }),
+                      body: JSON.stringify({ content: pgContentRef.current, original_name: pgOrigName }),
                     });
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
@@ -1699,12 +1708,12 @@ export default function McEditPage() {
                   const now = Date.now();
                   // 500ms 以上経過したらスタックに積む（細かい入力は1エントリにまとめる）
                   if (now - pgLastPush.current > 500) {
-                    pgUndoStack.current.push(pgContent);
+                    pgUndoStack.current.push(pgContentRef.current);
                     if (pgUndoStack.current.length > 200) pgUndoStack.current.shift();
                     pgRedoStack.current = [];
                     pgLastPush.current = now;
                   }
-                  setPgContent(newVal);
+                  pgSetContent(newVal);
                   // 検索結果をリセット（テキスト変更後は再検索が必要）
                   if (pgMatchPositions.length > 0) {
                     setPgMatchPositions([]);
