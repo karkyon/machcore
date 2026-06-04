@@ -112,19 +112,64 @@ export default function McDetailPage() {
     }
   }, [mainTab, histTab, mcId]);
 
-  // USB pending -> PGファイルダウンロード
+  // USB pending -> FSA API で USB直接書き込み
   useEffect(() => {
     if (isAuthenticated && pendingUsb && token) {
       setPendingUsb(false);
+      handleUsbCopy();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, pendingUsb, token]);
+
+  const handleUsbCopy = async () => {
+    if (!('showDirectoryPicker' in window)) {
       const a = document.createElement('a');
       a.href = `/api/mc/${mcId}/pg-download`;
       a.download = '';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      showToast("PGファイルをダウンロードしました");
+      showToast("PGファイルをダウンロードしました（FSA非対応）");
+      return;
     }
-  }, [isAuthenticated, pendingUsb, token, mcId]);
+    try {
+      const res = await fetch(`/api/mc/${mcId}/pg-file-info`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) { showToast('PGファイルが見つかりません'); return; }
+      const info: { files: Array<{ name: string; folderName?: string; content: string }> } = await res.json();
+
+      let dirHandle: FileSystemDirectoryHandle;
+      try {
+        dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+      } catch {
+        return;
+      }
+
+      if (info.files.length === 1 && !info.files[0].folderName) {
+        const f = info.files[0];
+        const fh = await dirHandle.getFileHandle(f.name, { create: true });
+        const writable = await fh.createWritable();
+        const bytes = Uint8Array.from(atob(f.content), c => c.charCodeAt(0));
+        await writable.write(bytes);
+        await writable.close();
+        showToast(`✅ ${f.name} をコピーしました`);
+      } else {
+        const folderName = info.files[0]?.folderName ?? `PG_${mcId}`;
+        const subDir = await dirHandle.getDirectoryHandle(folderName, { create: true });
+        for (const f of info.files) {
+          const fh = await subDir.getFileHandle(f.name, { create: true });
+          const writable = await fh.createWritable();
+          const bytes = Uint8Array.from(atob(f.content), c => c.charCodeAt(0));
+          await writable.write(bytes);
+          await writable.close();
+        }
+        showToast(`✅ フォルダ「${folderName}」に ${info.files.length}件コピーしました`);
+      }
+    } catch (e: any) {
+      showToast(`コピー失敗: ${e?.message ?? String(e)}`);
+    }
+  };
 
   const openAuth = (type: string) => { setAuthType(type); setAuthOpen(true); };
 
@@ -231,19 +276,7 @@ export default function McDetailPage() {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
             部品検索へ戻る
           </button>
-          {isAuthenticated && operator ? (
-            <>
-              <span className="text-[11px] bg-red-600 text-white px-2 py-0.5 rounded font-bold animate-pulse">
-                作業中: {operator.name} {fmtElapsed(elapsed)}
-              </span>
-              <button onClick={logout} className="text-[11px] text-slate-400 hover:text-white">終了</button>
-            </>
-          ) : (
-            <button onClick={() => openAuth("edit")} className="text-[11px] bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded font-bold">
-              この作業を開始する
-            </button>
-          )}
-          <button onClick={() => { if (!isAuthenticated) { setPendingUsb(true); openAuth("usb_download"); } }}
+          <button onClick={() => { if (!isAuthenticated) { setPendingUsb(true); openAuth("usb_download"); } else { handleUsbCopy(); } }}
             className="text-[11px] bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded font-bold">
             PG→USB
           </button>

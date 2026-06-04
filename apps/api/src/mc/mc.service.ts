@@ -1302,8 +1302,8 @@ export class McService {
     return this.prisma.machineTimecard.update({
       where: { id },
       data: {
-        startTime: new Date(`${dateStr}T${startTime}`),
-        endTime:   new Date(`${dateStr}T${endTime}`),
+        startTime: new Date(`${dateStr}T${startTime}+09:00`),
+        endTime:   new Date(`${dateStr}T${endTime}+09:00`),
         note:      note ?? null,
       },
     });
@@ -1339,8 +1339,8 @@ export class McService {
           machineId:  m.id,
           operatorId,
           workDate:   new Date(workDate),
-          startTime:  new Date(`${workDate}T08:00:00`),
-          endTime:    new Date(`${workDate}T17:00:00`),
+          startTime:  new Date(`${workDate}T08:00:00+09:00`),
+          endTime:    new Date(`${workDate}T17:00:00+09:00`),
         },
       });
       created.push(tc.id);
@@ -1357,8 +1357,8 @@ export class McService {
         machineId,
         operatorId,
         workDate:  new Date(workDate),
-        startTime: new Date(`${workDate}T${startTime}`),
-        endTime:   new Date(`${workDate}T${endTime}`),
+        startTime: new Date(`${workDate}T${startTime}+09:00`),
+        endTime:   new Date(`${workDate}T${endTime}+09:00`),
         note:      note ?? null,
       },
     });

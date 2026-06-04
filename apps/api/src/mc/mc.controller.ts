@@ -259,6 +259,13 @@ export class McController {
    *  単一ファイル → octet-stream
    *  複数ファイル → zip
    */
+  @Get(':mc_id/pg-file-info')
+  async getPgFileInfo(
+    @Param('mc_id', ParseIntPipe) id: number,
+  ) {
+    return this.mcFiles.getPgFileInfo(id);
+  }
+
   @Get(':mc_id/pg-download')
   async downloadPgFile(
     @Param('mc_id', ParseIntPipe) id: number,

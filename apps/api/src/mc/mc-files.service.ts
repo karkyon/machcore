@@ -416,6 +416,36 @@ export class McFilesService {
     };
   }
 
+  // PG→USB用: ファイル情報+Base64コンテンツを返す（FSA API向け）
+  async getPgFileInfo(mcProgramId: number): Promise<{
+    files: Array<{ name: string; folderName?: string; content: string }>;
+  }> {
+    const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcProgramId } });
+    if (!mc) throw new NotFoundException('MCプログラムが存在しません');
+
+    const recs = await this.prisma.mcFile.findMany({
+      where:   { mcProgramId, fileType: 'PROGRAM', isDeleted: false },
+      orderBy: [{ pgRole: 'asc' }, { uploadedAt: 'asc' }],
+    });
+    if (recs.length === 0) throw new NotFoundException('PGファイルが存在しません');
+
+    if (recs.length === 1) {
+      const rec = recs[0];
+      if (!fs.existsSync(rec.filePath)) throw new NotFoundException('PGファイルが見つかりません');
+      const buf = fs.readFileSync(rec.filePath);
+      return { files: [{ name: rec.originalName, content: buf.toString('base64') }] };
+    }
+
+    const folderName = String(mc.machiningId);
+    const files: Array<{ name: string; folderName: string; content: string }> = [];
+    for (const rec of recs) {
+      if (!fs.existsSync(rec.filePath)) continue;
+      const buf = fs.readFileSync(rec.filePath);
+      files.push({ name: rec.originalName, folderName, content: buf.toString('base64') });
+    }
+    return { files };
+  }
+
   async delete(mcProgramId: number, fileId: number) {
     const rec = await this.prisma.mcFile.findUnique({ where: { id: fileId } });
     if (!rec || rec.mcProgramId !== mcProgramId) throw new NotFoundException('ファイルが存在しません');
