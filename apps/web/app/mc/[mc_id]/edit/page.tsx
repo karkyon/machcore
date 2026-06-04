@@ -87,6 +87,8 @@ export default function McEditPage() {
   const pgMatchPositionsRef = React.useRef<number[]>([]);
   const pgMatchIndexRef     = React.useRef<number>(0);
   const pgMatchCountRef     = React.useRef<number>(0);
+  const pgEditorSearchRef   = React.useRef<string>("");
+  const pgEditorReplaceRef  = React.useRef<string>("");
   // Undo/Redo スタック
   const pgUndoStack      = React.useRef<string[]>([]);
   const pgRedoStack      = React.useRef<string[]>([]);
@@ -238,6 +240,7 @@ export default function McEditPage() {
   const pgSetContent = (val: string) => {
     pgContentRef.current = val;
     setPgContent(val);
+    console.log("[PGEditor] pgSetContent len="+val.length);
   };
   const pgSetMatch = (positions: number[], idx: number) => {
     pgMatchPositionsRef.current = positions;
@@ -246,6 +249,7 @@ export default function McEditPage() {
     setPgMatchPositions(positions);
     setPgMatchIndex(idx);
     setPgMatchCount(positions.length);
+    console.log("[PGEditor] pgSetMatch count="+positions.length+" idx="+idx+" pos="+(positions[idx]??-1));
   };
   const pgClearMatch = () => {
     pgMatchPositionsRef.current = [];
@@ -256,13 +260,14 @@ export default function McEditPage() {
 
   // textareaの指定文字オフセット位置へスクロール（中央表示）
   const scrollToMatch = (ta: HTMLTextAreaElement, pos: number) => {
-    const text   = ta.value.slice(0, pos);
+    // pgContentRef.current を使ってスクロール計算（ta.valueはReact非同期のため不正確）
+    const text   = pgContentRef.current.slice(0, pos);
     const lines  = (text.match(/\n/g) || []).length;
     const style  = getComputedStyle(ta);
     const lh     = parseFloat(style.lineHeight) || 18;
     const pt     = parseFloat(style.paddingTop)  || 0;
-    // マッチ行をビューポート中央に表示
     ta.scrollTop = Math.max(0, lines * lh + pt - ta.clientHeight / 2);
+    console.log("[PGEditor] scrollToMatch pos="+pos+" line="+lines+" scrollTop="+ta.scrollTop);
   };
 
   const execSearchQuery = (q: string, fromIndex = 0) => {
@@ -292,6 +297,7 @@ export default function McEditPage() {
     if (!pgEditorSearch) return;
     const ta = pgTextareaRef.current;
     if (!ta) return;
+    console.log("[PGEditor] handleSearchBtn q="+pgEditorSearch+" currentMatches="+pgMatchPositionsRef.current.length+" currentIdx="+pgMatchIndexRef.current);
     if (pgMatchPositionsRef.current.length === 0) {
       execSearchQuery(pgEditorSearch, 0);
     } else {
@@ -302,12 +308,14 @@ export default function McEditPage() {
       ta.focus();
       ta.setSelectionRange(positions[nextIdx], positions[nextIdx] + pgEditorSearch.length);
       scrollToMatch(ta, positions[nextIdx]);
+      console.log("[PGEditor] 次へ nextIdx="+nextIdx+" pos="+positions[nextIdx]);
     }
   };
 
   // Undo: スタックから1つ戻す
   const pgUndo = () => {
-    if (pgUndoStack.current.length === 0) return;
+    console.log("[PGEditor] Undo undoStack="+pgUndoStack.current.length+" redoStack="+pgRedoStack.current.length);
+    if (pgUndoStack.current.length === 0) { console.warn("[PGEditor] Undo stack empty"); return; }
     pgRedoStack.current.push(pgContentRef.current);
     const prev = pgUndoStack.current.pop()!;
     pgSetContent(prev);
@@ -317,7 +325,8 @@ export default function McEditPage() {
 
   // Redo: スタックから1つ進める
   const pgRedo = () => {
-    if (pgRedoStack.current.length === 0) return;
+    console.log("[PGEditor] Redo undoStack="+pgUndoStack.current.length+" redoStack="+pgRedoStack.current.length);
+    if (pgRedoStack.current.length === 0) { console.warn("[PGEditor] Redo stack empty"); return; }
     pgUndoStack.current.push(pgContentRef.current);
     const next = pgRedoStack.current.pop()!;
     pgSetContent(next);
@@ -778,6 +787,7 @@ export default function McEditPage() {
                         const data = (r as any).data ?? r;
                         pgContentRef.current = data.content ?? "";
       setPgContent(data.content ?? "");
+      console.log("[PGEditor] PGファイル読込完了 len="+(data.content?.length??0)+" name="+(data.originalName??""));
                         setPgOrigName(data.originalName ?? "");
                         setPgEditorOpen(true);
                       } catch { showToast("PGファイルが見つかりません"); }
@@ -1665,6 +1675,7 @@ export default function McEditPage() {
                   value={pgEditorSearch}
                   onChange={e => {
                     const q = e.target.value;
+                    pgEditorSearchRef.current = q;
                     setPgEditorSearch(q);
                     if (!q) { pgClearMatch(); }
                   }}
@@ -1686,32 +1697,43 @@ export default function McEditPage() {
               </div>
               <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2 py-1">
                 <span className="text-slate-400 text-xs">↩</span>
-                <input value={pgEditorReplace} onChange={e => setPgEditorReplace(e.target.value)}
+                <input value={pgEditorReplace} onChange={e => { pgEditorReplaceRef.current = e.target.value; setPgEditorReplace(e.target.value); }}
                   placeholder="置換後のテキスト" className="text-xs font-mono w-48 focus:outline-none" />
               </div>
               <button onClick={handleSearchBtn}
                 className="px-3 py-1.5 text-xs bg-slate-500 hover:bg-slate-600 text-white rounded-lg font-bold">🔍 検索</button>
                      <button onClick={() => {
-                if (!pgEditorSearch || pgMatchPositionsRef.current.length === 0) return;
+                const sq = pgEditorSearchRef.current;
+                const rq = pgEditorReplaceRef.current;
+                if (!sq || pgMatchPositionsRef.current.length === 0) return;
                 const cur = pgContentRef.current;
                 const pos = pgMatchPositionsRef.current[pgMatchIndexRef.current];
-                if (pos === undefined || pos < 0 || pos + pgEditorSearch.length > cur.length) return;
+                console.log("[PGEditor] 1件置換クリック sq="+sq+" rq="+rq+" pos="+pos+" matchCount="+pgMatchPositionsRef.current.length+" matchIdx="+pgMatchIndexRef.current);
+                if (pos === undefined || pos < 0 || pos + sq.length > cur.length) {
+                  console.error("[PGEditor] 1件置換 pos無効 pos="+pos+" curLen="+cur.length);
+                  return;
+                }
+                const context = cur.slice(Math.max(0,pos-15), pos+sq.length+15);
+                console.log("[PGEditor] 置換前コンテキスト: ["+context+"]");
                 pgUndoStack.current.push(cur);
                 pgRedoStack.current = [];
-                const newContent = cur.slice(0, pos) + pgEditorReplace + cur.slice(pos + pgEditorSearch.length);
+                const newContent = cur.slice(0, pos) + rq + cur.slice(pos + sq.length);
                 pgSetContent(newContent);
                 showToast("1件置換しました");
-                console.log("[PG置換] pos="+pos+" search="+pgEditorSearch+" replace="+pgEditorReplace+" before="+cur.slice(Math.max(0,pos-10),pos+pgEditorSearch.length+10));
-                execSearchQuery(pgEditorSearch, pos + pgEditorReplace.length);
+                console.log("[PGEditor] 置換後コンテキスト: ["+newContent.slice(Math.max(0,pos-15), pos+rq.length+15)+"]");
+                execSearchQuery(sq, pos + rq.length);
               }} className="px-3 py-1.5 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-bold border border-blue-300">置換</button>
               <button onClick={() => {
-                if (!pgEditorSearch) return;
+                const sq = pgEditorSearchRef.current;
+                const rq = pgEditorReplaceRef.current;
+                if (!sq) return;
                 const cur = pgContentRef.current;
-                const count = cur.split(pgEditorSearch).length - 1;
+                const count = cur.split(sq).length - 1;
+                console.log("[PGEditor] 全置換クリック sq="+sq+" rq="+rq+" count="+count);
                 if (count === 0) { showToast("見つかりません"); return; }
                 pgUndoStack.current.push(cur);
                 pgRedoStack.current = [];
-                const newContent = cur.split(pgEditorSearch).join(pgEditorReplace);
+                const newContent = cur.split(sq).join(rq);
                 pgSetContent(newContent);
                 showToast(count + "件を全置換しました");
                 pgClearMatch();
