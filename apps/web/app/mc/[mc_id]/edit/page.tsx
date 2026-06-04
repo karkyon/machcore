@@ -116,6 +116,8 @@ export default function McEditPage() {
   const [photoPreviewOpen,    setPhotoPreviewOpen]    = useState(false);
   const [drawingPreviewOpen,  setDrawingPreviewOpen]  = useState(false);
   const [bulkUploading,       setBulkUploading]       = useState(false);
+  const [expandedIdx,         setExpandedIdx]         = useState<number|null>(null);
+  const [expandedIdx2,        setExpandedIdx2]        = useState<number|null>(null);
 
   // ファイル（写真・図）
   const [files,          setFiles]          = useState<any[]>([]);
@@ -1899,7 +1901,6 @@ export default function McEditPage() {
       {/* 写真 アルバムプレビュー選択モーダル */}
       {photoPreviewOpen && photoPreviewFiles.length > 0 && (() => {
         const selectedCount = photoPreviewFiles.filter(f => f.selected).length;
-        const [expandedIdx, setExpandedIdx] = React.useState<number|null>(null);
         return (
           <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3">
             <div className="bg-white rounded-2xl shadow-2xl flex flex-col" style={{width:"95vw",height:"95vh"}}>
@@ -1924,7 +1925,7 @@ export default function McEditPage() {
                     }
                     setBulkUploading(false);
                     photoPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
-                    setPhotoPreviewOpen(false); setPhotoPreviewFiles([]);
+                    setPhotoPreviewOpen(false); setPhotoPreviewFiles([]); setExpandedIdx(null);
                     showToast(`✅ ${ok}枚の写真を保存しました（加工ID連番で命名）`);
                   }} disabled={bulkUploading || !selectedCount}
                     className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold rounded-xl disabled:opacity-50 transition-colors">
@@ -1988,7 +1989,6 @@ export default function McEditPage() {
       {/* 図 アルバムプレビュー選択モーダル */}
       {drawingPreviewOpen && drawingPreviewFiles.length > 0 && (() => {
         const selectedCount2 = drawingPreviewFiles.filter(f => f.selected).length;
-        const [expandedIdx2, setExpandedIdx2] = React.useState<number|null>(null);
         return (
           <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3">
             <div className="bg-white rounded-2xl shadow-2xl flex flex-col" style={{width:"95vw",height:"95vh"}}>
