@@ -95,6 +95,8 @@ export default function McEditPage() {
   const [pgEditorReplace, setPgEditorReplace] = useState("");
   const [pgCreatedBy,     setPgCreatedBy]     = useState<string>("");
   const [pgUpdatedAtDisp, setPgUpdatedAtDisp] = useState<string>("");
+  const [pgUploadModalOpen, setPgUploadModalOpen] = useState(false);
+  const [pgUploading, setPgUploading] = useState(false);
 
   // 写真/図 複数プレビュー選択
   const [photoPreviewFiles,   setPhotoPreviewFiles]   = useState<{file: File; url: string; selected: boolean}[]>([]);
@@ -222,6 +224,67 @@ export default function McEditPage() {
 
   const fmtElapsed = (s: number) =>
     `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+
+  // PGファイルをUSBから登録（単体 or フォルダ）
+  const handlePgUploadFromUSB = async (mode: "file" | "folder") => {
+    if (!token) { showToast("❌ 認証が必要です"); return; }
+    setPgUploadModalOpen(false);
+    setPgUploading(true);
+    // machiningId を detail から取得
+    const machId = String(detail?.machiningId ?? "");
+    try {
+      if (mode === "file") {
+        // 単体ファイル: showOpenFilePicker
+        const [fileHandle] = await (window as any).showOpenFilePicker({ multiple: false });
+        const file: File = await fileHandle.getFile();
+        // ファイル名を加工IDにリネーム（拡張子はそのまま）
+        const ext = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : "";
+        const newName = machId + ext;
+        const renamedFile = new File([file], newName, { type: file.type });
+        const fd = new FormData();
+        fd.append("file", renamedFile);
+        fd.append("is_folder_upload", "false");
+        const res = await fetch(`/api/mc/${mcId}/files/upload`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
+        const refreshed = await mcApi.findOne(mcId);
+        setDetail((refreshed as any).data ?? refreshed);
+        showToast(`✅ PGファイルを登録しました（${newName}）`);
+      } else {
+        // フォルダ: showDirectoryPicker → 中のファイルを全アップロード
+        const dirHandle = await (window as any).showDirectoryPicker({ mode: "read" });
+        let count = 0;
+        for await (const [, fh] of dirHandle.entries()) {
+          if (fh.kind !== "file") continue;
+          const file: File = await fh.getFile();
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("is_folder_upload", "true");
+          const res = await fetch(`/api/mc/${mcId}/files/upload`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          count++;
+        }
+        if (count === 0) { showToast("⚠️ フォルダ内にファイルが見つかりません"); return; }
+        setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
+        const refreshed = await mcApi.findOne(mcId);
+        setDetail((refreshed as any).data ?? refreshed);
+        showToast(`✅ PGフォルダを登録しました（${count}ファイル、加工ID: ${machId}フォルダとして保存）`);
+      }
+    } catch (e: any) {
+      if (e.name === "AbortError") { setPgUploading(false); return; }
+      showToast("❌ アップロード失敗: " + (e.message || "不明なエラー"));
+    } finally {
+      setPgUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     console.log("[EDIT] handleSave開始", { sbMode, sbRepeatMode, token: token ? "あり" : "なし", mcId,
@@ -621,6 +684,14 @@ export default function McEditPage() {
                     }} disabled={pgLoading}
                       className="px-3 py-1 text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white rounded-lg transition-colors disabled:opacity-50">
                       {pgLoading ? "読込中..." : "📄 PGエディタを開く"}
+                    </button>
+                    <button onClick={() => {
+                      if (!token) { showToast("❌ 認証が必要です"); return; }
+                      if (!("showOpenFilePicker" in window)) { showToast("❌ Chrome/Edgeが必要です"); return; }
+                      setPgUploadModalOpen(true);
+                    }} disabled={pgUploading}
+                      className="px-3 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50">
+                      {pgUploading ? "⏳ 登録中..." : "📥 USBから登録"}
                     </button>
                   </div>
                   <div className="px-4 py-3 grid grid-cols-2 gap-4">
@@ -1357,6 +1428,36 @@ export default function McEditPage() {
         <AuthModal isOpen={true} ncProgramId={mcId} mcProgramId={mcId} sessionType="edit" onSuccess={() => setAuthOpen(false)} onCancel={() => setAuthOpen(false)} />
       )}
 
+      {/* PGアップロードモーダル（単体 or フォルダ） */}
+      {pgUploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-800 text-base">📥 PGファイル登録方法を選択</h3>
+              <button onClick={() => setPgUploadModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+            </div>
+            <p className="text-xs text-slate-500">
+              加工ID: <span className="font-mono font-bold text-teal-700">{detail?.machiningId}</span> として登録します
+            </p>
+            <div className="space-y-3">
+              <button onClick={() => handlePgUploadFromUSB("file")}
+                className="w-full px-4 py-4 bg-teal-50 hover:bg-teal-100 border-2 border-teal-300 rounded-xl text-left transition-colors">
+                <div className="font-bold text-teal-800 mb-1">📄 単体ファイル</div>
+                <div className="text-xs text-teal-600">拡張子なしのプログラムファイル（テキスト形式）を1つ選択。ファイル名は加工IDに自動リネームされます。</div>
+                <div className="text-[10px] text-teal-400 mt-1 font-mono">例: O6000 → {detail?.machiningId}</div>
+              </button>
+              <button onClick={() => handlePgUploadFromUSB("folder")}
+                className="w-full px-4 py-4 bg-amber-50 hover:bg-amber-100 border-2 border-amber-300 rounded-xl text-left transition-colors">
+                <div className="font-bold text-amber-800 mb-1">📁 フォルダ単位</div>
+                <div className="text-xs text-amber-600">メインPG + サブPGを含むフォルダを選択。フォルダ内の全ファイルが加工IDフォルダとして保存されます。</div>
+                <div className="text-[10px] text-amber-400 mt-1 font-mono">例: 1846.WPD/ → {detail?.machiningId}/</div>
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400 text-center">Chrome / Edge のみ対応（HTTPS必須）</p>
+          </div>
+        </div>
+      )}
+
       {/* PGエディタモーダル */}
       {pgEditorOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-2">
@@ -1441,26 +1542,29 @@ export default function McEditPage() {
                   onChange={e => {
                     const q = e.target.value;
                     setPgEditorSearch(q);
-                    if (!q) { setPgMatchCount(0); setPgMatchPositions([]); setPgMatchIndex(0); return; }
-                    try {
-                      const esc = q.replace(/[-.*+?^${}()|[\]\\]/g, '\\$&');
-                      const regex = new RegExp(esc, 'gi');
-                      const positions: number[] = [];
-                      let m;
-                      while ((m = regex.exec(pgContent)) !== null) positions.push(m.index);
-                      setPgMatchPositions(positions);
-                      setPgMatchCount(positions.length);
-                      if (positions.length > 0 && pgTextareaRef.current) {
-                        const cursor = pgTextareaRef.current.selectionStart ?? 0;
-                        let idx = positions.findIndex(p => p >= cursor);
-                        if (idx === -1) idx = 0;
-                        setPgMatchIndex(idx);
-                        pgTextareaRef.current.focus();
-                        pgTextareaRef.current.setSelectionRange(positions[idx], positions[idx] + q.length);
-                      }
-                    } catch {}
+                    if (!q) { setPgMatchCount(0); setPgMatchPositions([]); setPgMatchIndex(0); }
                   }}
                   onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey && pgMatchPositions.length === 0 && pgEditorSearch) {
+                      // 初回Enter: 検索実行
+                      e.preventDefault();
+                      const q = pgEditorSearch;
+                      try {
+                        const esc = q.replace(/[-.*+?^${}()|[\]\\]/g, '\\$&');
+                        const regex = new RegExp(esc, 'gi');
+                        const positions: number[] = [];
+                        let m;
+                        while ((m = regex.exec(pgContent)) !== null) positions.push(m.index);
+                        setPgMatchPositions(positions);
+                        setPgMatchCount(positions.length);
+                        if (positions.length > 0 && pgTextareaRef.current) {
+                          setPgMatchIndex(0);
+                          pgTextareaRef.current.focus();
+                          pgTextareaRef.current.setSelectionRange(positions[0], positions[0] + q.length);
+                        }
+                      } catch {}
+                      return;
+                    }
                     if (e.key === 'Enter' && pgMatchPositions.length > 0 && pgTextareaRef.current) {
                       e.preventDefault();
                       const next = (pgMatchIndex + (e.shiftKey ? -1 : 1) + pgMatchPositions.length) % pgMatchPositions.length;
@@ -1485,6 +1589,24 @@ export default function McEditPage() {
                 <input value={pgEditorReplace} onChange={e => setPgEditorReplace(e.target.value)}
                   placeholder="置換後のテキスト" className="text-xs font-mono w-48 focus:outline-none" />
               </div>
+              <button onClick={() => {
+                if (!pgEditorSearch) return;
+                const q = pgEditorSearch;
+                try {
+                  const esc = q.replace(/[-.*+?^${}()|[\]\\]/g, '\\$&');
+                  const regex = new RegExp(esc, 'gi');
+                  const positions: number[] = [];
+                  let m;
+                  while ((m = regex.exec(pgContent)) !== null) positions.push(m.index);
+                  setPgMatchPositions(positions);
+                  setPgMatchCount(positions.length);
+                  if (positions.length > 0 && pgTextareaRef.current) {
+                    setPgMatchIndex(0);
+                    pgTextareaRef.current.focus();
+                    pgTextareaRef.current.setSelectionRange(positions[0], positions[0] + q.length);
+                  }
+                } catch {}
+              }} className="px-3 py-1.5 text-xs bg-slate-500 hover:bg-slate-600 text-white rounded-lg font-bold">🔍 検索</button>
               <button onClick={() => {
                 if (!pgEditorSearch || pgMatchPositions.length === 0 || !pgTextareaRef.current) return;
                 const pos = pgMatchPositions[pgMatchIndex];
