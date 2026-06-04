@@ -231,6 +231,17 @@ export default function McEditPage() {
     `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 
   // ────────── PG検索ヘルパー ──────────
+  // textareaの指定文字オフセット位置へスクロール（中央表示）
+  const scrollToMatch = (ta: HTMLTextAreaElement, pos: number) => {
+    const text   = ta.value.slice(0, pos);
+    const lines  = (text.match(/\n/g) || []).length;
+    const style  = getComputedStyle(ta);
+    const lh     = parseFloat(style.lineHeight) || 18;
+    const pt     = parseFloat(style.paddingTop)  || 0;
+    // マッチ行をビューポート中央に表示
+    ta.scrollTop = Math.max(0, lines * lh + pt - ta.clientHeight / 2);
+  };
+
   const execSearchQuery = (q: string, fromIndex = 0) => {
     if (!q || !pgTextareaRef.current) return;
     const ta   = pgTextareaRef.current;
@@ -248,9 +259,10 @@ export default function McEditPage() {
       let idx = positions.findIndex(p => p >= fromIndex);
       if (idx === -1) idx = 0;
       setPgMatchIndex(idx);
-      // textarea をフォーカスしてハイライト表示
+      // textarea をフォーカスしてハイライト表示、マッチ位置へスクロール
       ta.focus();
       ta.setSelectionRange(positions[idx], positions[idx] + q.length);
+      scrollToMatch(ta, positions[idx]);
     } catch {}
   };
 
@@ -268,6 +280,7 @@ export default function McEditPage() {
       setPgMatchIndex(nextIdx);
       ta.focus();
       ta.setSelectionRange(pgMatchPositions[nextIdx], pgMatchPositions[nextIdx] + pgEditorSearch.length);
+      scrollToMatch(ta, pgMatchPositions[nextIdx]);
     }
   };
 
