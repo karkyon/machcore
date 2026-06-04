@@ -1247,8 +1247,9 @@ export class McService {
       },
     });
     const fmtTime = (d: Date) => {
-      const h = String(d.getUTCHours()).padStart(2, '0');
-      const m = String(d.getUTCMinutes()).padStart(2, '0');
+      const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+      const h = String(jst.getUTCHours()).padStart(2, '0');
+      const m = String(jst.getUTCMinutes()).padStart(2, '0');
       return `${h}:${m}:00`;
     };
     const fmtDate = (d: Date) => {
@@ -1273,8 +1274,9 @@ export class McService {
       include: { operator: { select: { name: true } } },
     });
     const fmtTime = (d: Date) => {
-      const h = String(d.getUTCHours()).padStart(2, '0');
-      const m = String(d.getUTCMinutes()).padStart(2, '0');
+      const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+      const h = String(jst.getUTCHours()).padStart(2, '0');
+      const m = String(jst.getUTCMinutes()).padStart(2, '0');
       return `${h}:${m}:00`;
     };
     return rows.map(r => ({
