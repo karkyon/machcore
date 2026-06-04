@@ -236,7 +236,7 @@ export default function McEditPage() {
     const ta   = pgTextareaRef.current;
     const text = ta.value;            // textarea の実際の値
     try {
-      const esc  = q.replace(/[-.*+?^${}()|[\]\]/g, "\\$&");
+      const esc  = q.replace(new RegExp("[-.*+?^${}()|\\[\\]\\\\]", "g"), "\\$&");
       const regex = new RegExp(esc, "gi");
       const positions: number[] = [];
       let m: RegExpExecArray | null;
@@ -1638,9 +1638,8 @@ export default function McEditPage() {
                       setPgMatchPositions([]);
                       setPgMatchIndex(0);
                     }
-                  }}}
-                  ref={pgSearchInputRef}
-                  placeholder="検索キーワードを入力（Enter: 検索/次へ）"
+                  }}
+                  placeholder="キーワードを入力 → 検索ボタンで次へ"
                   className="text-xs font-mono w-64 focus:outline-none"
                 />
                 {pgMatchCount > 0 && (
