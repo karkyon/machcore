@@ -82,7 +82,11 @@ export default function McEditPage() {
   const [indexRows, setIndexRows] = useState<any[]>([]);
 
   // PGエディタ
-  const pgTextareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const pgTextareaRef    = React.useRef<HTMLTextAreaElement>(null);
+  const pgSearchInputRef = React.useRef<HTMLInputElement>(null);
+  const pgUndoStack      = React.useRef<string[]>([]);
+  const pgRedoStack      = React.useRef<string[]>([]);
+  const pgUndoTimer      = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pgEditorOpen,    setPgEditorOpen]    = useState(false);
   const [pgMatchCount,    setPgMatchCount]    = useState(0);
   const [pgMatchIndex,    setPgMatchIndex]    = useState(0);
@@ -224,6 +228,50 @@ export default function McEditPage() {
 
   const fmtElapsed = (s: number) =>
     `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+
+  // ────────── PG検索ヘルパー ──────────
+  // テキストエリアをスクロール（フォーカスは検索inputに維持）
+  const scrollTextareaToPos = (pos: number, len: number) => {
+    const ta = pgTextareaRef.current;
+    if (!ta) return;
+    // setSelectionRange でブラウザに位置を伝えつつ、フォーカスは移さない
+    // 一時的にフォーカスしてスクロールさせ、すぐ検索inputに戻す
+    const prev = document.activeElement as HTMLElement | null;
+    ta.focus();
+    ta.setSelectionRange(pos, pos + len);
+    // ハイライト位置へスクロール
+    if (prev && prev !== ta) {
+      requestAnimationFrame(() => { prev.focus(); });
+    }
+  };
+
+  const execSearchQuery = (q: string, startFromBeginning = true) => {
+    if (!q) return;
+    try {
+      const esc = q.replace(/[-.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+      const regex = new RegExp(esc, 'gi');
+      const positions: number[] = [];
+      let m;
+      while ((m = regex.exec(pgContent)) !== null) positions.push(m.index);
+      setPgMatchPositions(positions);
+      setPgMatchCount(positions.length);
+      if (positions.length > 0) {
+        const idx = startFromBeginning ? 0 : pgMatchIndex;
+        setPgMatchIndex(idx);
+        scrollTextareaToPos(positions[idx], q.length);
+      }
+      // フォーカスを検索inputに確実に戻す
+      requestAnimationFrame(() => { pgSearchInputRef.current?.focus(); });
+    } catch {}
+  };
+
+  const goNextMatch = (reverse = false) => {
+    if (pgMatchPositions.length === 0) { execSearchQuery(pgEditorSearch); return; }
+    const next = (pgMatchIndex + (reverse ? -1 : 1) + pgMatchPositions.length) % pgMatchPositions.length;
+    setPgMatchIndex(next);
+    scrollTextareaToPos(pgMatchPositions[next], pgEditorSearch.length);
+    requestAnimationFrame(() => { pgSearchInputRef.current?.focus(); });
+  };
 
   // PGファイルをUSBから登録（単体 or フォルダ）
   const handlePgUploadFromUSB = async (mode: "file" | "folder") => {
@@ -1469,6 +1517,11 @@ export default function McEditPage() {
                 <span className="text-slate-400 text-lg">📄</span>
                 <span className="font-bold text-slate-800">PGエディタ</span>
                 {pgOrigName && <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded-lg border">{pgOrigName}</span>}
+                {detail?.machiningId && (
+                  <span className="text-xs text-slate-400 font-mono">
+                    📁 mc_files/pg/{detail.machiningId}/{pgOrigName || "—"}
+                  </span>
+                )}
                 <span className="text-xs text-slate-400">{pgContent.split('\n').length}行 / {pgContent.length}文字</span>
               </div>
               <div className="flex items-center gap-2">
@@ -1574,7 +1627,8 @@ export default function McEditPage() {
                       pgTextareaRef.current.setSelectionRange(pos, pos + pgEditorSearch.length);
                     }
                   }}
-                  placeholder="検索（Enterで次へ / Shift+Enterで前へ）"
+                  ref={pgSearchInputRef}
+                  placeholder="検索キーワードを入力（Enter: 検索/次へ）"
                   className="text-xs font-mono w-64 focus:outline-none"
                 />
                 {pgMatchCount > 0 && (
@@ -1589,24 +1643,8 @@ export default function McEditPage() {
                 <input value={pgEditorReplace} onChange={e => setPgEditorReplace(e.target.value)}
                   placeholder="置換後のテキスト" className="text-xs font-mono w-48 focus:outline-none" />
               </div>
-              <button onClick={() => {
-                if (!pgEditorSearch) return;
-                const q = pgEditorSearch;
-                try {
-                  const esc = q.replace(/[-.*+?^${}()|[\]\\]/g, '\\$&');
-                  const regex = new RegExp(esc, 'gi');
-                  const positions: number[] = [];
-                  let m;
-                  while ((m = regex.exec(pgContent)) !== null) positions.push(m.index);
-                  setPgMatchPositions(positions);
-                  setPgMatchCount(positions.length);
-                  if (positions.length > 0 && pgTextareaRef.current) {
-                    setPgMatchIndex(0);
-                    pgTextareaRef.current.focus();
-                    pgTextareaRef.current.setSelectionRange(positions[0], positions[0] + q.length);
-                  }
-                } catch {}
-              }} className="px-3 py-1.5 text-xs bg-slate-500 hover:bg-slate-600 text-white rounded-lg font-bold">🔍 検索</button>
+              <button onClick={() => execSearchQuery(pgEditorSearch, pgMatchPositions.length === 0)}
+                className="px-3 py-1.5 text-xs bg-slate-500 hover:bg-slate-600 text-white rounded-lg font-bold">🔍 検索</button>
               <button onClick={() => {
                 if (!pgEditorSearch || pgMatchPositions.length === 0 || !pgTextareaRef.current) return;
                 const pos = pgMatchPositions[pgMatchIndex];
@@ -1621,7 +1659,7 @@ export default function McEditPage() {
                 showToast(pgMatchCount + "件を全置換しました");
                 setPgMatchCount(0); setPgMatchPositions([]);
               }} className="px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold">全置換</button>
-              <div className="ml-auto text-[10px] text-slate-400">Enter: 次へ | Shift+Enter: 前へ | Ctrl+S: 保存</div>
+              <div className="ml-auto text-[10px] text-slate-400">Enter: 検索/次へ | Shift+Enter: 前へ | Esc: 解除 | Ctrl+Z: Undo | Ctrl+S: 保存</div>
             </div>
 
             {/* エディタ本体 */}
@@ -1629,8 +1667,36 @@ export default function McEditPage() {
               <textarea
                 ref={pgTextareaRef}
                 value={pgContent}
-                onChange={e => setPgContent(e.target.value)}
+                onChange={e => {
+                  const newVal = e.target.value;
+                  // Undo スタックに積む（300ms デバウンス）
+                  if (pgUndoTimer.current) clearTimeout(pgUndoTimer.current);
+                  pgUndoTimer.current = setTimeout(() => {
+                    pgUndoStack.current.push(pgContent);
+                    if (pgUndoStack.current.length > 200) pgUndoStack.current.shift();
+                    pgRedoStack.current = [];
+                  }, 300);
+                  setPgContent(newVal);
+                }}
                 onKeyDown={e => {
+                  // Ctrl+Z: Undo
+                  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
+                    e.preventDefault();
+                    if (pgUndoStack.current.length === 0) return;
+                    pgRedoStack.current.push(pgContent);
+                    const prev = pgUndoStack.current.pop()!;
+                    setPgContent(prev);
+                    return;
+                  }
+                  // Ctrl+Y / Ctrl+Shift+Z: Redo
+                  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+                    e.preventDefault();
+                    if (pgRedoStack.current.length === 0) return;
+                    pgUndoStack.current.push(pgContent);
+                    const next = pgRedoStack.current.pop()!;
+                    setPgContent(next);
+                    return;
+                  }
                   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                     e.preventDefault();
                     if (!token || pgSaving) return;
