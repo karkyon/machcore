@@ -734,8 +734,8 @@ export class AdminController {
     return this.prisma.machineTimecard.update({
       where: { id },
       data: {
-        startTime: new Date(`${dateStr}T${body.start_time}`),
-        endTime:   new Date(`${dateStr}T${body.end_time}`),
+        startTime: new Date(`${dateStr}T${body.start_time}Z`),
+        endTime:   new Date(`${dateStr}T${body.end_time}Z`),
         note:      body.note ?? null,
       },
     });

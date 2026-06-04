@@ -408,7 +408,7 @@ export class NcService {
         ncProgramId,
         operatorId,
         machineId,
-        workDate:            new Date(),
+        workDate:            (() => { const n = new Date(); const jst = new Date(n.getTime() + 9*60*60*1000); return new Date(`${jst.getUTCFullYear()}-${String(jst.getUTCMonth()+1).padStart(2,'0')}-${String(jst.getUTCDate()).padStart(2,'0')}T00:00:00Z`); })(),
         setupTimeMin:        dto.setup_time_min        ?? null,
         machiningTimeMin:    dto.machining_time_min    ?? null,
         cycleTimeSec:        dto.cycle_time_sec        ?? null,

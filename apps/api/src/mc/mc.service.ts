@@ -67,8 +67,12 @@ export class McService {
 
   private scheduleCronTimecards(hour: number, minute: number) {
     const now  = new Date();
-    const next = new Date(now);
-    next.setHours(hour, minute, 0, 0);
+    // JST基準で次回実行時刻を計算（サーバーがUTCでも正しく動作）
+    const nowJstMs = now.getTime() + 9 * 60 * 60 * 1000;
+    const nowJst   = new Date(nowJstMs);
+    const todayJst = `${nowJst.getUTCFullYear()}-${String(nowJst.getUTCMonth()+1).padStart(2,'0')}-${String(nowJst.getUTCDate()).padStart(2,'0')}`;
+    // JST指定時刻をUTCに変換
+    const next = new Date(`${todayJst}T${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}:00+09:00`);
     if (next <= now) next.setDate(next.getDate() + 1); // 過去なら翌日
     const ms = next.getTime() - now.getTime();
 
@@ -1057,7 +1061,7 @@ export class McService {
         mcProgramId:      mcId,
         operatorId,
         machineId:        dto.machine_id ?? mc.machineId ?? null,
-        workDate:         new Date(),
+        workDate:         (() => { const n = new Date(); const jst = new Date(n.getTime() + 9*60*60*1000); return new Date(`${jst.getUTCFullYear()}-${String(jst.getUTCMonth()+1).padStart(2,'0')}-${String(jst.getUTCDate()).padStart(2,'0')}T00:00:00Z`); })(),
         workType:         dto.work_type  ?? null,
         setupTimeMin:     setupMin,
         machiningTimeMin: machMin,
