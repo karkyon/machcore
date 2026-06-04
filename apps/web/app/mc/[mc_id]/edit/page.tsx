@@ -474,7 +474,6 @@ export default function McEditPage() {
         note:           note || undefined,
         creator_id:     (creatorId && !isNaN(parseInt(creatorId))) ? parseInt(creatorId) : null,
         sheet_created_at: sheetCreatedAt || null,
-        pg_created_by:  (pgCreatedBy && !isNaN(parseInt(pgCreatedBy))) ? parseInt(pgCreatedBy) : null,
       }, token);
       // ツーリング保存（DBのcamelCase → DTOのsnake_caseに変換）
       await mcApi.saveTooling(mcId, toolingRows.map((t: any, i: number) => ({
