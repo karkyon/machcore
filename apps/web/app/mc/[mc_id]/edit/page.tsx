@@ -84,9 +84,6 @@ export default function McEditPage() {
   // PGエディタ
   const pgTextareaRef    = React.useRef<HTMLTextAreaElement>(null);
   const pgSearchInputRef = React.useRef<HTMLInputElement>(null);
-  const pgUndoStack      = React.useRef<string[]>([]);
-  const pgRedoStack      = React.useRef<string[]>([]);
-  const pgUndoTimer      = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pgEditorOpen,    setPgEditorOpen]    = useState(false);
   const [pgMatchCount,    setPgMatchCount]    = useState(0);
   const [pgMatchIndex,    setPgMatchIndex]    = useState(0);
@@ -230,49 +227,46 @@ export default function McEditPage() {
     `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 
   // ────────── PG検索ヘルパー ──────────
-  // テキストエリアをスクロール（フォーカスは検索inputに維持）
-  const scrollTextareaToPos = (pos: number, len: number) => {
+  // textareaのcharオフセット→ scrollTop を計算してスクロール（focusは一切しない）
+  const scrollTextareaToMatch = (pos: number) => {
     const ta = pgTextareaRef.current;
     if (!ta) return;
-    // setSelectionRange でブラウザに位置を伝えつつ、フォーカスは移さない
-    // 一時的にフォーカスしてスクロールさせ、すぐ検索inputに戻す
-    const prev = document.activeElement as HTMLElement | null;
-    ta.focus();
-    ta.setSelectionRange(pos, pos + len);
-    // ハイライト位置へスクロール
-    if (prev && prev !== ta) {
-      requestAnimationFrame(() => { prev.focus(); });
-    }
+    const text = ta.value.slice(0, pos);
+    const linesBefore = (text.match(/\n/g) || []).length;
+    const lineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 18;
+    const paddingTop = parseFloat(getComputedStyle(ta).paddingTop) || 0;
+    const targetScroll = linesBefore * lineHeight + paddingTop - ta.clientHeight / 2;
+    ta.scrollTop = Math.max(0, targetScroll);
   };
 
   const execSearchQuery = (q: string, startFromBeginning = true) => {
     if (!q) return;
+    const text = pgTextareaRef.current?.value ?? pgContent;
     try {
-      const esc = q.replace(/[-.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+      const esc = q.replace(/[-.*+?^${}()|[\\]\\]/g, '\\$&');
       const regex = new RegExp(esc, 'gi');
       const positions: number[] = [];
       let m;
-      while ((m = regex.exec(pgContent)) !== null) positions.push(m.index);
+      while ((m = regex.exec(text)) !== null) positions.push(m.index);
       setPgMatchPositions(positions);
       setPgMatchCount(positions.length);
       if (positions.length > 0) {
-        const idx = startFromBeginning ? 0 : pgMatchIndex;
+        const idx = startFromBeginning ? 0 : Math.min(pgMatchIndex, positions.length - 1);
         setPgMatchIndex(idx);
-        scrollTextareaToPos(positions[idx], q.length);
+        scrollTextareaToMatch(positions[idx]);
       }
-      // フォーカスを検索inputに確実に戻す
-      requestAnimationFrame(() => { pgSearchInputRef.current?.focus(); });
     } catch {}
-  };
-
-  const goNextMatch = (reverse = false) => {
-    if (pgMatchPositions.length === 0) { execSearchQuery(pgEditorSearch); return; }
-    const next = (pgMatchIndex + (reverse ? -1 : 1) + pgMatchPositions.length) % pgMatchPositions.length;
-    setPgMatchIndex(next);
-    scrollTextareaToPos(pgMatchPositions[next], pgEditorSearch.length);
+    // フォーカスを検索inputに維持
     requestAnimationFrame(() => { pgSearchInputRef.current?.focus(); });
   };
 
+  const goNextMatch = (reverse = false) => {
+    if (pgMatchPositions.length === 0) { execSearchQuery(pgEditorSearch, true); return; }
+    const next = (pgMatchIndex + (reverse ? -1 : 1) + pgMatchPositions.length) % pgMatchPositions.length;
+    setPgMatchIndex(next);
+    scrollTextareaToMatch(pgMatchPositions[next]);
+    requestAnimationFrame(() => { pgSearchInputRef.current?.focus(); });
+  };
   // PGファイルをUSBから登録（単体 or フォルダ）
   const handlePgUploadFromUSB = async (mode: "file" | "folder") => {
     if (!token) { showToast("❌ 認証が必要です"); return; }
@@ -1550,7 +1544,7 @@ export default function McEditPage() {
                       types: [{ description: 'NCプログラム', accept: { 'text/plain': ['.min','.spf','.mpf','.nc','.txt'] } }],
                     });
                     const writable = await fileHandle.createWritable();
-                    await writable.write(pgContent);
+                    await writable.write(pgTextareaRef.current?.value ?? pgContent);
                     await writable.close();
                     showToast("✅ USB/指定先に保存しました");
                   } catch (e: any) {
@@ -1567,9 +1561,10 @@ export default function McEditPage() {
                     const res = await fetch(`/api/mc/${mcId}/pg-content`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ content: pgContent, original_name: pgOrigName }),
+                      body: JSON.stringify({ content: pgTextareaRef.current?.value ?? pgContent, original_name: pgOrigName }),
                     });
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    if (pgTextareaRef.current) setPgContent(pgTextareaRef.current.value);
                     setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
                     showToast("✅ PGファイルをサーバに保存しました");
                   } catch (e: any) {
@@ -1623,8 +1618,8 @@ export default function McEditPage() {
                       const next = (pgMatchIndex + (e.shiftKey ? -1 : 1) + pgMatchPositions.length) % pgMatchPositions.length;
                       setPgMatchIndex(next);
                       const pos = pgMatchPositions[next];
-                      pgTextareaRef.current.focus();
-                      pgTextareaRef.current.setSelectionRange(pos, pos + pgEditorSearch.length);
+                      scrollTextareaToMatch(pgMatchPositions[next]);
+                      requestAnimationFrame(() => { pgSearchInputRef.current?.focus(); });
                     }
                   }}
                   ref={pgSearchInputRef}
@@ -1666,37 +1661,9 @@ export default function McEditPage() {
             <div className="flex-1 overflow-hidden">
               <textarea
                 ref={pgTextareaRef}
-                value={pgContent}
-                onChange={e => {
-                  const newVal = e.target.value;
-                  // Undo スタックに積む（300ms デバウンス）
-                  if (pgUndoTimer.current) clearTimeout(pgUndoTimer.current);
-                  pgUndoTimer.current = setTimeout(() => {
-                    pgUndoStack.current.push(pgContent);
-                    if (pgUndoStack.current.length > 200) pgUndoStack.current.shift();
-                    pgRedoStack.current = [];
-                  }, 300);
-                  setPgContent(newVal);
-                }}
+                defaultValue={pgContent}
                 onKeyDown={e => {
-                  // Ctrl+Z: Undo
-                  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
-                    e.preventDefault();
-                    if (pgUndoStack.current.length === 0) return;
-                    pgRedoStack.current.push(pgContent);
-                    const prev = pgUndoStack.current.pop()!;
-                    setPgContent(prev);
-                    return;
-                  }
-                  // Ctrl+Y / Ctrl+Shift+Z: Redo
-                  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
-                    e.preventDefault();
-                    if (pgRedoStack.current.length === 0) return;
-                    pgUndoStack.current.push(pgContent);
-                    const next = pgRedoStack.current.pop()!;
-                    setPgContent(next);
-                    return;
-                  }
+                  // Ctrl+S: サーバ保存（ブラウザのCtrl+Z/YはそのままネイティブUndo/Redoとして動作）
                   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                     e.preventDefault();
                     if (!token || pgSaving) return;
@@ -1704,9 +1671,11 @@ export default function McEditPage() {
                     fetch(`/api/mc/${mcId}/pg-content`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ content: pgContent, original_name: pgOrigName }),
+                      body: JSON.stringify({ content: pgTextareaRef.current?.value ?? pgContent, original_name: pgOrigName }),
                     }).then(r => {
                       if (!r.ok) throw new Error();
+                      // uncontrolled → state に同期
+                      if (pgTextareaRef.current) setPgContent(pgTextareaRef.current.value);
                       setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
                       showToast("✅ Ctrl+S: 保存しました");
                     }).catch(() => showToast("❌ 保存失敗")).finally(() => setPgSaving(false));
