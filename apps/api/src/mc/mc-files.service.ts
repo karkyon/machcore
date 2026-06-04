@@ -173,6 +173,12 @@ export class McFilesService {
         // ケース2: フォルダ構成 → {base}/mc_files/pg/{machining_id}/{original_filename}
         flatDir    = path.join(basePath, 'mc_files', 'pg', String(machId));
         storedName = file.filename;  // オリジナルのまま維持
+        // 同名のファイル（単体アップで作られた pg/{machId} ファイル）が存在したら退避
+        const pgFlatFile = path.join(basePath, 'mc_files', 'pg', String(machId));
+        if (fs.existsSync(pgFlatFile) && fs.statSync(pgFlatFile).isFile()) {
+          const ts2 = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+          fs.renameSync(pgFlatFile, path.join(basePath, 'mc_files', 'pg', `${machId}.bak_${ts2}`));
+        }
       } else {
         // ケース1: 単一ファイル → {base}/mc_files/pg/{machining_id}[.ext]
         flatDir    = path.join(basePath, 'mc_files', 'pg');
