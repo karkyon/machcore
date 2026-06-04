@@ -399,16 +399,23 @@ export default function McEditPage() {
         setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
         const refreshed = await mcApi.findOne(mcId);
         setDetail((refreshed as any).data ?? refreshed);
-        showToast(`✅ PGファイルを登録しました（${newName}）`);
+        showToast(`✅ PG登録完了（${newName}）。USB上の元ファイルは手動で削除してください`);
       } else {
-        // フォルダ: showDirectoryPicker → 中のファイルを全アップロード
-        const dirHandle = await (window as any).showDirectoryPicker({ mode: "read" });
-        let count = 0;
-        for await (const [, fh] of dirHandle.entries()) {
+        // フォルダ: showDirectoryPicker(readwrite) → 全アップロード後に元ファイル削除
+        const dirHandle = await (window as any).showDirectoryPicker({ mode: "readwrite" });
+        // 先に全ファイルを収集してからアップロード
+        const fileEntries: Array<{ name: string; file: File }> = [];
+        for await (const [name, fh] of dirHandle.entries()) {
           if (fh.kind !== "file") continue;
-          const file: File = await fh.getFile();
+          const file: File = await (fh as FileSystemFileHandle).getFile();
+          fileEntries.push({ name, file });
+        }
+        if (fileEntries.length === 0) { showToast("⚠️ フォルダ内にファイルが計ない"); return; }
+        // 1件ずつアップロード＋サーバ確認後に削除
+        let count = 0; let delCount = 0; const delFailed: string[] = [];
+        for (const entry of fileEntries) {
           const fd = new FormData();
-          fd.append("file", file);
+          fd.append("file", entry.file);
           fd.append("is_folder_upload", "true");
           const res = await fetch(`/api/mc/${mcId}/files/upload`, {
             method: "POST",
@@ -417,8 +424,17 @@ export default function McEditPage() {
           });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           count++;
+          // サーバ登録確認後に元ファイルをUSBから削除
+          try {
+            await dirHandle.removeEntry(entry.name);
+            delCount++;
+          } catch (delErr: any) {
+            console.warn("[PGUpload] USBファイル削除失敗:", entry.name, delErr?.message);
+            delFailed.push(entry.name);
+          }
         }
-        if (count === 0) { showToast("⚠️ フォルダ内にファイルが見つかりません"); return; }
+        // フォルダ自体も削除試行（空になった場合のみ成功）
+        try { await dirHandle.remove(); } catch { /* ファイル残存時は無視 */ }
         setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
         const refreshed = await mcApi.findOne(mcId);
         setDetail((refreshed as any).data ?? refreshed);
