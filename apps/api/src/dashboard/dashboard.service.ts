@@ -52,7 +52,7 @@ export class DashboardService {
         mcProgram: {
           include: {
             part:     { select: { partId: true, drawingNo: true, name: true, clientName: true, mainModel: true } },
-            machining: { select: { machine: { select: { machineCode: true, machineName: true, sortOrder: true } } } },
+            machining: { select: { mcProcessNo: true, machine: { select: { machineCode: true, machineName: true, sortOrder: true } } } },
           },
         },
       },
@@ -78,7 +78,7 @@ export class DashboardService {
       part_name:      s.mcProgram.part.name,
       client_name:    s.mcProgram.part.clientName ?? null,
       main_model:     s.mcProgram.part.mainModel ?? null,
-      mc_process_no:  ((s.mcProgram as any).machining as any)?.mcProcessNo ?? null ?? null,
+      mc_process_no:  null ?? null,
       machine_code:   s.mcProgram.machining?.machine?.machineCode ?? null,
       machine_name:   s.mcProgram.machining?.machine?.machineName ?? null,
       machine_sort:   s.mcProgram.machining?.machine?.sortOrder ?? 999,

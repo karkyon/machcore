@@ -294,7 +294,6 @@ export class McService {
       fileName:       m.fileName       ?? null,
       hasIndexProgram: m.hasIndexProgram ?? false,
       hasWorkOffset:   m.hasWorkOffset   ?? false,
-      rc:             m.rc             ?? 0,
       pgIsFolder:     m.pgIsFolder     ?? false,
       pgFolderName:   m.pgFolderName   ?? null,
       pgCreatedBy:    m.pgCreatedBy    ?? null,
@@ -396,7 +395,7 @@ export class McService {
     });
     if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
 
-    const verStr   = (mc as any).machining?.version ?? '1.0001' ?? '1.0001';
+    const verStr = ((mc as any).machining as any).version as string;
     const verFloat = parseFloat(verStr) || 1.0001;
     const ver1 = Math.floor(verFloat);
     const ver2 = Math.floor(verFloat * 100) - ver1 * 100;
@@ -585,7 +584,7 @@ export class McService {
       // RC自動更新（ツーリング件数をmc_programsに反映）
       await tx.mcProgram.update({
         where: { id: mcId },
-        data:  { rc: dto.items.length },
+        data:  {
       });
       await tx.operationLog.create({
         data: { userId: operatorId, mcProgramId: mcId, actionType: 'MC_EDIT_SAVE', metadata: { action: 'save_tooling' } },
