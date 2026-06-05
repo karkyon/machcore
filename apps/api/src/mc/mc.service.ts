@@ -409,7 +409,6 @@ export class McService {
     const newVer2 = Math.round((newVerFloat - newVer1) * 10000);
     const newVersion = `${newVer1}.${String(newVer2).padStart(4, '0')}`;
 
-    const mach = (mc as any).machining ?? {};
     return this.prisma.$transaction(async (tx) => {
       await tx.mcMachiningDetail.update({
         where: { machiningId: mc.machiningId },
@@ -533,9 +532,9 @@ export class McService {
           })),
         });
       }
-      // RC自動更新（ツーリング件数をmc_programsに反映）
-      await tx.mcProgram.update({
-        where: { id: mcId },
+      // RC自動更新（ツーリング件数をmc_machining_detailsに反映）
+      await tx.mcMachiningDetail.update({
+        where: { machiningId: mc.machiningId },
         data:  { rc: dto.items.length },
       });
       await tx.operationLog.create({
