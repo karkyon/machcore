@@ -236,12 +236,9 @@ export class McService {
       where: { id },
       include: {
         part:      true,
-        machining: { include: { machine: true, pgCreator: { select: { id: true, name: true } }, creator: { select: { id: true, name: true } } } },
+        machining: { include: { machine: true } },
         registrar: { select: { id: true, name: true } },
         approver:  { select: { id: true, name: true } },
-        tooling:   { orderBy: { sortOrder: 'asc' } },
-        workOffsets: { orderBy: { gCode: 'asc' } },
-        indexPrograms: { orderBy: { sortOrder: 'asc' } },
         files:     { orderBy: { uploadedAt: 'desc' } },
       },
     });
@@ -400,10 +397,7 @@ export class McService {
     });
     if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
     const mach = (mc as any).machining ?? {};
-
-    // VBA 終了確認ロジック準拠バージョンインクリ
-    // version format: "1.0001" (整数部.4桁小数)
-    const verStr = (mc as any).machining?.version ?? '1.0001';
+    const verStr = mach.version ?? '1.0001';
     const verFloat = parseFloat(verStr) || 1.0001;
     const ver1 = Math.floor(verFloat);                           // 整数部
     const ver2 = Math.floor(verFloat * 100) - ver1 * 100;       // 100分の1
@@ -980,7 +974,7 @@ export class McService {
       if (dto.items.length > 0) {
         await tx.mcWorkOffset.createMany({
           data: dto.items.map(item => ({
-            mcProgramId: mcId,
+            machiningId: mc.machiningId,
             gCode:       item.g_code,
             xOffset:     item.x_offset ?? null,
             yOffset:     item.y_offset ?? null,
@@ -1019,7 +1013,7 @@ export class McService {
       if (dto.items.length > 0) {
         await tx.mcIndexProgram.createMany({
           data: dto.items.map(item => ({
-            mcProgramId: mcId,
+            machiningId: mc.machiningId,
             sortOrder:   item.sort_order,
             axis0:       item.axis_0 ?? null,
             axis1:       item.axis_1 ?? null,
@@ -1174,8 +1168,9 @@ export class McService {
     // legacyMcid に一致する mc_programs を取得（複数の工程がある場合あり）
     const programs = await this.prisma.mcProgram.findMany({
       where: { legacyMcid },
-      select: { id: true, machiningId: true, mcProcessNo: true,
-                part: { select: { drawingNo: true, name: true } } },
+      select: { id: true, machiningId: true,
+                part:     { select: { drawingNo: true, name: true } },
+                machining: { select: { mcProcessNo: true } } },
     });
     if (programs.length === 0) {
       return { found: false, programs: [], sheets: [] };
@@ -1198,7 +1193,7 @@ export class McService {
       programs: programs.map(p => ({
         mc_id:          p.id,
         machining_id:   p.machiningId,
-        mc_process_no:  p.mcProcessNo,
+        mc_process_no:  (p as any).machining?.mcProcessNo ?? null,
         drawing_no:     p.part.drawingNo,
         part_name:      p.part.name,
         total_sheets:   countMap.get(p.id) ?? 0,
