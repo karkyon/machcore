@@ -572,6 +572,9 @@ export type McDetail = {
   pgFolderName:   string | null;
   pgCreatedBy:    number | null;
   pgUpdatedAt:    string | null;
+  fileName:       string | null;
+  folder1:        string | null;
+  folder2:        string | null;
   part:    { drawingNo: string; name: string; clientName: string | null; partId: string | null; mainModel: string | null };
   machine: { machineCode: string; machineName: string } | null;
   registrar: { name: string };
@@ -586,6 +589,30 @@ export type McDetail = {
   files:        McFile[];
   processes:    McProcessItem[];
   commonGroup:  McCommonGroupItem[];
+  /** 正規化後の machining ネスト（平坦化フィールドのソース）*/
+  machining?: {
+    version: string;
+    machine: { machineCode: string; machineName: string } | null;
+    oNumber: string | null;
+    clampNote: string | null;
+    cycleTimeSec: number | null;
+    mcProcessNo: number | null;
+    fileName: string | null;
+    folder1: string | null;
+    folder2: string | null;
+    hasIndexProgram: boolean;
+    hasWorkOffset: boolean;
+    rc: number;
+    pgIsFolder: boolean;
+    pgFolderName: string | null;
+    pgCreatedBy: number | null;
+    pgUpdatedAt: string | null;
+    creatorId: number | null;
+    sheetCreatedAt: string | null;
+    commonPartCode: string | null;
+    pgCreator: { id: number; name: string } | null;
+    creator:   { id: number; name: string } | null;
+  } | null;
 };
 
 export type McProcessItem = {

@@ -236,7 +236,14 @@ export class McService {
       where: { id },
       include: {
         part:      true,
-        machining: { include: { machine: true } },
+        machining: { include: {
+          machine:      true,
+          pgCreator:    { select: { id: true, name: true } },
+          creator:      { select: { id: true, name: true } },
+          tooling:      { orderBy: { sortOrder: 'asc' } },
+          workOffsets:  { orderBy: { gCode: 'asc' } },
+          indexPrograms: { orderBy: { sortOrder: 'asc' } },
+        } },
         registrar: { select: { id: true, name: true } },
         approver:  { select: { id: true, name: true } },
         files:     { orderBy: { uploadedAt: 'desc' } },
@@ -266,8 +273,34 @@ export class McService {
       },
     });
 
+    const mach = (r as any).machining ?? {};
     return {
       ...r,
+      // machining フィールドを平坦化（フロント後方互換）
+      version:        mach.version        ?? '1.0001',
+      machine:        mach.machine        ?? null,
+      oNumber:        mach.oNumber        ?? null,
+      clampNote:      mach.clampNote      ?? null,
+      cycleTimeSec:   mach.cycleTimeSec   ?? null,
+      mcProcessNo:    mach.mcProcessNo    ?? null,
+      fileName:       mach.fileName       ?? null,
+      folder1:        mach.folder1        ?? null,
+      folder2:        mach.folder2        ?? null,
+      hasIndexProgram: mach.hasIndexProgram ?? false,
+      hasWorkOffset:  mach.hasWorkOffset  ?? false,
+      rc:             mach.rc             ?? 0,
+      pgIsFolder:     mach.pgIsFolder     ?? false,
+      pgFolderName:   mach.pgFolderName   ?? null,
+      pgCreatedBy:    mach.pgCreatedBy    ?? null,
+      pgUpdatedAt:    mach.pgUpdatedAt    ?? null,
+      creatorId:      mach.creatorId      ?? null,
+      sheetCreatedAt: mach.sheetCreatedAt ?? null,
+      commonPartCode: mach.commonPartCode ?? null,
+      pgCreator:      mach.pgCreator      ?? null,
+      creator:        mach.creator        ?? null,
+      tooling:        (r as any).machining?.tooling       ?? [],
+      workOffsets:    (r as any).machining?.workOffsets   ?? [],
+      indexPrograms:  (r as any).machining?.indexPrograms ?? [],
       files: r.files.map(f => ({
         ...f,
         file_type:      f.fileType,
@@ -280,8 +313,16 @@ export class McService {
         uploaded_by:    f.uploadedBy,
         uploaded_at:    f.uploadedAt,
       })),
-      processes,
-      commonGroup,
+      processes: processes.map((p: any) => ({
+        ...p,
+        version:     p.machining?.version     ?? '1.0001',
+        mcProcessNo: p.machining?.mcProcessNo ?? null,
+        machine:     p.machining?.machine     ?? null,
+      })),
+      commonGroup: commonGroup.map((cg: any) => ({
+        ...cg,
+        version: cg.machining?.version ?? '1.0001',
+      })),
     };
   }
 
