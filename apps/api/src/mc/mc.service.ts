@@ -806,7 +806,7 @@ export class McService {
       data: {
         mcProgramId:      mcId,
         operatorId,
-        machineId:        dto.machine_id ?? mc.machineId ?? null,
+        machineId:        dto.machine_id ?? (mc as any).machining?.machineId ?? null,
         workDate:         (() => { const n = new Date(); const jst = new Date(n.getTime() + 9*60*60*1000); return new Date(`${jst.getUTCFullYear()}-${String(jst.getUTCMonth()+1).padStart(2,'0')}-${String(jst.getUTCDate()).padStart(2,'0')}T00:00:00Z`); })(),
         workType:         dto.work_type  ?? null,
         setupTimeMin:     setupMin,
@@ -965,13 +965,10 @@ export class McService {
     const r = await this.prisma.mcProgram.findUnique({
       where: { id: mcId },
       include: {
-        part:    true,
-        machine: true,
+        part:      true,
+        machining: { include: { machine: true, tooling: { orderBy: { sortOrder: 'asc' } }, workOffsets: { orderBy: { gCode: 'asc' } }, indexPrograms: { orderBy: { sortOrder: 'asc' } } } },
         registrar: { select: { name: true } },
         approver:  { select: { name: true } },
-        tooling:   { orderBy: { sortOrder: 'asc' } },
-        workOffsets:   { orderBy: { gCode: 'asc' } },
-        indexPrograms: { orderBy: { sortOrder: 'asc' } },
         files: { where: { fileType: 'DRAWING' }, orderBy: { uploadedAt: 'desc' } },
       },
     });
@@ -980,9 +977,18 @@ export class McService {
     const commonGroup = await this.prisma.mcProgram.findMany({
       where:   { machiningId: r.machiningId },
       orderBy: { id: 'asc' },
-      select:  { id: true, version: true, part: { select: { drawingNo: true, name: true } } },
+      select:  { id: true, machining: { select: { version: true } }, part: { select: { drawingNo: true, name: true } } },
     });
-    return { ...r, commonGroup };
+    // 正規化後: r.machining に tooling/workOffsets/indexPrograms/machine がある
+    return {
+      ...r,
+      machine:       r.machining?.machine ?? null,
+      tooling:       r.machining?.tooling ?? [],
+      workOffsets:   r.machining?.workOffsets ?? [],
+      indexPrograms: r.machining?.indexPrograms ?? [],
+      version:       r.machining?.version ?? '1.0001',
+      commonGroup,
+    };
   }
 
   // ══════════════════════════════════════════
@@ -1382,19 +1388,34 @@ export class McService {
       : null;
 
     // 一時MCレコードを作成してPDF生成し、その後削除
+    // previewNew: 一時McMachiningDetailも作成し、PDF後に削除
+    const prevMachId = dto.machining_id ?? 999999999;
+    const existingPrevMach = await this.prisma.mcMachiningDetail.findUnique({ where: { machiningId: prevMachId } });
+    if (!existingPrevMach) {
+      await this.prisma.mcMachiningDetail.create({
+        data: {
+          machiningId:   prevMachId,
+          version:       '1.0001',
+          machineId:     dto.machine_id      ?? null,
+          oNumber:       dto.o_number        ?? null,
+          clampNote:     dto.clamp_note      ?? null,
+          cycleTimeSec:  dto.cycle_time_sec  ?? null,
+          mcProcessNo:   dto.mc_process_no   ?? null,
+          fileName:      dto.file_name       ?? null,
+          commonPartCode: dto.common_part_code ?? null,
+          creatorId:     operatorId,
+        },
+      });
+    }
     const tempMc = await this.prisma.mcProgram.create({
       data: {
         partId:       dto.part_id,
-        machiningId:  dto.machining_id,
-        mcProcessNo:  dto.mc_process_no ?? null,
-        machineId:    dto.machine_id    ?? null,
-        oNumber:      dto.o_number      ?? null,
+        machiningId:  prevMachId,
         machiningQty: dto.machining_qty ?? 1,
         note:         dto.note          ?? null,
-        legacyMcid:   dto.machining_id,
+        legacyMcid:   prevMachId,
         registeredBy: operatorId,
         status:       'NEW',
-        version:      '0.0001',
       },
     });
 
@@ -1409,6 +1430,9 @@ export class McService {
     } finally {
       // 必ずDB削除（プレビューなのでデータ残さない）
       await this.prisma.mcProgram.delete({ where: { id: tempMc.id } }).catch(() => {});
+      if (!existingPrevMach) {
+        await this.prisma.mcMachiningDetail.delete({ where: { machiningId: prevMachId } }).catch(() => {});
+      }
     }
   }
 
@@ -1439,27 +1463,42 @@ export class McService {
 
       try {
         const mc = await this.prisma.$transaction(async (tx) => {
+          // McMachiningDetail が既存かチェック（共通部品登録時は作らない）
+          const existingMach = await tx.mcMachiningDetail.findUnique({ where: { machiningId } });
+          if (!existingMach) {
+            await tx.mcMachiningDetail.create({
+              data: {
+                machiningId,
+                version:       '1.0001',
+                machineId:     dto.machine_id      ?? null,
+                oNumber:       dto.o_number        ?? null,
+                clampNote:     dto.clamp_note      ?? null,
+                cycleTimeSec:  dto.cycle_time_sec  ?? null,
+                mcProcessNo:   dto.mc_process_no   ?? null,
+                fileName:      dto.file_name       ?? null,
+                commonPartCode: dto.common_part_code ?? null,
+                creatorId:     operatorId,
+              },
+            });
+          }
           const created = await tx.mcProgram.create({
             data: {
               partId:        dto.part_id,
               machiningId,
-              mcProcessNo:   dto.mc_process_no   ?? null,
-              machineId:     dto.machine_id      ?? null,
-              oNumber:       dto.o_number        ?? null,
               machiningQty:  dto.machining_qty   ?? 1,
               note:          dto.note            ?? null,
               legacyMcid:    machiningId,
               registeredBy:  operatorId,
               status:        'NEW',
-              version:       '0.0001',
             },
           });
+          const capVer = (await tx.mcMachiningDetail.findUnique({ where: { machiningId }, select: { version: true } }))?.version ?? '1.0001';
           await tx.mcChangeHistory.create({
             data: {
               mcProgramId:  created.id,
               changeType:   'NEW_REGISTRATION',
               operatorId,
-              versionAfter: created.version,
+              versionAfter: capVer,
               content:      '新規登録',
             },
           });
