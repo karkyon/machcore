@@ -370,9 +370,10 @@ export default function McDashboard() {
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">MC マシニング</p>
               <nav className="space-y-1">
                 {[
-                  { label: "ダッシュボード", href: "/mc",        active: true  },
-                  { label: "部品検索",       href: "/mc/search", active: false },
-                  { label: "新規登録",       href: "/mc/new",    active: false },
+                  { label: "ダッシュボード", href: "/mc",              active: true  },
+                  { label: "部品検索",       href: "/mc/search",       active: false },
+                  { label: "新規登録",       href: "/mc/new",          active: false },
+                  { label: "共通部品登録",   href: "/mc/common-parts", active: false },
                 ].map(item => (
                   <button key={item.href} onClick={() => router.push(item.href)}
                     className={"w-full px-3 py-2 rounded-lg text-left text-sm transition-colors " +
