@@ -236,11 +236,9 @@ export class McService {
       where: { id },
       include: {
         part:      true,
-        machining: { include: { machine: true } },
+        machining: { include: { machine: true, pgCreator: { select: { id: true, name: true } }, creator: { select: { id: true, name: true } } } },
         registrar: { select: { id: true, name: true } },
         approver:  { select: { id: true, name: true } },
-        pgCreator: { select: { id: true, name: true } },
-        creator:   { select: { id: true, name: true } },
         tooling:   { orderBy: { sortOrder: 'asc' } },
         workOffsets: { orderBy: { gCode: 'asc' } },
         indexPrograms: { orderBy: { sortOrder: 'asc' } },
@@ -370,16 +368,20 @@ export class McService {
     const content    = `${changeType}${changeDetail ? ' ' + changeDetail : ''}`;
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.mcMachiningDetail.update({
+        where: { machiningId: mc.machiningId },
+        data:  { version: newVersion },
+      });
       await tx.mcProgram.update({
         where: { id },
-        data:  { version: newVersion, status: 'CHANGING' },
+        data:  { status: 'CHANGING' },
       });
       await tx.mcChangeHistory.create({
         data: {
           mcProgramId:   id,
           changeType:    'CHANGE',
           operatorId,
-          versionBefore: mc.version,
+          versionBefore: (mc as any).machining?.version ?? '1.0001',
           versionAfter:  newVersion,
           content,
         },
@@ -401,7 +403,7 @@ export class McService {
 
     // VBA 終了確認ロジック準拠バージョンインクリ
     // version format: "1.0001" (整数部.4桁小数)
-    const verStr = mc.version ?? '1.0001';
+    const verStr = (mc as any).machining?.version ?? '1.0001';
     const verFloat = parseFloat(verStr) || 1.0001;
     const ver1 = Math.floor(verFloat);                           // 整数部
     const ver2 = Math.floor(verFloat * 100) - ver1 * 100;       // 100分の1
@@ -413,23 +415,28 @@ export class McService {
     const newVer2 = Math.round((newVerFloat - newVer1) * 10000);
     const newVersion = `${newVer1}.${String(newVer2).padStart(4, '0')}`;
 
+    const mach = (mc as any).machining ?? {};
     return this.prisma.$transaction(async (tx) => {
+      await tx.mcMachiningDetail.update({
+        where: { machiningId: mc.machiningId },
+        data: {
+          machineId:      dto.machine_id      !== undefined ? dto.machine_id      : mach.machineId,
+          oNumber:        dto.o_number        !== undefined ? dto.o_number        : mach.oNumber,
+          clampNote:      dto.clamp_note      !== undefined ? dto.clamp_note      : mach.clampNote,
+          cycleTimeSec:   dto.cycle_time_sec  !== undefined ? dto.cycle_time_sec  : mach.cycleTimeSec,
+          commonPartCode: dto.common_part_code !== undefined ? dto.common_part_code : mach.commonPartCode,
+          creatorId:      dto.creator_id      !== undefined ? dto.creator_id      : mach.creatorId,
+          sheetCreatedAt: dto.sheet_created_at !== undefined
+            ? (dto.sheet_created_at ? new Date(dto.sheet_created_at) : null)
+            : mach.sheetCreatedAt,
+        },
+      });
       await tx.mcProgram.update({
         where: { id },
         data: {
-          machineId:     dto.machine_id     !== undefined ? dto.machine_id     : mc.machineId,
-          oNumber:       dto.o_number       !== undefined ? dto.o_number       : mc.oNumber,
-          clampNote:     dto.clamp_note     !== undefined ? dto.clamp_note     : mc.clampNote,
-          cycleTimeSec:  dto.cycle_time_sec !== undefined ? dto.cycle_time_sec : mc.cycleTimeSec,
-          machiningQty:  dto.machining_qty  !== undefined ? dto.machining_qty  : mc.machiningQty,
-          commonPartCode: dto.common_part_code !== undefined ? dto.common_part_code : mc.commonPartCode,
-          note:          dto.note           !== undefined ? dto.note           : mc.note,
-          creatorId:     dto.creator_id      !== undefined ? dto.creator_id      : mc.creatorId,
-          version:       newVersion,
-          sheetCreatedAt: dto.sheet_created_at !== undefined
-            ? (dto.sheet_created_at ? new Date(dto.sheet_created_at) : null)
-            : mc.sheetCreatedAt,
-          status:        'CHANGING',
+          machiningQty: dto.machining_qty !== undefined ? dto.machining_qty : mc.machiningQty,
+          note:         dto.note         !== undefined ? dto.note         : mc.note,
+          status:       'CHANGING',
         },
       });
       // 変更履歴はfinalize()で登録するためupdateでは登録しない
@@ -467,8 +474,8 @@ export class McService {
           mcProgramId:   id,
           changeType:    'APPROVAL',
           operatorId,
-          versionBefore: mc.version,
-          versionAfter:  mc.version,
+          versionBefore: (mc as any).machining?.version ?? null,
+          versionAfter:  (mc as any).machining?.version ?? null,
           content:       '承認',
         },
       });
@@ -477,10 +484,10 @@ export class McService {
           userId:      operatorId,
           mcProgramId: id,
           actionType:  'MC_APPROVE',
-          metadata:    { action: 'approve', version: mc.version },
+          metadata:    { action: 'approve', version: (mc as any).machining?.version ?? '1.0001' },
         },
       });
-      return { mc_id: id, message: '承認しました', version: mc.version };
+      return { mc_id: id, message: '承認しました', version: (mc as any).machining?.version ?? '1.0001' };
     });
   }
 
@@ -488,8 +495,10 @@ export class McService {
   // PGメタ更新
   // ══════════════════════════════════════════
   async updatePgMeta(id: number, pgCreatedBy: number) {
-    return this.prisma.mcProgram.update({
-      where: { id },
+    const mc = await this.prisma.mcProgram.findUnique({ where: { id }, select: { machiningId: true } });
+    if (!mc) return;
+    return this.prisma.mcMachiningDetail.update({
+      where: { machiningId: mc.machiningId },
       data:  { pgCreatedBy, pgUpdatedAt: new Date() },
     });
   }
@@ -515,7 +524,7 @@ export class McService {
       if (dto.items.length > 0) {
         await tx.mcTooling.createMany({
           data: dto.items.map(item => ({
-            mcProgramId:    mcId,
+            machiningId:    mc.machiningId,
             sortOrder:      item.sort_order,
             toolNo:         item.tool_no,
             toolName:       item.tool_name       ?? null,
