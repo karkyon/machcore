@@ -368,7 +368,6 @@ export class McService {
           legacyMcid:    dto.machining_id,
           registeredBy:  operatorId,
           status:        'NEW',
-          version:       '0.0001',
         },
       });
       await tx.mcChangeHistory.create({
@@ -376,7 +375,7 @@ export class McService {
           mcProgramId:  mc.id,
           changeType:   'NEW_REGISTRATION',
           operatorId,
-          versionAfter: mc.version,
+          versionAfter: (mc as any).machining?.version ?? '1.0001',
           content:      '新規登録',
         },
       });
@@ -397,7 +396,7 @@ export class McService {
     });
     if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
 
-    const verStr   = mc.version ?? '1.0001';
+    const verStr   = (mc as any).machining?.version ?? '1.0001' ?? '1.0001';
     const verFloat = parseFloat(verStr) || 1.0001;
     const ver1 = Math.floor(verFloat);
     const ver2 = Math.floor(verFloat * 100) - ver1 * 100;
@@ -425,7 +424,7 @@ export class McService {
           mcProgramId:   id,
           changeType:    'CHANGE',
           operatorId,
-          versionBefore: mc.version,
+          versionBefore: (mc as any).machining?.version ?? '1.0001',
           versionAfter:  newVersion,
           content,
         },
@@ -528,7 +527,7 @@ export class McService {
           userId:      operatorId,
           mcProgramId: id,
           actionType:  'MC_APPROVE',
-          metadata:    { action: 'approve', version: mc.version },
+          metadata:    { action: 'approve', version: (mc as any).machining?.version ?? '1.0001' },
         },
       });
       return { mc_id: id, message: '承認しました', version: (mc as any).machining?.version ?? '1.0001' };
