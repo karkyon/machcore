@@ -239,17 +239,16 @@ export class McService {
         part:      true,
         machining: {
           include: {
-            machine:   true,
-            pgCreator: { select: { id: true, name: true } },
-            creator:   { select: { id: true, name: true } },
+            machine:      true,
+            pgCreator:    { select: { id: true, name: true } },
+            creator:      { select: { id: true, name: true } },
+            tooling:      { orderBy: { sortOrder: 'asc' } },
+            workOffsets:  { orderBy: { gCode: 'asc' } },
+            indexPrograms: { orderBy: { sortOrder: 'asc' } },
           },
         },
         registrar: { select: { id: true, name: true } },
         approver:  { select: { id: true, name: true } },
-
-        tooling:   { orderBy: { sortOrder: 'asc' } },
-        workOffsets: { orderBy: { gCode: 'asc' } },
-        indexPrograms: { orderBy: { sortOrder: 'asc' } },
         files:     { orderBy: { uploadedAt: 'desc' } },
       },
     });
@@ -392,7 +391,10 @@ export class McService {
   // MC-05b: 終了確認（バージョンインクリ + 変更履歴登録）
   // ══════════════════════════════════════════
   async finalize(id: number, changeType: string, changeDetail: string | undefined, operatorId: number) {
-    const mc = await this.prisma.mcProgram.findUnique({ where: { id } });
+    const mc = await this.prisma.mcProgram.findUnique({
+      where: { id },
+      include: { machining: true },
+    });
     if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
 
     const verStr   = mc.version ?? '1.0001';
@@ -1112,7 +1114,10 @@ export class McService {
   }
 
   async createWorkRecord(mcId: number, dto: CreateMcWorkRecordDto, operatorId: number) {
-    const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcId } });
+    const mc = await this.prisma.mcProgram.findUnique({
+      where: { id: mcId },
+      include: { machining: { select: { machineId: true } } },
+    });
     if (!mc) throw new NotFoundException(`MC_id ${mcId} が存在しません`);
 
     // 時刻から時間を自動計算
@@ -1302,20 +1307,16 @@ export class McService {
         part:    true,
         machining: {
           include: {
-            machine:   true,
-            tooling:   { orderBy: { sortOrder: 'asc' } },
-            workOffsets: { orderBy: { gCode: 'asc' } },
+            machine:      true,
+            tooling:      { orderBy: { sortOrder: 'asc' } },
+            workOffsets:  { orderBy: { gCode: 'asc' } },
             indexPrograms: { orderBy: { sortOrder: 'asc' } },
-            creator:   { select: { name: true } },
-            pgCreator: { select: { name: true } },
+            creator:      { select: { name: true } },
+            pgCreator:    { select: { name: true } },
           },
         },
         registrar: { select: { name: true } },
         approver:  { select: { name: true } },
-        tooling_REMOVED:   { orderBy: { sortOrder: 'asc' } },
-        workOffsets:   { orderBy: { gCode: 'asc' } },
-        indexPrograms: { orderBy: { sortOrder: 'asc' } },
-        files: { where: { fileType: 'DRAWING' }, orderBy: { uploadedAt: 'desc' } },
       },
     });
     if (!r) throw new NotFoundException(`MC_id ${mcId} が存在しません`);
@@ -2595,7 +2596,7 @@ export class McService {
 
     if (!(options as any).is_preview) {
       await this.prisma.mcSetupSheetLog.create({
-        data: { mcProgramId: mcId, operatorId, version: data.version ?? null,
+        data: { mcProgramId: mcId, operatorId, version: (data as any).machining?.version ?? (data as any).version ?? null,
                 ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}) },
       }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
     }
