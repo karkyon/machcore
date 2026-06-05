@@ -105,334 +105,6 @@ export class McService {
   }
 
   // ══════════════════════════════════════════
-  // MC-01: 部品検索
-  // ══════════════════════════════════════════
-  async search(
-    key: string,
-    q: string,
-    limit = 50,
-    offset = 0,
-    clientName?: string,
-    machineId?: number,
-    machineCode?: string,
-  ) {
-    const where: any = {};
-    if (q && q.trim()) {
-      const kw = q.trim();
-      if (key === 'mcid') {
-        const n = parseInt(kw);
-        if (!isNaN(n)) where.legacyMcid = n;
-      } else if (key === 'machining_id') {
-        const n = parseInt(kw);
-        if (!isNaN(n)) where.machiningId = n;
-      } else if (key === 'part_id') {
-        where.part = { partId: kw };
-      } else if (key === 'drawing_no') {
-        where.part = { drawingNo: { contains: kw, mode: 'insensitive' } };
-      } else if (key === 'part_name') {
-        where.part = { name: { contains: kw, mode: 'insensitive' } };
-      } else {
-        where.OR = [
-          { part: { drawingNo: { contains: kw, mode: 'insensitive' } } },
-          { part: { name:      { contains: kw, mode: 'insensitive' } } },
-        ];
-      }
-    }
-    if (clientName) where.part = { ...where.part, clientName: { contains: clientName, mode: 'insensitive' } };
-    if (machineId)  where.machineId = machineId;
-    if (machineCode) where.machine = { machineCode: { contains: machineCode, mode: 'insensitive' } };
-
-    const [rows, total] = await Promise.all([
-      this.prisma.mcProgram.findMany({
-        where, skip: offset, take: limit,
-        orderBy: { id: 'asc' },
-        include: {
-          part:     { select: { drawingNo: true, name: true, clientName: true, partId: true } },
-          machining: { select: { version: true, oNumber: true, cycleTimeSec: true, commonPartCode: true,
-                                machine: { select: { machineCode: true, machineName: true } } } },
-        },
-      }),
-      this.prisma.mcProgram.count({ where }),
-    ]);
-
-    return {
-      total, limit, offset,
-      rows: rows.map(r => ({
-        mc_id:         r.id,
-        legacy_mcid:   r.legacyMcid ?? null,
-        part_id:       r.part.partId ?? null,
-        part_db_id:    r.partId,
-        machining_id:  r.machiningId,
-        drawing_no:    r.part.drawingNo,
-        part_name:     r.part.name,
-        client_name:   r.part.clientName,
-        machine_code:  r.machining?.machine?.machineCode ?? null,
-        machine_name:  r.machining?.machine?.machineName ?? null,
-        version:       r.machining?.version ?? '1.0001',
-        status:        r.status,
-        o_number:      r.machining?.oNumber ?? null,
-        cycle_time_sec: r.machining?.cycleTimeSec ?? null,
-        common_part_code: r.machining?.commonPartCode ?? null,
-      })),
-    };
-  }
-
-  // ══════════════════════════════════════════
-  // MC-01b: 次の加工ID候補
-  // ══════════════════════════════════════════
-  async nextMachiningId() {
-    const agg = await this.prisma.mcProgram.aggregate({ _max: { machiningId: true } });
-    const next = (agg._max.machiningId ?? 0) + 1;
-    return { next_machining_id: next };
-  }
-
-  // ══════════════════════════════════════════
-  // MC-02: 最近のアクセス
-  // ══════════════════════════════════════════
-  async recent() {
-    const logs = await this.prisma.operationLog.findMany({
-      where:   { mcProgramId: { not: null } },
-      take:    5,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        createdAt: true,
-        user:      { select: { name: true } },
-        mcProgram: {
-          select: {
-            id: true, legacyMcid: true, status: true,
-            part:     { select: { drawingNo: true, name: true } },
-            machining: { select: { version: true, oNumber: true, machine: { select: { machineCode: true } } } },
-          },
-        },
-      },
-    });
-    return logs.map(l => ({
-      mc_id:        l.mcProgram?.id,
-      legacy_mcid:  l.mcProgram?.legacyMcid ?? null,
-      drawing_no:   l.mcProgram?.part.drawingNo,
-      part_name:    l.mcProgram?.part.name,
-      machine_code: l.mcProgram?.machining?.machine?.machineCode ?? null,
-      version:      l.mcProgram?.machining?.version ?? null,
-      status:       l.mcProgram?.status,
-      operator_name: l.user?.name,
-      accessed_at:  l.createdAt,
-    }));
-  }
-
-  /** Ridoc図面プロキシ用: mc_id → {drawingNo} */
-  async findPartDrawingNo(mcId: number): Promise<{ drawingNo: string | null } | null> {
-    const r = await this.prisma.mcProgram.findUnique({
-      where: { id: mcId },
-      select: { part: { select: { drawingNo: true } } },
-    });
-    if (!r) return null;
-    return { drawingNo: r.part.drawingNo || null };
-  }
-
-  // ══════════════════════════════════════════
-  // MC-03: MC詳細取得
-  // ══════════════════════════════════════════
-  async findOne(id: number) {
-    const r = await this.prisma.mcProgram.findUnique({
-      where: { id },
-      include: {
-        part:      true,
-        machining: {
-          include: {
-            machine:      true,
-            pgCreator:    { select: { id: true, name: true } },
-            creator:      { select: { id: true, name: true } },
-            tooling:      { orderBy: { sortOrder: 'asc' } },
-            workOffsets:  { orderBy: { gCode: 'asc' } },
-            indexPrograms: { orderBy: { sortOrder: 'asc' } },
-          },
-        },
-        registrar: { select: { id: true, name: true } },
-        approver:  { select: { id: true, name: true } },
-        files:     { orderBy: { uploadedAt: 'desc' } },
-      },
-    });
-    if (!r) throw new NotFoundException(`MC_id ${id} が存在しません`);
-
-    // 同一部品の全工程（フローティングパネル用）
-    // part.partId（部品ID文字列）で絞ることで移行バグの影響を受けない
-    const processes = await this.prisma.mcProgram.findMany({
-      where:   { part: { partId: r.part.partId } },
-      orderBy: { id: 'asc' },
-      select: {
-        id: true, legacyMcid: true, machiningId: true, status: true,
-        part:     { select: { drawingNo: true, name: true } },
-        machining: { select: { version: true, mcProcessNo: true, machine: { select: { machineCode: true } } } },
-      },
-    });
-
-    // 共通加工グループ（同一machiningId＝参照表示のみ）
-    const commonGroup = await this.prisma.mcProgram.findMany({
-      where:   { machiningId: r.machiningId },
-      orderBy: { id: 'asc' },
-      select: {
-        id: true, legacyMcid: true, machiningId: true, status: true,
-        part:     { select: { drawingNo: true, name: true, clientName: true, partId: true } },
-        machining: { select: { version: true } },
-      },
-    });
-
-    const m = (r as any).machining ?? {};
-    return {
-      ...r,
-      // McMachiningDetail フィールドをフラットに展開（APIレスポンス後方互換）
-      version:        m.version        ?? '1.0001',
-      machineId:      m.machineId      ?? null,
-      machine:        m.machine        ?? null,
-      oNumber:        m.oNumber        ?? null,
-      clampNote:      m.clampNote      ?? null,
-      cycleTimeSec:   m.cycleTimeSec   ?? null,
-      mcProcessNo:    m.mcProcessNo    ?? null,
-      commonPartCode: m.commonPartCode ?? null,
-      folder1:        m.folder1        ?? null,
-      folder2:        m.folder2        ?? null,
-      fileName:       m.fileName       ?? null,
-      hasIndexProgram: m.hasIndexProgram ?? false,
-      hasWorkOffset:   m.hasWorkOffset   ?? false,
-      pgIsFolder:     m.pgIsFolder     ?? false,
-      pgFolderName:   m.pgFolderName   ?? null,
-      pgCreatedBy:    m.pgCreatedBy    ?? null,
-      pgUpdatedAt:    m.pgUpdatedAt    ?? null,
-      creatorId:      m.creatorId      ?? null,
-      sheetCreatedAt: m.sheetCreatedAt ?? null,
-      pgCreator:      m.pgCreator      ?? null,
-      creator:        m.creator        ?? null,
-      files: r.files.map(f => ({
-        ...f,
-        file_type:      f.fileType,
-        original_name:  f.originalName,
-        stored_name:    f.storedName,
-        mime_type:      f.mimeType,
-        file_path:      f.filePath,
-        thumbnail_path: f.thumbnailPath,
-        file_size:      f.fileSize,
-        uploaded_by:    f.uploadedBy,
-        uploaded_at:    f.uploadedAt,
-      })),
-      processes: processes.map(p => ({
-        id:           p.id,
-        legacyMcid:   p.legacyMcid ?? null,
-        machiningId:  p.machiningId,
-        mcProcessNo:  p.machining?.mcProcessNo ?? null,
-        version:      p.machining?.version ?? '1.0001',
-        status:       p.status,
-        machine:      p.machining?.machine ? { machineCode: p.machining.machine.machineCode } : null,
-      })),
-      commonGroup: commonGroup.map(g => ({
-        id:          g.id,
-        legacyMcid:  g.legacyMcid ?? null,
-        machiningId: g.machiningId,
-        version:     g.machining?.version ?? '1.0001',
-        status:      g.status,
-        part:        g.part,
-      })),
-    };
-  }
-
-  // ══════════════════════════════════════════
-  // MC-04: 新規登録
-  // ══════════════════════════════════════════
-  async create(dto: CreateMcDto, operatorId: number) {
-    const part = await this.prisma.part.findUnique({ where: { id: dto.part_id } });
-    if (!part) throw new NotFoundException(`part_id ${dto.part_id} が存在しません`);
-
-    return this.prisma.$transaction(async (tx) => {
-      // McMachiningDetail（加工プログラム本体）を upsert
-      await tx.mcMachiningDetail.upsert({
-        where:  { machiningId: dto.machining_id },
-        create: {
-          machiningId:  dto.machining_id,
-          version:      '1.0001',
-          machineId:    dto.machine_id     ?? null,
-          oNumber:      dto.o_number       ?? null,
-          clampNote:    dto.clamp_note     ?? null,
-          cycleTimeSec: dto.cycle_time_sec ?? null,
-          mcProcessNo:  dto.mc_process_no  ?? null,
-          fileName:     dto.file_name      ?? null,
-          commonPartCode: dto.common_part_code ?? null,
-        },
-        update: {},  // 既存の場合は更新しない（共通部品登録時）
-      });
-      const mc = await tx.mcProgram.create({
-        data: {
-          partId:        dto.part_id,
-          machiningId:   dto.machining_id,
-          machiningQty:  dto.machining_qty  ?? 1,
-          note:          dto.note           ?? null,
-          legacyMcid:    dto.machining_id,
-          registeredBy:  operatorId,
-          status:        'NEW',
-        },
-      });
-      await tx.mcChangeHistory.create({
-        data: {
-          mcProgramId:  mc.id,
-          changeType:   'NEW_REGISTRATION',
-          operatorId,
-          versionAfter: (mc as any).machining?.version ?? '1.0001',
-          content:      '新規登録',
-        },
-      });
-      await tx.operationLog.create({
-        data: { userId: operatorId, mcProgramId: mc.id, actionType: 'MC_EDIT_SAVE', metadata: { action: 'create' } },
-      });
-      return { mc_id: mc.id, message: 'MCプログラムを登録しました' };
-    });
-  }
-
-  // ══════════════════════════════════════════
-  // MC-05b: 終了確認（バージョンインクリ + 変更履歴登録）
-  // ══════════════════════════════════════════
-  async finalize(id: number, changeType: string, changeDetail: string | undefined, operatorId: number) {
-    const mc = await this.prisma.mcProgram.findUnique({
-      where: { id },
-      include: { machining: true },
-    });
-    if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
-
-    const verStr = (mc as any).machining.version as string;
-    const verFloat = parseFloat(verStr) || 1.0001;
-    const ver1 = Math.floor(verFloat);
-    const ver2 = Math.floor(verFloat * 100) - ver1 * 100;
-    const ver3 = Math.floor(verFloat * 10000) - ver1 * 10000 - ver2 * 100;
-    const isMajor = ['大変更', '新規登録', '試作登録'].includes(changeType);
-    const newVerFloat = isMajor
-      ? ver1 + 1 + ver3 / 10000
-      : ver1 + ver2 / 100 + 0.01 + ver3 / 10000;
-    const newVer1    = Math.floor(newVerFloat);
-    const newVer2    = Math.round((newVerFloat - newVer1) * 10000);
-    const newVersion = `${newVer1}.${String(newVer2).padStart(4, '0')}`;
-    const content    = `${changeType}${changeDetail ? ' ' + changeDetail : ''}`;
-
-    return this.prisma.$transaction(async (tx) => {
-      await tx.mcMachiningDetail.update({
-        where: { machiningId: mc.machiningId },
-        data:  { version: newVersion },
-      });
-      await tx.mcProgram.update({
-        where: { id },
-        data:  { status: 'CHANGING' },
-      });
-      await tx.mcChangeHistory.create({
-        data: {
-          mcProgramId:   id,
-          changeType:    'CHANGE',
-          operatorId,
-          versionBefore: (mc as any).machining?.version ?? '1.0001',
-          versionAfter:  newVersion,
-          content,
-        },
-      });
-      return { mc_id: id, version: newVersion, message: `${changeType}として登録しました` };
-    });
-  }
-
-  // ══════════════════════════════════════════
   // MC-05: 更新
   // ══════════════════════════════════════════
   async update(id: number, dto: UpdateMcDto, operatorId: number) {
@@ -443,18 +115,11 @@ export class McService {
     if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
     const mach = (mc as any).machining ?? {};
 
-    // VBA 終了確認ロジック準拠バージョンインクリ
-    // version format: "1.0001" (整数部.4桁小数)
-    const verStr = mach.version ?? '1.0001';
+    // version はバージョンインクリしない（finalize で行う）
+    const verStr   = mach.version ?? '1.0001';
     const verFloat = parseFloat(verStr) || 1.0001;
-    const ver1 = Math.floor(verFloat);                           // 整数部
-    const ver2 = Math.floor(verFloat * 100) - ver1 * 100;       // 100分の1
-    const ver3 = Math.floor(verFloat * 10000) - ver1 * 10000 - ver2 * 100; // 10000分の1
-    // update時はバージョンを変えない（finalizeで行う）
-    const newVerFloat = verFloat; // 変更なし
-    // フォーマット: "2.0000" 形式に
-    const newVer1 = Math.floor(newVerFloat);
-    const newVer2 = Math.round((newVerFloat - newVer1) * 10000);
+    const newVer1  = Math.floor(verFloat);
+    const newVer2  = Math.round((verFloat - newVer1) * 10000);
     const newVersion = `${newVer1}.${String(newVer2).padStart(4, '0')}`;
 
     return this.prisma.$transaction(async (tx) => {
@@ -462,24 +127,25 @@ export class McService {
       await tx.mcMachiningDetail.update({
         where: { machiningId: mc.machiningId },
         data: {
-          machineId:     dto.machine_id     !== undefined ? dto.machine_id     : mach.machineId,
-          oNumber:       dto.o_number       !== undefined ? dto.o_number       : mach.oNumber,
-          clampNote:     dto.clamp_note     !== undefined ? dto.clamp_note     : mach.clampNote,
-          cycleTimeSec:  dto.cycle_time_sec !== undefined ? dto.cycle_time_sec : mach.cycleTimeSec,
+          machineId:      dto.machine_id      !== undefined ? dto.machine_id      : mach.machineId,
+          oNumber:        dto.o_number        !== undefined ? dto.o_number        : mach.oNumber,
+          clampNote:      dto.clamp_note      !== undefined ? dto.clamp_note      : mach.clampNote,
+          cycleTimeSec:   dto.cycle_time_sec  !== undefined ? dto.cycle_time_sec  : mach.cycleTimeSec,
           commonPartCode: dto.common_part_code !== undefined ? dto.common_part_code : mach.commonPartCode,
-          creatorId:     dto.creator_id     !== undefined ? dto.creator_id     : mach.creatorId,
-          version:       newVersion,
+          creatorId:      dto.creator_id      !== undefined ? dto.creator_id      : mach.creatorId,
+          version:        newVersion,
           sheetCreatedAt: dto.sheet_created_at !== undefined
             ? (dto.sheet_created_at ? new Date(dto.sheet_created_at) : null)
             : mach.sheetCreatedAt,
         },
       });
+      // McProgram: 部品固有フィールドを更新
       await tx.mcProgram.update({
         where: { id },
         data: {
-          machiningQty:  dto.machining_qty  !== undefined ? dto.machining_qty  : mc.machiningQty,
-          note:          dto.note           !== undefined ? dto.note           : mc.note,
-          status:        'CHANGING',
+          machiningQty: dto.machining_qty !== undefined ? dto.machining_qty : mc.machiningQty,
+          note:         dto.note         !== undefined ? dto.note         : mc.note,
+          status:       'CHANGING',
         },
       });
       // 変更履歴はfinalize()で登録するためupdateでは登録しない
