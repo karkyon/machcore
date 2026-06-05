@@ -45,14 +45,15 @@ export class DashboardService {
     const rows = await this.prisma.mcSetupSheetLog.findMany({
       where: { workCollected: false },
       orderBy: [
+        { mcProgram: { machine: { sortOrder: 'asc' } } },
         { printedAt: 'asc' },
       ],
       include: {
         operator:  { select: { name: true } },
         mcProgram: {
           include: {
-            part:     { select: { partId: true, drawingNo: true, name: true, clientName: true, mainModel: true } },
-            machining: { select: { machine: { select: { machineCode: true, machineName: true, sortOrder: true } } } },
+            part:    { select: { partId: true, drawingNo: true, name: true, clientName: true, mainModel: true } },
+            machine: { select: { machineCode: true, machineName: true, sortOrder: true } },
           },
         },
       },

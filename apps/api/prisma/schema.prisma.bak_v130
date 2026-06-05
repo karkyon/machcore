@@ -100,8 +100,8 @@ model User {
   mcChangeHistories    McChangeHistory[]
   mcSetupSheetLogs     McSetupSheetLog[]
   mcUploadedFiles      McFile[]
-  mcPgCreatedDetails   McMachiningDetail[]  @relation("McPgCreatedBy")
-  mcCreatedDetails      McMachiningDetail[]  @relation("McCreatedBy")
+  mcPgCreatedPrograms  McProgram[]   @relation("McPgCreatedBy")
+  mcCreatedPrograms    McProgram[]   @relation("McCreatedBy")
   timecards            MachineTimecard[]
   @@map("users")
 }
@@ -120,7 +120,7 @@ model Machine {
   mcSpecs     Json?                     @map("mc_specs")
   ncPrograms  NcProgram[]
   workRecords WorkRecord[]
-  mcMachiningDetails McMachiningDetail[]
+  mcPrograms  McProgram[]
   timecards   MachineTimecard[]
   @@map("machines")
 }
@@ -382,77 +382,56 @@ enum McProgramStatus {
 // MC システム新規モデル
 // ============================================================
 
-// ============================================================
-// MC 正規化テーブル: mc_machining_details (旧マシニングテーブル相当)
-// machining_id が PK、加工プログラム本体情報を保持
-// ============================================================
-model McMachiningDetail {
-  machiningId     Int       @id                              @map("machining_id")
-  version         String    @default("1.0001") @db.VarChar(10)
-  machineId       Int?                                       @map("machine_id")
-  oNumber         String?   @db.VarChar(50)                  @map("o_number")
-  clampNote       String?   @db.Text                         @map("clamp_note")
-  cycleTimeSec    Int?                                        @map("cycle_time_sec")
-  mcProcessNo     Int?      @db.SmallInt                     @map("mc_process_no")
-  folder1         String?   @db.VarChar(50)
-  folder2         String?   @db.VarChar(50)
-  fileName        String?   @db.VarChar(50)                  @map("file_name")
-  hasIndexProgram Boolean   @default(false)                  @map("has_index_program")
-  hasWorkOffset   Boolean   @default(false)                  @map("has_work_offset")
-  rc              Int       @default(0)
-  pgIsFolder      Boolean   @default(false)                  @map("pg_is_folder")
-  pgFolderName    String?   @db.VarChar(100)                 @map("pg_folder_name")
+model McProgram {
+  id             Int             @id @default(autoincrement())
+  partId         Int                                          @map("part_id")
+  machiningId    Int                                          @map("machining_id")
+  machineId      Int?                                         @map("machine_id")
+  status         McProgramStatus @default(NEW)
+  version        String          @default("1.0001") @db.VarChar(10)
+  oNumber        String?         @db.VarChar(50)             @map("o_number")
+  clampNote      String?         @db.Text                    @map("clamp_note")
+  cycleTimeSec   Int?                                         @map("cycle_time_sec")
+  machiningQty   Int?            @default(1)                 @map("machining_qty")
+  commonPartCode String?         @db.VarChar(20)             @map("common_part_code")
+  note           String?         @db.Text
+  registeredBy   Int                                         @map("registered_by")
+  approvedBy     Int?                                        @map("approved_by")
+  registeredAt   DateTime        @default(now())             @map("registered_at")
+  approvedAt     DateTime?                                   @map("approved_at")
+  legacyMcid     Int?                                        @map("legacy_mcid")
+  legacyKakoid   Int?                                        @map("legacy_kakoid")
+  mcProcessNo     Int?            @db.SmallInt                @map("mc_process_no")
+  folder1         String?         @db.VarChar(50)             @map("folder1")
+  folder2         String?         @db.VarChar(50)             @map("folder2")
+  fileName        String?         @db.VarChar(50)             @map("file_name")
+  hasIndexProgram Boolean         @default(false)             @map("has_index_program")
+  hasWorkOffset   Boolean         @default(false)             @map("has_work_offset")
+  rc              Int             @default(0)
+  pgIsFolder      Boolean         @default(false)             @map("pg_is_folder")
+  pgFolderName    String?         @db.VarChar(100)            @map("pg_folder_name")
   pgCreatedBy     Int?                                        @map("pg_created_by")
   pgUpdatedAt     DateTime?                                   @map("pg_updated_at")
   creatorId       Int?                                        @map("creator_id")
-  sheetCreatedAt  DateTime? @db.Date                         @map("sheet_created_at")
-  commonPartCode  String?   @db.VarChar(20)                  @map("common_part_code")
-  legacyKakoid    Int?                                        @map("legacy_kakoid")
-  createdAt       DateTime  @default(now())                  @map("created_at")
-  updatedAt       DateTime  @updatedAt                       @map("updated_at")
+  sheetCreatedAt  DateTime?       @db.Date                    @map("sheet_created_at")
+  createdAt      DateTime        @default(now())             @map("created_at")
+  updatedAt      DateTime        @updatedAt                  @map("updated_at")
 
-  machine       Machine?         @relation(fields: [machineId],  references: [id])
-  pgCreator     User?            @relation("McPgCreatedBy",  fields: [pgCreatedBy],  references: [id])
-  creator       User?            @relation("McCreatedBy",    fields: [creatorId],    references: [id])
-  programs      McProgram[]
-  tooling       McTooling[]
-  workOffsets   McWorkOffset[]
-  indexPrograms McIndexProgram[]
-
-  @@index([machineId])
-  @@index([legacyKakoid])
-  @@map("mc_machining_details")
-}
-
-// ============================================================
-// MC 正規化テーブル: mc_programs (旧MCテーブル相当)
-// id が PK (旧MCID相当)、部品と加工の紐付けのみ保持
-// ============================================================
-model McProgram {
-  id            Int             @id @default(autoincrement())
-  partId        Int                                          @map("part_id")
-  machiningId   Int                                          @map("machining_id")
-  machiningQty  Int?            @default(1)                  @map("machining_qty")
-  note          String?         @db.Text
-  status        McProgramStatus @default(NEW)
-  registeredBy  Int                                          @map("registered_by")
-  approvedBy    Int?                                         @map("approved_by")
-  registeredAt  DateTime        @default(now())              @map("registered_at")
-  approvedAt    DateTime?                                    @map("approved_at")
-  legacyMcid    Int?                                         @map("legacy_mcid")
-  createdAt     DateTime        @default(now())              @map("created_at")
-  updatedAt     DateTime        @updatedAt                   @map("updated_at")
-
-  part          Part               @relation(fields: [partId],       references: [id])
-  machining     McMachiningDetail  @relation(fields: [machiningId],   references: [machiningId])
-  registrar     User               @relation("McRegisteredBy", fields: [registeredBy], references: [id])
-  approver      User?              @relation("McApprovedBy",   fields: [approvedBy],   references: [id])
-  files         McFile[]
-  changeHistory McChangeHistory[]
-  workRecords   WorkRecord[]
+  part           Part              @relation(fields: [partId],      references: [id])
+  machine        Machine?          @relation(fields: [machineId],   references: [id])
+  registrar      User              @relation("McRegisteredBy", fields: [registeredBy], references: [id])
+  approver       User?             @relation("McApprovedBy",  fields: [approvedBy],   references: [id])
+  pgCreator      User?             @relation("McPgCreatedBy",  fields: [pgCreatedBy],  references: [id])
+  creator        User?             @relation("McCreatedBy",     fields: [creatorId],    references: [id])
+  tooling        McTooling[]
+  workOffsets    McWorkOffset[]
+  indexPrograms  McIndexProgram[]
+  files          McFile[]
+  changeHistory  McChangeHistory[]
+  workRecords    WorkRecord[]
   setupSheetLogs McSetupSheetLog[]
-  workSessions  WorkSession[]
-  operationLogs OperationLog[]
+  workSessions   WorkSession[]
+  operationLogs  OperationLog[]
 
   @@index([machiningId])
   @@index([partId])
@@ -463,13 +442,13 @@ model McProgram {
 
 model McTooling {
   id              Int      @id @default(autoincrement())
-  machiningId     Int                          @map("machining_id")
+  mcProgramId     Int                          @map("mc_program_id")
   sortOrder       Int      @db.SmallInt        @map("sort_order")
   toolNo          String?  @db.VarChar(20)     @map("tool_no")
   toolName        String?  @db.VarChar(100)    @map("tool_name")
-  tNo             String?  @db.VarChar(10)     @map("t_no")
-  dValueContent   String?  @db.VarChar(50)     @map("d_value_content")
-  subPgNo         String?  @db.VarChar(20)     @map("sub_pg_no")
+  tNo             String?  @db.VarChar(10)      @map("t_no")
+  dValueContent   String?  @db.VarChar(50)      @map("d_value_content")
+  subPgNo         String?  @db.VarChar(20)      @map("sub_pg_no")
   diameter        Decimal? @db.Decimal(8, 3)
   lengthOffsetNo  String?  @db.VarChar(10)     @map("length_offset_no")
   diaOffsetNo     String?  @db.VarChar(10)     @map("dia_offset_no")
@@ -479,15 +458,15 @@ model McTooling {
   createdAt       DateTime @default(now())     @map("created_at")
   updatedAt       DateTime @updatedAt          @map("updated_at")
 
-  machining McMachiningDetail @relation(fields: [machiningId], references: [machiningId], onDelete: Cascade)
+  mcProgram McProgram @relation(fields: [mcProgramId], references: [id], onDelete: Cascade)
 
-  @@index([machiningId, sortOrder])
+  @@index([mcProgramId, sortOrder])
   @@map("mc_tooling")
 }
 
 model McWorkOffset {
   id          Int      @id @default(autoincrement())
-  machiningId Int                          @map("machining_id")
+  mcProgramId Int                          @map("mc_program_id")
   gCode       String   @db.VarChar(10)     @map("g_code")
   xOffset     Decimal? @db.Decimal(12, 3)  @map("x_offset")
   yOffset     Decimal? @db.Decimal(12, 3)  @map("y_offset")
@@ -498,14 +477,15 @@ model McWorkOffset {
   createdAt   DateTime @default(now())     @map("created_at")
   updatedAt   DateTime @updatedAt          @map("updated_at")
 
-  machining McMachiningDetail @relation(fields: [machiningId], references: [machiningId], onDelete: Cascade)
+  mcProgram McProgram @relation(fields: [mcProgramId], references: [id], onDelete: Cascade)
 
+  // @@unique([mcProgramId, gCode])  // 旧DB同一加工IDに同一Gコード複数存在のため削除
   @@map("mc_work_offsets")
 }
 
 model McIndexProgram {
   id          Int      @id @default(autoincrement())
-  machiningId Int                          @map("machining_id")
+  mcProgramId Int                          @map("mc_program_id")
   sortOrder   Int      @db.SmallInt        @map("sort_order")
   axis0       String?  @db.VarChar(100)    @map("axis_0")
   axis1       String?  @db.VarChar(100)    @map("axis_1")
@@ -514,9 +494,9 @@ model McIndexProgram {
   createdAt   DateTime @default(now())     @map("created_at")
   updatedAt   DateTime @updatedAt          @map("updated_at")
 
-  machining McMachiningDetail @relation(fields: [machiningId], references: [machiningId], onDelete: Cascade)
+  mcProgram McProgram @relation(fields: [mcProgramId], references: [id], onDelete: Cascade)
 
-  @@index([machiningId, sortOrder])
+  @@index([mcProgramId, sortOrder])
   @@map("mc_index_programs")
 }
 

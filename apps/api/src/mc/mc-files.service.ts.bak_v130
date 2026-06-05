@@ -298,9 +298,9 @@ export class McFilesService {
     if (existing && fs.existsSync(existing.filePath)) {
       // 既存ファイルを上書き
       fs.writeFileSync(existing.filePath, buf);
-      // pg_updated_at を更新 (McMachiningDetail)
-      await this.prisma.mcMachiningDetail.update({
-        where: { machiningId: mc.machiningId },
+      // pg_updated_at を更新
+      await this.prisma.mcProgram.update({
+        where: { id: mcProgramId },
         data:  { pgUpdatedAt: new Date(), pgCreatedBy: uploadedBy },
       });
       return { message: 'PGファイルを保存しました' };
@@ -328,8 +328,8 @@ export class McFilesService {
         sortOrder:   0,
       },
     });
-    await this.prisma.mcMachiningDetail.update({
-      where: { machiningId: mc.machiningId },
+    await this.prisma.mcProgram.update({
+      where: { id: mcProgramId },
       data:  { pgUpdatedAt: new Date(), pgCreatedBy: uploadedBy },
     });
     return { message: 'PGファイルを新規保存しました' };
