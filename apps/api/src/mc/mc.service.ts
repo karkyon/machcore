@@ -395,7 +395,7 @@ export class McService {
     });
     if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
 
-    const verStr = ((mc as any).machining as any).version as string;
+    const verStr = (mc as any).machining.version as string;
     const verFloat = parseFloat(verStr) || 1.0001;
     const ver1 = Math.floor(verFloat);
     const ver2 = Math.floor(verFloat * 100) - ver1 * 100;
