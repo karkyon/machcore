@@ -44,9 +44,7 @@ export class DashboardService {
   async uncollectedMc() {
     const rows = await this.prisma.mcSetupSheetLog.findMany({
       where: { workCollected: false },
-      orderBy: [
-        { printedAt: 'asc' },
-      ],
+      orderBy: [{ printedAt: 'asc' }],
       include: {
         operator:  { select: { name: true } },
         mcProgram: {
@@ -78,10 +76,10 @@ export class DashboardService {
       part_name:      s.mcProgram.part.name,
       client_name:    s.mcProgram.part.clientName ?? null,
       main_model:     s.mcProgram.part.mainModel ?? null,
-      mc_process_no:  null ?? null,
-      machine_code:   (s.mcProgram as any).machining?.machine?.machineCode ?? null,
-      machine_name:   (s.mcProgram as any).machining?.machine?.machineName ?? null,
-      machine_sort:   (s.mcProgram as any).machining?.machine?.sortOrder ?? 999,
+      mc_process_no:  s.mcProgram.mcProcessNo ?? null,
+      machine_code:   s.mcProgram.machine?.machineCode ?? null,
+      machine_name:   s.mcProgram.machine?.machineName ?? null,
+      machine_sort:   s.mcProgram.machine?.sortOrder ?? 999,
       version:        s.version ?? null,
       printed_at:     s.printedAt,
       operator_name:  s.operator.name,

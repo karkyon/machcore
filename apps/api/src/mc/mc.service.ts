@@ -115,7 +115,6 @@ export class McService {
     if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
     const mach = (mc as any).machining ?? {};
 
-    // version はバージョンインクリしない（finalize で行う）
     const verStr   = mach.version ?? '1.0001';
     const verFloat = parseFloat(verStr) || 1.0001;
     const newVer1  = Math.floor(verFloat);
@@ -123,7 +122,6 @@ export class McService {
     const newVersion = `${newVer1}.${String(newVer2).padStart(4, '0')}`;
 
     return this.prisma.$transaction(async (tx) => {
-      // McMachiningDetail: 加工プログラム本体フィールドを更新
       await tx.mcMachiningDetail.update({
         where: { machiningId: mc.machiningId },
         data: {
@@ -139,7 +137,6 @@ export class McService {
             : mach.sheetCreatedAt,
         },
       });
-      // McProgram: 部品固有フィールドを更新
       await tx.mcProgram.update({
         where: { id },
         data: {
@@ -148,7 +145,6 @@ export class McService {
           status:       'CHANGING',
         },
       });
-      // 変更履歴はfinalize()で登録するためupdateでは登録しない
       await tx.operationLog.create({
         data: { userId: operatorId, mcProgramId: id, actionType: 'MC_EDIT_SAVE', metadata: { action: 'update' } },
       });
@@ -247,12 +243,13 @@ export class McService {
           })),
         });
       }
-      // RC自動更新（ツーリング件数をmc_programsに反映）
-      await tx.mcProgram.update({
-        where: { id: mcId },
-        data:  {
+      // RC自動更新（ツーリング件数を反映）
+      // (McMachiningDetail は machining_id で管理)
+      await tx.operationLog.create({
+        data: { userId: operatorId, mcProgramId: mcId, actionType: 'MC_EDIT_SAVE', metadata: { action: 'save_tooling_noop' } },
       });
       await tx.operationLog.create({
+
         data: { userId: operatorId, mcProgramId: mcId, actionType: 'MC_EDIT_SAVE', metadata: { action: 'save_tooling' } },
       });
       return { mc_id: mcId, count: dto.items.length, message: 'ツーリングデータを保存しました' };
@@ -969,18 +966,13 @@ export class McService {
       where: { id: mcId },
       include: {
         part:    true,
-        machining: {
-          include: {
-            machine:      true,
-            tooling:      { orderBy: { sortOrder: 'asc' } },
-            workOffsets:  { orderBy: { gCode: 'asc' } },
-            indexPrograms: { orderBy: { sortOrder: 'asc' } },
-            creator:      { select: { name: true } },
-            pgCreator:    { select: { name: true } },
-          },
-        },
+        machine: true,
         registrar: { select: { name: true } },
         approver:  { select: { name: true } },
+        tooling:   { orderBy: { sortOrder: 'asc' } },
+        workOffsets:   { orderBy: { gCode: 'asc' } },
+        indexPrograms: { orderBy: { sortOrder: 'asc' } },
+        files: { where: { fileType: 'DRAWING' }, orderBy: { uploadedAt: 'desc' } },
       },
     });
     if (!r) throw new NotFoundException(`MC_id ${mcId} が存在しません`);
@@ -1389,27 +1381,20 @@ export class McService {
       ? await this.prisma.machine.findUnique({ where: { id: dto.machine_id } })
       : null;
 
-    // 一時McMachiningDetail + McProgram を作成してPDF生成し、その後削除
-    await this.prisma.mcMachiningDetail.upsert({
-      where:  { machiningId: dto.machining_id },
-      create: {
-        machiningId:  dto.machining_id,
-        version:      '0.0001',
-        machineId:    dto.machine_id ?? null,
-        oNumber:      dto.o_number   ?? null,
-        mcProcessNo:  dto.mc_process_no ?? null,
-      },
-      update: {},
-    });
+    // 一時MCレコードを作成してPDF生成し、その後削除
     const tempMc = await this.prisma.mcProgram.create({
       data: {
         partId:       dto.part_id,
         machiningId:  dto.machining_id,
+        mcProcessNo:  dto.mc_process_no ?? null,
+        machineId:    dto.machine_id    ?? null,
+        oNumber:      dto.o_number      ?? null,
         machiningQty: dto.machining_qty ?? 1,
         note:         dto.note          ?? null,
         legacyMcid:   dto.machining_id,
         registeredBy: operatorId,
         status:       'NEW',
+        version:      '0.0001',
       },
     });
 
@@ -1440,40 +1425,33 @@ export class McService {
     let retried = false;
 
     for (let attempt = 0; attempt < 3; attempt++) {
-      // machining_id 重複チェック（通常登録のみ、共通部品登録時はスキップ）
-      if (!dto.is_common_part) {
-        const existing = await this.prisma.mcProgram.findFirst({ where: { machiningId } });
-        if (existing) {
-          const agg = await this.prisma.mcProgram.aggregate({ _max: { machiningId: true } });
-          machiningId = (agg._max.machiningId ?? 0) + 1;
-          retried = true;
-          continue;
-        }
+      // 加工IDの競合チェック
+      const existing = await this.prisma.mcProgram.findFirst({
+        where: { machiningId },
+      });
+      if (existing) {
+        // 競合 → 次の加工IDを取得
+        const agg = await this.prisma.mcProgram.aggregate({ _max: { machiningId: true } });
+        machiningId = (agg._max.machiningId ?? 0) + 1;
+        retried = true;
+        continue;
       }
 
       try {
         const mc = await this.prisma.$transaction(async (tx) => {
-          // McMachiningDetail upsert
-          await tx.mcMachiningDetail.upsert({
-            where:  { machiningId },
-            create: {
-              machiningId,
-              version:      '0.0001',
-              machineId:    dto.machine_id  ?? null,
-              oNumber:      dto.o_number    ?? null,
-              mcProcessNo:  dto.mc_process_no ?? null,
-            },
-            update: {},  // 共通部品登録時は既存を更新しない
-          });
           const created = await tx.mcProgram.create({
             data: {
               partId:        dto.part_id,
               machiningId,
+              mcProcessNo:   dto.mc_process_no   ?? null,
+              machineId:     dto.machine_id      ?? null,
+              oNumber:       dto.o_number        ?? null,
               machiningQty:  dto.machining_qty   ?? 1,
               note:          dto.note            ?? null,
               legacyMcid:    machiningId,
               registeredBy:  operatorId,
               status:        'NEW',
+              version:       '0.0001',
             },
           });
           await tx.mcChangeHistory.create({
@@ -1481,7 +1459,7 @@ export class McService {
               mcProgramId:  created.id,
               changeType:   'NEW_REGISTRATION',
               operatorId,
-              versionAfter: '0.0001',
+              versionAfter: created.version,
               content:      '新規登録',
             },
           });
