@@ -32,12 +32,7 @@ export default function CommonPartsPage() {
   const [error,    setError]    = useState<string | null>(null);
   const [toast,    setToast]    = useState<string | null>(null);
 
-  const [regOpen,     setRegOpen]     = useState(false);
-  const [regTarget,   setRegTarget]   = useState<McCommonSearchResult | null>(null);
-  const [regPartId,   setRegPartId]   = useState("");
-  const [regNote,     setRegNote]     = useState("");
-  const [regSaving,   setRegSaving]   = useState(false);
-  const [regError,    setRegError]    = useState<string | null>(null);
+  const [infoTarget, setInfoTarget] = useState<McCommonSearchResult | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg); setTimeout(() => setToast(null), 3000);
@@ -62,23 +57,7 @@ export default function CommonPartsPage() {
     } finally { setLoading(false); }
   }, [drawingNo, name, mainModel, partId, mcId, machiningId]);
 
-  const openReg = (item: McCommonSearchResult) => {
-    if (!isAuthenticated) { setAuthOpen(true); return; }
-    setRegTarget(item); setRegPartId(""); setRegNote(""); setRegError(null); setRegOpen(true);
-  };
 
-  const doRegister = async () => {
-    if (!token || !regTarget) return;
-    const tId = parseInt(regPartId);
-    if (isNaN(tId)) { setRegError("部品IDを正しく入力してください"); return; }
-    setRegSaving(true); setRegError(null);
-    try {
-      await mcApi.registerCommonPart({ source_machining_id: regTarget.machiningId, target_part_id: tId, note: regNote || undefined }, token);
-      setRegOpen(false); showToast("✅ 共通登録しました"); doSearch(page);
-    } catch (e: any) {
-      setRegError(e?.response?.data?.message ?? e?.message ?? "登録失敗");
-    } finally { setRegSaving(false); }
-  };
 
   const doUnregister = async (item: McCommonSearchResult) => {
     if (!isAuthenticated) { setAuthOpen(true); return; }
@@ -174,8 +153,8 @@ export default function CommonPartsPage() {
                       <div className="flex items-center gap-1">
                         <button onClick={() => router.push(`/mc/${item.mcProgramId}`)}
                           className="px-2 py-1 bg-teal-600 text-white text-[10px] font-bold rounded hover:bg-teal-700">詳細</button>
-                        <button onClick={() => openReg(item)}
-                          className="px-2 py-1 bg-violet-600 text-white text-[10px] font-bold rounded hover:bg-violet-700">供用追加</button>
+                        <button onClick={() => setInfoTarget(item)}
+                          className="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold rounded hover:bg-slate-200 border border-slate-300">供用方法</button>
                         {item.groupCount > 1 && (
                           <button onClick={() => doUnregister(item)}
                             className="px-2 py-1 bg-red-100 text-red-600 text-[10px] font-bold rounded hover:bg-red-200 border border-red-200">解除</button>
@@ -199,35 +178,31 @@ export default function CommonPartsPage() {
         )}
       </div>
 
-      {regOpen && regTarget && (
+      {infoTarget && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h2 className="text-base font-bold text-slate-800 mb-4">📋 共通登録（供用）</h2>
-            <div className="bg-slate-50 rounded-xl p-3 mb-4 text-sm space-y-1">
-              <div><span className="text-slate-400 text-xs">供用元 加工ID:</span> <span className="font-mono font-bold text-teal-700">{regTarget.machiningId}</span></div>
-              <div><span className="text-slate-400 text-xs">図面番号:</span> <span className="font-mono font-bold">{regTarget.drawingNo}</span></div>
-              <div><span className="text-slate-400 text-xs">名称:</span> <span>{regTarget.name}</span></div>
-              <div><span className="text-slate-400 text-xs">バージョン:</span> <span className="font-mono">{regTarget.version}</span></div>
+            <h2 className="text-base font-bold text-slate-800 mb-3">📋 共通登録の手順</h2>
+            <div className="bg-teal-50 rounded-xl p-3 mb-4 text-sm space-y-1">
+              <div><span className="text-slate-400 text-xs">対象加工ID:</span> <span className="font-mono font-bold text-teal-700">{infoTarget.machiningId}</span></div>
+              <div><span className="text-slate-400 text-xs">図面番号:</span> <span className="font-mono font-bold">{infoTarget.drawingNo}</span></div>
+              <div><span className="text-slate-400 text-xs">名称:</span> <span>{infoTarget.name}</span></div>
             </div>
-            <div className="mb-3">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">供用先 部品ID（DBのid）</label>
-              <input type="number" value={regPartId} onChange={e => setRegPartId(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                placeholder="例: 42" />
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm">
+              <p className="font-bold text-amber-800 mb-2">共通登録の操作手順</p>
+              <ol className="list-decimal list-inside space-y-1.5 text-amber-900 text-xs">
+                <li>この加工データを使いたい<strong>登録先の部品</strong>のMC詳細ページを開く</li>
+                <li>「共通グループ」タブをクリック</li>
+                <li>「＋ 新規に共通登録」ボタンを押す</li>
+                <li>検索で上記の加工（図面番号: {infoTarget.drawingNo}）を探して選択</li>
+                <li>「✅ 共通登録する」を押して完了</li>
+              </ol>
             </div>
-            <div className="mb-4">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">備考（任意）</label>
-              <input value={regNote} onChange={e => setRegNote(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                placeholder="備考" />
-            </div>
-            {regError && <div className="mb-3 text-red-600 text-sm">{regError}</div>}
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setRegOpen(false)}
-                className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-300">キャンセル</button>
-              <button onClick={doRegister} disabled={regSaving}
-                className="px-5 py-2 bg-violet-600 text-white text-sm font-bold rounded-xl hover:bg-violet-700 disabled:opacity-50">
-                {regSaving ? "登録中..." : "✅ 共通登録する"}
+              <button onClick={() => setInfoTarget(null)}
+                className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-300">閉じる</button>
+              <button onClick={() => { setInfoTarget(null); router.push(`/mc/${infoTarget.mcProgramId}`); }}
+                className="px-4 py-2 bg-teal-600 text-white text-sm font-bold rounded-xl hover:bg-teal-700">
+                このMCの詳細を開く →
               </button>
             </div>
           </div>

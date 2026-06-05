@@ -74,12 +74,16 @@ export default function McDetailPage() {
   // PGアップロード
   const [pgUploading,  setPgUploading]  = useState(false);
   // 共通グループ 供用登録モーダル
-  const [cpRegOpen,      setCpRegOpen]      = useState(false);
-  const [cpTargetPartId, setCpTargetPartId] = useState("");
-  const [cpNote,         setCpNote]         = useState("");
-  const [cpSaving,       setCpSaving]       = useState(false);
-  const [cpError,        setCpError]        = useState<string | null>(null);
-  const [cpUnregSaving,  setCpUnregSaving]  = useState(false);
+  const [cpRegOpen,       setCpRegOpen]       = useState(false);
+  const [cpSearchQ,       setCpSearchQ]       = useState("");
+  const [cpSearchKey,     setCpSearchKey]     = useState("drawing_no");
+  const [cpSearchResults, setCpSearchResults] = useState<any[]>([]);
+  const [cpSearchLoading, setCpSearchLoading] = useState(false);
+  const [cpSelected,      setCpSelected]      = useState<any | null>(null);
+  const [cpNote,          setCpNote]          = useState("");
+  const [cpSaving,        setCpSaving]        = useState(false);
+  const [cpError,         setCpError]         = useState<string | null>(null);
+  const [cpUnregSaving,   setCpUnregSaving]   = useState(false);
   const showToast = useCallback((msg: string) => {
     setToast(msg); setTimeout(() => setToast(null), 3000);
   }, []);
@@ -802,67 +806,145 @@ export default function McDetailPage() {
           </div>
         )}
 
-        {/* 供用登録モーダル */}
+        {/* 供用登録モーダル — 旧システム準拠: 現在の部品に対して「使いたい加工」を検索・選択 */}
         {cpRegOpen && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-              <h2 className="text-base font-bold text-slate-800 mb-4">📋 共通登録（供用）</h2>
-              <div className="bg-slate-50 rounded-xl p-3 mb-4 text-sm space-y-1">
-                <div><span className="text-slate-400 text-xs">供用元 加工ID:</span> <span className="font-mono font-bold text-teal-700">{d.machiningId}</span></div>
-                <div><span className="text-slate-400 text-xs">図面番号:</span> <span className="font-mono font-bold">{d.part?.drawingNo}</span></div>
-                <div><span className="text-slate-400 text-xs">名称:</span> <span>{d.part?.name}</span></div>
-                <div><span className="text-slate-400 text-xs">バージョン:</span> <span className="font-mono">{d.version}</span></div>
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+              {/* ヘッダー */}
+              <div className="bg-teal-700 px-5 py-3 rounded-t-2xl shrink-0">
+                <h2 className="text-white font-bold text-sm">📋 共通登録（供用）</h2>
+                <p className="text-teal-200 text-xs mt-0.5">
+                  この部品（{d.part?.drawingNo} / {d.part?.name}）に対して、
+                  使いたい既存の加工データを検索して選択してください
+                </p>
               </div>
-              <div className="mb-3">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">
-                  供用先 部品ID（DBのid）
-                </label>
-                <input
-                  type="number"
-                  value={cpTargetPartId}
-                  onChange={e => setCpTargetPartId(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                  placeholder="例: 42"
-                />
+              {/* 供用先確認 */}
+              <div className="bg-teal-50 border-b border-teal-100 px-5 py-2 shrink-0">
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="text-slate-500">登録先部品:</span>
+                  <span className="font-mono font-bold text-violet-700">部品ID:{d.part?.partId}</span>
+                  <span className="font-mono font-bold text-teal-700">{d.part?.drawingNo}</span>
+                  <span className="text-slate-700">{d.part?.name}</span>
+                </div>
               </div>
-              <div className="mb-4">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">備考（任意）</label>
-                <input
-                  value={cpNote}
-                  onChange={e => setCpNote(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                  placeholder="備考"
-                />
+              {/* 加工検索 */}
+              <div className="px-5 py-3 border-b border-slate-100 shrink-0">
+                <p className="text-xs font-bold text-slate-500 mb-2">STEP 1: 使いたい加工データを検索</p>
+                <div className="flex gap-2">
+                  <select value={cpSearchKey} onChange={e => setCpSearchKey(e.target.value)}
+                    className="border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-400">
+                    <option value="drawing_no">図面番号</option>
+                    <option value="part_name">名称</option>
+                    <option value="mcid">MCID</option>
+                    <option value="machining_id">加工ID</option>
+                    <option value="part_id">部品ID</option>
+                  </select>
+                  <input value={cpSearchQ} onChange={e => setCpSearchQ(e.target.value)}
+                    onKeyDown={async e => {
+                      if (e.key !== "Enter") return;
+                      setCpSearchLoading(true); setCpSelected(null); setCpError(null);
+                      try {
+                        const res = await mcApi.search(cpSearchKey, cpSearchQ.trim());
+                        setCpSearchResults((res as any).data?.rows ?? []);
+                      } catch { setCpSearchResults([]); }
+                      finally { setCpSearchLoading(false); }
+                    }}
+                    className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    placeholder="Enterで検索" />
+                  <button
+                    onClick={async () => {
+                      setCpSearchLoading(true); setCpSelected(null); setCpError(null);
+                      try {
+                        const res = await mcApi.search(cpSearchKey, cpSearchQ.trim());
+                        setCpSearchResults((res as any).data?.rows ?? []);
+                      } catch { setCpSearchResults([]); }
+                      finally { setCpSearchLoading(false); }
+                    }}
+                    disabled={cpSearchLoading}
+                    className="px-3 py-1.5 bg-teal-600 text-white text-xs font-bold rounded-lg hover:bg-teal-700 disabled:opacity-50">
+                    {cpSearchLoading ? "..." : "検索"}
+                  </button>
+                </div>
               </div>
-              {cpError && <div className="mb-3 text-red-600 text-sm">{cpError}</div>}
-              <div className="flex gap-2 justify-end">
-                <button onClick={() => setCpRegOpen(false)}
+              {/* 検索結果一覧 */}
+              <div className="flex-1 overflow-y-auto min-h-0">
+                {cpSearchResults.length === 0 && !cpSearchLoading && (
+                  <div className="text-center text-slate-400 text-xs py-8">
+                    検索条件を入力してEnterキーまたは検索ボタンを押してください
+                  </div>
+                )}
+                {cpSearchResults.map((row: any) => {
+                  const isSelected = cpSelected?.machining_id === row.machining_id;
+                  const isSelf = row.machining_id === d.machiningId;
+                  const isDup = d.commonGroup?.some((g: any) => g.machiningId === row.machining_id && g.part?.partId === d.part?.partId);
+                  return (
+                    <div key={row.mc_id}
+                      onClick={() => { if (!isSelf && !isDup) setCpSelected(row); }}
+                      className={`flex items-center gap-3 px-4 py-2.5 text-xs border-b border-slate-100 transition-colors
+                        ${isSelf || isDup ? "opacity-40 cursor-not-allowed bg-slate-50" :
+                          isSelected ? "bg-teal-50 border-l-4 border-teal-500 cursor-pointer" :
+                          "hover:bg-teal-50 cursor-pointer"}`}>
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? "border-teal-500 bg-teal-500" : "border-slate-300"}`}>
+                        {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
+                      <span className="font-mono font-bold text-teal-700 whitespace-nowrap">加工ID:{row.machining_id}</span>
+                      <span className="font-mono text-blue-600 whitespace-nowrap">MCID:{row.legacy_mcid ?? row.mc_id}</span>
+                      <span className="font-mono font-bold text-slate-700 whitespace-nowrap">{row.drawing_no}</span>
+                      <span className="text-slate-600 truncate max-w-[160px]">{row.part_name}</span>
+                      <span className="text-slate-400 shrink-0">{row.machine_code ?? "—"}</span>
+                      <span className="font-mono text-slate-500 shrink-0">{row.version}</span>
+                      {isSelf && <span className="ml-auto text-[10px] text-slate-400 shrink-0">（現在の加工）</span>}
+                      {isDup && <span className="ml-auto text-[10px] text-amber-600 shrink-0">（登録済み）</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              {/* 選択確認 + 登録 */}
+              {cpSelected && (
+                <div className="border-t border-teal-200 bg-teal-50 px-5 py-3 shrink-0">
+                  <p className="text-xs font-bold text-teal-700 mb-1">STEP 2: 選択した加工を確認して登録</p>
+                  <div className="flex items-center gap-3 text-xs mb-2">
+                    <span className="text-slate-500">使用する加工:</span>
+                    <span className="font-mono font-bold text-teal-700">加工ID:{cpSelected.machining_id}</span>
+                    <span className="font-mono font-bold">{cpSelected.drawing_no}</span>
+                    <span className="text-slate-600">{cpSelected.part_name}</span>
+                    <span className="font-mono text-slate-500">{cpSelected.version}</span>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <input value={cpNote} onChange={e => setCpNote(e.target.value)}
+                      className="flex-1 border border-teal-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400"
+                      placeholder="備考（任意）" />
+                    <button
+                      disabled={cpSaving}
+                      onClick={async () => {
+                        if (!token || !cpSelected) return;
+                        setCpSaving(true); setCpError(null);
+                        try {
+                          await mcApi.registerCommonPart({
+                            source_machining_id: cpSelected.machining_id,
+                            target_part_id: d.partId,
+                            note: cpNote || undefined,
+                          }, token);
+                          setCpRegOpen(false);
+                          showToast("✅ 共通登録しました");
+                          const nr = await mcApi.findOne(mcId);
+                          setDetail((nr as any).data ?? nr);
+                        } catch (e: any) {
+                          setCpError(e?.response?.data?.message ?? e?.message ?? "登録失敗");
+                        } finally { setCpSaving(false); }
+                      }}
+                      className="px-4 py-1.5 bg-violet-600 text-white text-xs font-bold rounded-lg hover:bg-violet-700 disabled:opacity-50 whitespace-nowrap">
+                      {cpSaving ? "登録中..." : "✅ 共通登録する"}
+                    </button>
+                  </div>
+                  {cpError && <div className="mt-1 text-red-600 text-xs">{cpError}</div>}
+                </div>
+              )}
+              {/* フッター */}
+              <div className="px-5 py-2.5 border-t border-slate-200 flex justify-end shrink-0">
+                <button onClick={() => { setCpRegOpen(false); setCpSearchResults([]); setCpSelected(null); setCpSearchQ(""); }}
                   className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-300">
-                  キャンセル
-                </button>
-                <button
-                  disabled={cpSaving}
-                  onClick={async () => {
-                    if (!token) return;
-                    const tId = parseInt(cpTargetPartId);
-                    if (isNaN(tId)) { setCpError("部品IDを正しく入力してください"); return; }
-                    setCpSaving(true); setCpError(null);
-                    try {
-                      await mcApi.registerCommonPart({
-                        source_machining_id: d.machiningId,
-                        target_part_id: tId,
-                        note: cpNote || undefined,
-                      }, token);
-                      setCpRegOpen(false);
-                      showToast("✅ 共通登録しました");
-                      const nr = await mcApi.findOne(mcId);
-                      setDetail((nr as any).data ?? nr);
-                    } catch (e: any) {
-                      setCpError(e?.response?.data?.message ?? e?.message ?? "登録失敗");
-                    } finally { setCpSaving(false); }
-                  }}
-                  className="px-5 py-2 bg-violet-600 text-white text-sm font-bold rounded-xl hover:bg-violet-700 disabled:opacity-50">
-                  {cpSaving ? "登録中..." : "✅ 共通登録する"}
+                  閉じる
                 </button>
               </div>
             </div>
