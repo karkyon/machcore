@@ -17,6 +17,7 @@ import { SaveToolingDto } from './dto/save-tooling.dto';
 import { SaveWorkOffsetsDto } from './dto/save-work-offsets.dto';
 import { SaveIndexProgramsDto } from './dto/save-index-programs.dto';
 import { PrintMcDto } from './dto/print-mc.dto';
+import { RegisterCommonPartDto } from './dto/register-common-part.dto';
 
 @Controller('mc')
 export class McController {
@@ -48,6 +49,55 @@ export class McController {
   @Get('common-group/:machining_id')
   commonGroup(@Param('machining_id', ParseIntPipe) machiningId: number) {
     return this.mc.getCommonGroup(machiningId);
+  }
+
+  // ── 共通部品検索 (F-01) ─────────────────────
+  @Get('common-parts/search')
+  searchCommonParts(
+    @Query('drawing_no')   drawingNo?:   string,
+    @Query('name')         name?:        string,
+    @Query('main_model')   mainModel?:   string,
+    @Query('client_id')    clientId?:    string,
+    @Query('part_id')      partIdStr?:   string,
+    @Query('mc_id')        mcIdQ?:       string,
+    @Query('machining_id') machiningIdQ?:string,
+    @Query('page')         page?:        string,
+    @Query('limit')        limit?:       string,
+  ) {
+    return this.mc.searchCommonParts({
+      drawing_no:   drawingNo   || undefined,
+      name:         name        || undefined,
+      main_model:   mainModel   || undefined,
+      client_id:    clientId    ? parseInt(clientId)    : undefined,
+      part_id_str:  partIdStr   || undefined,
+      mc_id:        mcIdQ       ? parseInt(mcIdQ)       : undefined,
+      machining_id: machiningIdQ? parseInt(machiningIdQ): undefined,
+      page:         page        ? parseInt(page)        : 1,
+      limit:        limit       ? parseInt(limit)       : 50,
+    });
+  }
+
+  // ── 共通部品登録（供用）(F-03) ───────────────
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Post('common-parts/register')
+  registerCommonPart(@Body() dto: RegisterCommonPartDto, @Req() req: any) {
+    return this.mc.registerCommonPart({
+      target_part_id:      dto.target_part_id,
+      source_machining_id: dto.source_machining_id,
+      note:                dto.note,
+    }, req.user.id);
+  }
+
+  // ── 共通部品登録解除 (F-04) ──────────────────
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Delete('common-parts/:mc_program_id')
+  unregisterCommonPart(
+    @Param('mc_program_id', ParseIntPipe) mcProgramId: number,
+    @Req() req: any,
+  ) {
+    return this.mc.unregisterCommonPart(mcProgramId, req.user.id);
   }
 
   // ── 次の加工ID候補取得 ────────────────────────

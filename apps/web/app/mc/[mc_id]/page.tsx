@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, mcFilesApi, McDetail, McTooling, McWorkOffset, McIndexProgram,
-         McFile, McChangeHistory, McSetupSheetLog, McWorkRecord } from "@/lib/api";
+         McFile, McChangeHistory, McSetupSheetLog, McWorkRecord, McCommonSearchResult } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
@@ -16,12 +16,13 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const MAIN_TABS = [
-  { key: "mc",      label: "マシニングデータ" },
-  { key: "tooling", label: "ツーリング" },
-  { key: "offset",  label: "ワークオフセット" },
-  { key: "index",   label: "インデックスプログラム" },
-  { key: "history", label: "履歴" },
-  { key: "files",   label: "写真・図" },
+  { key: "mc",          label: "マシニングデータ" },
+  { key: "tooling",     label: "ツーリング" },
+  { key: "offset",      label: "ワークオフセット" },
+  { key: "index",       label: "インデックスプログラム" },
+  { key: "commongroup", label: "共通グループ" },
+  { key: "history",     label: "履歴" },
+  { key: "files",       label: "写真・図" },
 ];
 
 export default function McDetailPage() {
@@ -72,6 +73,13 @@ export default function McDetailPage() {
   const [pgLoading,    setPgLoading]    = useState(false);
   // PGアップロード
   const [pgUploading,  setPgUploading]  = useState(false);
+  // 共通グループ 供用登録モーダル
+  const [cpRegOpen,      setCpRegOpen]      = useState(false);
+  const [cpTargetPartId, setCpTargetPartId] = useState("");
+  const [cpNote,         setCpNote]         = useState("");
+  const [cpSaving,       setCpSaving]       = useState(false);
+  const [cpError,        setCpError]        = useState<string | null>(null);
+  const [cpUnregSaving,  setCpUnregSaving]  = useState(false);
   const showToast = useCallback((msg: string) => {
     setToast(msg); setTimeout(() => setToast(null), 3000);
   }, []);
@@ -699,6 +707,164 @@ export default function McDetailPage() {
                 </table>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── 共通グループ ─── */}
+        {mainTab === "commongroup" && (
+          <div className="max-w-4xl space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="bg-teal-700 px-4 py-3 flex items-center justify-between rounded-t-xl">
+                <div className="flex items-center gap-3">
+                  <span className="text-white font-bold text-sm">共通グループ</span>
+                  <span className="text-teal-200 text-xs font-mono">加工ID:{d.machiningId}</span>
+                  {d.commonPartCode && (
+                    <span className="text-teal-100 text-[11px] font-mono bg-teal-800 px-2 py-0.5 rounded">
+                      {d.commonPartCode}
+                    </span>
+                  )}
+                  <span className="text-teal-300 text-xs">{d.commonGroup.length}件</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (!isAuthenticated) { openAuth("commonpart"); return; }
+                      setCpTargetPartId(""); setCpNote(""); setCpError(null); setCpRegOpen(true);
+                    }}
+                    className="px-3 py-1.5 bg-white text-teal-700 text-xs font-bold rounded-lg hover:bg-teal-50">
+                    ＋ 新規に共通登録
+                  </button>
+                  <button onClick={() => router.push("/mc/common-parts")}
+                    className="px-3 py-1.5 bg-teal-600 text-white text-xs font-bold rounded-lg hover:bg-teal-500 border border-teal-500">
+                    🔍 共通部品検索
+                  </button>
+                </div>
+              </div>
+              {d.commonGroup.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-sm">共通登録はありません</div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {d.commonGroup.map((g: any) => (
+                    <div key={g.id}
+                      className={`flex items-center gap-3 px-4 py-3 text-xs hover:bg-teal-50 transition-colors
+                        ${g.id === d.id ? "bg-teal-50 border-l-4 border-teal-500" : ""}`}>
+                      <span className="font-mono text-teal-600 font-bold whitespace-nowrap">MCID:{g.legacyMcid ?? g.id}</span>
+                      {g.part?.partId && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-mono shrink-0">
+                          部品ID:{g.part.partId}
+                        </span>
+                      )}
+                      <span className="font-mono text-slate-700 font-bold whitespace-nowrap">{g.part?.drawingNo}</span>
+                      <span className="text-slate-600 truncate max-w-[180px]">{g.part?.name}</span>
+                      {g.part?.clientName && (
+                        <span className="text-slate-400 text-[10px] shrink-0">[{g.part.clientName}]</span>
+                      )}
+                      <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap shrink-0">加工ID:{g.machiningId}</span>
+                      <span className="font-mono text-slate-500 shrink-0">{g.version ?? (g.machining?.version)}</span>
+                      <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold ${STATUS_COLOR[g.status] ?? ""}`}>
+                        {STATUS_LABEL[g.status] ?? g.status}
+                      </span>
+                      {g.id === d.id && <span className="text-[10px] text-teal-600 font-bold shrink-0">← 現在</span>}
+                      <div className="ml-auto flex items-center gap-2 shrink-0">
+                        {g.id !== d.id && (
+                          <button onClick={() => router.push(`/mc/${g.id}`)}
+                            className="px-2 py-1 bg-teal-600 text-white text-[10px] font-bold rounded hover:bg-teal-700">
+                            詳細
+                          </button>
+                        )}
+                        {g.id !== d.id && d.commonGroup.length > 1 && isAuthenticated && (
+                          <button
+                            disabled={cpUnregSaving}
+                            onClick={async () => {
+                              if (!token) return;
+                              if (!confirm(`MCID:${g.legacyMcid ?? g.id} (${g.part?.drawingNo}) の共通登録を解除しますか？`)) return;
+                              setCpUnregSaving(true);
+                              try {
+                                await mcApi.unregisterCommonPart(g.id, token);
+                                showToast("✅ 共通登録を解除しました");
+                                const nr = await mcApi.findOne(mcId);
+                                setDetail((nr as any).data ?? nr);
+                              } catch (e: any) {
+                                alert(e?.response?.data?.message ?? e?.message ?? "解除失敗");
+                              } finally { setCpUnregSaving(false); }
+                            }}
+                            className="px-2 py-1 bg-red-100 text-red-600 text-[10px] font-bold rounded hover:bg-red-200 border border-red-200 disabled:opacity-50">
+                            解除
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 供用登録モーダル */}
+        {cpRegOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+              <h2 className="text-base font-bold text-slate-800 mb-4">📋 共通登録（供用）</h2>
+              <div className="bg-slate-50 rounded-xl p-3 mb-4 text-sm space-y-1">
+                <div><span className="text-slate-400 text-xs">供用元 加工ID:</span> <span className="font-mono font-bold text-teal-700">{d.machiningId}</span></div>
+                <div><span className="text-slate-400 text-xs">図面番号:</span> <span className="font-mono font-bold">{d.part?.drawingNo}</span></div>
+                <div><span className="text-slate-400 text-xs">名称:</span> <span>{d.part?.name}</span></div>
+                <div><span className="text-slate-400 text-xs">バージョン:</span> <span className="font-mono">{d.version}</span></div>
+              </div>
+              <div className="mb-3">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">
+                  供用先 部品ID（DBのid）
+                </label>
+                <input
+                  type="number"
+                  value={cpTargetPartId}
+                  onChange={e => setCpTargetPartId(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                  placeholder="例: 42"
+                />
+              </div>
+              <div className="mb-4">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">備考（任意）</label>
+                <input
+                  value={cpNote}
+                  onChange={e => setCpNote(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                  placeholder="備考"
+                />
+              </div>
+              {cpError && <div className="mb-3 text-red-600 text-sm">{cpError}</div>}
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setCpRegOpen(false)}
+                  className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-300">
+                  キャンセル
+                </button>
+                <button
+                  disabled={cpSaving}
+                  onClick={async () => {
+                    if (!token) return;
+                    const tId = parseInt(cpTargetPartId);
+                    if (isNaN(tId)) { setCpError("部品IDを正しく入力してください"); return; }
+                    setCpSaving(true); setCpError(null);
+                    try {
+                      await mcApi.registerCommonPart({
+                        source_machining_id: d.machiningId,
+                        target_part_id: tId,
+                        note: cpNote || undefined,
+                      }, token);
+                      setCpRegOpen(false);
+                      showToast("✅ 共通登録しました");
+                      const nr = await mcApi.findOne(mcId);
+                      setDetail((nr as any).data ?? nr);
+                    } catch (e: any) {
+                      setCpError(e?.response?.data?.message ?? e?.message ?? "登録失敗");
+                    } finally { setCpSaving(false); }
+                  }}
+                  className="px-5 py-2 bg-violet-600 text-white text-sm font-bold rounded-xl hover:bg-violet-700 disabled:opacity-50">
+                  {cpSaving ? "登録中..." : "✅ 共通登録する"}
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -541,6 +541,21 @@ export type McIndexProgram = {
   note:      string | null;
 };
 
+export type McCommonSearchResult = {
+  mcProgramId:    number;
+  machiningId:    number;
+  legacyMcid:     number | null;
+  partId:         string | null;
+  drawingNo:      string;
+  name:           string;
+  mainModel:      string | null;
+  clientName:     string | null;
+  version:        string;
+  status:         McStatus;
+  commonPartCode: string | null;
+  groupCount:     number;
+};
+
 export type McCommonGroupItem = {
   id:           number;
   legacyMcid:   number | null;
@@ -721,6 +736,24 @@ export const mcApi = {
   recent:       () => api.get<any[]>('/mc/recent'),
   findOne:      (mcId: number) => api.get<McDetail>(`/mc/${mcId}`),
   commonGroup:  (machiningId: number) => api.get<McCommonGroupItem[]>(`/mc/common-group/${machiningId}`),
+  searchCommonParts: (params: {
+    drawing_no?: string; name?: string; main_model?: string; client_id?: number;
+    part_id?: string; mc_id?: number; machining_id?: number; page?: number; limit?: number;
+  }) => api.get<{ total: number; page: number; limit: number; data: McCommonSearchResult[] }>(
+    '/mc/common-parts/search', { params: {
+      drawing_no: params.drawing_no, name: params.name, main_model: params.main_model,
+      client_id: params.client_id, part_id: params.part_id, mc_id: params.mc_id,
+      machining_id: params.machining_id, page: params.page ?? 1, limit: params.limit ?? 50,
+    }}
+  ),
+  registerCommonPart: (body: { target_part_id: number; source_machining_id: number; note?: string }, token: string) =>
+    api.post<{ mcProgramId: number; machiningId: number; targetPartId: number; version: string; commonPartCode: string }>(
+      '/mc/common-parts/register', body, { headers: { Authorization: `Bearer ${token}` } }
+    ),
+  unregisterCommonPart: (mcProgramId: number, token: string) =>
+    api.delete<{ message: string; mcProgramId: number }>(
+      `/mc/common-parts/${mcProgramId}`, { headers: { Authorization: `Bearer ${token}` } }
+    ),
   create:       (body: any, token: string) =>
     api.post<{ mc_id: number; message: string }>('/mc', body, { headers: { Authorization: `Bearer ${token}` } }),
   approve:      (mcId: number, token: string) =>
