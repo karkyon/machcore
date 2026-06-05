@@ -237,7 +237,11 @@ export default function CommonPartsPage() {
       {toast && (
         <div className="fixed bottom-6 right-6 bg-emerald-700 text-white text-sm font-bold px-5 py-3 rounded-xl shadow-xl z-50">{toast}</div>
       )}
-      <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
+      {authOpen && (
+        <AuthModal isOpen={true} sessionType="edit"
+          onSuccess={() => setAuthOpen(false)}
+          onCancel={() => setAuthOpen(false)} />
+      )}
     </div>
   );
 }
