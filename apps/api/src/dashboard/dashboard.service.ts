@@ -76,7 +76,7 @@ export class DashboardService {
       part_name:      s.mcProgram.part.name,
       client_name:    s.mcProgram.part.clientName ?? null,
       main_model:     s.mcProgram.part.mainModel ?? null,
-      mc_process_no:  (s.mcProgram as any).machining?.mcProcessNo ?? null,
+      mc_process_no:  (s as any).mcProgram?.machining?.mcProcessNo ?? null,
       machine_code:   s.mcProgram.machining?.machine?.machineCode ?? null,
       machine_name:   s.mcProgram.machining?.machine?.machineName ?? null,
       machine_sort:   s.mcProgram.machining?.machine?.sortOrder ?? 999,
