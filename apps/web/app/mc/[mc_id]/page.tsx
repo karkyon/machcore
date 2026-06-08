@@ -64,6 +64,7 @@ export default function McDetailPage() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [toast, setToast] = useState<string | null>(null);
+  const [spBadge, setSpBadge] = useState<{ matched: boolean; sheets: any[] } | null>(null);
   // PGビューア
   const [pgContent,    setPgContent]    = useState<string | null>(null);
   const [pgOrigName,   setPgOrigName]   = useState<string>("");
@@ -96,6 +97,14 @@ export default function McDetailPage() {
       setDetail(data);
     }).catch(e => { console.error('[MC Float] findOne error:', e); setLoadError(e.message); });
     // dummy to skip original r)).catch(e => setLoadError(e.message));
+  }, [mcId]);
+
+  useEffect(() => {
+    if (!mcId) return;
+    fetch(`/api/mc/${mcId}/special-sheet-check`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setSpBadge(data); })
+      .catch(() => {});
   }, [mcId]);
 
   useEffect(() => {
@@ -366,6 +375,13 @@ export default function McDetailPage() {
             )}
             <StatusBadge status={d.status} />
             <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
+            {spBadge?.matched && (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-red-600 text-white animate-pulse cursor-pointer"
+                title={spBadge.sheets.map(s => s.sheet_name).join(', ')}
+                onClick={() => setSpBadge(prev => prev ? { ...prev, _open: true } as any : prev)}>
+                ⚠️ SP
+              </span>
+            )}
             {isAuthenticated && operator?.role === "ADMIN" && d.status !== "APPROVED" && (
               <button
                 onClick={async () => {
@@ -1485,6 +1501,40 @@ export default function McDetailPage() {
       })()}
 
       {/* Toast */}
+      {(spBadge as any)?._open && spBadge?.matched && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden">
+            <div className="bg-red-600 px-5 py-4 flex items-center gap-3 shrink-0">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <p className="text-white font-bold text-base">スペシャル段取シート</p>
+                <p className="text-red-100 text-xs">過去にクレーム・トラブル実績のある製品です</p>
+              </div>
+            </div>
+            <div className="overflow-y-auto flex-1 p-5 space-y-3">
+              {spBadge.sheets.map((s: any) => (
+                <div key={s.id} className="border border-red-200 rounded-xl bg-red-50 p-4">
+                  <p className="font-bold text-red-800 text-sm mb-1">{s.sheet_name}</p>
+                  {s.keyword && <p className="text-[11px] text-red-600 mb-2">🔑 {s.keyword}</p>}
+                  <p className="text-sm text-red-900 whitespace-pre-wrap">{s.content}</p>
+                  {s.pdf_path && (
+                    <a href={`/api/admin/special-sheets/${s.id}/pdf`} target="_blank"
+                      className="mt-2 inline-flex items-center gap-1 text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 font-bold">
+                      📄 SPシートPDF を表示
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-slate-200 px-5 py-3 flex justify-end shrink-0">
+              <button onClick={() => setSpBadge(prev => prev ? { ...prev, _open: false } as any : prev)}
+                className="px-5 py-2 bg-slate-700 text-white rounded-lg text-sm font-bold hover:bg-slate-800">
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-bold z-50">
           {toast}

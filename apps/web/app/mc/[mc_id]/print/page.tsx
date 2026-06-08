@@ -197,6 +197,11 @@ function McPrintPageInner() {
             {d.machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{d.machine.machineCode}</span>}
             <StatusBadge status={d.status} />
             <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
+            {spSheets.length > 0 && (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-red-600 text-white animate-pulse">
+                ⚠️ SP
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
@@ -379,8 +384,8 @@ function McPrintPageInner() {
                   setSpSheets([]);
                   setPendingPrint(null);
                 }}
-                className="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm hover:bg-slate-50">
-                閉じる
+                className="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm hover:bg-slate-50 font-bold">
+                キャンセル（印刷しない）
               </button>
               <button
                 onClick={async () => {
@@ -392,17 +397,8 @@ function McPrintPageInner() {
                   if (mode === "preview") await handlePrint();
                   else if (mode === "direct") await handleDirectPrint();
                 }}
-                className="px-4 py-2 bg-slate-600 text-white rounded-lg text-sm font-bold hover:bg-slate-700">
-                スキップ（そのまま印刷）
-              </button>
-              <button
-                onClick={async () => {
-                  setSpModalOpen(false);
-                  setSpSheets([]);
-                  setPendingPrint(null);
-                }}
                 className="px-5 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700">
-                確認した（閉じる）
+                確認した（印刷する）
               </button>
             </div>
           </div>
