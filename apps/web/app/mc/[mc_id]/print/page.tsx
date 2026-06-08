@@ -38,6 +38,10 @@ function McPrintPageInner() {
   const [directPrinting, setDirectPrinting] = useState(false);
   const [printError,     setPrintError]     = useState<string | null>(null);
   const [toast,          setToast]          = useState<string | null>(null);
+  const [spSheets,    setSpSheets]    = useState<Array<{ id: number; keyword: string | null; sheet_name: string; content: string; pdf_path: string | null; version: number }>>([]);
+  const [spModalOpen, setSpModalOpen] = useState(false);
+  const [spSkipped,   setSpSkipped]   = useState(false);
+  const [pendingPrint, setPendingPrint] = useState<"preview" | "direct" | null>(null);
 
   const showToast = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); }, []);
 
