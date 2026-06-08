@@ -56,6 +56,8 @@ export default function SpecialSheetsPage() {
   const [uploadingId, setUploadingId] = useState<number | null>(null);
   const [filterClient, setFilterClient] = useState<string>("");
   const [filterKw,     setFilterKw]     = useState("");
+  const [fPdfFile,     setFPdfFile]     = useState<File | null>(null);
+  const [pdfDragOver,  setPdfDragOver]  = useState(false);
 
   const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500); };
 
@@ -79,7 +81,7 @@ export default function SpecialSheetsPage() {
 
   const openCreate = () => {
     setEditTarget(null);
-    setFClientId(""); setFKeyword(""); setFSheetName(""); setFContent(""); setFVersion("0");
+    setFClientId(""); setFKeyword(""); setFSheetName(""); setFContent(""); setFVersion("0"); setFPdfFile(null);
     setDialogOpen(true);
   };
   const openEdit = (s: SpecialSheet) => {
@@ -88,7 +90,7 @@ export default function SpecialSheetsPage() {
     setFKeyword(s.keyword ?? "");
     setFSheetName(s.sheetName);
     setFContent(s.content);
-    setFVersion(String(s.version));
+    setFVersion(String(s.version)); setFPdfFile(null);
     setDialogOpen(true);
   };
 
@@ -103,17 +105,33 @@ export default function SpecialSheetsPage() {
         content:    fContent.trim(),
         version:    Number(fVersion) || 0,
       };
+      let savedId: number | null = null;
       if (editTarget) {
         await apiFetch(`/admin/special-sheets/${editTarget.id}`, {
           method: "PUT", body: JSON.stringify(body),
         });
-        showToast("更新しました");
+        savedId = editTarget.id;
       } else {
-        await apiFetch("/admin/special-sheets", {
+        const created = await apiFetch("/admin/special-sheets", {
           method: "POST", body: JSON.stringify(body),
         });
-        showToast("登録しました");
+        savedId = created.id;
       }
+      // PDFファイルが選択されていれば自動アップロード
+      if (fPdfFile && savedId) {
+        const fd = new FormData();
+        fd.append("file", fPdfFile);
+        const res = await fetch(`/api/admin/special-sheets/${savedId}/upload-pdf`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${getToken()}` },
+          body: fd,
+        });
+        if (!res.ok) throw new Error("PDFアップロード失敗: HTTP " + res.status);
+        showToast("保存・PDFアップロード完了");
+      } else {
+        showToast(editTarget ? "更新しました" : "登録しました");
+      }
+      setFPdfFile(null);
       setDialogOpen(false);
       fetchData();
     } catch (e: any) { showToast("保存失敗: " + e.message, false); }
@@ -320,6 +338,53 @@ export default function SpecialSheetsPage() {
                 <label className="block text-xs font-bold text-slate-500 mb-1">バージョン</label>
                 <input type="number" value={fVersion} onChange={e => setFVersion(e.target.value)}
                   className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+              </div>
+              {/* PDFファイル D&D */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">
+                  PDFファイル <span className="text-slate-400 font-normal">（任意・D&Dまたはクリックで選択）</span>
+                </label>
+                <div
+                  onDragOver={e => { e.preventDefault(); setPdfDragOver(true); }}
+                  onDragLeave={() => setPdfDragOver(false)}
+                  onDrop={e => {
+                    e.preventDefault(); setPdfDragOver(false);
+                    const file = e.dataTransfer.files[0];
+                    if (file && file.type === "application/pdf") setFPdfFile(file);
+                    else if (file) alert("PDFファイルのみ対応しています");
+                  }}
+                  onClick={() => document.getElementById("sp-pdf-input")?.click()}
+                  className={`border-2 border-dashed rounded-xl px-4 py-5 text-center cursor-pointer transition-colors ${
+                    pdfDragOver ? "border-sky-400 bg-sky-50" :
+                    fPdfFile    ? "border-green-400 bg-green-50" :
+                                  "border-slate-300 bg-slate-50 hover:border-sky-300 hover:bg-sky-50"
+                  }`}
+                >
+                  <input id="sp-pdf-input" type="file" accept="application/pdf" className="hidden"
+                    onChange={e => { if (e.target.files?.[0]) setFPdfFile(e.target.files[0]); e.target.value = ""; }} />
+                  {fPdfFile ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-green-600 text-lg">📄</span>
+                      <span className="text-sm font-bold text-green-700">{fPdfFile.name}</span>
+                      <button onClick={e => { e.stopPropagation(); setFPdfFile(null); }}
+                        className="ml-2 text-xs text-red-500 hover:text-red-700 font-bold">✕ 削除</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="text-2xl mb-1">📤</div>
+                      <p className="text-xs text-slate-500">PDFをここにドラッグ＆ドロップ</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">またはクリックしてファイルを選択</p>
+                    </div>
+                  )}
+                </div>
+                {editTarget?.pdfPath && !fPdfFile && (
+                  <p className="text-[11px] text-teal-600 mt-1">
+                    ✅ 既存PDF登録済み —
+                    <a href={`/uploads/${editTarget.pdfPath}`} target="_blank"
+                      className="underline ml-1 hover:text-teal-800">現在のPDFを表示</a>
+                    （新しいファイルを選択すると上書きされます）
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
