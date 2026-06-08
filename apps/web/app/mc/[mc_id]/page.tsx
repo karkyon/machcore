@@ -568,6 +568,7 @@ export default function McDetailPage() {
                   <button
                     onClick={() => {
                       if (!isAuthenticated) { openAuth("edit"); return; }
+                      if (!confirm("両方の図面を見比べて、加工内容に相違ないか確認しましたか？\n\n今、手元に２枚の図面がありますか？")) return;
                       setCpSearchQ(""); setCpSearchResults([]); setCpSelected(null);
                       setCpNote(""); setCpError(null); setCpRegOpen(true);
                     }}
