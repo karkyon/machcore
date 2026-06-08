@@ -16,13 +16,12 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const MAIN_TABS = [
-  { key: "mc",          label: "マシニングデータ" },
-  { key: "tooling",     label: "ツーリング" },
-  { key: "offset",      label: "ワークオフセット" },
-  { key: "index",       label: "インデックスプログラム" },
-  { key: "commongroup", label: "共通グループ" },
-  { key: "history",     label: "履歴" },
-  { key: "files",       label: "写真・図" },
+  { key: "mc",      label: "マシニングデータ" },
+  { key: "tooling", label: "ツーリング" },
+  { key: "offset",  label: "ワークオフセット" },
+  { key: "index",   label: "インデックスプログラム" },
+  { key: "history", label: "履歴" },
+  { key: "files",   label: "写真・図" },
 ];
 
 export default function McDetailPage() {
@@ -84,6 +83,7 @@ export default function McDetailPage() {
   const [cpSaving,        setCpSaving]        = useState(false);
   const [cpError,         setCpError]         = useState<string | null>(null);
   const [cpUnregSaving,   setCpUnregSaving]   = useState(false);
+  const [cpSearchOpen,    setCpSearchOpen]    = useState(false);
   const showToast = useCallback((msg: string) => {
     setToast(msg); setTimeout(() => setToast(null), 3000);
   }, []);
@@ -557,11 +557,37 @@ export default function McDetailPage() {
             </div>
 
             {/* 共通加工グループ */}
-            {d.commonGroup.length > 1 && (
-              <div className="bg-white rounded-xl border border-pink-200 overflow-hidden">
-                <div className="bg-pink-50 px-4 py-2 border-b border-pink-200">
+            <div className="bg-white rounded-xl border border-pink-200 overflow-hidden">
+              <div className="bg-pink-50 px-4 py-2 border-b border-pink-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-pink-700">共通加工グループ（加工ID: {d.machiningId}）</span>
+                  {d.commonPartCode && <span className="text-[10px] font-mono bg-pink-200 text-pink-800 px-1.5 py-0.5 rounded">{d.commonPartCode}</span>}
+                  <span className="text-[10px] text-pink-500">{d.commonGroup.length}件</span>
                 </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      if (!isAuthenticated) { openAuth("edit"); return; }
+                      setCpSearchQ(""); setCpSearchResults([]); setCpSelected(null);
+                      setCpNote(""); setCpError(null); setCpRegOpen(true);
+                    }}
+                    className="px-2.5 py-1 bg-teal-600 text-white text-[10px] font-bold rounded-lg hover:bg-teal-700">
+                    ＋ 新規に共通登録
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!isAuthenticated) { openAuth("edit"); return; }
+                      setCpSearchQ(""); setCpSearchResults([]); setCpSelected(null);
+                      setCpError(null); setCpSearchOpen(true);
+                    }}
+                    className="px-2.5 py-1 bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg hover:bg-slate-300">
+                    🔍 共通部品検索
+                  </button>
+                </div>
+              </div>
+              {d.commonGroup.length === 0 ? (
+                <div className="px-4 py-3 text-xs text-slate-400">共通登録はありません</div>
+              ) : (
                 <div className="p-2">
                   {d.commonGroup.map(g => (
                     <div key={g.id}
@@ -579,8 +605,8 @@ export default function McDetailPage() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
@@ -715,8 +741,8 @@ export default function McDetailPage() {
           </div>
         )}
 
-        {/* ─── 共通グループ ─── */}
-        {mainTab === "commongroup" && (
+        {/* ─── 共通グループタブは廃止 マシニングデータタブ内に統合済み ─── */}
+        {false && (
           <div className="max-w-4xl space-y-4">
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-teal-700 px-4 py-3 flex items-center justify-between rounded-t-xl">
@@ -733,7 +759,7 @@ export default function McDetailPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
-                      if (!isAuthenticated) { openAuth("commonpart"); return; }
+                      if (!isAuthenticated) { openAuth("edit"); return; }
                       setCpSearchQ(""); setCpSearchResults([]); setCpSelected(null);
                       setCpNote(""); setCpError(null); setCpRegOpen(true);
                     }}
@@ -944,6 +970,82 @@ export default function McDetailPage() {
               {/* フッター */}
               <div className="px-5 py-2.5 border-t border-slate-200 flex justify-end shrink-0">
                 <button onClick={() => { setCpRegOpen(false); setCpSearchResults([]); setCpSelected(null); setCpSearchQ(""); }}
+                  className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-300">
+                  閉じる
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 🔍 共通部品検索モーダル */}
+        {cpSearchOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[85vh]">
+              <div className="bg-slate-800 px-5 py-3 rounded-t-2xl shrink-0 flex items-center justify-between">
+                <div>
+                  <h2 className="text-white font-bold text-sm">🔍 共通部品検索</h2>
+                  <p className="text-slate-400 text-xs mt-0.5">加工データを検索して共通グループを確認できます</p>
+                </div>
+                <button onClick={() => setCpSearchOpen(false)} className="text-slate-400 hover:text-white text-lg font-bold">✕</button>
+              </div>
+              <div className="px-5 py-3 border-b border-slate-100 shrink-0">
+                <div className="flex gap-2">
+                  <select value={cpSearchKey} onChange={e => setCpSearchKey(e.target.value)}
+                    className="border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-400">
+                    <option value="drawing_no">図面番号</option>
+                    <option value="part_name">名称</option>
+                    <option value="mcid">MCID</option>
+                    <option value="machining_id">加工ID</option>
+                    <option value="part_id">部品ID</option>
+                  </select>
+                  <input value={cpSearchQ} onChange={e => setCpSearchQ(e.target.value)}
+                    onKeyDown={async e => {
+                      if (e.key !== "Enter") return;
+                      setCpSearchLoading(true);
+                      try {
+                        const res = await mcApi.search(cpSearchKey, cpSearchQ.trim());
+                        setCpSearchResults((res as any).data?.rows ?? []);
+                      } catch { setCpSearchResults([]); }
+                      finally { setCpSearchLoading(false); }
+                    }}
+                    className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    placeholder="Enterで検索" autoFocus />
+                  <button
+                    onClick={async () => {
+                      setCpSearchLoading(true);
+                      try {
+                        const res = await mcApi.search(cpSearchKey, cpSearchQ.trim());
+                        setCpSearchResults((res as any).data?.rows ?? []);
+                      } catch { setCpSearchResults([]); }
+                      finally { setCpSearchLoading(false); }
+                    }}
+                    disabled={cpSearchLoading}
+                    className="px-3 py-1.5 bg-teal-600 text-white text-xs font-bold rounded-lg hover:bg-teal-700 disabled:opacity-50">
+                    {cpSearchLoading ? "..." : "検索"}
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto min-h-0">
+                {cpSearchResults.length === 0 && !cpSearchLoading && (
+                  <div className="text-center text-slate-400 text-xs py-8">条件を入力して検索してください</div>
+                )}
+                {cpSearchResults.map((row: any) => (
+                  <div key={row.mc_id}
+                    onClick={() => { setCpSearchOpen(false); router.push(`/mc/${row.mc_id}`); }}
+                    className="flex items-center gap-3 px-4 py-2.5 text-xs border-b border-slate-100 hover:bg-teal-50 cursor-pointer transition-colors">
+                    <span className="font-mono font-bold text-teal-700 whitespace-nowrap">加工ID:{row.machining_id}</span>
+                    <span className="font-mono text-blue-600 whitespace-nowrap">MCID:{row.legacy_mcid ?? row.mc_id}</span>
+                    <span className="font-mono font-bold text-slate-700 whitespace-nowrap">{row.drawing_no}</span>
+                    <span className="text-slate-600 truncate max-w-[180px]">{row.part_name}</span>
+                    <span className="text-slate-400 shrink-0">{row.machine_code ?? "—"}</span>
+                    <span className="font-mono text-slate-500 shrink-0">{row.version}</span>
+                    <span className="ml-auto text-teal-600 text-[10px] font-bold shrink-0">詳細を開く →</span>
+                  </div>
+                ))}
+              </div>
+              <div className="px-5 py-2.5 border-t border-slate-200 flex justify-end shrink-0">
+                <button onClick={() => setCpSearchOpen(false)}
                   className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-300">
                   閉じる
                 </button>
