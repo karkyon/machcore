@@ -172,7 +172,7 @@ function McPrintPageInner() {
         <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
           {(d as any)?.mcProcessNo != null && <span className="font-bold text-teal-700 text-sm">工程No: {(d as any).mcProcessNo}</span>}
           <span className="text-slate-400">|</span>
-          <span>MCID: <span className="text-slate-700">{d.legacyMcid ?? d.id}</span></span>
+          <span>MCID: <span className="text-slate-700">{d.legacyMcid ?? "—"}</span></span>
           <span className="text-slate-400">|</span>
           <span>加工ID: <span className="text-slate-700">{d.machiningId}</span></span>
           {d.part.partId && <><span className="text-slate-400">|</span><span>部品ID: <span className="text-slate-700">{d.part.partId}</span></span></>}
