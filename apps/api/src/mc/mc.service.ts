@@ -1577,7 +1577,9 @@ export class McService {
         data: {
           partId:       target_part_id,
           machiningId:  source_machining_id,
-          legacyMcid:   source_machining_id,
+          // legacyMcid はセットしない
+          // mc_programs_legacy_mcid_key UNIQUE制約があるため
+          // 共通登録レコードの識別は mc_programs.id（自動採番）で行う
           status:       'APPROVED',
           registeredBy: operatorId,
           note:         note ?? null,
