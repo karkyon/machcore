@@ -737,7 +737,7 @@ function McRecordPageInner() {
           <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
             {(detail as any)?.mcProcessNo != null && <span className="font-bold text-teal-700 text-sm">工程No: {(detail as any).mcProcessNo}</span>}
             <span className="text-slate-400">|</span>
-            <span>MCID: <span className="text-slate-700">{detail.legacyMcid ?? detail.id}</span></span>
+            <span>MCID: <span className="text-slate-700">{detail.legacyMcid ?? "—"}</span></span>
             <span className="text-slate-400">|</span>
             <span>加工ID: <span className="text-slate-700">{detail.machiningId}</span></span>
             {detail.part?.partId && <><span className="text-slate-400">|</span><span>部品ID: <span className="text-slate-700">{detail.part.partId}</span></span></>}

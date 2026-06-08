@@ -330,7 +330,7 @@ export default function McDetailPage() {
                     }`}
                   >
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${g.id === d.id ? "bg-teal-500 text-white" : "bg-slate-100 text-slate-600"}`}>
-                      {g.legacyMcid ?? g.id}
+                      {g.legacyMcid ?? "—"}
                     </span>
                     <span className="font-mono text-slate-600 truncate flex-1">{g.machine?.machineCode ?? "—"}</span>
                     <span className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded ${
@@ -370,7 +370,7 @@ export default function McDetailPage() {
               <button
                 onClick={async () => {
                   if (!token) return;
-                  if (!window.confirm(`承認しますか？\nMCID: ${d.legacyMcid ?? d.id}  Ver. ${d.version}`)) return;
+                  if (!window.confirm(`承認しますか？\nMCID: ${d.legacyMcid ?? "—"}  Ver. ${d.version}`)) return;
                   try {
                     await mcApi.approve(d.id, token);
                     const r = await mcApi.findOne(d.id);
@@ -388,7 +388,7 @@ export default function McDetailPage() {
         <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
           {d.mcProcessNo != null && <span className="font-bold text-teal-700 text-sm">工程No: {d.mcProcessNo}</span>}
           <span className="text-slate-400">|</span>
-          <span>MCID: <span className="text-slate-700">{d.legacyMcid ?? d.id}</span></span>
+          <span>MCID: <span className="text-slate-700">{d.legacyMcid ?? "—"}</span></span>
           <span className="text-slate-400">|</span>
           <span>加工ID: <span className="text-slate-700">{d.machiningId}</span></span>
           {d.part.partId && <><span className="text-slate-400">|</span><span>部品ID: <span className="text-slate-700">{d.part.partId}</span></span></>}
@@ -594,7 +594,7 @@ export default function McDetailPage() {
                     <div key={g.id}
                       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
                         g.id === d.id ? "bg-teal-50 border border-teal-200" : "bg-white"}`}>
-                      <span className="font-mono text-teal-600 font-bold text-xs">MCID:{g.legacyMcid ?? g.id}</span>
+                      <span className="font-mono text-teal-600 font-bold text-xs">MCID:{g.legacyMcid ?? "—"}</span>
                       {g.part.partId && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-mono shrink-0">部品ID:{g.part.partId}</span>}
                       <span className="font-mono text-slate-700 font-bold text-xs">{g.part.drawingNo}</span>
                       <span className="text-slate-600 text-xs">{g.part.name}</span>
@@ -781,7 +781,7 @@ export default function McDetailPage() {
                     <div key={g.id}
                       className={`flex items-center gap-3 px-4 py-3 text-xs hover:bg-teal-50 transition-colors
                         ${g.id === d.id ? "bg-teal-50 border-l-4 border-teal-500" : ""}`}>
-                      <span className="font-mono text-teal-600 font-bold whitespace-nowrap">MCID:{g.legacyMcid ?? g.id}</span>
+                      <span className="font-mono text-teal-600 font-bold whitespace-nowrap">MCID:{g.legacyMcid ?? "—"}</span>
                       {g.part?.partId && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-mono shrink-0">
                           部品ID:{g.part.partId}
@@ -810,7 +810,7 @@ export default function McDetailPage() {
                             disabled={cpUnregSaving}
                             onClick={async () => {
                               if (!token) return;
-                              if (!confirm(`MCID:${g.legacyMcid ?? g.id} (${g.part?.drawingNo}) の共通登録を解除しますか？`)) return;
+                              if (!confirm(`MCID:${g.legacyMcid ?? "—"} (${g.part?.drawingNo}) の共通登録を解除しますか？`)) return;
                               setCpUnregSaving(true);
                               try {
                                 await mcApi.unregisterCommonPart(g.id, token);
