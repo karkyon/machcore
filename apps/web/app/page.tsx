@@ -362,7 +362,7 @@ export default function McDashboard() {
                 <span className="text-2xl shrink-0">📋</span>
                 <div>
                   <div className="font-bold text-violet-700 text-sm">共通加工として登録</div>
-                  <div className="text-xs text-slate-500 mt-0.5">既存の加工データを別の部品でも使いまわします</div>
+                  <div className="text-xs text-slate-500 mt-0.5">既存の加工データを別の部品で供用使用し登録します</div>
                 </div>
               </button>
             </div>

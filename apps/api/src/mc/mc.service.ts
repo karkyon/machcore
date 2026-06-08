@@ -1577,6 +1577,7 @@ export class McService {
         data: {
           partId:       target_part_id,
           machiningId:  source_machining_id,
+          legacyMcid:   source_machining_id,
           status:       'APPROVED',
           registeredBy: operatorId,
           note:         note ?? null,
