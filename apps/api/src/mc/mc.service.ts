@@ -177,11 +177,23 @@ export class McService {
   }
 
   // ══════════════════════════════════════════
+  // 内部ヘルパ: 次の採番値を取得
+  // 旧システム準拠: MCIDが唯一の採番源
+  //   MAX(legacy_mcid, machiningId) + 1 が次番
+  // ══════════════════════════════════════════
+  private async calcNextId(): Promise<number> {
+    const [aggL, aggM] = await Promise.all([
+      this.prisma.mcProgram.aggregate({ _max: { legacyMcid:  true } }),
+      this.prisma.mcProgram.aggregate({ _max: { machiningId: true } }),
+    ]);
+    return Math.max(aggL._max.legacyMcid ?? 0, aggM._max.machiningId ?? 0) + 1;
+  }
+  // ══════════════════════════════════════════
   // MC-01b: 次の加工ID候補
+  // 旧システム準拠: MAX(legacy_mcid, machiningId)+1
   // ══════════════════════════════════════════
   async nextMachiningId() {
-    const agg = await this.prisma.mcProgram.aggregate({ _max: { machiningId: true } });
-    const next = (agg._max.machiningId ?? 0) + 1;
+    const next = await this.calcNextId();
     return { next_machining_id: next };
   }
 
@@ -1572,14 +1584,16 @@ export class McService {
 
     const version = mach.version ?? '1.0001';
 
+    // 旧システム準拠: 共通登録でも MCID は連番から採番
+    // MAX(legacy_mcid, machiningId)+1 をトランザクション外で先取りして使用
+    const nextLegacyMcid = await this.calcNextId();
+
     return this.prisma.$transaction(async (tx) => {
       const newProg = await tx.mcProgram.create({
         data: {
           partId:       target_part_id,
           machiningId:  source_machining_id,
-          // legacyMcid はセットしない
-          // mc_programs_legacy_mcid_key UNIQUE制約があるため
-          // 共通登録レコードの識別は mc_programs.id（自動採番）で行う
+          legacyMcid:   nextLegacyMcid,  // 旧システム準拠: MCIDを連番で採番
           status:       'APPROVED',
           registeredBy: operatorId,
           note:         note ?? null,
@@ -1958,9 +1972,8 @@ export class McService {
         where: { machiningId },
       });
       if (existing) {
-        // 競合 → 次の加工IDを取得
-        const agg = await this.prisma.mcProgram.aggregate({ _max: { machiningId: true } });
-        machiningId = (agg._max.machiningId ?? 0) + 1;
+        // 競合 → 旧システム準拠: MAX(legacy_mcid, machiningId)+1 で再採番
+        machiningId = await this.calcNextId();
         retried = true;
         continue;
       }
@@ -2015,9 +2028,8 @@ export class McService {
         break;
       } catch (e: any) {
         if (e.code === 'P2002') {
-          // unique制約違反 → 次の加工IDで再試行
-          const agg = await this.prisma.mcProgram.aggregate({ _max: { machiningId: true } });
-          machiningId = (agg._max.machiningId ?? 0) + 1;
+          // unique制約違反 → 旧システム準拠: MAX(legacy_mcid, machiningId)+1 で再採番
+          machiningId = await this.calcNextId();
           retried = true;
         } else {
           throw e;
