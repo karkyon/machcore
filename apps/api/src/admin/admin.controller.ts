@@ -135,6 +135,31 @@ export class AdminController {
     return { message: 'アップロード完了', pdf_path: relPath };
   }
 
+  /** SP-05b: SPシート PDF 配信 */
+  @Get('special-sheets/:id/pdf')
+  async serveSpecialSheetPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() reply: any,
+  ) {
+    const sheet = await this.prisma.specialSheet.findUnique({ where: { id } });
+    if (!sheet?.pdfPath) {
+      reply.code(404).send({ message: 'PDFが登録されていません' });
+      return;
+    }
+    const basePath = (await this.prisma.companySetting.findFirst())?.uploadBasePath
+      ?? '/home/karkyon/projects/machcore/uploads';
+    const filePath = `${basePath}/${sheet.pdfPath}`;
+    const fs = await import('fs');
+    if (!fs.existsSync(filePath)) {
+      reply.code(404).send({ message: 'PDFファイルが見つかりません' });
+      return;
+    }
+    const fileName = sheet.pdfPath.split('/').pop() ?? 'sp.pdf';
+    reply.header('Content-Type', 'application/pdf');
+    reply.header('Content-Disposition', `inline; filename="${fileName}"`);
+    return reply.send(fs.createReadStream(filePath));
+  }
+
   /** SP-06: 納入先一覧（SPシート作成フォーム用） */
   @Get('clients')
   async getClients() {

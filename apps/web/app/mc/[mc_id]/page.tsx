@@ -564,27 +564,7 @@ export default function McDetailPage() {
                   {d.commonPartCode && <span className="text-[10px] font-mono bg-pink-200 text-pink-800 px-1.5 py-0.5 rounded">{d.commonPartCode}</span>}
                   <span className="text-[10px] text-pink-500">{d.commonGroup.length}件</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => {
-                      if (!isAuthenticated) { openAuth("edit"); return; }
-                      if (!confirm("両方の図面を見比べて、加工内容に相違ないか確認しましたか？\n\n今、手元に２枚の図面がありますか？")) return;
-                      setCpSearchQ(""); setCpSearchResults([]); setCpSelected(null);
-                      setCpNote(""); setCpError(null); setCpRegOpen(true);
-                    }}
-                    className="px-2.5 py-1 bg-teal-600 text-white text-[10px] font-bold rounded-lg hover:bg-teal-700">
-                    ＋ 新規に共通登録
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!isAuthenticated) { openAuth("edit"); return; }
-                      setCpSearchQ(""); setCpSearchResults([]); setCpSelected(null);
-                      setCpError(null); setCpSearchOpen(true);
-                    }}
-                    className="px-2.5 py-1 bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg hover:bg-slate-300">
-                    🔍 共通部品検索
-                  </button>
-                </div>
+
               </div>
               {d.commonGroup.length === 0 ? (
                 <div className="px-4 py-3 text-xs text-slate-400">共通登録はありません</div>
