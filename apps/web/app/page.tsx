@@ -85,6 +85,7 @@ export default function McDashboard() {
   const [sbStep1McId,     setSbStep1McId]     = useState<number>(0);
   const [sbRepeatAuthOpen, setSbRepeatAuthOpen] = useState(false);
   const [sbRepeatMcId,     setSbRepeatMcId]     = useState<number>(0);
+  const [newRegModalOpen,  setNewRegModalOpen]  = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
