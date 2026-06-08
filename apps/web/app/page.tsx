@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import { useRouter } from "next/navigation";
@@ -339,6 +339,40 @@ export default function McDashboard() {
         />
       )}
 
+      {/* 新規登録 選択モーダル */}
+      {newRegModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h2 className="text-base font-bold text-slate-800 mb-1">登録方法を選択</h2>
+            <p className="text-xs text-slate-400 mb-5">新しい加工として登録するか、既存の加工データを流用するかを選択してください</p>
+            <div className="space-y-3">
+              <button
+                onClick={() => { setNewRegModalOpen(false); router.push("/mc/new"); }}
+                className="w-full flex items-start gap-4 p-4 border-2 border-teal-200 bg-teal-50 rounded-xl hover:border-teal-400 hover:bg-teal-100 transition-colors text-left">
+                <span className="text-2xl shrink-0">✅</span>
+                <div>
+                  <div className="font-bold text-teal-700 text-sm">仮登録（新規）</div>
+                  <div className="text-xs text-slate-500 mt-0.5">新しい加工IDを採番して登録します</div>
+                </div>
+              </button>
+              <button
+                onClick={() => { setNewRegModalOpen(false); router.push("/mc/new/common"); }}
+                className="w-full flex items-start gap-4 p-4 border-2 border-violet-200 bg-violet-50 rounded-xl hover:border-violet-400 hover:bg-violet-100 transition-colors text-left">
+                <span className="text-2xl shrink-0">📋</span>
+                <div>
+                  <div className="font-bold text-violet-700 text-sm">共通加工として登録</div>
+                  <div className="text-xs text-slate-500 mt-0.5">既存の加工データを別の部品でも使いまわします</div>
+                </div>
+              </button>
+            </div>
+            <button onClick={() => setNewRegModalOpen(false)}
+              className="mt-4 w-full py-2 text-xs text-slate-400 hover:text-slate-600">
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* エラートースト */}
       {sbError && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg flex items-center gap-3">
@@ -372,9 +406,12 @@ export default function McDashboard() {
                 {[
                   { label: "ダッシュボード", href: "/mc",        active: true  },
                   { label: "部品検索",       href: "/mc/search", active: false },
-                  { label: "新規登録",       href: "/mc/new",    active: false },
+                  { label: "新規登録",       href: "",           active: false, modal: true },
                 ].map(item => (
-                  <button key={item.href} onClick={() => router.push(item.href)}
+                  <button key={item.href} onClick={() => {
+                      if ((item as any).modal) { setNewRegModalOpen(true); }
+                      else if (item.href) { router.push(item.href); }
+                    }}
                     className={"w-full px-3 py-2 rounded-lg text-left text-sm transition-colors " +
                       (item.active ? "bg-teal-50 text-teal-700 font-bold border border-teal-200" : "text-slate-600 hover:bg-teal-50 hover:text-teal-700")}>
                     {item.label}
