@@ -79,8 +79,9 @@ function McPrintPageInner() {
       return;
     }
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3011/api";
-      const res = await fetch(`${apiBase}/mc/${mcId}/special-sheet-check`);
+      // 相対パス(/api)を使用 — NEXT_PUBLIC_API_URLはlocalhost参照のため他PCで失敗する
+      const res = await fetch(`/api/mc/${mcId}/special-sheet-check`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.matched && data.sheets.length > 0) {
         setSpSheets(data.sheets);
@@ -88,7 +89,9 @@ function McPrintPageInner() {
         setSpModalOpen(true);
         return;
       }
-    } catch {}
+    } catch (e) {
+      console.error("[SP check]", e);
+    }
     // SPシートなし → そのまま印刷
     if (mode === "preview") await handlePrint();
     else await handleDirectPrint();
@@ -337,10 +340,31 @@ function McPrintPageInner() {
                   )}
                   <p className="text-sm text-red-900 whitespace-pre-wrap leading-relaxed">{s.content}</p>
                   {s.pdf_path && (
-                    <a href={`/uploads/${s.pdf_path}`} target="_blank"
+                    <button
+                      onClick={async () => {
+                        const params = new URLSearchParams();
+                        if (d?.legacyMcid) params.set('mc_id', String(d.legacyMcid));
+                        if (d?.part?.partId) params.set('part_id', String(d.part.partId));
+                        if (d?.part?.drawingNo) params.set('drawing_no', d.part.drawingNo);
+                        if (d?.part?.name) params.set('part_name', d.part.name);
+                        const res = await fetch(`/api/admin/special-sheets/${s.id}/print-pdf`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            mc_id: d?.legacyMcid ?? undefined,
+                            part_id: d?.part?.partId ?? undefined,
+                            drawing_no: d?.part?.drawingNo ?? undefined,
+                            part_name: d?.part?.name ?? undefined,
+                          }),
+                        });
+                        if (res.ok) {
+                          const blob = await res.blob();
+                          window.open(URL.createObjectURL(blob), '_blank');
+                        }
+                      }}
                       className="mt-3 inline-flex items-center gap-1 text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 font-bold">
-                      📄 SPシートPDF を表示
-                    </a>
+                      📄 SPシートPDF を表示（MCID/日時印字）
+                    </button>
                   )}
                 </div>
               ))}

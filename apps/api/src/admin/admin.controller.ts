@@ -135,6 +135,68 @@ export class AdminController {
     return { message: 'アップロード完了', pdf_path: relPath };
   }
 
+  /** SP-05c: SPシートPDF 印字版生成（MCID/部品ID/印刷日時をオーバーレイ印字） */
+  @Post('special-sheets/:id/print-pdf')
+  async printSpecialSheetPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { mc_id?: number; part_id?: string; drawing_no?: string; part_name?: string },
+    @Res() reply: any,
+  ) {
+    const sheet = await this.prisma.specialSheet.findUnique({ where: { id } });
+    if (!sheet?.pdfPath) {
+      reply.code(404).send({ message: 'PDFが登録されていません' });
+      return;
+    }
+    const basePath = (await this.prisma.companySetting.findFirst())?.uploadBasePath
+      ?? '/home/karkyon/projects/machcore/uploads';
+    const filePath = `${basePath}/${sheet.pdfPath}`;
+    const fsLib = await import('fs');
+    if (!fsLib.existsSync(filePath)) {
+      reply.code(404).send({ message: 'PDFファイルが見つかりません' });
+      return;
+    }
+
+    try {
+      const { PDFDocument, rgb, StandardFonts } = await import('pdf-lib');
+      const existingPdfBytes = fsLib.readFileSync(filePath);
+      const pdfDoc = await PDFDocument.load(existingPdfBytes);
+      const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      const pages = pdfDoc.getPages();
+      const now = new Date();
+      const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      const printedAt = `${jst.getUTCFullYear()}/${String(jst.getUTCMonth()+1).padStart(2,'0')}/${String(jst.getUTCDate()).padStart(2,'0')} ${String(jst.getUTCHours()).padStart(2,'0')}:${String(jst.getUTCMinutes()).padStart(2,'0')}`;
+
+      const headerLine1 = [
+        body.mc_id   ? `MCID: ${body.mc_id}`     : null,
+        body.part_id ? `部品ID: ${body.part_id}` : null,
+        body.drawing_no ? body.drawing_no         : null,
+        body.part_name  ? body.part_name          : null,
+      ].filter(Boolean).join('  ');
+      const footerText = `印刷日時: ${printedAt}`;
+      const fontSize = 9;
+      const color = rgb(0.2, 0.2, 0.2);
+
+      for (const page of pages) {
+        const { height } = page.getSize();
+        // ヘッダー左上 (x=20, y=height-16)
+        if (headerLine1) {
+          page.drawText(headerLine1, { x: 20, y: height - 16, size: fontSize, font, color });
+        }
+        // フッター左下 (x=20, y=8)
+        page.drawText(footerText, { x: 20, y: 8, size: fontSize, font, color });
+      }
+
+      const pdfBytes = await pdfDoc.save();
+      const fileName = `sp_${id}_printed.pdf`;
+      reply.header('Content-Type', 'application/pdf');
+      reply.header('Content-Disposition', `inline; filename="${fileName}"`);
+      reply.header('Content-Length', String(pdfBytes.length));
+      return reply.send(Buffer.from(pdfBytes));
+    } catch (err: any) {
+      reply.code(500).send({ message: 'PDF印字処理失敗: ' + err.message });
+    }
+  }
+
   /** SP-05b: SPシート PDF 配信 */
   @Get('special-sheets/:id/pdf')
   async serveSpecialSheetPdf(
