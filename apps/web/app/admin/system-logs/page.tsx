@@ -146,7 +146,7 @@ export default function SystemLogsPage() {
             </a>
           ))}
           <div className="mx-3 my-1 border-t border-slate-200" />
-                    {["/admin/pdf-editor", "/admin/special-sheets"].map(href => {
+          {["/admin/pdf-editor", "/admin/special-sheets"].map(href => {
             const item = SIDEBAR_ITEMS.find(i => i.href === href)!;
             return (
               <a key={item.href} href={item.href}
