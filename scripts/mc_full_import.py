@@ -774,12 +774,46 @@ def final_report(pg):
     log(f"\nログ: {LOG_FILE}")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PHASE 9: 採番整合性確認・NULLレコード自動修復
+# 旧システムのMCID採番ロジック継承を検証
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def phase9(pg, dry_run=False):
+    section("PHASE 9: 採番整合性確認 + NULL自動修復")
+    pgc = pg.cursor()
+    pgc.execute("SELECT COALESCE(MAX(legacy_mcid),0) FROM mc_programs WHERE legacy_mcid IS NOT NULL")
+    max_legacy = pgc.fetchone()[0]
+    pgc.execute("SELECT COALESCE(MAX(machining_id),0) FROM mc_programs")
+    max_machining = pgc.fetchone()[0]
+    next_id = max(max_legacy, max_machining) + 1
+    log(f"MAX(legacy_mcid): {max_legacy}")
+    log(f"MAX(machining_id) in mc_programs: {max_machining}")
+    log(f"次回採番予定番号: {next_id}")
+    pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE legacy_mcid IS NULL")
+    null_cnt = pgc.fetchone()[0]
+    log(f"legacy_mcid NULL レコード（要修復）: {null_cnt}件")
+    if null_cnt > 0 and not dry_run:
+        pgc.execute("SELECT id FROM mc_programs WHERE legacy_mcid IS NULL ORDER BY id")
+        null_ids = [r[0] for r in pgc.fetchall()]
+        pgc.execute("SELECT COALESCE(MAX(legacy_mcid),0) FROM mc_programs WHERE legacy_mcid IS NOT NULL")
+        cur_max = pgc.fetchone()[0]
+        for row_id in null_ids:
+            cur_max += 1
+            pgc.execute("UPDATE mc_programs SET legacy_mcid = %s WHERE id = %s", (cur_max, row_id))
+        pg.commit()
+        log(f"自動修復完了: {len(null_ids)}件 → legacy_mcid ~{cur_max}")
+        next_id = cur_max + 1
+    elif null_cnt > 0:
+        log("[DRY-RUN] 修復スキップ")
+    log(f"次回MCID採番: {next_id} から連番")
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # メイン
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def main():
     parser = argparse.ArgumentParser(description="MachCore MC完全移行スクリプト")
     parser.add_argument("--phase", type=int, default=0,
-                        help="実行フェーズ (0=全, 1-8=個別)")
+                        help="実行フェーズ (0=全, 1-9=個別)")
     parser.add_argument("--dry-run", action="store_true",
                         help="DBへの書き込みなし")
     args = parser.parse_args()
@@ -793,8 +827,8 @@ def main():
     pg = pg_connect()
     try:
         phases = {1:phase1, 2:phase2, 3:phase3, 4:phase4,
-                  5:phase5, 6:phase6, 7:phase7, 8:phase8}
-        run = list(range(1,9)) if args.phase == 0 else [args.phase]
+                  5:phase5, 6:phase6, 7:phase7, 8:phase8, 9:phase9}
+        run = list(range(1,10)) if args.phase == 0 else [args.phase]
         for p in run:
             try:
                 phases[p](pg, dry_run=dry)

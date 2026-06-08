@@ -155,7 +155,7 @@ export default function McNewCommonPage() {
                   ${selectedRow?.mc_id === row.mc_id ? "bg-violet-50 border-l-4 border-l-violet-500" : ""}`}>
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <span className="font-mono text-[10px] text-violet-600 font-bold">加工ID:{row.machining_id}</span>
-                  <span className="font-mono text-[10px] text-blue-500">MCID:{row.legacy_mcid ?? row.mc_id}</span>
+                  <span className="font-mono text-[10px] text-blue-500">MCID:{row.legacy_mcid ?? "—"}</span>
                 </div>
                 <div className="font-mono text-xs font-bold text-slate-700">{row.drawing_no}</div>
                 <div className="text-xs text-slate-500 truncate">{row.part_name}</div>
@@ -188,7 +188,7 @@ export default function McNewCommonPage() {
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 block">MCID</span>
-                  <span className="font-mono font-bold text-blue-600">{selectedRow.legacy_mcid ?? selectedRow.mc_id}</span>
+                  <span className="font-mono font-bold text-blue-600">{selectedRow.legacy_mcid ?? "—"}</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 block">図面番号</span>

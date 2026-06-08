@@ -106,7 +106,7 @@ export default function McDashboard() {
 
   // ── ダッシュボード行クリック: そのシートを選択済みでモーダルを開く ──
   const handleSheetRowClick = async (item: McSheet) => {
-    const legacyId = item.legacy_mcid ?? item.mc_id;
+    const legacyId = item.legacy_mcid ?? "—";
     setSbMcId(String(legacyId));
     setSbLoading(true); setSbError(null); setSbResult(null); setSbSelectedSheet(null);
     try {

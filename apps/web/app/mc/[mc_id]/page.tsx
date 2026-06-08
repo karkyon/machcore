@@ -916,7 +916,7 @@ export default function McDetailPage() {
                         {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
                       </div>
                       <span className="font-mono font-bold text-teal-700 whitespace-nowrap">加工ID:{row.machining_id}</span>
-                      <span className="font-mono text-blue-600 whitespace-nowrap">MCID:{row.legacy_mcid ?? row.mc_id}</span>
+                      <span className="font-mono text-blue-600 whitespace-nowrap">MCID:{row.legacy_mcid ?? "—"}</span>
                       <span className="font-mono font-bold text-slate-700 whitespace-nowrap">{row.drawing_no}</span>
                       <span className="text-slate-600 truncate max-w-[160px]">{row.part_name}</span>
                       <span className="text-slate-400 shrink-0">{row.machine_code ?? "—"}</span>
@@ -1036,7 +1036,7 @@ export default function McDetailPage() {
                     onClick={() => { setCpSearchOpen(false); router.push(`/mc/${row.mc_id}`); }}
                     className="flex items-center gap-3 px-4 py-2.5 text-xs border-b border-slate-100 hover:bg-teal-50 cursor-pointer transition-colors">
                     <span className="font-mono font-bold text-teal-700 whitespace-nowrap">加工ID:{row.machining_id}</span>
-                    <span className="font-mono text-blue-600 whitespace-nowrap">MCID:{row.legacy_mcid ?? row.mc_id}</span>
+                    <span className="font-mono text-blue-600 whitespace-nowrap">MCID:{row.legacy_mcid ?? "—"}</span>
                     <span className="font-mono font-bold text-slate-700 whitespace-nowrap">{row.drawing_no}</span>
                     <span className="text-slate-600 truncate max-w-[180px]">{row.part_name}</span>
                     <span className="text-slate-400 shrink-0">{row.machine_code ?? "—"}</span>
