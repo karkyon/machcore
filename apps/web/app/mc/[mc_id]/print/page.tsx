@@ -67,6 +67,29 @@ function McPrintPageInner() {
 
   const isNew = nc?.status === "NEW";
 
+  const checkSpAndPrint = async (mode: "preview" | "direct") => {
+    if (spSkipped) {
+      // チェック済み → そのまま印刷
+      if (mode === "preview") await handlePrint();
+      else await handleDirectPrint();
+      return;
+    }
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3011/api";
+      const res = await fetch(`${apiBase}/mc/${mcId}/special-sheet-check`);
+      const data = await res.json();
+      if (data.matched && data.sheets.length > 0) {
+        setSpSheets(data.sheets);
+        setPendingPrint(mode);
+        setSpModalOpen(true);
+        return;
+      }
+    } catch {}
+    // SPシートなし → そのまま印刷
+    if (mode === "preview") await handlePrint();
+    else await handleDirectPrint();
+  };
+
   const handlePrint = async () => {
     if (!token) { setPrintError("認証が必要です"); return; }
     setPrinting(true); setPrintError(null);
@@ -272,11 +295,11 @@ function McPrintPageInner() {
                 </div>
               )}
               <div className="px-5 py-4 pb-6 flex flex-col gap-4 border-t border-slate-100 mt-2">
-                <button onClick={handlePrint} disabled={printing}
+                <button onClick={() => checkSpAndPrint("preview")} disabled={printing}
                   className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-bold py-3.5 rounded-xl text-sm">
                   {printing ? "PDF生成中..." : isNew ? "📄 プレビュー（透かし入り・記録なし）" : "📄 PDFプレビュー（ブラウザで開く）"}
                 </button>
-                <button onClick={handleDirectPrint} disabled={directPrinting}
+                <button onClick={() => checkSpAndPrint("direct")} disabled={directPrinting}
                   className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3.5 rounded-xl text-sm">
                   {directPrinting ? "送信中..." : "🖨 プリンタに直接印刷"}
                 </button>
@@ -285,6 +308,78 @@ function McPrintPageInner() {
           </div>
         )}
       </div>
+
+      {spModalOpen && spSheets.length > 0 && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="bg-red-600 px-5 py-4 flex items-center gap-3 shrink-0">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <p className="text-white font-bold text-base">スペシャル段取シート</p>
+                <p className="text-red-100 text-xs">過去にクレーム・トラブル実績のある製品です</p>
+              </div>
+            </div>
+            <div className="overflow-y-auto flex-1 p-5 space-y-4">
+              {spSheets.map(s => (
+                <div key={s.id} className="border border-red-200 rounded-xl bg-red-50 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-red-800 text-sm">{s.sheet_name}</span>
+                    <span className="text-xs text-red-500 font-mono">v{s.version}</span>
+                  </div>
+                  {s.keyword && (
+                    <div className="text-[11px] text-red-600 mb-2">
+                      🔑 キーワード: <span className="font-bold font-mono">{s.keyword}</span>
+                    </div>
+                  )}
+                  <p className="text-sm text-red-900 whitespace-pre-wrap leading-relaxed">{s.content}</p>
+                  {s.pdf_path && (
+                    <a href={`/uploads/${s.pdf_path}`} target="_blank"
+                      className="mt-3 inline-flex items-center gap-1 text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 font-bold">
+                      📄 SPシートPDF を表示
+                    </a>
+                  )}
+                </div>
+              ))}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                加工内容が異なる場合は「スキップ」を選択してください
+              </div>
+            </div>
+            <div className="border-t border-slate-200 px-5 py-4 flex gap-3 justify-end shrink-0">
+              <button
+                onClick={() => {
+                  setSpModalOpen(false);
+                  setSpSheets([]);
+                  setPendingPrint(null);
+                }}
+                className="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm hover:bg-slate-50">
+                閉じる
+              </button>
+              <button
+                onClick={async () => {
+                  setSpModalOpen(false);
+                  setSpSkipped(true);
+                  const mode = pendingPrint;
+                  setSpSheets([]);
+                  setPendingPrint(null);
+                  if (mode === "preview") await handlePrint();
+                  else if (mode === "direct") await handleDirectPrint();
+                }}
+                className="px-4 py-2 bg-slate-600 text-white rounded-lg text-sm font-bold hover:bg-slate-700">
+                スキップ（そのまま印刷）
+              </button>
+              <button
+                onClick={async () => {
+                  setSpModalOpen(false);
+                  setSpSheets([]);
+                  setPendingPrint(null);
+                }}
+                className="px-5 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700">
+                確認した（閉じる）
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {authOpen && (
         <AuthModal isOpen={true} ncProgramId={mcId} mcProgramId={mcId} sessionType="setup_print" onSuccess={() => setAuthOpen(false)} onCancel={() => setAuthOpen(false)} />

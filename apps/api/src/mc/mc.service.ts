@@ -1558,6 +1558,51 @@ export class McService {
   }
 
   // ══════════════════════════════════════════
+  // SPシートチェック (SP-01)
+  // ══════════════════════════════════════════
+  async checkSpecialSheet(mcProgramId: number) {
+    const prog = await this.prisma.mcProgram.findUnique({
+      where: { id: mcProgramId },
+      include: {
+        part: { select: { clientId: true, drawingNo: true, name: true, mainModel: true } },
+      },
+    });
+    if (!prog) return { matched: false, sheets: [] };
+
+    const { clientId, drawingNo, name, mainModel } = prog.part;
+    if (!clientId) return { matched: false, sheets: [] };
+
+    // 納入先でフィルターしたSPシート一覧
+    const sheets = await this.prisma.specialSheet.findMany({
+      where: { clientId },
+    });
+    if (!sheets.length) return { matched: false, sheets: [] };
+
+    // キーワードが図面番号/名称/主機種型式のいずれかにHITするか（大文字小文字無視）
+    const matched = sheets.filter(s => {
+      if (!s.keyword) return false;
+      const kw = s.keyword.toLowerCase();
+      return (drawingNo ?? '').toLowerCase().includes(kw)
+          || (name ?? '').toLowerCase().includes(kw)
+          || (mainModel ?? '').toLowerCase().includes(kw);
+    });
+
+    if (!matched.length) return { matched: false, sheets: [] };
+
+    return {
+      matched: true,
+      sheets: matched.map(s => ({
+        id:         s.id,
+        keyword:    s.keyword,
+        sheet_name: s.sheetName,
+        content:    s.content,
+        pdf_path:   s.pdfPath ?? null,
+        version:    s.version,
+      })),
+    };
+  }
+
+  // ══════════════════════════════════════════
   // 共通部品: 登録（供用）(F-03)
   // ══════════════════════════════════════════
   async registerCommonPart(dto: {

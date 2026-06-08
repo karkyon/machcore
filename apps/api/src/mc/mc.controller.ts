@@ -139,6 +139,12 @@ export class McController {
     return JSON.parse(result.toString());
   }
 
+  // ── SPシートチェック ─────────────────────────
+  @Get(':mc_id/special-sheet-check')
+  checkSpecialSheet(@Param('mc_id', ParseIntPipe) id: number) {
+    return this.mc.checkSpecialSheet(id);
+  }
+
   // ── MC詳細 ──────────────────────────────────
   @Get(':mc_id')
   findOne(@Param('mc_id', ParseIntPipe) id: number) {

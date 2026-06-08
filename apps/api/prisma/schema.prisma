@@ -137,7 +137,6 @@ model Part {
   syncedAt   DateTime?                         @map("synced_at")
   ncPrograms    NcProgram[]
   mcPrograms    McProgram[]
-  specialSheets SpecialSheet[]
   @@index([drawingNo])
   @@index([name])
   @@map("parts")
@@ -237,15 +236,15 @@ model NcFile {
 
 model SpecialSheet {
   id        Int      @id @default(autoincrement())
-  partId    Int?                       @map("part_id")
+  clientId  Int?                       @map("client_id")
   keyword   String?  @db.VarChar(100)
   sheetName String   @db.VarChar(100) @map("sheet_name")
   content   String   @db.Text
+  pdfPath   String?  @db.VarChar(500) @map("pdf_path")
   version   Int      @default(0)
   createdAt DateTime @default(now())  @map("created_at")
   updatedAt DateTime @updatedAt       @map("updated_at")
-  part      Part?    @relation(fields: [partId], references: [id])
-  @@index([partId])
+  @@index([clientId])
   @@map("special_sheets")
 }
 

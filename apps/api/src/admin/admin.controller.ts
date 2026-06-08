@@ -41,6 +41,112 @@ export class AdminController {
     });
   }
 
+  // ── SPシート管理 ─────────────────────────────
+
+  /** SP-01: SPシート一覧 */
+  @Get('special-sheets')
+  getSpecialSheets() {
+    return this.prisma.specialSheet.findMany({
+      orderBy: [{ clientId: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  /** SP-02: SPシート作成 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('special-sheets')
+  createSpecialSheet(@Body() body: {
+    client_id?: number;
+    keyword?:   string;
+    sheet_name: string;
+    content:    string;
+    version?:   number;
+  }) {
+    return this.prisma.specialSheet.create({
+      data: {
+        clientId:  body.client_id ?? null,
+        keyword:   body.keyword   ?? null,
+        sheetName: body.sheet_name,
+        content:   body.content,
+        version:   body.version ?? 0,
+      },
+    });
+  }
+
+  /** SP-03: SPシート更新 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Put('special-sheets/:id')
+  updateSpecialSheet(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: {
+      client_id?: number;
+      keyword?:   string;
+      sheet_name?: string;
+      content?:    string;
+      version?:    number;
+    },
+  ) {
+    return this.prisma.specialSheet.update({
+      where: { id },
+      data: {
+        clientId:  body.client_id  !== undefined ? body.client_id  : undefined,
+        keyword:   body.keyword    !== undefined ? body.keyword    : undefined,
+        sheetName: body.sheet_name !== undefined ? body.sheet_name : undefined,
+        content:   body.content    !== undefined ? body.content    : undefined,
+        version:   body.version    !== undefined ? body.version    : undefined,
+      },
+    });
+  }
+
+  /** SP-04: SPシート削除 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Delete('special-sheets/:id')
+  deleteSpecialSheet(@Param('id', ParseIntPipe) id: number) {
+    return this.prisma.specialSheet.delete({ where: { id } });
+  }
+
+  /** SP-05: SPシート PDF アップロード */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('special-sheets/:id/upload-pdf')
+  async uploadSpecialSheetPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
+  ) {
+    const data = await req.file();
+    if (!data) throw new BadRequestException('ファイルがありません');
+    const buf = await data.toBuffer();
+    const basePath = (await this.prisma.companySetting.findFirst())?.uploadBasePath
+      ?? '/home/karkyon/projects/machcore/uploads';
+    const dir = `${basePath}/special_sheets`;
+    const fs = await import('fs');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const ext = data.filename.split('.').pop()?.toLowerCase() ?? 'pdf';
+    const storedName = `sp_${id}_v${Date.now()}.${ext}`;
+    const filePath = `${dir}/${storedName}`;
+    fs.writeFileSync(filePath, buf);
+    const relPath = `special_sheets/${storedName}`;
+    await this.prisma.specialSheet.update({
+      where: { id },
+      data: { pdfPath: relPath },
+    });
+    return { message: 'アップロード完了', pdf_path: relPath };
+  }
+
+  /** SP-06: 納入先一覧（SPシート作成フォーム用） */
+  @Get('clients')
+  async getClients() {
+    const rows = await this.prisma.part.findMany({
+      where: { clientId: { not: null }, clientName: { not: null } },
+      select: { clientId: true, clientName: true },
+      distinct: ['clientId'],
+      orderBy: { clientId: 'asc' },
+    });
+    return rows.map(r => ({ id: r.clientId, name: r.clientName }));
+  }
+
   /** ADM-USR-01: ユーザ一覧 */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
