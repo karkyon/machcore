@@ -734,7 +734,8 @@ export default function McDetailPage() {
                   <button
                     onClick={() => {
                       if (!isAuthenticated) { openAuth("commonpart"); return; }
-                      setCpTargetPartId(""); setCpNote(""); setCpError(null); setCpRegOpen(true);
+                      setCpSearchQ(""); setCpSearchResults([]); setCpSelected(null);
+                      setCpNote(""); setCpError(null); setCpRegOpen(true);
                     }}
                     className="px-3 py-1.5 bg-white text-teal-700 text-xs font-bold rounded-lg hover:bg-teal-50">
                     ＋ 新規に共通登録

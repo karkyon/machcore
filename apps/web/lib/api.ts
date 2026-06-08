@@ -567,6 +567,7 @@ export type McCommonGroupItem = {
 
 export type McDetail = {
   id:             number;
+  partId:         number;
   machiningId:    number;
   status:         McStatus;
   version:        string;
