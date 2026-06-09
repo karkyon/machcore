@@ -33,8 +33,11 @@ export class McFilesService {
 
   private async getBasePath(): Promise<string> {
     const s = await this.prisma.companySetting.findFirst();
-    // MC専用パス (mcStoragePath) を優先、未設定時は uploadBasePath、それも未設定時はデフォルト
-    return s?.mcStoragePath ?? s?.uploadBasePath ?? '/mnt/ncfiles/mc_files';
+    // uploadBasePath (/mnt/ncfiles) をベースパスとして使用。
+    // mcStoragePath (/mnt/ncfiles/mc_files) はすでに mc_files サブディレクトリを含むため
+    // path.join(base, 'mc_files', ...) で二重になるのを防ぐ。
+    // 段取シートPDF保存には mcStoragePath を直接使用する（generateSetupSheetPdf参照）。
+    return s?.uploadBasePath ?? '/mnt/ncfiles';
   }
 
   private ensureDir(p: string) {
