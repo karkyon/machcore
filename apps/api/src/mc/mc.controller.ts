@@ -139,6 +139,13 @@ export class McController {
     return JSON.parse(result.toString());
   }
 
+
+  // ── クランプマスタ (アイテムフォーム用) ─────────────
+  @Get('clamp-master')
+  async getClampMaster() {
+    return this.mc.getClampMaster();
+  }
+
   // ── SPシートチェック ─────────────────────────
   @Get(':mc_id/special-sheet-check')
   checkSpecialSheet(@Param('mc_id', ParseIntPipe) id: number) {

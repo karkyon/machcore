@@ -41,6 +41,77 @@ export class AdminController {
     });
   }
 
+
+  // ── クランプマスタ管理 ──────────────────────────────
+
+  @Get('clamp-master/:category')
+  async getClampMasterCategory(@Param('category') cat: string) {
+    const map: Record<string, any> = {
+      vise:  () => this.prisma.clampVise.findMany({ orderBy: { sortOrder: 'asc' } }),
+      chuck: () => this.prisma.clampChuck.findMany({ orderBy: { sortOrder: 'asc' } }),
+      tsume: () => this.prisma.clampTsume.findMany({ orderBy: { sortOrder: 'asc' } }),
+      shiki: () => this.prisma.clampShiki.findMany({ orderBy: { sortOrder: 'asc' } }),
+      index: () => this.prisma.clampIndex.findMany({ orderBy: { sortOrder: 'asc' } }),
+    };
+    if (!map[cat]) throw new Error(`Invalid category: ${cat}`);
+    return map[cat]();
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('clamp-master/:category')
+  async createClampMasterItem(@Param('category') cat: string, @Body() body: any) {
+    const models: Record<string, any> = {
+      vise:  this.prisma.clampVise,
+      chuck: this.prisma.clampChuck,
+      tsume: this.prisma.clampTsume,
+      shiki: this.prisma.clampShiki,
+      index: this.prisma.clampIndex,
+    };
+    const m = models[cat];
+    if (!m) throw new Error(`Invalid category: ${cat}`);
+    return m.create({ data: body });
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Put('clamp-master/:category/:id')
+  async updateClampMasterItem(
+    @Param('category') cat: string,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: any,
+  ) {
+    const models: Record<string, any> = {
+      vise:  this.prisma.clampVise,
+      chuck: this.prisma.clampChuck,
+      tsume: this.prisma.clampTsume,
+      shiki: this.prisma.clampShiki,
+      index: this.prisma.clampIndex,
+    };
+    const m = models[cat];
+    if (!m) throw new Error(`Invalid category: ${cat}`);
+    return m.update({ where: { id }, data: body });
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Delete('clamp-master/:category/:id')
+  async deleteClampMasterItem(
+    @Param('category') cat: string,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    const models: Record<string, any> = {
+      vise:  this.prisma.clampVise,
+      chuck: this.prisma.clampChuck,
+      tsume: this.prisma.clampTsume,
+      shiki: this.prisma.clampShiki,
+      index: this.prisma.clampIndex,
+    };
+    const m = models[cat];
+    if (!m) throw new Error(`Invalid category: ${cat}`);
+    return m.delete({ where: { id } });
+  }
+
   // ── SPシート管理 ─────────────────────────────
 
   /** SP-01: SPシート一覧 */

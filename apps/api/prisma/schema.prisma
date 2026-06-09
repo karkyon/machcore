@@ -669,3 +669,63 @@ model BusinessCalendar {
   @@index([workDate])
   @@map("business_calendars")
 }
+
+// ─────────────────────────────────────────
+// クランプ マスタ（アイテムフォーム用）
+// ─────────────────────────────────────────
+model ClampVise {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(100)
+  model      String?  @db.VarChar(100)
+  maker      String?  @db.VarChar(100)
+  sortOrder  Int      @default(0)    @map("sort_order") @db.SmallInt
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt      @map("updated_at")
+  @@map("clamp_vise")
+}
+
+model ClampChuck {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(100)
+  size       String?  @db.VarChar(50)
+  maker      String?  @db.VarChar(100)
+  sortOrder  Int      @default(0)    @map("sort_order") @db.SmallInt
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt      @map("updated_at")
+  @@map("clamp_chuck")
+}
+
+model ClampTsume {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(100)
+  sortOrder  Int      @default(0)    @map("sort_order") @db.SmallInt
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt      @map("updated_at")
+  @@map("clamp_tsume")
+}
+
+model ClampShiki {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(100)
+  sortOrder  Int      @default(0)    @map("sort_order") @db.SmallInt
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt      @map("updated_at")
+  @@map("clamp_shiki")
+}
+
+model ClampIndex {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(100)
+  machine    String?  @db.VarChar(100)
+  model      String?  @db.VarChar(100)
+  sortOrder  Int      @default(0)    @map("sort_order") @db.SmallInt
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt      @map("updated_at")
+  @@map("clamp_index")
+}
+

@@ -493,6 +493,21 @@ export class McService {
     });
   }
 
+
+  // ══════════════════════════════════════════
+  // クランプマスタ取得
+  // ══════════════════════════════════════════
+  async getClampMaster() {
+    const [vise, chuck, tsume, shiki, idx] = await Promise.all([
+      this.prisma.clampVise.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
+      this.prisma.clampChuck.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
+      this.prisma.clampTsume.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
+      this.prisma.clampShiki.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
+      this.prisma.clampIndex.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
+    ]);
+    return { vise, chuck, tsume, shiki, index: idx };
+  }
+
   // ══════════════════════════════════════════
   // MC-05c: 変更キャンセル（CHANGING → 前の状態に戻す）
   // ══════════════════════════════════════════

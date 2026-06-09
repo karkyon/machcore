@@ -824,3 +824,22 @@ export const mcFilesApi = {
     }).then(r => r.json());
   },
 };
+
+
+// ── クランプマスタ ──────────────────────────────────────
+export const clampMasterApi = {
+  getAll: () => axios.get(`${API_URL}/mc/clamp-master`),
+  getCategory: (cat: string) => axios.get(`${API_URL}/admin/clamp-master/${cat}`, {
+    headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token') ?? ''}` }
+  }),
+  create: (cat: string, data: any) => axios.post(`${API_URL}/admin/clamp-master/${cat}`, data, {
+    headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token') ?? ''}` }
+  }),
+  update: (cat: string, id: number, data: any) => axios.put(`${API_URL}/admin/clamp-master/${cat}/${id}`, data, {
+    headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token') ?? ''}` }
+  }),
+  remove: (cat: string, id: number) => axios.delete(`${API_URL}/admin/clamp-master/${cat}/${id}`, {
+    headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token') ?? ''}` }
+  }),
+};
+

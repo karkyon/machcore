@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { mcApi, mcFilesApi, machinesApi, usersApi, McDetail, Machine, UserInfo } from "@/lib/api";
+import { mcApi, mcFilesApi, machinesApi, usersApi, clampMasterApi, McDetail, Machine, UserInfo } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
@@ -73,6 +73,13 @@ export default function McEditPage() {
   const [clampJig,       setClampJig]       = useState<1|2>(2); // 1=使用する 2=使用しない
   const [clampSelection, setClampSelection] = useState<1|2>(1); // 1=and 2=or
   const [clampItem,      setClampItem]      = useState("");
+  const [clampMasterData, setClampMasterData] = useState<{
+    vise:  {id:number;name:string;model:string|null;maker:string|null}[];
+    chuck: {id:number;name:string;size:string|null;maker:string|null}[];
+    tsume: {id:number;name:string}[];
+    shiki: {id:number;name:string}[];
+    index: {id:number;name:string;machine:string|null;model:string|null}[];
+  } | null>(null);
   const [cycleH,       setCycleH]       = useState(0);
   const [cycleM,       setCycleM]       = useState(0);
   const [cycleS,       setCycleS]       = useState(0);
@@ -833,7 +840,16 @@ export default function McEditPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-slate-500">クランプ</label>
-                    <button type="button" onClick={() => { setClampItem(clampNote); setClampModalOpen(true); }}
+                    <button type="button" onClick={async () => {
+                    setClampItem(clampNote);
+                    if (!clampMasterData) {
+                      try {
+                        const r = await clampMasterApi.getAll();
+                        setClampMasterData((r as any).data ?? r);
+                      } catch { /* フォールバック: ハードコードを使用 */ }
+                    }
+                    setClampModalOpen(true);
+                  }}
                       className="flex items-center gap-1 text-xs px-2.5 py-1 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-300 rounded-lg font-medium transition-colors">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
                       クランプ アイテム選択
@@ -2171,16 +2187,28 @@ export default function McEditPage() {
       {/* クランプアイテムモーダル */}
       {clampModalOpen && (() => {
         // ──────────────────────────────────────────────────────────
-        // 旧ACCESSアイテムフォーム完全再現：多列ListBox形式
-        // バイス: 名称 + 型式 + メーカー
-        // チャック: 名称 + サイズ + メーカー
-        // インデックス: 名称 + 搭載機 + 型式
+        // DBまたはフォールバック（ハードコード）のデータを使用
         // ──────────────────────────────────────────────────────────
-        type ViseRow  = { name: string; model: string; maker: string };
-        type ChuckRow = { name: string; size: string; maker: string };
-        type IdxRow   = { name: string; machine: string; model: string };
+        type ViseRow  = { id?: number; name: string; model: string|null; maker: string|null };
+        type ChuckRow = { id?: number; name: string; size: string|null; maker: string|null };
+        type IdxRow   = { id?: number; name: string; machine: string|null; model: string|null };
 
-        const VISE_ROWS: ViseRow[] = [
+        const VISE_ROWS: ViseRow[] = clampMasterData?.vise ?? [
+          { name: "バイス 150×45",              model: "VG-150",    maker: "津田駒工業株式会社" },
+          { name: "バイス 200×55",              model: "VG-200",    maker: "津田駒工業株式会社" },
+          { name: "高バイス 175×100",           model: "VT-175",    maker: "津田駒工業株式会社" },
+          { name: "大バイス 300×100",           model: "VB-300",    maker: "津田駒工業株式会社" },
+          { name: "油圧バイス 175×60",          model: "VH-175",    maker: "津田駒工業株式会社" },
+          { name: "4連バイス 100×75",           model: "VM-100-4",  maker: "津田駒工業株式会社" },
+          { name: "バイス 125×40",              model: "VG-125",    maker: "津田駒工業株式会社" },
+          { name: "バイス 100×35",              model: "VG-100",    maker: "津田駒工業株式会社" },
+          { name: "VOX160 159.5×45",            model: "VQX160",    maker: "北川鉄工所株式会社" },
+          { name: "ロックタイト精密マシンバイス 15", model: "LTFV-150H", maker: "ナベヤ" },
+          { name: "ロックタイト5軸マシンバイス 102", model: "LT5AU100M", maker: "ナベヤ" },
+          { name: "ロックタイト精密マシンバイス 16", model: "LTCV160H", maker: "ナベヤ" },
+        ];
+        const SHIKI_LIST: string[] = clampMasterData ? clampMasterData.shiki.map(s => s.name) : ["50×60", "50×70", "50×80", "50×90", "50×100", "100×50", "100×60", "100×80"];
+        const CHUCK_ROWS: ChuckRow[] = clampMasterData?.chuck ?? [
           { name: "バイス 150×45",              model: "VG-150",    maker: "津田駒工業株式会社" },
           { name: "バイス 200×55",              model: "VG-200",    maker: "津田駒工業株式会社" },
           { name: "高バイス 175×100",           model: "VT-175",    maker: "津田駒工業株式会社" },
@@ -2200,7 +2228,7 @@ export default function McEditPage() {
           { name: "ロックタイト5軸マシンバイス 102", model: "LT5AU100M", maker: "ナベヤ" },
           { name: "ロックタイト精密マシンバイス 16", model: "LTCV160H", maker: "ナベヤ" },
         ];
-        const SHIKI_LIST = ["50×60", "50×70", "50×80", "50×90", "50×100", "100×50", "100×60", "100×80"];
+        // SHIKI_LIST is now defined above from DB
         const CHUCK_ROWS: ChuckRow[] = [
           { name: "2連チャック#12",       size: "12インチ", maker: "SOUL" },
           { name: "2連チャック#6",        size: "6インチ",  maker: "SOUL" },
@@ -2231,8 +2259,8 @@ export default function McEditPage() {
           { name: "チャック マルチ S-2",  size: "4インチ",  maker: "SOUL" },
           { name: "チャック マルチ S-3",  size: "4インチ",  maker: "SOUL" },
         ];
-        const TSUME_LIST = ["標準爪", "生爪", "逆爪", "ソフトジョー", "特殊爪"];
-        const INDEX_ROWS: IdxRow[] = [
+        const TSUME_LIST: string[] = clampMasterData ? clampMasterData.tsume.map(t => t.name) : ["標準爪", "生爪", "逆爪", "ソフトジョー", "特殊爪"];
+        const INDEX_ROWS: IdxRow[] = clampMasterData?.index ?? [
           { name: "5AX-200Ⅱ",          machine: "MC10(常時)",  model: "5AX-200Ⅱ Wc≦21" },
           { name: "5AX-220Ⅱ",          machine: "MC10(常時)",  model: "5AX-220Ⅱ Wc≦21" },
           { name: "CNC-200F MC1",       machine: "MC1",          model: "CNC-200F" },
