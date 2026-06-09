@@ -2217,6 +2217,41 @@ export class McService {
     const part    = d.part    ?? {};
     const machine = d.machine ?? {};
 
+    // ── 作業統計集計（repeat_p2 統計フィールド用）──
+    const fmtHM = (min: number | null): string => {
+      if (min == null || isNaN(min)) return '';
+      const h = Math.floor(min / 60);
+      const m = min % 60;
+      return String(h).padStart(2,'0') + 'H' + String(m).padStart(2,'0') + 'M';
+    };
+    let stats: { setupAvgHM:string; setupBestHM:string; totalAvgHM:string; totalBestHM:string; workCount:number; recordCount:number } | null = null;
+    try {
+      const wrs = await this.prisma.workRecord.findMany({
+        where: { mcProgramId: mcId },
+        select: { setupTimeMin: true, machiningTimeMin: true, quantity: true },
+      });
+      const recCount = wrs.length;
+      const wrsWithData = wrs.filter((r: any) => r.setupTimeMin != null || r.machiningTimeMin != null);
+      const setupMins  = wrsWithData.map((r:any) => r.setupTimeMin  ?? 0).filter((v:number)=>v>0);
+      const machMins   = wrsWithData.map((r:any) => r.machiningTimeMin ?? 0).filter((v:number)=>v>0);
+      const totalMins  = wrsWithData.map((r:any) => (r.setupTimeMin??0) + (r.machiningTimeMin??0)).filter((v:number)=>v>0);
+      const qtyTotal   = wrs.reduce((s:number, r:any) => s + (r.quantity ?? 0), 0);
+      const setupAvg   = setupMins.length  ? Math.round(setupMins.reduce((a:number,b:number)=>a+b,0)  / setupMins.length)  : null;
+      const setupBest  = setupMins.length  ? Math.min(...setupMins)  : null;
+      const totalAvg   = totalMins.length  ? Math.round(totalMins.reduce((a:number,b:number)=>a+b,0) / totalMins.length)  : null;
+      const totalBest  = totalMins.length  ? Math.min(...totalMins)  : null;
+      stats = {
+        setupAvgHM:  fmtHM(setupAvg),
+        setupBestHM: fmtHM(setupBest),
+        totalAvgHM:  fmtHM(totalAvg),
+        totalBestHM: fmtHM(totalBest),
+        workCount:   qtyTotal,
+        recordCount: recCount,
+      };
+    } catch(_statErr: any) {
+      console.warn('[repeat_p2 stats] 統計集計失敗:', _statErr?.message);
+    }
+
     const FONT_PATH = '/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf';
     const ASSETS    = '/home/karkyon/projects/machcore/apps/api/assets';
 
@@ -2272,6 +2307,13 @@ export class McService {
       if (src === 'fileName')  return d.fileName ?? '';
       if (src === 'folder1')   return d.folder1  ?? '';
       if (src === 'folder2')   return d.folder2  ?? '';
+      // (7) 作業統計（repeat_p2用）
+      if (src === '__stat_setup_avg__')  return (stats as any)?.setupAvgHM  ?? '';
+      if (src === '__stat_setup_best__') return (stats as any)?.setupBestHM ?? '';
+      if (src === '__stat_total_avg__')  return (stats as any)?.totalAvgHM  ?? '';
+      if (src === '__stat_total_best__') return (stats as any)?.totalBestHM ?? '';
+      if (src === '__stat_work_count__') return (stats as any)?.workCount   != null ? String((stats as any).workCount)   : '';
+      if (src === '__stat_rec_count__')  return (stats as any)?.recordCount != null ? String((stats as any).recordCount) : '';
       const keys = src.split('.');
       let val: any = d;
       for (const k of keys) { val = val?.[k]; if (val == null) return ''; }
