@@ -226,19 +226,16 @@ export default function McDashboard() {
                           </div>
                         </div>
                         <button
-                          onClick={async e => {
+                          onClick={e => {
                             e.stopPropagation();
-                            const res = await fetch(`/api/mc/setup-sheet-logs/${sheet.id}/pdf`, { method: 'HEAD' });
-                            if (res.ok) {
-                              window.open(`/api/mc/setup-sheet-logs/${sheet.id}/pdf`, '_blank');
-                            } else {
-                              let msg = `発行No.${sheet.id} の原本PDFは保存されていません`;
-                              try { const j = await fetch(`/api/mc/setup-sheet-logs/${sheet.id}/pdf`).then(r => r.json()); msg = j.message ?? msg; } catch {}
-                              alert(msg);
+                            if (!sheet.has_pdf) {
+                              alert(`発行No.${sheet.id} の原本PDFは保存されていません\nこの発行はシステム移行前のデータのため原本ファイルがありません`);
+                              return;
                             }
+                            window.open(`/api/mc/setup-sheet-logs/${sheet.id}/pdf`, '_blank');
                           }}
-                          className="shrink-0 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded border border-slate-300 transition-colors whitespace-nowrap"
-                          title="発行原本PDFを別タブで表示（保存されていない場合はメッセージを表示）"
+                          className={`shrink-0 px-2.5 py-1 text-[10px] font-bold rounded border transition-colors whitespace-nowrap ${sheet.has_pdf ? "bg-teal-50 hover:bg-teal-100 text-teal-700 border-teal-300" : "bg-slate-100 text-slate-400 border-slate-200 cursor-default"}`}
+                          title={sheet.has_pdf ? "発行原本PDFを別タブで表示" : "原本PDFは保存されていません（移行前データ）"}
                         >
                           📄 原本確認
                         </button>

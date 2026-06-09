@@ -1295,6 +1295,7 @@ export class McService {
         operator_name: s.operator?.name ?? null,
         work_collected: s.workCollected,
         is_reference:   (s as any).isReference ?? false,
+        has_pdf:        !!(s.pdfPath && require('fs').existsSync(s.pdfPath)),
       })),
     };
   }
