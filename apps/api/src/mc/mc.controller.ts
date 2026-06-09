@@ -164,6 +164,14 @@ export class McController {
     return this.mc.finalize(id, dto.change_type, dto.change_detail, req.user.id);
   }
 
+  // ── 変更キャンセル（CHANGING → 元のステータスに戻す）─
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Patch(':mc_id/revert')
+  revert(@Param('mc_id', ParseIntPipe) id: number) {
+    return this.mc.revert(id);
+  }
+
   // ── 承認 ─────────────────────────────────────
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')

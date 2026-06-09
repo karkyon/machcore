@@ -794,6 +794,8 @@ export const mcApi = {
     api.put(`/mc/timecards/${id}`, body, { headers: { Authorization: `Bearer ${token}` } }),
   initTimecards:   (workDate: string, token: string) =>
     api.post('/mc/timecards/init', { work_date: workDate }, { headers: { Authorization: `Bearer ${token}` } }),
+  revert: (mcId: number, token: string) =>
+    axios.patch(`${API_URL}/mc/${mcId}/revert`, {}, { headers: { Authorization: `Bearer ${token}` } }),
   finalize: (mcId: number, changeType: string, changeDetail: string | undefined, token: string) =>
     api.post(`/mc/${mcId}/finalize`, { change_type: changeType, change_detail: changeDetail ?? undefined },
       { headers: { Authorization: `Bearer ${token}` } }),

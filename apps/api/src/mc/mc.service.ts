@@ -494,6 +494,25 @@ export class McService {
   }
 
   // ══════════════════════════════════════════
+  // MC-05c: 変更キャンセル（CHANGING → 前の状態に戻す）
+  // ══════════════════════════════════════════
+  async revert(id: number) {
+    const mc = await this.prisma.mcProgram.findUnique({ where: { id } });
+    if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
+    if (mc.status !== 'CHANGING') {
+      // CHANGINGでない場合はそのまま返す
+      return { mc_id: id, message: 'ステータスはCHANGINGではありません', status: mc.status };
+    }
+    // 承認者がいればAPPROVED、なければNEWに戻す
+    const nextStatus = mc.approvedBy ? 'APPROVED' : 'NEW';
+    await this.prisma.mcProgram.update({
+      where: { id },
+      data:  { status: nextStatus },
+    });
+    return { mc_id: id, message: '変更をキャンセルしました', status: nextStatus };
+  }
+
+  // ══════════════════════════════════════════
   // MC-06: 承認
   // ══════════════════════════════════════════
   async approve(id: number, operatorId: number) {

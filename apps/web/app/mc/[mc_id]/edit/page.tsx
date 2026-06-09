@@ -728,7 +728,11 @@ export default function McEditPage() {
             <span>編集セッション: {operator?.name ?? "（作業中）"}</span>
           </div>
           <div className="flex gap-3">
-            <button onClick={() => {
+            <button onClick={async () => {
+                // CHANGINGステータスを元に戻す（保存済みの場合もAPIで戻す）
+                if (token) {
+                  try { await mcApi.revert(mcId, token); } catch (e) { console.warn("[cancel] revert failed", e); }
+                }
                 logout();
                 router.push(`/mc/${mcId}`);
               }}
