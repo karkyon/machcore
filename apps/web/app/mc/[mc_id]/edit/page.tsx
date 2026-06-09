@@ -123,6 +123,8 @@ export default function McEditPage() {
   const [files,          setFiles]          = useState<any[]>([]);
   const [fileUploading,  setFileUploading]  = useState(false);
   const [fileUploadMsg,  setFileUploadMsg]  = useState<string | null>(null);
+  const [replacingId,    setReplacingId]    = useState<number | null>(null);
+  const [replaceDragOver, setReplaceDragOver] = useState<number | null>(null);
   const photoInputRef = React.useRef<HTMLInputElement>(null);
   const scanInputRef  = React.useRef<HTMLInputElement>(null);
 
@@ -454,6 +456,22 @@ export default function McEditPage() {
       showToast("❌ アップロード失敗: " + (e.message || "不明なエラー"));
     } finally {
       setPgUploading(false);
+    }
+  };
+
+  const handleReplace = async (fileId: number, file: File) => {
+    if (!token) { showToast("認証が必要です"); return; }
+    setReplacingId(fileId);
+    try {
+      await mcFilesApi.replace(mcId, fileId, file, token);
+      const r = await mcApi.listFiles(mcId);
+      setFiles((r as any).data ?? []);
+      showToast("✅ 差し替え完了");
+    } catch (e: any) {
+      showToast("❌ 差し替え失敗: " + (e.message ?? "エラー"));
+    } finally {
+      setReplacingId(null);
+      setReplaceDragOver(null);
     }
   };
 
@@ -1474,21 +1492,42 @@ export default function McEditPage() {
                       </div>
                       <div className="grid grid-cols-3 gap-3">
                         {files.filter((f: any) => f.file_type === "PHOTO").map((f: any) => (
-                          <div key={f.id} className="bg-white rounded-xl border-2 border-teal-300 overflow-hidden shadow-sm">
-                            <div className="aspect-square bg-teal-50 flex items-center justify-center overflow-hidden">
+                          <div key={f.id}
+                            className={`bg-white rounded-xl border-2 overflow-hidden shadow-sm transition-all ${replaceDragOver === f.id ? "border-yellow-400 bg-yellow-50 scale-105" : "border-teal-300"}`}
+                            onDragOver={e => { e.preventDefault(); setReplaceDragOver(f.id); }}
+                            onDragLeave={() => setReplaceDragOver(null)}
+                            onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleReplace(f.id, file); }}>
+                            <div className="aspect-square bg-teal-50 flex items-center justify-center overflow-hidden relative">
+                              {replacingId === f.id && (
+                                <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                                  <span className="text-xs text-teal-600 font-bold animate-pulse">差し替え中...</span>
+                                </div>
+                              )}
+                              {replaceDragOver === f.id && (
+                                <div className="absolute inset-0 bg-yellow-100/90 flex items-center justify-center z-10 pointer-events-none">
+                                  <span className="text-sm text-yellow-700 font-bold">ここにドロップして差し替え</span>
+                                </div>
+                              )}
                               <img src={`/api/mc/${mcId}/files/${f.id}/thumb`}
                                 alt={f.original_name} className="w-full h-full object-contain" loading="lazy"
                                 onError={e2 => { (e2.target as HTMLImageElement).style.display = "none"; }} />
                             </div>
-                            <div className="px-2 py-1.5 flex items-center justify-between bg-teal-50 border-t border-teal-200">
-                              <p className="text-[11px] text-teal-800 font-bold truncate flex-1">{f.stored_name ?? f.original_name}</p>
-                              <button onClick={async () => {
-                                  if (!token || !window.confirm("削除しますか？")) return;
-                                  await mcFilesApi.delete(mcId, f.id, token);
-                                  const r = await mcApi.listFiles(mcId);
-                                  setFiles((r as any).data ?? []);
-                                }}
-                                className="text-[10px] text-red-400 hover:text-red-600 ml-1 shrink-0 font-bold">✕</button>
+                            <div className="px-2 py-1.5 bg-teal-50 border-t border-teal-200">
+                              <p className="text-[11px] text-teal-800 font-bold truncate mb-1">{f.stored_name ?? f.original_name}</p>
+                              <div className="flex items-center gap-1">
+                                <label className="flex-1 text-center text-[10px] bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold rounded cursor-pointer px-1 py-0.5 transition-colors">
+                                  🔄 差し替え
+                                  <input type="file" className="hidden" disabled={replacingId !== null}
+                                    onChange={e => { const file = e.target.files?.[0]; if (file) handleReplace(f.id, file); e.target.value = ""; }} />
+                                </label>
+                                <button onClick={async () => {
+                                    if (!token || !window.confirm("削除しますか？")) return;
+                                    await mcFilesApi.delete(mcId, f.id, token);
+                                    const r = await mcApi.listFiles(mcId);
+                                    setFiles((r as any).data ?? []);
+                                  }}
+                                  className="text-[10px] text-red-400 hover:text-red-600 font-bold px-1 py-0.5">✕</button>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -1504,21 +1543,42 @@ export default function McEditPage() {
                       </div>
                       <div className="grid grid-cols-3 gap-3">
                         {files.filter((f: any) => f.file_type === "DRAWING").map((f: any) => (
-                          <div key={f.id} className="bg-white rounded-xl border-2 border-purple-300 overflow-hidden shadow-sm">
-                            <div className="aspect-square bg-purple-50 flex items-center justify-center overflow-hidden">
+                          <div key={f.id}
+                            className={`bg-white rounded-xl border-2 overflow-hidden shadow-sm transition-all ${replaceDragOver === f.id ? "border-yellow-400 bg-yellow-50 scale-105" : "border-purple-300"}`}
+                            onDragOver={e => { e.preventDefault(); setReplaceDragOver(f.id); }}
+                            onDragLeave={() => setReplaceDragOver(null)}
+                            onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleReplace(f.id, file); }}>
+                            <div className="aspect-square bg-purple-50 flex items-center justify-center overflow-hidden relative">
+                              {replacingId === f.id && (
+                                <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                                  <span className="text-xs text-purple-600 font-bold animate-pulse">差し替え中...</span>
+                                </div>
+                              )}
+                              {replaceDragOver === f.id && (
+                                <div className="absolute inset-0 bg-yellow-100/90 flex items-center justify-center z-10 pointer-events-none">
+                                  <span className="text-sm text-yellow-700 font-bold">ここにドロップして差し替え</span>
+                                </div>
+                              )}
                               <img src={`/api/mc/${mcId}/files/${f.id}/thumb`}
                                 alt={f.original_name} className="w-full h-full object-contain" loading="lazy"
                                 onError={e2 => { (e2.target as HTMLImageElement).style.display = "none"; }} />
                             </div>
-                            <div className="px-2 py-1.5 flex items-center justify-between bg-purple-50 border-t border-purple-200">
-                              <p className="text-[11px] text-purple-800 font-bold truncate flex-1">{f.stored_name ?? f.original_name}</p>
-                              <button onClick={async () => {
-                                  if (!token || !window.confirm("削除しますか？")) return;
-                                  await mcFilesApi.delete(mcId, f.id, token);
-                                  const r = await mcApi.listFiles(mcId);
-                                  setFiles((r as any).data ?? []);
-                                }}
-                                className="text-[10px] text-red-400 hover:text-red-600 ml-1 shrink-0 font-bold">✕</button>
+                            <div className="px-2 py-1.5 bg-purple-50 border-t border-purple-200">
+                              <p className="text-[11px] text-purple-800 font-bold truncate mb-1">{f.stored_name ?? f.original_name}</p>
+                              <div className="flex items-center gap-1">
+                                <label className="flex-1 text-center text-[10px] bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold rounded cursor-pointer px-1 py-0.5 transition-colors">
+                                  🔄 差し替え
+                                  <input type="file" className="hidden" disabled={replacingId !== null}
+                                    onChange={e => { const file = e.target.files?.[0]; if (file) handleReplace(f.id, file); e.target.value = ""; }} />
+                                </label>
+                                <button onClick={async () => {
+                                    if (!token || !window.confirm("削除しますか？")) return;
+                                    await mcFilesApi.delete(mcId, f.id, token);
+                                    const r = await mcApi.listFiles(mcId);
+                                    setFiles((r as any).data ?? []);
+                                  }}
+                                  className="text-[10px] text-red-400 hover:text-red-600 font-bold px-1 py-0.5">✕</button>
+                              </div>
                             </div>
                           </div>
                         ))}

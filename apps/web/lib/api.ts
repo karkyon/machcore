@@ -812,4 +812,13 @@ export const mcFilesApi = {
   },
   delete: (mcId: number, fileId: number, token: string) =>
     api.delete(`/mc/${mcId}/files/${fileId}`, { headers: { Authorization: `Bearer ${token}` } }),
+  replace: (mcId: number, fileId: number, file: File, token: string) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return fetch(`/api/mc/${mcId}/files/${fileId}/replace`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    }).then(r => r.json());
+  },
 };
