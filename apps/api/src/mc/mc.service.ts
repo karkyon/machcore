@@ -258,7 +258,7 @@ export class McService {
         } },
         registrar: { select: { id: true, name: true } },
         approver:  { select: { id: true, name: true } },
-        files:     { orderBy: { uploadedAt: 'desc' } },
+        files:     { where: { isDeleted: false }, orderBy: { uploadedAt: 'desc' } },
       },
     });
     if (!r) throw new NotFoundException(`MC_id ${id} が存在しません`);
@@ -1279,7 +1279,7 @@ export class McService {
   // ══════════════════════════════════════════
   async listFiles(mcId: number) {
     const files = await this.prisma.mcFile.findMany({
-      where:   { mcProgramId: mcId },
+      where:   { mcProgramId: mcId, isDeleted: false },
       orderBy: { uploadedAt: 'desc' },
       include: { uploader: { select: { name: true } } },
     });
