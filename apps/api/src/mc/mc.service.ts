@@ -1914,7 +1914,7 @@ export class McService {
     const [copiedP2] = await finalDoc.copyPages(p2Doc, [0]);
     finalDoc.addPage(copiedP1);
     finalDoc.addPage(copiedP2);
-    // p1/p2両ページに発行日時を印字（finalDoc用フォントを別途embed）
+    // p1/p2両ページに発行日時を印字（フォントを1回だけ埋め込む）
     {
       const issuedAtStr = new Date().toLocaleString('ja-JP', { timeZone:'Asia/Tokyo',
         year:'numeric', month:'2-digit', day:'2-digit',
@@ -1923,13 +1923,13 @@ export class McService {
       const dtSz = 10.5;
       const dtY  = 15;
       const dtX  = 30;
-      // finalDoc用フォントを埋め込み（p1/p2のfont1/font2はそれぞれのdocに属し再利用不可）
+      // ★ embedFont を finalDoc で1回だけ実行（全フォント共用）
       finalDoc.registerFontkit(fontkit.default ?? fontkit);
-      const finalFontNew = await finalDoc.embedFont(fs.readFileSync(FONT_PATH));
+      const sharedFont = await finalDoc.embedFont(fontBytes);
       finalDoc.getPages().forEach(pg => {
         try {
           pg.drawRectangle({ x: dtX-1, y: dtY-1, width: 120, height: dtSz*1.8+2, color: rgb(1,1,1), borderWidth: 0 });
-          pg.drawText(dtText, { x: dtX, y: dtY, size: dtSz, font: finalFontNew, color: rgb(0.4,0.4,0.4) });
+          pg.drawText(dtText, { x: dtX, y: dtY, size: dtSz, font: sharedFont, color: rgb(0.4,0.4,0.4) });
         } catch(_) {}
       });
     }
@@ -1939,11 +1939,8 @@ export class McService {
     if (isPreview) {
       // 全ページに「プレビュー」透かしを描画
       const allPages = finalDoc.getPages();
-      const fontkit2 = await import('@pdf-lib/fontkit');
-      finalDoc.registerFontkit(fontkit2.default ?? fontkit2);
-      const FONT_PATH2 = '/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf';
-      const fontBytes2 = fs.readFileSync(FONT_PATH2);
-      const wFont = await finalDoc.embedFont(fontBytes2);
+      // ★ sharedFont を再利用（embedFont を追加しない）
+      const wFont = sharedFont;
       const { degrees } = await import('pdf-lib');
       for (const page of allPages) {
         const { width, height } = page.getSize();
