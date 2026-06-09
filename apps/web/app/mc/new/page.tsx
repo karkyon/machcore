@@ -163,7 +163,10 @@ export default function McNewPage() {
             {parts.map(p => (
               <button key={p.drawing_no} onClick={() => setSelectedPart(p)}
                 className={`w-full text-left px-3 py-2.5 border-b border-slate-100 hover:bg-teal-50 transition-colors ${selectedPart?.drawing_no === p.drawing_no ? "bg-teal-50 border-l-4 border-l-teal-500" : ""}`}>
-                <div className="font-mono text-xs font-bold text-teal-700">{p.drawing_no}</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-teal-700">{p.drawing_no}</span>
+                  {p.part_id && <span className="font-mono text-[10px] text-slate-400">部品ID:{p.part_id}</span>}
+                </div>
                 <div className="text-xs text-slate-600 truncate">{p.name}</div>
                 {p.client_name && <div className="text-[10px] text-slate-400">{p.client_name}</div>}
               </button>
