@@ -61,6 +61,18 @@ export default function McEditPage() {
   const [machineId,    setMachineId]    = useState<string>("");
   const [oNumber,      setONumber]      = useState("");
   const [clampNote,    setClampNote]    = useState("");
+  // クランプアイテムモーダル
+  const [clampModalOpen, setClampModalOpen] = useState(false);
+  const [clampVise,      setClampVise]      = useState("");
+  const [clampShiki,     setClampShiki]     = useState("");
+  const [clampChuck,     setClampChuck]     = useState("");
+  const [clampTsume,     setClampTsume]     = useState("");
+  const [clampIndex,     setClampIndex]     = useState("");
+  const [clampOther,     setClampOther]     = useState("");
+  const [clampTailstock, setClampTailstock] = useState<1|2>(2); // 1=使用する 2=使用しない
+  const [clampJig,       setClampJig]       = useState<1|2>(2); // 1=使用する 2=使用しない
+  const [clampSelection, setClampSelection] = useState<1|2>(1); // 1=and 2=or
+  const [clampItem,      setClampItem]      = useState("");
   const [cycleH,       setCycleH]       = useState(0);
   const [cycleM,       setCycleM]       = useState(0);
   const [cycleS,       setCycleS]       = useState(0);
@@ -815,7 +827,14 @@ export default function McEditPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">クランプ</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-500">クランプ</label>
+                    <button type="button" onClick={() => { setClampItem(clampNote); setClampModalOpen(true); }}
+                      className="flex items-center gap-1 text-xs px-2.5 py-1 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-300 rounded-lg font-medium transition-colors">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                      クランプ アイテム選択
+                    </button>
+                  </div>
                   <textarea value={clampNote} onChange={e => setClampNote(e.target.value)} rows={3}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none resize-none" />
                 </div>
