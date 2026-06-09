@@ -1971,6 +1971,38 @@ export class McService {
 
 
     // プレビューの場合はDB記録・ファイル保存をスキップ
+    if (!(options as any).is_preview) {
+      // ── 段取シートPDF永続保存（ISO トレーサビリティ）──
+      let savedPdfPath: string | null = null;
+      try {
+        const _stg = await this.prisma.companySetting.findFirst({ select: { mcStoragePath: true, uploadBasePath: true } });
+        const _base = _stg?.mcStoragePath ?? _stg?.uploadBasePath ?? '/mnt/mc_files/mc_files';
+        let _ssDir = require('path').join(_base, 'setupsheet', String(mcId));
+        try {
+          if (!require('fs').existsSync(_ssDir)) require('fs').mkdirSync(_ssDir, { recursive: true });
+          require('fs').accessSync(_ssDir, require('fs').constants.W_OK);
+        } catch (_se: any) {
+          console.warn('[setupsheet] SMBパス書込不可(' + _ssDir + '): ' + _se?.message + ' → ローカルフォールバック');
+          _ssDir = require('path').join('/var/tmp/machcore_setupsheet', String(mcId));
+          if (!require('fs').existsSync(_ssDir)) require('fs').mkdirSync(_ssDir, { recursive: true });
+        }
+        console.log('[setupsheet] 保存先: ' + _ssDir);
+        const _now = new Date();
+        const _ts = String(_now.getFullYear()) + String(_now.getMonth()+1).padStart(2,'0') + String(_now.getDate()).padStart(2,'0') + '_' + String(_now.getHours()).padStart(2,'0') + String(_now.getMinutes()).padStart(2,'0') + String(_now.getSeconds()).padStart(2,'0');
+        const _fn = 'setup_' + String(mcId) + '_' + _ts + '.pdf';
+        savedPdfPath = require('path').join(_ssDir, _fn);
+        require('fs').writeFileSync(savedPdfPath, pdfBuffer);
+        console.log('[setupsheet] saved: ' + savedPdfPath + ' (' + Math.round(pdfBuffer.length/1024) + 'KB)');
+      } catch (_pe: any) {
+        console.warn('[setupsheet] PDF保存失敗:', _pe?.message);
+        savedPdfPath = null;
+      }
+      await this.prisma.mcSetupSheetLog.create({
+        data: { mcProgramId: mcId, operatorId, version: data.version ?? null,
+                pdfPath: savedPdfPath,
+                ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}) },
+      }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
+    }
     return pdfBuffer;
   }
 
