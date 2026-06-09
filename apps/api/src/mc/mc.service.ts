@@ -2884,7 +2884,7 @@ export class McService {
       let savedPdfPath: string | null = null;
       try {
         const setting2 = await this.prisma.companySetting.findFirst({ select: { mcStoragePath: true, uploadBasePath: true } });
-        const basePath = setting2?.mcStoragePath ?? setting2?.uploadBasePath ?? '/mnt/ncfiles/mc_files';
+        const basePath = setting2?.mcStoragePath ?? setting2?.uploadBasePath ?? '/mnt/mc_files/mc_files';
         const ssDir = require('path').join(basePath, 'setupsheet', String(mcId));
         if (!require('fs').existsSync(ssDir)) require('fs').mkdirSync(ssDir, { recursive: true });
         const now = new Date();

@@ -37,7 +37,7 @@ export class McFilesService {
     // mcStoragePath (/mnt/ncfiles/mc_files) はすでに mc_files サブディレクトリを含むため
     // path.join(base, 'mc_files', ...) で二重になるのを防ぐ。
     // 段取シートPDF保存には mcStoragePath を直接使用する（generateSetupSheetPdf参照）。
-    return s?.uploadBasePath ?? '/mnt/ncfiles';
+    return s?.uploadBasePath ?? '/mnt/mc_files';
   }
 
   private ensureDir(p: string) {
