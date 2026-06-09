@@ -1915,6 +1915,9 @@ export class McService {
     finalDoc.addPage(copiedP1);
     finalDoc.addPage(copiedP2);
     // p1/p2両ページに発行日時を印字（フォントを1回だけ埋め込む）
+    // ★ embedFont を finalDoc で1回だけ実行（全フォント共用・スコープをブロック外に）
+    finalDoc.registerFontkit(fontkit.default ?? fontkit);
+    const sharedFont = await finalDoc.embedFont(fontBytes);
     {
       const issuedAtStr = new Date().toLocaleString('ja-JP', { timeZone:'Asia/Tokyo',
         year:'numeric', month:'2-digit', day:'2-digit',
@@ -1923,9 +1926,6 @@ export class McService {
       const dtSz = 10.5;
       const dtY  = 15;
       const dtX  = 30;
-      // ★ embedFont を finalDoc で1回だけ実行（全フォント共用）
-      finalDoc.registerFontkit(fontkit.default ?? fontkit);
-      const sharedFont = await finalDoc.embedFont(fontBytes);
       finalDoc.getPages().forEach(pg => {
         try {
           pg.drawRectangle({ x: dtX-1, y: dtY-1, width: 120, height: dtSz*1.8+2, color: rgb(1,1,1), borderWidth: 0 });
@@ -1939,7 +1939,7 @@ export class McService {
     if (isPreview) {
       // 全ページに「プレビュー」透かしを描画
       const allPages = finalDoc.getPages();
-      // ★ sharedFont を再利用（embedFont を追加しない）
+      // sharedFont を再利用（embedFont を追加しない）
       const wFont = sharedFont;
       const { degrees } = await import('pdf-lib');
       for (const page of allPages) {
