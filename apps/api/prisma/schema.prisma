@@ -591,6 +591,7 @@ model McSetupSheetLog {
   sessionId   String?  @db.VarChar(36)     @map("session_id")
   workCollected Boolean @default(false)    @map("work_collected")
   isReference   Boolean @default(false)    @map("is_reference")
+  sheetType     String? @db.VarChar(10)    @map("sheet_type")
 
   mcProgram McProgram @relation(fields: [mcProgramId], references: [id])
   operator  User      @relation(fields: [operatorId],  references: [id])

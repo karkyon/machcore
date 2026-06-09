@@ -2000,6 +2000,7 @@ export class McService {
       await this.prisma.mcSetupSheetLog.create({
         data: { mcProgramId: mcId, operatorId, version: data.version ?? null,
                 pdfPath: savedPdfPath,
+                sheetType: 'NEW',
                 ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}) },
       }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
     }

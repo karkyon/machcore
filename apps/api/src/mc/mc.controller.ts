@@ -489,7 +489,8 @@ export class McController {
     @Req() req: any,
     @Res() reply: FastifyReply,
   ) {
-    const opts = { ...dto, is_preview: true };
+    // is_preview:false → ログ記録する（ブラウザプレビューだが発行履歴は残す）
+    const opts = { ...dto, is_preview: false };
     const pdf = await this.mc.generateRepeatSetupSheetPdf(id, req.user.id, opts);
     reply.header('Content-Type',        'application/pdf');
     reply.header('Content-Disposition', `inline; filename="mc-repeat-sheet-${id}.pdf"`);

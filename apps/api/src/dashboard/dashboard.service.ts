@@ -57,15 +57,19 @@ export class DashboardService {
     });
     // sheet_type 判別: 各プログラムの全印刷回数を取得
     const programIds = [...new Set(rows.map(s => s.mcProgramId))];
-    const allCounts = await this.prisma.mcSetupSheetLog.groupBy({
-      by: ['mcProgramId'],
+    // sheet_type カラムから直接取得（発行回数ではなく実際の発行種別で判断）
+    const latestLogs = await this.prisma.mcSetupSheetLog.findMany({
       where: { mcProgramId: { in: programIds } },
-      _count: { id: true },
+      orderBy: { printedAt: 'desc' },
+      select: { mcProgramId: true, sheetType: true },
     });
-    const sheetTypeMap = new Map(allCounts.map(r => [
-      r.mcProgramId,
-      r._count.id <= 1 ? 'NEW' : 'REPEAT',
-    ]));
+    // 各プログラムの最新ログの sheetType を使用
+    const sheetTypeMap = new Map<number, string | null>();
+    for (const log of latestLogs) {
+      if (!sheetTypeMap.has(log.mcProgramId)) {
+        sheetTypeMap.set(log.mcProgramId, log.sheetType ?? null);
+      }
+    }
     const items = rows.map(s => ({
       id:             s.id,
       mc_id:          s.mcProgramId,
