@@ -1801,7 +1801,10 @@ export class McService {
 
     // P1生成
     const p1Doc = await PDFDocument.load(p1Bytes);
-    const p1H = p1Doc.getPage(0).getHeight();
+    p1Doc.registerFontkit(fontkit.default ?? fontkit);
+    const font1 = await p1Doc.embedFont(fontBytes, { subset: true });
+    const p1Page = p1Doc.getPage(0);
+    const p1H = p1Page.getHeight();
 
     console.log('[PDF] templates count:', templates.length);
 
@@ -1868,7 +1871,10 @@ export class McService {
 
     // P2生成
     const p2Doc = await PDFDocument.load(p2Bytes);
-    const p2H = p2Doc.getPage(0).getHeight();
+    p2Doc.registerFontkit(fontkit.default ?? fontkit);
+    const font2 = await p2Doc.embedFont(fontBytes, { subset: true });
+    const p2Page = p2Doc.getPage(0);
+    const p2H = p2Page.getHeight();
 
     const p2Fields = templates.filter(f => f.name === 'mc_setup_p2');
     for (const f of p2Fields) {
@@ -1904,17 +1910,13 @@ export class McService {
     // P1+P2を結合して2ページPDFに（フォントは finalDoc で1回だけ embed）
     const finalDoc = await PDFDocument.create();
     finalDoc.registerFontkit(fontkit.default ?? fontkit);
-    // ★ コピー前に embedFont → コピー元フォントが混入しない
-    const sharedFont = await finalDoc.embedFont(fontBytes);
+    // ★ コピー前に embedFont → subset:true でサイズ削減
+    const sharedFont = await finalDoc.embedFont(fontBytes, { subset: true });
     const [copiedP1] = await finalDoc.copyPages(p1Doc, [0]);
     const [copiedP2] = await finalDoc.copyPages(p2Doc, [0]);
     finalDoc.addPage(copiedP1);
     finalDoc.addPage(copiedP2);
-    // p1Page/p2Page/font1/font2 を finalDoc のコピー済みページで再定義
-    const p1Page = finalDoc.getPage(0);
-    const p2Page = finalDoc.getPage(1);
-    const font1 = sharedFont;
-    const font2 = sharedFont;
+    // p1Page/p2Page/font1/font2 はコピー前の p1Doc/p2Doc ページ上で描画済み
     {
       const issuedAtStr = new Date().toLocaleString('ja-JP', { timeZone:'Asia/Tokyo',
         year:'numeric', month:'2-digit', day:'2-digit',
