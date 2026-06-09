@@ -2164,6 +2164,181 @@ export default function McEditPage() {
         );
       })()}
 
+      {/* クランプアイテムモーダル */}
+      {clampModalOpen && (() => {
+        const VISE_LIST = [
+          "バイス 150×45", "バイス 200×55", "高バイス 175×100",
+          "大バイス 300×100", "油圧バイス 175×60",
+          "4連バイス 100×75", "バイス 125×40", "バイス 100×35",
+          "バイス 200×60", "バイス 180×50",
+          "2連バイス 150×45", "2連エアーバイス 175×45",
+          "2連バイス 150×45 2台", "バイス 200×55 2台",
+          "VOX160 159.5×45", "ロックタイト精密マシンバイス 15",
+          "ロックタイト5軸マシンバイス 102", "ロックタイト精密マシンバイス 16",
+        ];
+        const SHIKI_LIST = ["50×60", "50×70", "50×80", "50×90", "50×100", "100×50", "100×60", "100×80"];
+        const CHUCK_LIST = [
+          "2連チャック#12", "2連チャック#6", "2連チャック#7",
+          "2連チャックAタイプ", "2連チャックBタイプ", "2連チャックCタイプ", "2連チャックDタイプ",
+          "4連チャック#5", "4連チャック#6", "4連チャックAタイプ", "4連チャックBタイプ",
+          "チャック 10インチ", "チャック 12インチ", "チャック 18インチ",
+          "チャック 8インチ", "チャック 4インチ", "チャック 5インチ",
+          "チャック 6インチ", "チャック 9インチ",
+          "チャック K-1", "チャック K-2", "チャック SC-8A",
+          "チャック マルチ S-1", "チャック マルチ S-2", "チャック マルチ S-3",
+          "生爪 Bタイプ", "生爪 (丸)", "4連チャックAタイプ 生爪(丸)",
+        ];
+        const TSUME_LIST = ["標準爪", "生爪", "逆爪", "ソフトジョー", "特殊爪"];
+        const INDEX_LIST = [
+          "ロータリーテーブル", "インデックステーブル RT-250",
+          "インデックステーブル RT-320", "第4軸 インデックス",
+        ];
+        const OTHER_LIST = ["サブテーブル", "傾斜テーブル", "サーキュラーテーブル", "アングル", "電磁チャック", "Vブロック"];
+
+        const sep = clampSelection === 1 ? " & " : " or ";
+        const parts: string[] = [];
+        if (clampVise)  parts.push(clampVise);
+        if (clampShiki) parts.push("敷板 " + clampShiki);
+        if (clampChuck) {
+          let c = clampChuck;
+          if (clampTsume) c += " " + clampTsume;
+          parts.push(c);
+        }
+        if (clampIndex)          parts.push(clampIndex);
+        if (clampOther)          parts.push(clampOther);
+        if (clampTailstock === 1) parts.push("テールストック");
+        if (clampJig === 1)       parts.push("治具");
+        const preview = parts.join(sep);
+
+        const handleApply = () => {
+          if (clampNote && clampNote.trim() !== "" && clampNote !== preview) {
+            if (!window.confirm(
+              "現在のクランプ欄に文字が入力されています。\n\n" +
+              "【現在】" + clampNote.slice(0, 50) + (clampNote.length > 50 ? "…" : "") + "\n\n" +
+              "【新しい内容】" + (preview || "（空）") + "\n\n" +
+              "上書きしますか？"
+            )) return;
+          }
+          setClampNote(preview);
+          setClampModalOpen(false);
+        };
+
+        const handleClear = () => {
+          setClampVise(""); setClampShiki(""); setClampChuck(""); setClampTsume("");
+          setClampIndex(""); setClampOther(""); setClampTailstock(2); setClampJig(2); setClampSelection(1);
+        };
+
+        const selCls = "w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-orange-300 focus:outline-none bg-white";
+        const lblCls = "text-xs font-bold text-slate-500 block mb-1";
+
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-orange-500"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                  <span className="font-bold text-slate-700">クランプ アイテム選択</span>
+                </div>
+                <button onClick={() => setClampModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl font-light leading-none">×</button>
+              </div>
+              <div className="overflow-y-auto p-5 space-y-4 flex-1">
+                {/* and / or */}
+                <div className="flex items-center gap-6 bg-slate-50 rounded-lg px-4 py-2.5">
+                  <span className="text-xs font-bold text-slate-500">組み合わせ方式</span>
+                  {([1, 2] as const).map(v => (
+                    <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" checked={clampSelection === v} onChange={() => setClampSelection(v)} className="accent-orange-500" />
+                      <span className="text-xs font-medium">{v === 1 ? "and (&)" : "or"}</span>
+                    </label>
+                  ))}
+                </div>
+                {/* 各コンボ */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className={lblCls}>バイス</label>
+                    <select value={clampVise} onChange={e => setClampVise(e.target.value)} className={selCls}>
+                      <option value="">— なし —</option>
+                      {VISE_LIST.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div><label className={lblCls}>敷板</label>
+                    <select value={clampShiki} onChange={e => setClampShiki(e.target.value)} className={selCls}>
+                      <option value="">— なし —</option>
+                      {SHIKI_LIST.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div><label className={lblCls}>チャック</label>
+                    <select value={clampChuck} onChange={e => setClampChuck(e.target.value)} className={selCls}>
+                      <option value="">— なし —</option>
+                      {CHUCK_LIST.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div><label className={lblCls}>爪 <span className="text-slate-400 font-normal text-[10px]">(チャックに追記)</span></label>
+                    <select value={clampTsume} onChange={e => setClampTsume(e.target.value)} className={selCls}>
+                      <option value="">— なし —</option>
+                      {TSUME_LIST.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div><label className={lblCls}>インデックス</label>
+                    <select value={clampIndex} onChange={e => setClampIndex(e.target.value)} className={selCls}>
+                      <option value="">— なし —</option>
+                      {INDEX_LIST.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div><label className={lblCls}>その他</label>
+                    <select value={clampOther} onChange={e => setClampOther(e.target.value)} className={selCls}>
+                      <option value="">— なし —</option>
+                      {OTHER_LIST.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </div>
+                </div>
+                {/* テールストック / 治具 */}
+                <div className="grid grid-cols-2 gap-3">
+                  {([
+                    { label: "テールストック", val: clampTailstock, set: setClampTailstock } as { label: string; val: 1|2; set: (v: 1|2) => void },
+                    { label: "治具",           val: clampJig,       set: setClampJig       } as { label: string; val: 1|2; set: (v: 1|2) => void },
+                  ]).map(({ label, val, set }) => (
+                    <div key={label} className="bg-slate-50 rounded-lg px-3 py-2">
+                      <div className="text-xs font-bold text-slate-500 mb-1.5">{label}</div>
+                      <div className="flex gap-4">
+                        {([1, 2] as const).map(v => (
+                          <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" checked={val === v} onChange={() => set(v)} className="accent-orange-500" />
+                            <span className="text-xs">{v === 1 ? "使用する" : "使用しない"}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* プレビュー */}
+                <div>
+                  <div className="text-xs font-bold text-slate-500 mb-1">生成される文字列</div>
+                  <div className={`min-h-[40px] px-3 py-2 rounded-lg text-sm border font-mono ${preview ? "bg-orange-50 border-orange-200 text-orange-800" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+                    {preview || "（選択してください）"}
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-between items-center px-5 py-3.5 border-t border-slate-200">
+                <button onClick={handleClear}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-slate-300 text-slate-500 hover:bg-slate-50 transition-colors">
+                  クリア
+                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => setClampModalOpen(false)}
+                    className="text-xs px-4 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors">
+                    キャンセル
+                  </button>
+                  <button onClick={handleApply} disabled={!preview}
+                    className="text-xs px-5 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:bg-slate-300 text-white font-bold transition-colors">
+                    クランプ入力
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-bold z-50">{toast}</div>
       )}
