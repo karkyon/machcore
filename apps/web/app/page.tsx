@@ -226,9 +226,19 @@ export default function McDashboard() {
                           </div>
                         </div>
                         <button
-                          onClick={e => { e.stopPropagation(); window.open(`/api/mc/setup-sheet-logs/${sheet.id}/pdf`, '_blank'); }}
+                          onClick={async e => {
+                            e.stopPropagation();
+                            const res = await fetch(`/api/mc/setup-sheet-logs/${sheet.id}/pdf`, { method: 'HEAD' });
+                            if (res.ok) {
+                              window.open(`/api/mc/setup-sheet-logs/${sheet.id}/pdf`, '_blank');
+                            } else {
+                              let msg = `発行No.${sheet.id} の原本PDFは保存されていません`;
+                              try { const j = await fetch(`/api/mc/setup-sheet-logs/${sheet.id}/pdf`).then(r => r.json()); msg = j.message ?? msg; } catch {}
+                              alert(msg);
+                            }
+                          }}
                           className="shrink-0 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded border border-slate-300 transition-colors whitespace-nowrap"
-                          title="発行原本PDFを別タブで表示"
+                          title="発行原本PDFを別タブで表示（保存されていない場合はメッセージを表示）"
                         >
                           📄 原本確認
                         </button>
