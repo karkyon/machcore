@@ -612,10 +612,11 @@ export class AdminController {
       select: { mcStoragePath: true, ncStoragePath: true, mcPrinter: true, ncPrinter: true, uploadBasePath: true, printerName: true },
     });
     return {
-      mc_storage_path: s?.mcStoragePath ?? s?.uploadBasePath ?? "/mnt/ncfiles/mc",
-      nc_storage_path: s?.ncStoragePath ?? s?.uploadBasePath ?? "/mnt/ncfiles",
-      mc_printer:      s?.mcPrinter ?? s?.printerName ?? "",
-      nc_printer:      s?.ncPrinter ?? s?.printerName ?? "",
+      mc_storage_path:   s?.mcStoragePath  ?? s?.uploadBasePath ?? "/mnt/mc_files/mc_files",
+      nc_storage_path:   s?.ncStoragePath  ?? "/mnt/nc_files",
+      upload_base_path:  s?.uploadBasePath ?? "/mnt/mc_files",
+      mc_printer:        s?.mcPrinter ?? s?.printerName ?? "",
+      nc_printer:        s?.ncPrinter ?? s?.printerName ?? "",
     };
   }
 
@@ -626,19 +627,22 @@ export class AdminController {
   async updateMcNcSettings(@Body() body: {
     mc_storage_path?: string;
     nc_storage_path?: string;
+    upload_base_path?: string;
     mc_printer?: string;
     nc_printer?: string;
   }) {
     return this.prisma.companySetting.upsert({
       where: { id: 1 },
       update: {
-        ...(body.mc_storage_path !== undefined && { mcStoragePath: body.mc_storage_path }),
-        ...(body.nc_storage_path !== undefined && { ncStoragePath: body.nc_storage_path }),
-        ...(body.mc_printer      !== undefined && { mcPrinter:     body.mc_printer }),
-        ...(body.nc_printer      !== undefined && { ncPrinter:     body.nc_printer }),
+        ...(body.mc_storage_path !== undefined && { mcStoragePath:   body.mc_storage_path }),
+        ...(body.nc_storage_path !== undefined && { ncStoragePath:   body.nc_storage_path }),
+        ...(body.upload_base_path !== undefined && { uploadBasePath: body.upload_base_path }),
+        ...(body.mc_printer      !== undefined && { mcPrinter:       body.mc_printer }),
+        ...(body.nc_printer      !== undefined && { ncPrinter:       body.nc_printer }),
       },
       create: { id: 1, companyName: '会社名未設定',
         mcStoragePath: body.mc_storage_path, ncStoragePath: body.nc_storage_path,
+        uploadBasePath: body.upload_base_path,
         mcPrinter: body.mc_printer, ncPrinter: body.nc_printer,
       },
     });

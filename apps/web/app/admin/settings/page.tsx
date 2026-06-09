@@ -40,8 +40,9 @@ export default function AdminSettingsPage() {
   const [printerList, setPrinterList] = useState<string[]>([]);
 
   // MC設定
-  const [mcStoragePath, setMcStoragePath] = useState("");
-  const [mcPrinter,     setMcPrinter]     = useState("");
+  const [mcStoragePath,    setMcStoragePath]    = useState("");
+  const [mcUploadBasePath, setMcUploadBasePath] = useState("");
+  const [mcPrinter,        setMcPrinter]        = useState("");
   // NC設定
   const [ncStoragePath, setNcStoragePath] = useState("");
   const [ncPrinter,     setNcPrinter]     = useState("");
@@ -81,7 +82,8 @@ export default function AdminSettingsPage() {
       setCompanyName(comp.data.companyName ?? "");
       setLogoPath(comp.data.logoPath ?? "");
       setPrinterList(printers.data?.printers ?? []);
-      setMcStoragePath(mcnc.mc_storage_path ?? MC_DEFAULT_PATHS.program);
+      setMcStoragePath(mcnc.mc_storage_path ?? MC_DEFAULT_PATHS.setupsheet);
+      setMcUploadBasePath(mcnc.upload_base_path ?? '/mnt/mc_files');
       setNcStoragePath(mcnc.nc_storage_path ?? NC_DEFAULT_PATHS.program);
       setMcPrinter(mcnc.mc_printer ?? "");
       setNcPrinter(mcnc.nc_printer ?? "");
@@ -104,7 +106,7 @@ export default function AdminSettingsPage() {
 
   const handleSaveMcNc = async () => {
     // MC/NC 同値チェック
-    if (mcStoragePath.trim() && ncStoragePath.trim() && mcStoragePath.trim() === ncStoragePath.trim()) {
+    if (mcUploadBasePath.trim() && ncStoragePath.trim() && mcUploadBasePath.trim() === ncStoragePath.trim()) {
       showToast("MCとNCのパスを同じにすることはできません", false);
       return;
     }
@@ -114,8 +116,11 @@ export default function AdminSettingsPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({
-          mc_storage_path: mcStoragePath, nc_storage_path: ncStoragePath,
-          mc_printer: mcPrinter, nc_printer: ncPrinter,
+          mc_storage_path:  mcStoragePath,
+          nc_storage_path:  ncStoragePath,
+          upload_base_path: mcUploadBasePath,
+          mc_printer:       mcPrinter,
+          nc_printer:       ncPrinter,
         }),
       });
       showToast("設定を保存しました", true);
@@ -270,9 +275,9 @@ export default function AdminSettingsPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">MCアップロードベースパス</label>
-                  <input type="text" value={mcStoragePath} onChange={e => setMcStoragePath(e.target.value)}
+                  <input type="text" value={mcUploadBasePath} onChange={e => setMcUploadBasePath(e.target.value)}
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-400" />
-                  <p className="text-[11px] text-slate-400 mt-1">MC用ファイル（プログラム・写真・図）のベースパス</p>
+                  <p className="text-[11px] text-slate-400 mt-1">MC用ファイル（プログラム・写真・図）のベースパス（例: /mnt/mc_files）</p>
                 </div>
               </section>
 
