@@ -1799,12 +1799,19 @@ export class McService {
       return String(val ?? '');
     };
 
-    // P1生成
+    // ★ finalDocを先に作りフォントを1回だけembedFont
+    //    p1/p2コピー前にembedするためコピー元フォントが引き継がれない
+    const finalDoc = await PDFDocument.create();
+    finalDoc.registerFontkit(fontkit.default ?? fontkit);
+    const singleFont = await finalDoc.embedFont(fontBytes, { subset: true });
+
+    // P1をfinalDocにコピーしてからそのページに描画
     const p1Doc = await PDFDocument.load(p1Bytes);
-    p1Doc.registerFontkit(fontkit.default ?? fontkit);
-    const font1 = await p1Doc.embedFont(fontBytes, { subset: true });
-    const p1Page = p1Doc.getPage(0);
+    const [_p1Imported] = await finalDoc.copyPages(p1Doc, [0]);
+    finalDoc.addPage(_p1Imported);
+    const p1Page = finalDoc.getPage(0);
     const p1H = p1Page.getHeight();
+    const font1 = singleFont;
 
     console.log('[PDF] templates count:', templates.length);
 
@@ -1869,12 +1876,13 @@ export class McService {
       }
     }
 
-    // P2生成
+    // P2をfinalDocにコピーしてからそのページに描画
     const p2Doc = await PDFDocument.load(p2Bytes);
-    p2Doc.registerFontkit(fontkit.default ?? fontkit);
-    const font2 = await p2Doc.embedFont(fontBytes, { subset: true });
-    const p2Page = p2Doc.getPage(0);
+    const [_p2Imported] = await finalDoc.copyPages(p2Doc, [0]);
+    finalDoc.addPage(_p2Imported);
+    const p2Page = finalDoc.getPage(1);
     const p2H = p2Page.getHeight();
+    const font2 = singleFont;
 
     const p2Fields = templates.filter(f => f.name === 'mc_setup_p2');
     for (const f of p2Fields) {
