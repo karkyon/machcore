@@ -2934,7 +2934,8 @@ export class McService {
         data: { mcProgramId: mcId, operatorId, version: data.version ?? null,
                 pdfPath: savedPdfPath,
                 ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}) },
-      }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
+     ,
+                sheetType: 'REPEAT' }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
     }
 
     return pdfBuffer;
