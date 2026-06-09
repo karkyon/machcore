@@ -1972,8 +1972,26 @@ export class McService {
 
     // プレビューの場合はDB記録・ファイル保存をスキップ
     if (!isPreview) {
+      // PDF永続保存
+      let savedPdfPath: string | null = null;
+      try {
+        const setting2 = await this.prisma.companySetting.findFirst({ select: { mcStoragePath: true, uploadBasePath: true } });
+        const basePath = setting2?.mcStoragePath ?? setting2?.uploadBasePath ?? '/mnt/mc_files/mc_files';
+        let ssDir = require('path').join(basePath, 'setupsheet', String(mcId));
+        try {
+          require('fs').accessSync(ssDir, require('fs').constants.W_OK);
+        } catch(_e: any) {
+          ssDir = require('path').join('/var/tmp/machcore_setupsheet', String(mcId));
+        }
+        const now = new Date();
+        const ts = String(now.getFullYear())+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0')+'_'+String(now.getHours()).padStart(2,'0')+String(now.getMinutes()).padStart(2,'0')+String(now.getSeconds()).padStart(2,'0');
+        const fn = 'setup_'+String(mcId)+'_'+ts+'.pdf';
+        savedPdfPath = require('path').join(ssDir, fn);
+        require('fs').writeFileSync(savedPdfPath, pdfBuffer);
+        console.log('[setupsheet] saved:'+savedPdfPath);
+      } catch(e: any) { console.warn('[setupsheet] 保存失敗:',e?.message); savedPdfPath=null; }
       await this.prisma.mcSetupSheetLog.create({
-        data: { mcProgramId: mcId, operatorId, version: data.version ?? null,
+        data: { mcProgramId: mcId, operatorId, version: data.version ?? null, pdfPath: savedPdfPath,
                 ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}) },
       }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
     }

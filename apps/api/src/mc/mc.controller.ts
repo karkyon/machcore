@@ -537,7 +537,7 @@ export class McController {
     @Req() req: any,
     @Res() reply: FastifyReply,
   ) {
-    const pdf = await this.mc.generateSetupSheetPdf(id, req.user.id, dto);
+    const pdf = await this.mc.generateSetupSheetPdf(id, req.user.id, { ...dto, is_preview: false } as any);
     this.opLog.log({
       actionType:   'MC_SETUP_PRINT',
       userId:       req.user?.sub,
