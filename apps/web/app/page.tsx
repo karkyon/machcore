@@ -225,6 +225,13 @@ export default function McDashboard() {
                             {sheet.operator_name && <span>発行者: {sheet.operator_name}</span>}
                           </div>
                         </div>
+                        <button
+                          onClick={e => { e.stopPropagation(); window.open(`/api/mc/setup-sheet-logs/${sheet.id}/pdf`, '_blank'); }}
+                          className="shrink-0 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded border border-slate-300 transition-colors whitespace-nowrap"
+                          title="発行原本PDFを別タブで表示"
+                        >
+                          📄 原本確認
+                        </button>
                       </div>
                     </button>
                   );

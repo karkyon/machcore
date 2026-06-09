@@ -2912,11 +2912,25 @@ export class McService {
   async getSetupSheetPdf(logId: number): Promise<{ buffer: Buffer; fileName: string }> {
     const log = await this.prisma.mcSetupSheetLog.findUnique({ where: { id: logId } });
     if (!log) throw new NotFoundException(`setup_sheet_log ${logId} が存在しません`);
-    if (!log.pdfPath || !require('fs').existsSync(log.pdfPath)) {
-      throw new NotFoundException(`ログID ${logId} のPDFファイルが存在しません（保存先: ${log.pdfPath ?? '未設定'}）`);
+
+    // pdf_path が設定済み かつ ファイルが存在する場合: 原本を返す（ISO原本性保証）
+    if (log.pdfPath && require('fs').existsSync(log.pdfPath)) {
+      const buffer = require('fs').readFileSync(log.pdfPath) as Buffer;
+      const fileName = require('path').basename(log.pdfPath);
+      return { buffer, fileName };
     }
-    const buffer = require('fs').readFileSync(log.pdfPath) as Buffer;
-    const fileName = require('path').basename(log.pdfPath);
+
+    // pdf_path が NULL またはファイル不在（fix_v132以前の旧データ）: フォールバック再生成
+    // 注: 旧データは原本保存前の発行履歴。ISOトレーサビリティ上は「再現」であることを透かしで明示。
+    this.logger.warn('PDF', `ログID ${logId} のPDF未保存 → フォールバック再生成（透かし付き）`);
+    const buffer = await this.generateSetupSheetPdf(log.mcProgramId, log.operatorId ?? 1, {
+      include_tooling:        true,
+      include_clamp:          true,
+      include_work_offsets:   true,
+      include_index_programs: true,
+      is_preview:             true,   // 透かし「プレビュー」を付けて原本と区別
+    } as any);
+    const fileName = `fallback_${log.mcProgramId}_log${logId}.pdf`;
     return { buffer, fileName };
   }
 
