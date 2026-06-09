@@ -82,8 +82,10 @@ export default function McNewPage() {
   const handleSubmit = async () => {
     // ユーザー認証チェック（AuthContextのisAuthenticated + authToken両方確認）
     if (!authToken || !isAuthenticated) { setAuthOpen(true); return; }
-    if (!selectedPart) { setSaveError("部品を選択してください"); return; }
-    if (!machiningId)  { setSaveError("加工IDを取得できませんでした"); return; }
+    if (!selectedPart)       { setSaveError("部品を選択してください"); return; }
+    if (!machiningId)        { setSaveError("加工IDを取得できませんでした"); return; }
+    if (!mcProcessNo.trim()) { setSaveError("工程Noを入力してください（必須）"); return; }
+    if (!machineId)          { setSaveError("機械を選択してください（必須）"); return; }
 
     // MCレコードはここでは作成しない（加工IDは仮押さえのみ）
     // 直接印刷ボタン押下時に1トランザクションで確定する
@@ -107,7 +109,7 @@ export default function McNewPage() {
   // authOperatorがセットされている = AuthModalで実際に認証済み（localStorage残存トークンは除外）
   // authOperatorはページリロードでnullになるのでlocalStorage残存tokenの誤認証を防ぐ
   const actuallyAuthenticated = !!(authToken && authOperator);
-  const canSubmit = !!(actuallyAuthenticated && selectedPart && machiningId);
+  const canSubmit = !!mcProcessNo.trim() && !!machineId && !!(actuallyAuthenticated && selectedPart && machiningId);
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
@@ -173,7 +175,10 @@ export default function McNewPage() {
           {selectedPart ? (
             <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 mb-5 flex items-center gap-4">
               <div className="flex-1">
-                <div className="font-mono text-teal-700 font-bold">{selectedPart.drawing_no}</div>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-teal-700 font-bold text-lg">{selectedPart.drawing_no}</span>
+                  {selectedPart.part_id && <span className="font-mono text-slate-500 font-bold text-lg">部品ID: {selectedPart.part_id}</span>}
+                </div>
                 <div className="text-sm text-slate-600">{selectedPart.name}</div>
                 {selectedPart.client_name && <div className="text-xs text-slate-400">{selectedPart.client_name}</div>}
               </div>
@@ -199,15 +204,23 @@ export default function McNewPage() {
               </div>
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">工程No</label>
-              <input type="text" value={mcProcessNo} onChange={e => setMcProcessNo(e.target.value)}
-                placeholder="例: 1（負値・小数も可）"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+              <label className="text-xs font-bold text-slate-700 block mb-1">ファイル名 <span className="text-slate-400 font-normal">（加工IDと同じ・自動設定）</span></label>
+              <div className="flex items-center gap-2 h-9">
+                <span className="font-mono text-base font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 select-none">
+                  {machiningId ?? "—"}
+                </span>
+              </div>
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">機械</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">工程No <span className="text-red-500">*</span></label>
+              <input type="text" value={mcProcessNo} onChange={e => setMcProcessNo(e.target.value)}
+                placeholder="例: 1（負値・小数も可）"
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 ${!mcProcessNo.trim() ? "border-red-300 bg-red-50" : "border-slate-300"}`} />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">機械 <span className="text-red-500">*</span></label>
               <select value={machineId} onChange={e => setMachineId(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-400">
+                className={`w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-400 ${!machineId ? "border-red-300 bg-red-50" : "border-slate-300"}`}>
                 <option value="">-- 未設定 --</option>
                 {machines.map(m => (
                   <option key={m.id} value={String(m.id)}>{m.machineName ?? m.machineCode}</option>
