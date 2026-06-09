@@ -44,12 +44,42 @@ export class McFilesService {
     if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
   }
 
+  /**
+   * ファイルパス解決：DBに保存されたパスが存在しない場合、
+   * 複数の代替パスを順番に試して実在するパスを返す。
+   * SMBマウント失敗時や段取シート修正後のパス変化に対応。
+   */
+  private resolveFilePath(filePath: string): string | null {
+    if (fs.existsSync(filePath)) return filePath;
+    const localBase = '/home/karkyon/projects/machcore/uploads';
+    // 候補1: /mnt/mc_files/mc_files/xxx → uploads/mc_files/xxx
+    const c1 = filePath.replace(/^\/mnt\/mc_files\/mc_files\//, localBase + '/mc_files/');
+    if (c1 !== filePath && fs.existsSync(c1)) return c1;
+    // 候補2: /mnt/mc_files/xxx → uploads/mc_files/xxx
+    const c2 = filePath.replace(/^\/mnt\/mc_files\//, localBase + '/mc_files/');
+    if (c2 !== filePath && fs.existsSync(c2)) return c2;
+    // 候補3: /mnt/ncfiles/mc_files/xxx → uploads/mc_files/xxx
+    const c3 = filePath.replace(/^\/mnt\/ncfiles\/mc_files\//, localBase + '/mc_files/');
+    if (c3 !== filePath && fs.existsSync(c3)) return c3;
+    // 候補4: /mnt/ncfiles/xxx → uploads/mc_files/xxx (フラット)
+    const c4 = filePath.replace(/^\/mnt\/ncfiles\//, localBase + '/mc_files/');
+    if (c4 !== filePath && fs.existsSync(c4)) return c4;
+    // 候補5: ファイル名だけでローカル探索
+    const basename = path.basename(filePath);
+    for (const sub of ['photos', 'drawings', 'pg']) {
+      const c5 = path.join(localBase, 'mc_files', sub, basename);
+      if (fs.existsSync(c5)) return c5;
+    }
+    return null;
+  }
+
   // ── MC オリジナルファイル配信 ──
   async serveFile(fileId: number): Promise<{ filePath: string; mimeType: string; fileName: string }> {
     const file = await this.prisma.mcFile.findUnique({ where: { id: fileId } });
     if (!file) throw new Error(`mc_file ${fileId} が存在しません`);
-    if (!fs.existsSync(file.filePath)) throw new Error('ファイルが見つかりません');
-    return { filePath: file.filePath, mimeType: file.mimeType, fileName: file.originalName };
+    const resolved = this.resolveFilePath(file.filePath);
+    if (!resolved) throw new Error('ファイルが見つかりません: ' + file.filePath);
+    return { filePath: resolved, mimeType: file.mimeType, fileName: file.originalName };
   }
 
   // ── MC ファイルサムネイル配信（キャッシュ付きオンデマンド生成）──
@@ -63,17 +93,9 @@ export class McFilesService {
     }
 
     // オリジナルが存在しない場合: 代替パスを探す
-    let srcPath = file.filePath;
-    if (!fs.existsSync(srcPath)) {
-      // SMBマウント失敗時: /home/karkyon/projects/machcore/uploads/mc_files/... を試す
-      const fallbackBase = '/home/karkyon/projects/machcore/uploads';
-      const rel = srcPath.replace('/mnt/mc_files/', '').replace('/mnt/ncfiles/', '');
-      const alt1 = path.join(fallbackBase, rel);
-      const alt2 = path.join(fallbackBase, 'mc_files', path.basename(srcPath));
-      if (fs.existsSync(alt1))      srcPath = alt1;
-      else if (fs.existsSync(alt2)) srcPath = alt2;
-      else throw new Error(`ファイルが見つかりません: ${file.filePath}`);
-    }
+    const resolved = this.resolveFilePath(file.filePath);
+    if (!resolved) throw new Error(`ファイルが見つかりません: ${file.filePath}`);
+    let srcPath = resolved;
 
     // サムネ生成
     try {
