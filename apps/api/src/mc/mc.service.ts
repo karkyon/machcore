@@ -1966,7 +1966,32 @@ export class McService {
     }
 
     const pdfBytes = await finalDoc.save();
-    const pdfBuffer = Buffer.from(pdfBytes);
+    let pdfBuffer = Buffer.from(pdfBytes);
+
+    // ── Ghostscript で PDF 圧縮（フォントサブセット化・不要オブジェクト除去）──
+    try {
+      const { execSync: gsExec } = await import('child_process');
+      const _tmpIn  = `/tmp/mc_pdf_in_${mcId}_${Date.now()}.pdf`;
+      const _tmpOut = `/tmp/mc_pdf_out_${mcId}_${Date.now()}.pdf`;
+      require('fs').writeFileSync(_tmpIn, pdfBuffer);
+      gsExec(
+        `gs -q -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 ` +
+        `-dPDFSETTINGS=/printer -dEmbedAllFonts=true -dSubsetFonts=true ` +
+        `-sOutputFile=${_tmpOut} ${_tmpIn}`,
+        { timeout: 30000 }
+      );
+      if (require('fs').existsSync(_tmpOut)) {
+        const _compressed = require('fs').readFileSync(_tmpOut);
+        if (_compressed.length > 0) {
+          console.log(`[PDF] gs圧縮: ${Math.round(pdfBytes.length/1024)}KB → ${Math.round(_compressed.length/1024)}KB`);
+          pdfBuffer = _compressed;
+        }
+        try { require('fs').unlinkSync(_tmpOut); } catch(_){}
+      }
+      try { require('fs').unlinkSync(_tmpIn); } catch(_){}
+    } catch(_gsErr: any) {
+      console.warn('[PDF] gs圧縮失敗（元サイズで継続）:', _gsErr?.message);
+    }
 
     // プレビューの場合はDB記録・ファイル保存をスキップ
     if (!isPreview) {
@@ -2883,6 +2908,7 @@ export class McService {
         const setting2 = await this.prisma.companySetting.findFirst({ select: { mcStoragePath: true, uploadBasePath: true } });
         const basePath = setting2?.mcStoragePath ?? setting2?.uploadBasePath ?? '/mnt/mc_files/mc_files';
         const ssDir = require('path').join(basePath, 'setupsheet', String(mcId));
+        console.log(`[setupsheet] basePath=${basePath} ssDir=${ssDir}`);
         if (!require('fs').existsSync(ssDir)) require('fs').mkdirSync(ssDir, { recursive: true });
         const now = new Date();
         const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
