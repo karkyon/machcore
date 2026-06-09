@@ -263,7 +263,7 @@ function McPrintPageInner() {
                 </div>
                 <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200">
                   <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">主Oナンバ</div><div className="font-mono font-bold">{(d as any).oNumber ?? "—"}</div></div>
-                  <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">サイクルタイム/1P</div><div className="font-bold text-xs">{(d as any).cycleTimeSec != null ? (() => { const ct=(d as any).cycleTimeSec; const h=Math.floor(ct/3600); const m=Math.floor((ct%3600)/60); const s=ct%60; return (h>0?h+"H ":"")+(m>0?m+"M ":"")+s+"S"; })() : "—"}</div></div>
+                  <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">サイクルタイム/1P</div><div className="font-bold text-xs">{(d as any).cycleTimeSec != null ? (() => { const ct=(d as any).cycleTimeSec; const h=Math.floor(ct/3600); const m=Math.floor((ct%3600)/60); const s=ct%60; return `${h}H ${String(m).padStart(2,"0")}M ${String(s).padStart(2,"0")}S`; })() : "—"}</div></div>
                   <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">ツーリング</div><div className="font-bold">{(d as any).rc ?? (d as any).tooling?.length ?? 0} 本</div></div>
                 </div>
                 <div className="p-2.5 flex items-center justify-center gap-2 flex-wrap">

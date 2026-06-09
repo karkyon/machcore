@@ -771,7 +771,7 @@ export default function McEditPage() {
               </div>
               <div className="grid grid-cols-3 divide-x divide-slate-200">
                 <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">主Oナンバ</div><div className="font-mono font-bold">{detail.oNumber ?? "—"}</div></div>
-                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">サイクルタイム/1P</div><div className="font-bold text-xs">{detail.cycleTimeSec != null ? (() => { const h=Math.floor(detail.cycleTimeSec/3600); const m=Math.floor((detail.cycleTimeSec%3600)/60); const s=detail.cycleTimeSec%60; return `${h>0?h+"H ":""}${m>0?m+"M ":""}${s}S`; })() : "—"}</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">サイクルタイム/1P</div><div className="font-bold text-xs">{detail.cycleTimeSec != null ? (() => { const ct=detail.cycleTimeSec; const h=Math.floor(ct/3600); const m=Math.floor((ct%3600)/60); const s=ct%60; return `${h}H ${String(m).padStart(2,"0")}M ${String(s).padStart(2,"0")}S`; })() : "—"}</div></div>
                 <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">加工個数/1サイクル</div><div className="font-bold">{detail.machiningQty ?? 1} 個</div></div>
               </div>
             </div>

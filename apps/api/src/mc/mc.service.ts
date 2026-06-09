@@ -1353,11 +1353,20 @@ export class McService {
     });
     return {
       ...r,
-      machine:       r.machining?.machine ?? null,
-      tooling:       r.machining?.tooling ?? [],
-      workOffsets:   r.machining?.workOffsets ?? [],
-      indexPrograms: r.machining?.indexPrograms ?? [],
-      version:       r.machining?.version ?? '1.0001',
+      machine:          r.machining?.machine         ?? null,
+      oNumber:          r.machining?.oNumber          ?? null,
+      clampNote:        r.machining?.clampNote        ?? null,
+      cycleTimeSec:     r.machining?.cycleTimeSec     ?? null,
+      mcProcessNo:      r.machining?.mcProcessNo      ?? null,
+      rc:               r.machining?.rc               ?? 0,
+      hasIndexProgram:  r.machining?.hasIndexProgram  ?? false,
+      hasWorkOffset:    r.machining?.hasWorkOffset    ?? false,
+      machiningQty:     r.machiningQty                ?? 1,
+      commonPartCode:   r.machining?.commonPartCode   ?? null,
+      tooling:          r.machining?.tooling          ?? [],
+      workOffsets:      r.machining?.workOffsets      ?? [],
+      indexPrograms:    r.machining?.indexPrograms    ?? [],
+      version:          r.machining?.version          ?? '1.0001',
       commonGroup,
     };
   }
