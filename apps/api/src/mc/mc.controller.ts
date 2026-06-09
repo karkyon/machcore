@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Delete, Param, Query,
+  Controller, Get, Patch, Post, Put, Delete, Param, Query,
   ParseIntPipe, Body, UseGuards, Req, Res,
 } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
