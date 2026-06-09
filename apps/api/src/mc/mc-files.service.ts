@@ -62,30 +62,46 @@ export class McFilesService {
       return { filePath: file.thumbnailPath, mimeType: 'image/jpeg' };
     }
 
-    // オリジナルが存在しない場合はエラー
-    if (!fs.existsSync(file.filePath)) throw new Error('ファイルが見つかりません');
+    // オリジナルが存在しない場合: 代替パスを探す
+    let srcPath = file.filePath;
+    if (!fs.existsSync(srcPath)) {
+      // SMBマウント失敗時: /home/karkyon/projects/machcore/uploads/mc_files/... を試す
+      const fallbackBase = '/home/karkyon/projects/machcore/uploads';
+      const rel = srcPath.replace('/mnt/mc_files/', '').replace('/mnt/ncfiles/', '');
+      const alt1 = path.join(fallbackBase, rel);
+      const alt2 = path.join(fallbackBase, 'mc_files', path.basename(srcPath));
+      if (fs.existsSync(alt1))      srcPath = alt1;
+      else if (fs.existsSync(alt2)) srcPath = alt2;
+      else throw new Error(`ファイルが見つかりません: ${file.filePath}`);
+    }
 
     // サムネ生成
-    const basePath = await this.getBasePath();
-    const thumbDir = path.join(basePath, 'mc_files', 'thumbnails');
-    this.ensureDir(thumbDir);
-    const ext      = path.extname(file.storedName || file.filePath);
-    const baseName = path.basename(file.storedName || file.filePath, ext);
-    const thumbName = `thumb_${baseName}.jpg`;
-    const thumbFull = path.join(thumbDir, thumbName);
+    try {
+      const basePath = await this.getBasePath();
+      const thumbDir = path.join(basePath, 'mc_files', 'thumbnails');
+      this.ensureDir(thumbDir);
+      const ext      = path.extname(file.storedName || file.filePath);
+      const baseName = path.basename(file.storedName || file.filePath, ext);
+      const thumbName = `thumb_${baseName}.jpg`;
+      const thumbFull = path.join(thumbDir, thumbName);
 
-    await sharp(file.filePath)
-      .resize(300, 300, { fit: 'inside' })
-      .jpeg({ quality: 80 })
-      .toFile(thumbFull);
+      await sharp(srcPath)
+        .resize(300, 300, { fit: 'inside' })
+        .jpeg({ quality: 80 })
+        .toFile(thumbFull);
 
-    // DB更新
-    await this.prisma.mcFile.update({
-      where: { id: fileId },
-      data:  { thumbnailPath: thumbFull },
-    });
+      // DB更新
+      await this.prisma.mcFile.update({
+        where: { id: fileId },
+        data:  { thumbnailPath: thumbFull },
+      });
 
-    return { filePath: thumbFull, mimeType: 'image/jpeg' };
+      return { filePath: thumbFull, mimeType: 'image/jpeg' };
+    } catch (_thumbErr: any) {
+      // サムネ生成失敗時: オリジナルをそのまま返す
+      console.warn('[serveThumb] サムネ生成失敗:', _thumbErr?.message, '→ オリジナル返却');
+      return { filePath: srcPath, mimeType: file.mimeType };
+    }
   }
 
   /** フラットディレクトリ内で {prefix}-{n}.* の最大 n を返す */

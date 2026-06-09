@@ -2289,7 +2289,7 @@ export class McService {
     // ── 結合用ドキュメント ──
     const finalDoc = await PDFLib.create();
     finalDoc.registerFontkit(fontkit.default ?? fontkit);
-    const finalFont = await finalDoc.embedFont(fontBytes);
+    const finalFont = await finalDoc.embedFont(fontBytes, { subset: true });
     let totalPages = 0;
 
     // 定数
@@ -2850,17 +2850,16 @@ export class McService {
     const p2Path = `${ASSETS}/template_repeat_p2.pdf`;
     if (fs.existsSync(p2Path)) {
       const p2Doc  = await PDFLib.load(fs.readFileSync(p2Path));
-      p2Doc.registerFontkit(fontkit.default ?? fontkit);
-      const p2Font = await p2Doc.embedFont(fontBytes);
-      const p2Page = p2Doc.getPage(0);
+      // p2Docにembedしない → copyPages後に finalFont で描画
+      const [p2pg] = await finalDoc.copyPages(p2Doc, [0]);
+      finalDoc.addPage(p2pg);
+      totalPages++;
+      const p2FinalPage = finalDoc.getPage(finalDoc.getPageCount() - 1);
       for (const f of fieldsByTpl('repeat_p2').filter((f:any) => !f.field_key.startsWith('__'))) {
         const text = resolveVal(f.data_source);
         if (!text) continue;
-        try { p2Page.drawText(text, { x: Number(f.x), y: Number(f.y), size: Number(f.font_size)||7, font: p2Font, color: rgb(0,0,0) }); } catch(_) {}
+        try { p2FinalPage.drawText(text, { x: Number(f.x), y: Number(f.y), size: Number(f.font_size)||7, font: finalFont, color: rgb(0,0,0) }); } catch(_) {}
       }
-      const [pg] = await finalDoc.copyPages(p2Doc, [0]);
-      finalDoc.addPage(pg);
-      totalPages++;
     }
 
     // ── ページ番号 + 発行日時 書き込み ──
