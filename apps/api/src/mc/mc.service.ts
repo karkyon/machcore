@@ -2880,13 +2880,44 @@ export class McService {
     const pdfBuffer = Buffer.from(pdfBytes);
 
     if (!(options as any).is_preview) {
+      // ── 段取シートPDF永続保存（ISO トレーサビリティ）──
+      let savedPdfPath: string | null = null;
+      try {
+        const setting2 = await this.prisma.companySetting.findFirst({ select: { mcStoragePath: true, uploadBasePath: true } });
+        const basePath = setting2?.mcStoragePath ?? setting2?.uploadBasePath ?? '/mnt/ncfiles/mc_files';
+        const ssDir = require('path').join(basePath, 'setupsheet', String(mcId));
+        if (!require('fs').existsSync(ssDir)) require('fs').mkdirSync(ssDir, { recursive: true });
+        const now = new Date();
+        const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+        const fileName = `setup_${mcId}_${ts}.pdf`;
+        savedPdfPath = require('path').join(ssDir, fileName);
+        require('fs').writeFileSync(savedPdfPath, pdfBuffer);
+      } catch(e: any) {
+        console.warn('[setupsheet] PDF保存失敗:', e?.message);
+        savedPdfPath = null;
+      }
       await this.prisma.mcSetupSheetLog.create({
         data: { mcProgramId: mcId, operatorId, version: data.version ?? null,
+                pdfPath: savedPdfPath,
                 ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}) },
       }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
     }
 
     return pdfBuffer;
+  }
+
+  // ══════════════════════════════════════════
+  // 保存済み段取シートPDF取得（log_id指定）
+  // ══════════════════════════════════════════
+  async getSetupSheetPdf(logId: number): Promise<{ buffer: Buffer; fileName: string }> {
+    const log = await this.prisma.mcSetupSheetLog.findUnique({ where: { id: logId } });
+    if (!log) throw new NotFoundException(`setup_sheet_log ${logId} が存在しません`);
+    if (!log.pdfPath || !require('fs').existsSync(log.pdfPath)) {
+      throw new NotFoundException(`ログID ${logId} のPDFファイルが存在しません（保存先: ${log.pdfPath ?? '未設定'}）`);
+    }
+    const buffer = require('fs').readFileSync(log.pdfPath) as Buffer;
+    const fileName = require('path').basename(log.pdfPath);
+    return { buffer, fileName };
   }
 
   // ══════════════════════════════════════════

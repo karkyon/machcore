@@ -33,7 +33,8 @@ export class McFilesService {
 
   private async getBasePath(): Promise<string> {
     const s = await this.prisma.companySetting.findFirst();
-    return s?.uploadBasePath ?? '/home/karkyon/projects/machcore/uploads';
+    // MC専用パス (mcStoragePath) を優先、未設定時は uploadBasePath、それも未設定時はデフォルト
+    return s?.mcStoragePath ?? s?.uploadBasePath ?? '/mnt/ncfiles/mc_files';
   }
 
   private ensureDir(p: string) {

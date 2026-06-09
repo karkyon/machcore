@@ -17,12 +17,13 @@ const SIDEBAR_ITEMS = [
 ];
 
 const MC_DEFAULT_PATHS = {
-  program: "/mnt/ncfiles/mc_programs",
+  program: "/mnt/ncfiles/mc_files/pg",
   photo:   "/mnt/ncfiles/mc_files/photos",
   drawing: "/mnt/ncfiles/mc_files/drawings",
+  setupsheet: "/mnt/ncfiles/mc_files/setupsheet",
 };
 const NC_DEFAULT_PATHS = {
-  program: "/mnt/ncfiles/nc_programs",
+  program: "/mnt/ncfiles/nc_files/pg",
   photo:   "/mnt/ncfiles/nc_files/photos",
   drawing: "/mnt/ncfiles/nc_files/drawings",
 };
@@ -102,6 +103,11 @@ export default function AdminSettingsPage() {
   };
 
   const handleSaveMcNc = async () => {
+    // MC/NC 同値チェック
+    if (mcStoragePath.trim() && ncStoragePath.trim() && mcStoragePath.trim() === ncStoragePath.trim()) {
+      showToast("MCとNCのパスを同じにすることはできません", false);
+      return;
+    }
     setSaving(true);
     try {
       await fetch("/api/admin/settings/mc-nc", {
@@ -256,10 +262,11 @@ export default function AdminSettingsPage() {
               {/* ── MCファイル保存先 ── */}
               <section className="bg-white rounded-xl shadow p-6 space-y-4">
                 <h2 className="text-base font-bold text-slate-700 border-b border-slate-100 pb-2">💾 MCファイル保存先</h2>
-                <div className="grid grid-cols-3 gap-3 text-[11px] text-slate-400 bg-slate-50 rounded-lg p-3">
+                <div className="grid grid-cols-4 gap-3 text-[11px] text-slate-400 bg-slate-50 rounded-lg p-3">
                   <div><span className="font-bold text-slate-600">プログラム</span><br/>{MC_DEFAULT_PATHS.program}</div>
                   <div><span className="font-bold text-slate-600">写真</span><br/>{MC_DEFAULT_PATHS.photo}</div>
                   <div><span className="font-bold text-slate-600">図</span><br/>{MC_DEFAULT_PATHS.drawing}</div>
+                  <div><span className="font-bold text-teal-700">段取シート</span><br/>{MC_DEFAULT_PATHS.setupsheet}</div>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">MCアップロードベースパス</label>

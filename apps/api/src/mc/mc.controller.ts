@@ -296,6 +296,19 @@ export class McController {
     return this.mc.uncollectedByLegacy(legacyMcid);
   }
 
+  /** 保存済み段取シートPDF取得（ログIDで原本を返す） */
+  @Get('setup-sheet-logs/:log_id/pdf')
+  async getSetupSheetPdf(
+    @Param('log_id', ParseIntPipe) logId: number,
+    @Res() reply: FastifyReply,
+  ) {
+    const { buffer, fileName } = await this.mc.getSetupSheetPdf(logId);
+    reply.header('Content-Type',        'application/pdf');
+    reply.header('Content-Disposition', `inline; filename="${fileName}"`);
+    reply.header('Content-Length',      String(buffer.length));
+    return reply.send(buffer);
+  }
+
   /** 段取シート回収完了（work_collected=true） */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('OPERATOR', 'ADMIN')
