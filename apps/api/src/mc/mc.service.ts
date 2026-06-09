@@ -1907,16 +1907,9 @@ export class McService {
       }
     }
 
-    // P1+P2を結合して2ページPDFに（フォントは finalDoc で1回だけ embed）
-    const finalDoc = await PDFDocument.create();
-    finalDoc.registerFontkit(fontkit.default ?? fontkit);
-    // ★ コピー前に embedFont → subset:true でサイズ削減
-    const sharedFont = await finalDoc.embedFont(fontBytes, { subset: true });
-    const [copiedP1] = await finalDoc.copyPages(p1Doc, [0]);
-    const [copiedP2] = await finalDoc.copyPages(p2Doc, [0]);
-    finalDoc.addPage(copiedP1);
-    finalDoc.addPage(copiedP2);
-    // p1Page/p2Page/font1/font2 はコピー前の p1Doc/p2Doc ページ上で描画済み
+    // ★ P1/P2は既にfinalDocに追加済み（先行生成・描画済み）
+    //    sharedFont = singleFont（1回だけembedしたフォント）
+    const sharedFont = singleFont;
     {
       const issuedAtStr = new Date().toLocaleString('ja-JP', { timeZone:'Asia/Tokyo',
         year:'numeric', month:'2-digit', day:'2-digit',
@@ -2883,9 +2876,18 @@ export class McService {
       try {
         const setting2 = await this.prisma.companySetting.findFirst({ select: { mcStoragePath: true, uploadBasePath: true } });
         const basePath = setting2?.mcStoragePath ?? setting2?.uploadBasePath ?? '/mnt/mc_files/mc_files';
-        const ssDir = require('path').join(basePath, 'setupsheet', String(mcId));
-        console.log(`[setupsheet] basePath=${basePath} ssDir=${ssDir}`);
-        if (!require('fs').existsSync(ssDir)) require('fs').mkdirSync(ssDir, { recursive: true });
+        // SMBマウント失敗時フォールバック: ローカルパスに保存
+        let ssDir = require('path').join(basePath, 'setupsheet', String(mcId));
+        try {
+          if (!require('fs').existsSync(ssDir)) require('fs').mkdirSync(ssDir, { recursive: true });
+          // 書き込みテスト
+          require('fs').accessSync(ssDir, require('fs').constants.W_OK);
+        } catch(_smbErr: any) {
+          console.warn(`[setupsheet] SMBパス書込不可(${ssDir}): ${_smbErr?.message} → ローカルフォールバック`);
+          ssDir = require('path').join('/var/tmp/machcore_setupsheet', String(mcId));
+          if (!require('fs').existsSync(ssDir)) require('fs').mkdirSync(ssDir, { recursive: true });
+        }
+        console.log(`[setupsheet] 保存先: ${ssDir}`);
         const now = new Date();
         const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
         const fileName = `setup_${mcId}_${ts}.pdf`;
