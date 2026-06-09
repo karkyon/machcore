@@ -1514,8 +1514,8 @@ export default function McEditPage() {
                             </div>
                             <div className="px-2 py-1.5 bg-teal-50 border-t border-teal-200">
                               <p className="text-[11px] text-teal-800 font-bold truncate mb-1">{f.stored_name ?? f.original_name}</p>
-                              <div className="flex items-center gap-1">
-                                <label className="flex-1 text-center text-[10px] bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold rounded cursor-pointer px-1 py-0.5 transition-colors">
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <label className="flex-1 flex items-center justify-center gap-1 text-[11px] border-2 border-yellow-400 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 font-bold rounded-lg cursor-pointer px-2 py-1 transition-colors">
                                   🔄 差し替え
                                   <input type="file" className="hidden" disabled={replacingId !== null}
                                     onChange={e => { const file = e.target.files?.[0]; if (file) handleReplace(f.id, file); e.target.value = ""; }} />
@@ -1526,7 +1526,7 @@ export default function McEditPage() {
                                     const r = await mcApi.listFiles(mcId);
                                     setFiles((r as any).data ?? []);
                                   }}
-                                  className="text-[10px] text-red-400 hover:text-red-600 font-bold px-1 py-0.5">✕</button>
+                                  className="text-[11px] border-2 border-red-300 bg-red-50 hover:bg-red-100 text-red-500 font-bold rounded-lg px-2 py-1 transition-colors">✕</button>
                               </div>
                             </div>
                           </div>
@@ -1565,8 +1565,8 @@ export default function McEditPage() {
                             </div>
                             <div className="px-2 py-1.5 bg-purple-50 border-t border-purple-200">
                               <p className="text-[11px] text-purple-800 font-bold truncate mb-1">{f.stored_name ?? f.original_name}</p>
-                              <div className="flex items-center gap-1">
-                                <label className="flex-1 text-center text-[10px] bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold rounded cursor-pointer px-1 py-0.5 transition-colors">
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <label className="flex-1 flex items-center justify-center gap-1 text-[11px] border-2 border-yellow-400 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 font-bold rounded-lg cursor-pointer px-2 py-1 transition-colors">
                                   🔄 差し替え
                                   <input type="file" className="hidden" disabled={replacingId !== null}
                                     onChange={e => { const file = e.target.files?.[0]; if (file) handleReplace(f.id, file); e.target.value = ""; }} />
@@ -1577,7 +1577,7 @@ export default function McEditPage() {
                                     const r = await mcApi.listFiles(mcId);
                                     setFiles((r as any).data ?? []);
                                   }}
-                                  className="text-[10px] text-red-400 hover:text-red-600 font-bold px-1 py-0.5">✕</button>
+                                  className="text-[11px] border-2 border-red-300 bg-red-50 hover:bg-red-100 text-red-500 font-bold rounded-lg px-2 py-1 transition-colors">✕</button>
                               </div>
                             </div>
                           </div>

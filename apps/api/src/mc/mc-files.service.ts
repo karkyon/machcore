@@ -257,19 +257,32 @@ export class McFilesService {
 
     const basePath = await this.getBasePath();
 
-    // 旧ファイルをトラッシュへ退避
-    if (fs.existsSync(old.filePath)) {
-      const ts      = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-      const trashDir = path.join(basePath, 'mc_files', 'trash');
-      this.ensureDir(trashDir);
-      const ext2    = path.extname(old.storedName);
-      fs.renameSync(old.filePath, path.join(trashDir, `${path.basename(old.storedName, ext2)}_${ts}${ext2}`));
+    // 旧ファイルを同じパスで上書き（ファイル数を増やさない）
+    const filePath = old.filePath;
+    this.ensureDir(path.dirname(filePath));
+    fs.writeFileSync(filePath, file.data);
+
+    // サムネイルも上書き再生成
+    const isImage = /^image\//i.test(file.mimetype);
+    if (isImage && old.thumbnailPath) {
+      try {
+        this.ensureDir(path.dirname(old.thumbnailPath));
+        await sharp(file.data).resize(300, 300, { fit: 'inside' }).jpeg({ quality: 80 }).toFile(old.thumbnailPath);
+      } catch { /* ignore */ }
     }
+
+    // DBレコードをそのまま更新（IDは変わらない・ファイルは増えない）
     await this.prisma.mcFile.update({
       where: { id: fileId },
-      data:  { isDeleted: true, deletedAt: new Date() },
+      data:  {
+        originalName: file.filename,
+        mimeType:     file.mimetype,
+        fileSize:     file.data.length,
+        uploadedBy,
+        uploadedAt:   new Date(),
+      },
     });
-    return this.upload(mcProgramId, uploadedBy, file, old.pgRole as PgRole);
+    return { id: fileId, message: '差し替え完了', stored_name: old.storedName };
   }
 
 
