@@ -2209,27 +2209,6 @@ export default function McEditPage() {
         ];
         const SHIKI_LIST: string[] = clampMasterData ? clampMasterData.shiki.map(s => s.name) : ["50×60", "50×70", "50×80", "50×90", "50×100", "100×50", "100×60", "100×80"];
         const CHUCK_ROWS: ChuckRow[] = clampMasterData?.chuck ?? [
-          { name: "バイス 150×45",              model: "VG-150",    maker: "津田駒工業株式会社" },
-          { name: "バイス 200×55",              model: "VG-200",    maker: "津田駒工業株式会社" },
-          { name: "高バイス 175×100",           model: "VT-175",    maker: "津田駒工業株式会社" },
-          { name: "大バイス 300×100",           model: "VB-300",    maker: "津田駒工業株式会社" },
-          { name: "油圧バイス 175×60",          model: "VH-175",    maker: "津田駒工業株式会社" },
-          { name: "4連バイス 100×75",           model: "VM-100-4",  maker: "津田駒工業株式会社" },
-          { name: "バイス 125×40",              model: "VG-125",    maker: "津田駒工業株式会社" },
-          { name: "バイス 100×35",              model: "VG-100",    maker: "津田駒工業株式会社" },
-          { name: "バイス 200×60",              model: "",          maker: "?" },
-          { name: "バイス 180×50",              model: "",          maker: "" },
-          { name: "2連バイス 150×45",           model: "",          maker: "" },
-          { name: "2連エアーバイス 175×45",     model: "",          maker: "?" },
-          { name: "2連バイス 150×45 2台",       model: "",          maker: "" },
-          { name: "バイス 200×55 2台",          model: "",          maker: "" },
-          { name: "VOX160 159.5×45",            model: "VQX160",    maker: "北川鉄工所株式会社" },
-          { name: "ロックタイト精密マシンバイス 15", model: "LTFV-150H", maker: "ナベヤ" },
-          { name: "ロックタイト5軸マシンバイス 102", model: "LT5AU100M", maker: "ナベヤ" },
-          { name: "ロックタイト精密マシンバイス 16", model: "LTCV160H", maker: "ナベヤ" },
-        ];
-        // SHIKI_LIST is now defined above from DB
-        const CHUCK_ROWS: ChuckRow[] = [
           { name: "2連チャック#12",       size: "12インチ", maker: "SOUL" },
           { name: "2連チャック#6",        size: "6インチ",  maker: "SOUL" },
           { name: "2連チャック#7",        size: "7インチ",  maker: "SOUL" },

@@ -795,7 +795,7 @@ export const mcApi = {
   initTimecards:   (workDate: string, token: string) =>
     api.post('/mc/timecards/init', { work_date: workDate }, { headers: { Authorization: `Bearer ${token}` } }),
   revert: (mcId: number, token: string) =>
-    axios.patch(`${API_URL}/mc/${mcId}/revert`, {}, { headers: { Authorization: `Bearer ${token}` } }),
+    api.patch(`/mc/${mcId}/revert`, {}, { headers: { Authorization: `Bearer ${token}` } }),
   finalize: (mcId: number, changeType: string, changeDetail: string | undefined, token: string) =>
     api.post(`/mc/${mcId}/finalize`, { change_type: changeType, change_detail: changeDetail ?? undefined },
       { headers: { Authorization: `Bearer ${token}` } }),
@@ -828,17 +828,17 @@ export const mcFilesApi = {
 
 // ── クランプマスタ ──────────────────────────────────────
 export const clampMasterApi = {
-  getAll: () => axios.get(`${API_URL}/mc/clamp-master`),
-  getCategory: (cat: string) => axios.get(`${API_URL}/admin/clamp-master/${cat}`, {
+  getAll: () => api.get('/mc/clamp-master'),
+  getCategory: (cat: string) => api.get(`/admin/clamp-master/${cat}`, {
     headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token') ?? ''}` }
   }),
-  create: (cat: string, data: any) => axios.post(`${API_URL}/admin/clamp-master/${cat}`, data, {
+  create: (cat: string, data: any) => api.post(`/admin/clamp-master/${cat}`, data, {
     headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token') ?? ''}` }
   }),
-  update: (cat: string, id: number, data: any) => axios.put(`${API_URL}/admin/clamp-master/${cat}/${id}`, data, {
+  update: (cat: string, id: number, data: any) => api.put(`/admin/clamp-master/${cat}/${id}`, data, {
     headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token') ?? ''}` }
   }),
-  remove: (cat: string, id: number) => axios.delete(`${API_URL}/admin/clamp-master/${cat}/${id}`, {
+  remove: (cat: string, id: number) => api.delete(`/admin/clamp-master/${cat}/${id}`, {
     headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token') ?? ''}` }
   }),
 };
