@@ -70,6 +70,17 @@ export class McFilesService {
       const c5 = path.join(localBase, 'mc_files', sub, basename);
       if (fs.existsSync(c5)) return c5;
     }
+    // 候補6: /mnt/ncfiles/mc_files/xxx → /mnt/mc_files/xxx (SMBマウント先)
+    const c6 = filePath.replace(/^\/mnt\/ncfiles\/mc_files\//, '/mnt/mc_files/');
+    if (c6 !== filePath && fs.existsSync(c6)) return c6;
+    // 候補7: /mnt/ncfiles/xxx → /mnt/mc_files/xxx
+    const c7 = filePath.replace(/^\/mnt\/ncfiles\//, '/mnt/mc_files/');
+    if (c7 !== filePath && fs.existsSync(c7)) return c7;
+    // 候補8: ファイル名だけで /mnt/mc_files/{drawings,photos,pg} を探索
+    for (const sub of ['drawings', 'photos', 'pg']) {
+      const c8 = `/mnt/mc_files/${sub}/${basename}`;
+      if (fs.existsSync(c8)) return c8;
+    }
     return null;
   }
 
@@ -99,8 +110,18 @@ export class McFilesService {
 
     // サムネ生成
     try {
-      const basePath = await this.getBasePath();
-      const thumbDir = path.join(basePath, 'mc_files', 'thumbnails');
+      // thumbDir: SMBマウント先を優先、マウント失敗時はローカルフォールバック
+      const smbThumbDir = '/mnt/mc_files/thumbnails';
+      const localThumbDir = '/home/karkyon/projects/machcore/uploads/mc_files/thumbnails';
+      let thumbDir: string;
+      try {
+        this.ensureDir(smbThumbDir);
+        require('fs').accessSync(smbThumbDir, require('fs').constants.W_OK);
+        thumbDir = smbThumbDir;
+      } catch {
+        this.ensureDir(localThumbDir);
+        thumbDir = localThumbDir;
+      }
       this.ensureDir(thumbDir);
       const ext      = path.extname(file.storedName || file.filePath);
       const baseName = path.basename(file.storedName || file.filePath, ext);
