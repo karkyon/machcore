@@ -764,14 +764,16 @@ export default function McEditPage() {
               <p className="text-slate-400 text-sm">現在のデータを確認しています。変更・登録を行うには担当者の確認（パスワード）が必要です。</p>
             </div>
             <div className="border border-slate-200 rounded-xl overflow-hidden text-sm">
-              <div className="grid grid-cols-3 divide-x divide-slate-200">
+              <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200">
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">MC工程No</div><div className="font-bold text-teal-700">{(detail as any).mcProcessNo ?? "—"}</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">バージョン</div><div className="font-mono font-bold">{(detail as any).version ?? "—"}</div></div>
                 <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">機械</div><div className="font-bold">{detail.machine?.machineCode ?? "—"}</div></div>
-                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">主Oナンバ</div><div className="font-mono font-bold">{detail.oNumber ?? "—"}</div></div>
-                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">サイクルタイム</div><div className="font-bold">{detail.cycleTimeSec != null ? `${Math.floor(detail.cycleTimeSec/60)} 分` : "—"}</div></div>
               </div>
-              {detail.clampNote && (
-                <div className="p-2.5 border-t border-slate-200 text-left"><div className="text-slate-400 text-xs mb-1">備考</div><div className="text-slate-600 text-xs">{detail.clampNote.slice(0,60)}{detail.clampNote.length > 60 ? "…" : ""}</div></div>
-              )}
+              <div className="grid grid-cols-3 divide-x divide-slate-200">
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">主Oナンバ</div><div className="font-mono font-bold">{detail.oNumber ?? "—"}</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">サイクルタイム/1P</div><div className="font-bold text-xs">{detail.cycleTimeSec != null ? (() => { const h=Math.floor(detail.cycleTimeSec/3600); const m=Math.floor((detail.cycleTimeSec%3600)/60); const s=detail.cycleTimeSec%60; return `${h>0?h+"H ":""}${m>0?m+"M ":""}${s}S`; })() : "—"}</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">加工個数/1サイクル</div><div className="font-bold">{detail.machiningQty ?? 1} 個</div></div>
+              </div>
             </div>
             <button
               onClick={() => setAuthOpen(true)}

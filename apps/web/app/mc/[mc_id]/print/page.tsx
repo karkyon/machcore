@@ -255,11 +255,22 @@ function McPrintPageInner() {
                 <h2 className="text-slate-700 font-bold text-lg mb-2">段取シート発行</h2>
                 <p className="text-slate-400 text-sm">発行には担当者認証が必要です</p>
               </div>
-              <div className="bg-slate-50 rounded-xl p-4 mb-6 text-sm space-y-2">
-                <div className="flex justify-between"><span className="text-slate-500">機械</span><span className="font-medium">{d.machine?.machineName ?? "—"}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">主Oナンバ</span><span className="font-mono">{d.oNumber ?? "—"}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">CT/1P</span><span>{fmtCycle(d.cycleTimeSec)}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">ツーリング</span><span>{d.tooling.length}本</span></div>
+              <div className="border border-slate-200 rounded-xl overflow-hidden text-sm mb-6">
+                <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200">
+                  <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">MC工程No</div><div className="font-bold text-teal-700">{(d as any).mcProcessNo ?? "—"}</div></div>
+                  <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">バージョン</div><div className="font-mono font-bold">{(d as any).version ?? "—"}</div></div>
+                  <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">機械</div><div className="font-bold">{d.machine?.machineCode ?? "—"}</div></div>
+                </div>
+                <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200">
+                  <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">主Oナンバ</div><div className="font-mono font-bold">{(d as any).oNumber ?? "—"}</div></div>
+                  <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">サイクルタイム/1P</div><div className="font-bold text-xs">{(d as any).cycleTimeSec != null ? (() => { const ct=(d as any).cycleTimeSec; const h=Math.floor(ct/3600); const m=Math.floor((ct%3600)/60); const s=ct%60; return (h>0?h+"H ":"")+(m>0?m+"M ":"")+s+"S"; })() : "—"}</div></div>
+                  <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">ツーリング</div><div className="font-bold">{(d as any).rc ?? (d as any).tooling?.length ?? 0} 本</div></div>
+                </div>
+                <div className="p-2.5 flex items-center justify-center gap-2 flex-wrap">
+                  <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${((d as any).rc ?? 0) > 0 ? "bg-teal-50 text-teal-700 border-teal-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>RC <span>{(d as any).rc ?? 0}</span></span>
+                  <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${(d as any).hasIndexProgram ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>IP {(d as any).hasIndexProgram ? "有" : "無"}</span>
+                  <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${(d as any).hasWorkOffset ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>WD {(d as any).hasWorkOffset ? "有" : "無"}</span>
+                </div>
               </div>
               <button onClick={() => setAuthOpen(true)}
                 className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm">
