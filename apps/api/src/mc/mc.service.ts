@@ -2769,7 +2769,7 @@ export class McService {
       }
 
       for (const chunk of chunks) {
-        await ensureSpace(BLK_H + 4, woTplDoc);
+        await ensureSpace(BLK_H + 4, null); // null=白紙ページ（テンプレ使うと枠が二重になる）
         drawWoBlock(chunk);
       }
 
@@ -2824,8 +2824,18 @@ export class McService {
         }
       };
 
-      // 初回: テンプレートページ(ヘッダ印刷済み、curYをヘッダ下端に設定)
-      await drawIPHdr(true);
+      // 初回: 余裕があれば同ページ継続（コードでヘッダ描画）、不足時のみ新ページ(テンプレ)
+      const ipNeeds = IP_HDR_H + IP_ROW_H; // ヘッダ+最低1行分
+      if (curPage && curY - ipNeeds >= PAGE_BOTTOM_MARGIN) {
+        // 同ページ継続: コードでヘッダ描画
+        curY -= BLOCK_MARGIN; // WOからの余白
+        const hdrY0 = curY - IP_HDR_H + (IP_HDR_H - IP_COLS[0].fs * 0.72) / 2;
+        IP_COLS.forEach(col => drawTxt(col.label, col.x + 2, hdrY0, col.fs));
+        drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_HDR_H, 0.6, rgb(0,0,0));
+        curY -= IP_ROW_H;
+      } else {
+        await drawIPHdr(true);
+      }
 
       for (let i=0; i<indexPrograms.length; i++) {
         // スペース不足時: 新ページ(白紙)+ヘッダ再描画
