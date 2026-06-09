@@ -2166,39 +2166,96 @@ export default function McEditPage() {
 
       {/* クランプアイテムモーダル */}
       {clampModalOpen && (() => {
-        const VISE_LIST = [
-          "バイス 150×45", "バイス 200×55", "高バイス 175×100",
-          "大バイス 300×100", "油圧バイス 175×60",
-          "4連バイス 100×75", "バイス 125×40", "バイス 100×35",
-          "バイス 200×60", "バイス 180×50",
-          "2連バイス 150×45", "2連エアーバイス 175×45",
-          "2連バイス 150×45 2台", "バイス 200×55 2台",
-          "VOX160 159.5×45", "ロックタイト精密マシンバイス 15",
-          "ロックタイト5軸マシンバイス 102", "ロックタイト精密マシンバイス 16",
+        // ──────────────────────────────────────────────────────────
+        // 旧ACCESSアイテムフォーム完全再現：多列ListBox形式
+        // バイス: 名称 + 型式 + メーカー
+        // チャック: 名称 + サイズ + メーカー
+        // インデックス: 名称 + 搭載機 + 型式
+        // ──────────────────────────────────────────────────────────
+        type ViseRow  = { name: string; model: string; maker: string };
+        type ChuckRow = { name: string; size: string; maker: string };
+        type IdxRow   = { name: string; machine: string; model: string };
+
+        const VISE_ROWS: ViseRow[] = [
+          { name: "バイス 150×45",              model: "VG-150",    maker: "津田駒工業株式会社" },
+          { name: "バイス 200×55",              model: "VG-200",    maker: "津田駒工業株式会社" },
+          { name: "高バイス 175×100",           model: "VT-175",    maker: "津田駒工業株式会社" },
+          { name: "大バイス 300×100",           model: "VB-300",    maker: "津田駒工業株式会社" },
+          { name: "油圧バイス 175×60",          model: "VH-175",    maker: "津田駒工業株式会社" },
+          { name: "4連バイス 100×75",           model: "VM-100-4",  maker: "津田駒工業株式会社" },
+          { name: "バイス 125×40",              model: "VG-125",    maker: "津田駒工業株式会社" },
+          { name: "バイス 100×35",              model: "VG-100",    maker: "津田駒工業株式会社" },
+          { name: "バイス 200×60",              model: "",          maker: "?" },
+          { name: "バイス 180×50",              model: "",          maker: "" },
+          { name: "2連バイス 150×45",           model: "",          maker: "" },
+          { name: "2連エアーバイス 175×45",     model: "",          maker: "?" },
+          { name: "2連バイス 150×45 2台",       model: "",          maker: "" },
+          { name: "バイス 200×55 2台",          model: "",          maker: "" },
+          { name: "VOX160 159.5×45",            model: "VQX160",    maker: "北川鉄工所株式会社" },
+          { name: "ロックタイト精密マシンバイス 15", model: "LTFV-150H", maker: "ナベヤ" },
+          { name: "ロックタイト5軸マシンバイス 102", model: "LT5AU100M", maker: "ナベヤ" },
+          { name: "ロックタイト精密マシンバイス 16", model: "LTCV160H", maker: "ナベヤ" },
         ];
         const SHIKI_LIST = ["50×60", "50×70", "50×80", "50×90", "50×100", "100×50", "100×60", "100×80"];
-        const CHUCK_LIST = [
-          "2連チャック#12", "2連チャック#6", "2連チャック#7",
-          "2連チャックAタイプ", "2連チャックBタイプ", "2連チャックCタイプ", "2連チャックDタイプ",
-          "4連チャック#5", "4連チャック#6", "4連チャックAタイプ", "4連チャックBタイプ",
-          "チャック 10インチ", "チャック 12インチ", "チャック 18インチ",
-          "チャック 8インチ", "チャック 4インチ", "チャック 5インチ",
-          "チャック 6インチ", "チャック 9インチ",
-          "チャック K-1", "チャック K-2", "チャック SC-8A",
-          "チャック マルチ S-1", "チャック マルチ S-2", "チャック マルチ S-3",
-          "生爪 Bタイプ", "生爪 (丸)", "4連チャックAタイプ 生爪(丸)",
+        const CHUCK_ROWS: ChuckRow[] = [
+          { name: "2連チャック#12",       size: "12インチ", maker: "SOUL" },
+          { name: "2連チャック#6",        size: "6インチ",  maker: "SOUL" },
+          { name: "2連チャック#7",        size: "7インチ",  maker: "SOUL" },
+          { name: "2連チャックAタイプ",   size: "7インチ",  maker: "" },
+          { name: "2連チャックBタイプ",   size: "7インチ",  maker: "" },
+          { name: "2連チャックCタイプ",   size: "7インチ",  maker: "" },
+          { name: "2連チャックDタイプ",   size: "7インチ",  maker: "" },
+          { name: "2連チャック生爪2",     size: "7インチ",  maker: "" },
+          { name: "4連チャック#5",        size: "5インチ",  maker: "KITAGAWA" },
+          { name: "4連チャック#6",        size: "6インチ",  maker: "SOUL" },
+          { name: "4連チャックAタイプ",   size: "5インチ",  maker: "SOUL" },
+          { name: "4連チャックBタイプ",   size: "4インチ",  maker: "C" },
+          { name: "チャック 10インチ",    size: "10インチ", maker: "SOUL" },
+          { name: "チャック 12インチ",    size: "12インチ", maker: "SOUL" },
+          { name: "チャック 12インチ",    size: "12インチ", maker: "KITAGAWA" },
+          { name: "チャック 18インチ",    size: "18インチ", maker: "" },
+          { name: "チャック 8インチ",     size: "8インチ",  maker: "" },
+          { name: "チャック 4インチ",     size: "4インチ",  maker: "SOUL" },
+          { name: "チャック 5インチ",     size: "5インチ",  maker: "SOUL" },
+          { name: "チャック 6インチ",     size: "6インチ",  maker: "SOUL" },
+          { name: "チャック 7インチ",     size: "7インチ",  maker: "SOUL" },
+          { name: "チャック 9インチ",     size: "9インチ",  maker: "SOUL" },
+          { name: "チャック K-1",         size: "4インチ",  maker: "KITAGAWA" },
+          { name: "チャック K-2",         size: "4インチ",  maker: "KITAGAWA" },
+          { name: "チャック SC-8A",       size: "8インチ",  maker: "大和工機株式会社" },
+          { name: "チャック マルチ S-1",  size: "4インチ",  maker: "SOUL" },
+          { name: "チャック マルチ S-2",  size: "4インチ",  maker: "SOUL" },
+          { name: "チャック マルチ S-3",  size: "4インチ",  maker: "SOUL" },
         ];
         const TSUME_LIST = ["標準爪", "生爪", "逆爪", "ソフトジョー", "特殊爪"];
-        const INDEX_LIST = [
-          "ロータリーテーブル", "インデックステーブル RT-250",
-          "インデックステーブル RT-320", "第4軸 インデックス",
+        const INDEX_ROWS: IdxRow[] = [
+          { name: "5AX-200Ⅱ",          machine: "MC10(常時)",  model: "5AX-200Ⅱ Wc≦21" },
+          { name: "5AX-220Ⅱ",          machine: "MC10(常時)",  model: "5AX-220Ⅱ Wc≦21" },
+          { name: "CNC-200F MC1",       machine: "MC1",          model: "CNC-200F" },
+          { name: "CNC-230-DC OKK2",    machine: "不動",         model: "CNC-230-DC" },
+          { name: "インデックス MC12",   machine: "MC12(専用)",   model: "RNCV-201R" },
+          { name: "インデックス MC13",   machine: "MC13(専用)",   model: "RB-250" },
+          { name: "インデックス MC16",   machine: "MC16(専用)",   model: "RB-250R" },
+          { name: "インデックス MC3",    machine: "MC3(常時)",    model: "RNCV-201R" },
+          { name: "インデックス MC4",    machine: "MC4(常時)",    model: "RNCV-201R" },
+          { name: "インデックス MC5",    machine: "MC5(常時)",    model: "CNC-200F" },
+          { name: "インデックス MC6",    machine: "MC6(常時)",    model: "MD 300" },
+          { name: "インデックス MC7",    machine: "MC7(専用)",    model: "CNC-200FA" },
+          { name: "インデックス OKK1",   machine: "OKK1(常時)",   model: "CNC-150α" },
+          { name: "インデックス PS1",    machine: "PS-1(常時)",   model: "RZ-150R" },
+          { name: "インデックス RN-200R",machine: "MC9",          model: "RN-200R" },
+          { name: "インデックス RNCV-201R",machine:"MC7(一時)",   model: "RNCV-201R" },
+          { name: "マルチ1",            machine: "OFF",           model: "5AX-4MT-120" },
+          { name: "マルチ2 → マルチ4", machine: "MC11(常時)",    model: "5AX-4MT-120" },
+          { name: "マルチ3",            machine: "OFF",           model: "5AX-4MT-120" },
+          { name: "マルチ4",            machine: "MC11(常時)",    model: "5AX-4MT-120" },
         ];
         const OTHER_LIST = ["サブテーブル", "傾斜テーブル", "サーキュラーテーブル", "アングル", "電磁チャック", "Vブロック"];
 
         const sep = clampSelection === 1 ? " & " : " or ";
         const parts: string[] = [];
-        if (clampVise)  parts.push(clampVise);
-        if (clampShiki) parts.push("敷板 " + clampShiki);
+        if (clampVise)           parts.push(clampVise);
+        if (clampShiki)          parts.push("敷板 " + clampShiki);
         if (clampChuck) {
           let c = clampChuck;
           if (clampTsume) c += " " + clampTsume;
@@ -2222,115 +2279,183 @@ export default function McEditPage() {
           setClampNote(preview);
           setClampModalOpen(false);
         };
-
         const handleClear = () => {
           setClampVise(""); setClampShiki(""); setClampChuck(""); setClampTsume("");
           setClampIndex(""); setClampOther(""); setClampTailstock(2); setClampJig(2); setClampSelection(1);
         };
 
-        const selCls = "w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-orange-300 focus:outline-none bg-white";
-        const lblCls = "text-xs font-bold text-slate-500 block mb-1";
+        // ListBox行スタイル
+        const rowCls = (selected: boolean) =>
+          `flex text-xs cursor-pointer px-1.5 py-0.5 select-none ${selected ? "bg-blue-600 text-white" : "hover:bg-blue-50"}`;
+        const lblCls = "text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1";
 
         return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl flex flex-col max-h-[90vh]">
-              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2">
+            <div className="bg-white rounded-xl shadow-2xl flex flex-col" style={{width: "700px", maxHeight: "92vh"}}>
+              {/* ヘッダ */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0">
                 <div className="flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-orange-500"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                  <span className="font-bold text-slate-700">クランプ アイテム選択</span>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-orange-500"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                  <span className="font-bold text-slate-700 text-sm">アイテム選択</span>
                 </div>
-                <button onClick={() => setClampModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl font-light leading-none">×</button>
-              </div>
-              <div className="overflow-y-auto p-5 space-y-4 flex-1">
-                {/* and / or */}
-                <div className="flex items-center gap-6 bg-slate-50 rounded-lg px-4 py-2.5">
-                  <span className="text-xs font-bold text-slate-500">組み合わせ方式</span>
+                <div className="flex items-center gap-4">
+                  <span className="text-[10px] font-bold text-slate-500">選択</span>
                   {([1, 2] as const).map(v => (
-                    <label key={v} className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="radio" checked={clampSelection === v} onChange={() => setClampSelection(v)} className="accent-orange-500" />
-                      <span className="text-xs font-medium">{v === 1 ? "and (&)" : "or"}</span>
+                    <label key={v} className="flex items-center gap-1 cursor-pointer">
+                      <input type="radio" checked={clampSelection === v} onChange={() => setClampSelection(v)} className="accent-blue-600 w-3 h-3" />
+                      <span className="text-xs">{v === 1 ? "and" : "or"}</span>
                     </label>
                   ))}
+                  <button onClick={() => setClampModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-lg font-light leading-none ml-2">×</button>
                 </div>
-                {/* 各コンボ */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className={lblCls}>バイス</label>
-                    <select value={clampVise} onChange={e => setClampVise(e.target.value)} className={selCls}>
-                      <option value="">— なし —</option>
-                      {VISE_LIST.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  </div>
-                  <div><label className={lblCls}>敷板</label>
-                    <select value={clampShiki} onChange={e => setClampShiki(e.target.value)} className={selCls}>
-                      <option value="">— なし —</option>
-                      {SHIKI_LIST.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  </div>
-                  <div><label className={lblCls}>チャック</label>
-                    <select value={clampChuck} onChange={e => setClampChuck(e.target.value)} className={selCls}>
-                      <option value="">— なし —</option>
-                      {CHUCK_LIST.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  </div>
-                  <div><label className={lblCls}>爪 <span className="text-slate-400 font-normal text-[10px]">(チャックに追記)</span></label>
-                    <select value={clampTsume} onChange={e => setClampTsume(e.target.value)} className={selCls}>
-                      <option value="">— なし —</option>
-                      {TSUME_LIST.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  </div>
-                  <div><label className={lblCls}>インデックス</label>
-                    <select value={clampIndex} onChange={e => setClampIndex(e.target.value)} className={selCls}>
-                      <option value="">— なし —</option>
-                      {INDEX_LIST.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  </div>
-                  <div><label className={lblCls}>その他</label>
-                    <select value={clampOther} onChange={e => setClampOther(e.target.value)} className={selCls}>
-                      <option value="">— なし —</option>
-                      {OTHER_LIST.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  </div>
-                </div>
-                {/* テールストック / 治具 */}
-                <div className="grid grid-cols-2 gap-3">
-                  {([
-                    { label: "テールストック", val: clampTailstock, set: setClampTailstock } as { label: string; val: 1|2; set: (v: 1|2) => void },
-                    { label: "治具",           val: clampJig,       set: setClampJig       } as { label: string; val: 1|2; set: (v: 1|2) => void },
-                  ]).map(({ label, val, set }) => (
-                    <div key={label} className="bg-slate-50 rounded-lg px-3 py-2">
-                      <div className="text-xs font-bold text-slate-500 mb-1.5">{label}</div>
-                      <div className="flex gap-4">
-                        {([1, 2] as const).map(v => (
-                          <label key={v} className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="radio" checked={val === v} onChange={() => set(v)} className="accent-orange-500" />
-                            <span className="text-xs">{v === 1 ? "使用する" : "使用しない"}</span>
-                          </label>
-                        ))}
+              </div>
+
+              {/* 本体 */}
+              <div className="overflow-y-auto flex-1 p-3 space-y-3">
+                {/* 上段: バイス ＋ テールストック/治具 */}
+                <div className="flex gap-3">
+                  {/* バイス ListBox */}
+                  <div className="flex-1">
+                    <div className={lblCls}>バイス</div>
+                    <div className="border border-slate-300 rounded overflow-auto bg-white" style={{height:"130px"}}>
+                      <div className={rowCls(clampVise === "")} onClick={() => setClampVise("")}>
+                        <span className="text-slate-400">— なし —</span>
                       </div>
+                      {VISE_ROWS.map((r, i) => (
+                        <div key={i} className={rowCls(clampVise === r.name)} onClick={() => setClampVise(r.name)}>
+                          <span className="w-44 truncate shrink-0">{r.name}</span>
+                          <span className="w-20 truncate text-slate-500 shrink-0">{r.model}</span>
+                          <span className="truncate text-slate-400">{r.maker}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
+                  {/* テールストック / 治具 */}
+                  <div className="flex flex-col gap-2 shrink-0" style={{width:"140px"}}>
+                    {([
+                      { label: "テールストック", val: clampTailstock, set: setClampTailstock },
+                      { label: "治具",           val: clampJig,       set: setClampJig },
+                    ] as { label: string; val: 1|2; set: (v:1|2)=>void }[]).map(({ label, val, set }) => (
+                      <div key={label} className="border border-slate-200 rounded-lg px-2.5 py-2 bg-slate-50">
+                        <div className="text-[10px] font-bold text-slate-500 mb-1.5">{label}</div>
+                        <div className="flex flex-col gap-1">
+                          {([1, 2] as const).map(v => (
+                            <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                              <input type="radio" checked={val === v} onChange={() => set(v)} className="accent-blue-600 w-3 h-3" />
+                              <span className="text-xs">{v === 1 ? "使用する" : "使用しない"}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                {/* プレビュー */}
+
+                {/* 敷板 / チャック / 爪 */}
+                <div className="flex gap-3">
+                  {/* 敷板 */}
+                  <div style={{width:"100px"}} className="shrink-0">
+                    <div className={lblCls}>敷板</div>
+                    <div className="border border-slate-300 rounded overflow-auto bg-white" style={{height:"120px"}}>
+                      <div className={rowCls(clampShiki === "")} onClick={() => setClampShiki("")}>
+                        <span className="text-slate-400 text-xs">— なし —</span>
+                      </div>
+                      {SHIKI_LIST.map((v, i) => (
+                        <div key={i} className={rowCls(clampShiki === v)} onClick={() => setClampShiki(v)}>
+                          <span>{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* チャック ListBox */}
+                  <div className="flex-1">
+                    <div className={lblCls}>チャック</div>
+                    <div className="border border-slate-300 rounded overflow-auto bg-white" style={{height:"120px"}}>
+                      <div className={rowCls(clampChuck === "")} onClick={() => setClampChuck("")}>
+                        <span className="text-slate-400">— なし —</span>
+                      </div>
+                      {CHUCK_ROWS.map((r, i) => (
+                        <div key={i} className={rowCls(clampChuck === r.name)} onClick={() => setClampChuck(r.name)}>
+                          <span className="w-40 truncate shrink-0">{r.name}</span>
+                          <span className="w-16 truncate text-slate-500 shrink-0">{r.size}</span>
+                          <span className="truncate text-slate-400">{r.maker}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* 爪 */}
+                  <div style={{width:"90px"}} className="shrink-0">
+                    <div className={lblCls}>爪</div>
+                    <div className="border border-slate-300 rounded overflow-auto bg-white" style={{height:"120px"}}>
+                      <div className={rowCls(clampTsume === "")} onClick={() => setClampTsume("")}>
+                        <span className="text-slate-400 text-xs">— なし —</span>
+                      </div>
+                      {TSUME_LIST.map((v, i) => (
+                        <div key={i} className={rowCls(clampTsume === v)} onClick={() => setClampTsume(v)}>
+                          <span>{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* インデックス / その他 */}
+                <div className="flex gap-3">
+                  {/* インデックス ListBox */}
+                  <div className="flex-1">
+                    <div className={lblCls}>インデックス</div>
+                    <div className="border border-slate-300 rounded overflow-auto bg-white" style={{height:"120px"}}>
+                      <div className={rowCls(clampIndex === "")} onClick={() => setClampIndex("")}>
+                        <span className="text-slate-400">— なし —</span>
+                      </div>
+                      {INDEX_ROWS.map((r, i) => (
+                        <div key={i} className={rowCls(clampIndex === r.name)} onClick={() => setClampIndex(r.name)}>
+                          <span className="w-44 truncate shrink-0">{r.name}</span>
+                          <span className="w-24 truncate text-slate-500 shrink-0">{r.machine}</span>
+                          <span className="truncate text-slate-400">{r.model}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* その他 */}
+                  <div style={{width:"130px"}} className="shrink-0">
+                    <div className={lblCls}>その他</div>
+                    <div className="border border-slate-300 rounded overflow-auto bg-white" style={{height:"120px"}}>
+                      <div className={rowCls(clampOther === "")} onClick={() => setClampOther("")}>
+                        <span className="text-slate-400 text-xs">— なし —</span>
+                      </div>
+                      {OTHER_LIST.map((v, i) => (
+                        <div key={i} className={rowCls(clampOther === v)} onClick={() => setClampOther(v)}>
+                          <span>{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* アイテム（プレビュー） */}
                 <div>
-                  <div className="text-xs font-bold text-slate-500 mb-1">生成される文字列</div>
-                  <div className={`min-h-[40px] px-3 py-2 rounded-lg text-sm border font-mono ${preview ? "bg-orange-50 border-orange-200 text-orange-800" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+                  <div className={lblCls}>アイテム</div>
+                  <div className={`px-2 py-2 rounded border text-xs font-mono min-h-[36px] ${preview ? "bg-orange-50 border-orange-300 text-orange-900" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
                     {preview || "（選択してください）"}
                   </div>
                 </div>
               </div>
-              <div className="flex justify-between items-center px-5 py-3.5 border-t border-slate-200">
+
+              {/* フッタ */}
+              <div className="flex justify-between items-center px-4 py-3 border-t border-slate-200 shrink-0">
                 <button onClick={handleClear}
-                  className="text-xs px-3 py-1.5 rounded-lg border border-slate-300 text-slate-500 hover:bg-slate-50 transition-colors">
+                  className="text-xs px-3 py-1.5 rounded border border-slate-300 text-slate-500 hover:bg-slate-50 transition-colors">
                   クリア
                 </button>
                 <div className="flex gap-2">
                   <button onClick={() => setClampModalOpen(false)}
-                    className="text-xs px-4 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors">
+                    className="text-xs px-4 py-1.5 rounded border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors">
                     キャンセル
                   </button>
                   <button onClick={handleApply} disabled={!preview}
-                    className="text-xs px-5 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:bg-slate-300 text-white font-bold transition-colors">
-                    クランプ入力
+                    className="text-xs px-5 py-1.5 rounded bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-bold transition-colors">
+                    クランプ　入力
                   </button>
                 </div>
               </div>
