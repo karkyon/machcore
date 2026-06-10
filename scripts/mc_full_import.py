@@ -43,13 +43,13 @@ SS_PB_DB     = "imotodb"    # 部品・得意先マスタ
 ADMIN_ID     = 22           # ADMIN001 users.id
 
 # ファイルパス
-# SMBマウント: //192.168.1.9/D2/imotodb → /mnt/mc_files
-# 実ファイル: /mnt/mc_files/{drawings,photos,pg,setupsheet,...}
-SMB_MC_ROOT  = Path("/mnt/mc_files/MC")
+# d1共有(192.168.1.9/d1) → /mnt/mcfiles  ← 旧MC移行元ファイル
+# d2共有(192.168.1.9/d2) → /mnt/mc_files ← 新システム格納先
+SMB_MC_ROOT  = Path("/mnt/mcfiles/MC")
 SRC_DRAW     = SMB_MC_ROOT / "図"
 SRC_PHOTO    = SMB_MC_ROOT / "写真"
 SRC_PRG      = SMB_MC_ROOT / "ﾌﾟﾛｸﾞﾗﾑ"
-DST_ROOT     = Path("/mnt/mc_files/MC/files")
+DST_ROOT     = Path("/mnt/mcfiles/MC/files")
 DST_DRAW     = DST_ROOT / "Drawings"
 DST_PHOTO    = DST_ROOT / "Pictures"
 DST_PRG      = DST_ROOT / "Programs"
