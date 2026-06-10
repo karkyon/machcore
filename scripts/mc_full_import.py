@@ -43,20 +43,21 @@ SS_PB_DB     = "imotodb"    # 部品・得意先マスタ
 ADMIN_ID     = 22           # ADMIN001 users.id
 
 # ファイルパス
-# d1共有(192.168.1.9/d1) → /mnt/mcfiles  ← 旧MC移行元ファイル
+# d1共有(192.168.1.9/d1) → /mnt/mcfiles  ← 旧MC移行元
 # d2共有(192.168.1.9/d2) → /mnt/mc_files ← 新システム格納先
+# 構造: /mnt/mc_files/MC/files/{Drawings,Pictures,Programs,thumbnails}
 SMB_MC_ROOT  = Path("/mnt/mcfiles/MC")
 SRC_DRAW     = SMB_MC_ROOT / "図"
 SRC_PHOTO    = SMB_MC_ROOT / "写真"
 SRC_PRG      = SMB_MC_ROOT / "ﾌﾟﾛｸﾞﾗﾑ"
-DST_ROOT     = Path("/mnt/mcfiles/MC/files")
+DST_ROOT     = Path("/mnt/mc_files/MC/files")
 DST_DRAW     = DST_ROOT / "Drawings"
 DST_PHOTO    = DST_ROOT / "Pictures"
 DST_PRG      = DST_ROOT / "Programs"
 UPLOAD_BASE  = Path("/mnt/mc_files")
-UPLOAD_DRAW  = UPLOAD_BASE / "drawings"
-UPLOAD_PHOTO = UPLOAD_BASE / "photos"
-UPLOAD_PG    = UPLOAD_BASE / "pg"
+UPLOAD_DRAW  = DST_DRAW
+UPLOAD_PHOTO = DST_PHOTO
+UPLOAD_PG    = DST_PRG
 LOG_FILE     = Path("/home/karkyon/projects/machcore/logs/mc_full_import.log")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -791,10 +792,11 @@ def phase7(pg, dry_run=False):
             if mach_id not in machining_map: nomatch+=1; continue
             dst = UPLOAD_DRAW / stored
             try:
-                if not dst.exists(): shutil.copy2(f, dst)
+                if not dry_run:
+                    if not dst.exists(): shutil.copy2(f, dst)
+                    if src_dir != DST_DRAW and not (DST_DRAW / stored).exists():
+                        shutil.copy2(f, DST_DRAW / stored)
                 files_dst = DST_DRAW / stored
-                if not files_dst.exists() and src_dir != DST_DRAW:
-                    shutil.copy2(f, files_dst)
                 fsize = dst.stat().st_size
                 mime  = "image/tiff" if ext == ".tif" else "image/jpeg"
                 for mc_id in machining_map[mach_id]:
@@ -826,10 +828,11 @@ def phase7(pg, dry_run=False):
             if mach_id not in machining_map: nomatch+=1; continue
             dst = UPLOAD_PHOTO / stored
             try:
-                if not dst.exists(): shutil.copy2(f, dst)
+                if not dry_run:
+                    if not dst.exists(): shutil.copy2(f, dst)
+                    if src_dir != DST_PHOTO and not (DST_PHOTO / stored).exists():
+                        shutil.copy2(f, DST_PHOTO / stored)
                 files_dst = DST_PHOTO / stored
-                if not files_dst.exists() and src_dir != DST_PHOTO:
-                    shutil.copy2(f, files_dst)
                 fsize = dst.stat().st_size
                 for mc_id in machining_map[mach_id]:
                     insert_file(mc_id, "PHOTO", f.name, stored, "image/jpeg", dst, fsize, sort_order=seq)
@@ -867,8 +870,9 @@ def phase7(pg, dry_run=False):
         files_dir.mkdir(parents=True, exist_ok=True)
         files_dst = files_dir / file_name
         try:
-            if not dst_file.exists(): shutil.copy2(src_file, dst_file)
-            if not files_dst.exists(): shutil.copy2(src_file, files_dst)
+            if not dry_run:
+                if not dst_file.exists(): shutil.copy2(src_file, dst_file)
+                if not files_dst.exists(): shutil.copy2(src_file, files_dst)
             fsize   = dst_file.stat().st_size
             pg_role = "SUB" if str(file_name).lower().endswith(".spf") else "MAIN"
             insert_file(mc_id, "PROGRAM", file_name, file_name, "text/plain",

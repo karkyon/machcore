@@ -13,18 +13,16 @@ type PgRole = 'MAIN' | 'SUB' | null;
 
 // ================================================================
 // ディレクトリ設計
+//   uploadBasePath = /mnt/mc_files (admin設定値)
+//   MCファイル格納先: {base}/MC/files/{Programs,Pictures,Drawings,thumbnails,others}
+//
 //   PG ケース1（単一ファイル）:
-//     {base}/mc_files/pg/{machining_id}        拡張子なし
-//     {base}/mc_files/pg/{machining_id}.mpf    拡張子あり
-//     ※ファイル名 = machining_id + オリジナル拡張子
-//
-//   PG ケース2（フォルダ構成・複数ファイル）:
-//     {base}/mc_files/pg/{machining_id}/MAIN.mpf
-//     {base}/mc_files/pg/{machining_id}/SUB1.spf
-//     ※フォルダ名 = machining_id、中のファイル名はオリジナルのまま維持
-//
-//   写真:    {base}/mc_files/photos/{machining_id}-{n}.jpg
-//   図:      {base}/mc_files/drawings/{machining_id}-{n}.*
+//     {base}/MC/files/Programs/{machining_id}[.ext]
+//   PG ケース2（フォルダ構成）:
+//     {base}/MC/files/Programs/{machining_id}/{filename}
+//   写真:    {base}/MC/files/Pictures/{machining_id}-{n}.jpg
+//   図:      {base}/MC/files/Drawings/{machining_id}-{n}.*
+//   サムネ:  {base}/MC/files/thumbnails/thumb_{name}.jpg
 // ================================================================
 
 @Injectable()
@@ -34,7 +32,7 @@ export class McFilesService {
   private async getBasePath(): Promise<string> {
     const s = await this.prisma.companySetting.findFirst();
     // uploadBasePath (/mnt/mc_files) をベースパスとして使用。
-    // 実ファイル: /mnt/mc_files/{drawings,photos,pg,thumbnails,others}
+    // 実ファイル: {base}/MC/files/{Programs,Pictures,Drawings,thumbnails,others}
     // 段取シートPDF保存には mcStoragePath を直接使用する（generateSetupSheetPdf参照）。
     return s?.uploadBasePath ?? '/mnt/mc_files';
   }
@@ -65,8 +63,8 @@ export class McFilesService {
     if (c4 !== filePath && fs.existsSync(c4)) return c4;
     // 候補5: ファイル名だけでローカル探索
     const basename = path.basename(filePath);
-    for (const sub of ['photos', 'drawings', 'pg']) {
-      const c5 = path.join(localBase, 'mc_files', sub, basename);
+    for (const sub of ['Pictures', 'Drawings', 'Programs']) {
+      const c5 = path.join(localBase, 'MC', 'files', sub, basename);
       if (fs.existsSync(c5)) return c5;
     }
     // 候補6: /mnt/ncfiles/mc_files/xxx → /mnt/mc_files/xxx (SMBマウント先)
@@ -76,8 +74,8 @@ export class McFilesService {
     const c7 = filePath.replace(/^\/mnt\/ncfiles\//, '/mnt/mc_files/');
     if (c7 !== filePath && fs.existsSync(c7)) return c7;
     // 候補8: ファイル名だけで /mnt/mc_files/{drawings,photos,pg} を探索
-    for (const sub of ['drawings', 'photos', 'pg']) {
-      const c8 = `/mnt/mc_files/${sub}/${basename}`;
+    for (const sub of ['Drawings', 'Pictures', 'Programs']) {
+      const c8 = `/mnt/mc_files/MC/files/${sub}/${basename}`;
       if (fs.existsSync(c8)) return c8;
     }
     return null;
@@ -110,7 +108,7 @@ export class McFilesService {
     // サムネ生成
     try {
       // thumbDir: SMBマウント先を優先、マウント失敗時はローカルフォールバック
-      const smbThumbDir = '/mnt/mc_files/thumbnails';
+      const smbThumbDir = '/mnt/mc_files/MC/files/thumbnails';
       const localThumbDir = '/home/karkyon/projects/machcore/uploads/mc_files/thumbnails';
       let thumbDir: string;
       try {
@@ -233,17 +231,17 @@ export class McFilesService {
     if (fileTypeEnum === 'PROGRAM') {
       if (isFolderUpload) {
         // ケース2: フォルダ構成 → {base}/mc_files/pg/{machining_id}/{original_filename}
-        flatDir    = path.join(basePath, 'pg', String(machId));
+        flatDir    = path.join(basePath, 'MC', 'files', 'Programs', String(machId));
         storedName = file.filename;  // オリジナルのまま維持
         // 同名のファイル（単体アップで作られた pg/{machId} ファイル）が存在したら退避
-        const pgFlatFile = path.join(basePath, 'pg', String(machId));
+        const pgFlatFile = path.join(basePath, 'MC', 'files', 'Programs', String(machId));
         if (fs.existsSync(pgFlatFile) && fs.statSync(pgFlatFile).isFile()) {
           const ts2 = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-          fs.renameSync(pgFlatFile, path.join(basePath, 'pg', `${machId}.bak_${ts2}`));
+          fs.renameSync(pgFlatFile, path.join(basePath, 'MC', 'files', 'Programs', `${machId}.bak_${ts2}`));
         }
       } else {
         // ケース1: 単一ファイル → {base}/mc_files/pg/{machining_id}[.ext]
-        flatDir    = path.join(basePath, 'pg');
+        flatDir    = path.join(basePath, 'MC', 'files', 'Programs');
         storedName = `${machId}${ext}`;  // ファイル名=加工ID+拡張子
       }
 
@@ -258,18 +256,18 @@ export class McFilesService {
       }
 
     } else if (fileTypeEnum === 'DRAWING') {
-      flatDir = path.join(basePath, 'drawings');
+      flatDir = path.join(basePath, 'MC', 'files', 'Drawings');
       const n = this.maxSeq(flatDir, String(machId)) + 1;
       storedName = `${machId}-${n}${ext}`;
 
     } else if (fileTypeEnum === 'PHOTO') {
-      flatDir = path.join(basePath, 'photos');
+      flatDir = path.join(basePath, 'MC', 'files', 'Pictures');
       const n = this.maxSeq(flatDir, String(machId)) + 1;
       storedName = `${machId}-${n}${ext}`;
 
     } else {
       // OTHER
-      flatDir = path.join(basePath, 'others');
+      flatDir = path.join(basePath, 'MC', 'files', 'others');
       storedName = `${machId}-${Date.now()}${ext}`;
     }
 
@@ -281,7 +279,7 @@ export class McFilesService {
     let thumbnailPath: string | null = null;
     if (isImage && fileTypeEnum !== 'PROGRAM') {
       try {
-        const thumbDir  = path.join(basePath, 'thumbnails');
+        const thumbDir  = path.join(basePath, 'MC', 'files', 'thumbnails');
         this.ensureDir(thumbDir);
         const thumbName = `thumb_${path.basename(storedName, ext)}.jpg`;
         const thumbFull = path.join(thumbDir, thumbName);
@@ -383,7 +381,7 @@ export class McFilesService {
 
     // 既存なし → 新規保存
     const name = originalName ?? `${machId}`;
-    const flatDir = path.join(basePath, 'pg');
+    const flatDir = path.join(basePath, 'MC', 'files', 'Programs');
     this.ensureDir(flatDir);
     const storedName = `${machId}`;
     const filePath   = path.join(flatDir, storedName);
