@@ -212,7 +212,18 @@ export default function McEditPage() {
         note:       p.note     ?? "",
       })));
     }).catch(() => {});
-    machinesApi.list().then(r => setMachines((r as any).data ?? [])).catch(() => {});
+    machinesApi.list().then(r => {
+      const list = (r as any).data ?? [];
+      setMachines(list);
+      // detail が先に取得済みの場合はここで即座に machineCode → id 解決
+      setMachineId(prev => {
+        if (prev && isNaN(parseInt(prev))) {
+          const found = list.find((m: any) => m.machineCode === prev);
+          return found ? String(found.id) : ;
+        }
+        return prev;
+      });
+    }).catch(() => {});
     usersApi.list().then(r => setUsers((r as any).data ?? [])).catch(() => {});
     mcApi.listFiles(mcId).then(r => setFiles((r as any).data ?? [])).catch(() => {});
   }, [mcId]);
