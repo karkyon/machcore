@@ -219,7 +219,7 @@ export default function McEditPage() {
       setMachineId(prev => {
         if (prev && isNaN(parseInt(prev))) {
           const found = list.find((m: any) => m.machineCode === prev);
-          return found ? String(found.id) : ;
+          return found ? String(found.id) : "";
         }
         return prev;
       });
