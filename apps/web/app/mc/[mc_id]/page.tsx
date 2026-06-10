@@ -1070,11 +1070,17 @@ export default function McDetailPage() {
                   <div className="p-8 text-center text-slate-400 text-sm">変更履歴がありません</div>
                 ) : changes.map((c: any, i) => (
                   <div key={c.id} className={`px-4 py-3 border-b border-slate-100 text-sm ${i % 2 === 0 ? "bg-white" : "bg-slate-50"}`}>
-                    <div className="flex items-center gap-3">
-                      <span className="text-slate-400 text-xs">{fmtDate(c.changedAt)}</span>
-                      <span className="text-slate-500 text-xs">{c.operator?.name ?? "—"}</span>
-                      <span className="text-slate-700">{c.content ?? c.changeType}</span>
-                      {c.versionAfter && <span className="ml-auto font-mono text-[10px] text-slate-400">Ver.{c.ver_after}</span>}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-slate-400 text-xs font-mono">{fmtDate(c.changed_at)}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        c.change_type === "APPROVAL" ? "bg-green-100 text-green-700" :
+                        c.change_type === "NEW_REGISTRATION" ? "bg-blue-100 text-blue-700" :
+                        "bg-amber-100 text-amber-700"}`}>
+                        {c.change_type === "APPROVAL" ? "承認" : c.change_type === "NEW_REGISTRATION" ? "新規登録" : "変更"}
+                      </span>
+                      <span className="text-slate-600 font-bold">{c.operator_name ?? "—"}</span>
+                      <span className="text-slate-700 flex-1">{c.change_detail ?? "—"}</span>
+                      {c.ver_after && <span className="ml-auto font-mono text-[10px] text-slate-400 shrink-0">Ver.{c.ver_after}</span>}
                     </div>
                   </div>
                 ))}
@@ -1084,19 +1090,35 @@ export default function McDetailPage() {
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 {!works || works.length === 0 ? (
                   <div className="p-8 text-center text-slate-400 text-sm">作業記録がありません</div>
-                ) : works.map((r: McWorkRecord, i) => (
-                  <div key={r.id} className={`px-4 py-3 border-b border-slate-100 text-xs ${i % 2 === 0 ? "bg-white" : "bg-slate-50"}`}>
-                    <div className="flex items-center gap-3">
-                      <span className="text-slate-400">{fmtDate(r.work_date)}</span>
-                      <span className="font-bold text-slate-600">{r.operator_name ?? "—"}</span>
-                      <span className="text-slate-500">{r.machine_code ?? ""}</span>
-                      <span>段取: {r.setup_time_min != null ? `${r.setup_time_min}分` : "—"}</span>
-                      <span>加工: {r.machining_time_min != null ? `${r.machining_time_min}分` : "—"}</span>
-                      {r.quantity && <span>W数: {r.quantity}</span>}
+                ) : works.map((r: McWorkRecord, i) => {
+                  const totalMin = (r.setup_time_min ?? 0) + (r.machining_time_min ?? 0);
+                  const fmtMin = (m: number | null) => m == null ? "—" : m >= 60 ? `${Math.floor(m/60)}H${m%60}M` : `${m}分`;
+                  const fmtCycle = (s: number | null) => {
+                    if (!s) return null;
+                    const m = Math.floor(s/60), sec = s%60;
+                    return m > 0 ? `${m}分${sec}秒` : `${sec}秒`;
+                  };
+                  return (
+                  <div key={r.id} className={`px-4 py-3 border-b border-slate-100 ${i % 2 === 0 ? "bg-white" : "bg-slate-50"}`}>
+                    {/* 行1: 日付・担当者・機械 */}
+                    <div className="flex items-center gap-3 text-xs mb-1.5">
+                      <span className="font-mono text-slate-400 shrink-0">{fmtDate(r.work_date)}</span>
+                      <span className="font-bold text-teal-700">{r.operator_name ?? "—"}</span>
+                      {r.machine_code && <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">{r.machine_code}</span>}
+                      {r.quantity != null && <span className="ml-auto text-slate-600 font-bold shrink-0">W数: <span className="text-teal-700">{r.quantity}</span></span>}
                     </div>
-                    {r.note && <div className="text-slate-400 mt-1">{r.note}</div>}
+                    {/* 行2: 時間 */}
+                    <div className="flex items-center gap-4 text-xs text-slate-600">
+                      <span>段取: <span className="font-mono font-bold">{fmtMin(r.setup_time_min)}</span></span>
+                      <span>加工: <span className="font-mono font-bold">{fmtMin(r.machining_time_min)}</span></span>
+                      {totalMin > 0 && <span className="text-slate-400">計: <span className="font-mono">{fmtMin(totalMin)}</span></span>}
+                      {r.cycle_time_sec != null && <span className="text-slate-400">C/T: <span className="font-mono">{fmtCycle(r.cycle_time_sec)}</span></span>}
+                      {r.setup_work_count != null && <span className="text-slate-400">段取W: {r.setup_work_count}</span>}
+                    </div>
+                    {r.note && <div className="text-slate-400 text-xs mt-1 italic">{r.note}</div>}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
             {!histLoading && histTab === "print" && (

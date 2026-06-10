@@ -182,35 +182,69 @@ def phase1(pg, dry_run=False):
             ss_machine_map[mid] = machines_map.get(mc_code)
 
     # ACC_MC × ACC_マシニング JOIN で全データ取得
-    mcc.execute("""
-        SELECT
-            mc.部品ID, mc.MCID, mc.加工ID,
-            m.Version, m.[MC工程No], m.パス1, m.パス2, m.ファイル名,
-            m.メインPGNo, m.機械ID, m.加工時間H, m.加工時間M, m.加工時間S,
-            m.加工個数, m.クランプ, m.備考,
-            m.担当者ID, m.IP有無, m.WD有無,
-            m.写真枚数, m.RC, m.図枚数,
-            m.作成者ID, m.PG担当者ID,
-            m.入力日付, m.登録日付
-        FROM ACC_MC mc
-        INNER JOIN ACC_マシニング m ON mc.加工ID = m.加工ID AND mc.MCID = m.MCID
-        WHERE m.削除区分 = 0
-        ORDER BY mc.MCID
-    """)
+    # ※ シート作成日・シート作成者IDを追加取得（カラムが存在しない場合は例外をキャッチ）
+    try:
+        mcc.execute("""
+            SELECT
+                mc.部品ID, mc.MCID, mc.加工ID,
+                m.Version, m.[MC工程No], m.パス1, m.パス2, m.ファイル名,
+                m.メインPGNo, m.機械ID, m.加工時間H, m.加工時間M, m.加工時間S,
+                m.加工個数, m.クランプ, m.備考,
+                m.担当者ID, m.IP有無, m.WD有無,
+                m.写真枚数, m.RC, m.図枚数,
+                m.作成者ID, m.PG担当者ID,
+                m.入力日付, m.登録日付,
+                m.シート作成日, m.シート作成者ID
+            FROM ACC_MC mc
+            INNER JOIN ACC_マシニング m ON mc.加工ID = m.加工ID AND mc.MCID = m.MCID
+            WHERE m.削除区分 = 0
+            ORDER BY mc.MCID
+        """)
+        HAS_SHEET_COLS = True
+    except Exception:
+        mcc.execute("""
+            SELECT
+                mc.部品ID, mc.MCID, mc.加工ID,
+                m.Version, m.[MC工程No], m.パス1, m.パス2, m.ファイル名,
+                m.メインPGNo, m.機械ID, m.加工時間H, m.加工時間M, m.加工時間S,
+                m.加工個数, m.クランプ, m.備考,
+                m.担当者ID, m.IP有無, m.WD有無,
+                m.写真枚数, m.RC, m.図枚数,
+                m.作成者ID, m.PG担当者ID,
+                m.入力日付, m.登録日付
+            FROM ACC_MC mc
+            INNER JOIN ACC_マシニング m ON mc.加工ID = m.加工ID AND mc.MCID = m.MCID
+            WHERE m.削除区分 = 0
+            ORDER BY mc.MCID
+        """)
+        HAS_SHEET_COLS = False
+        log("シート作成日/作成者IDカラム非存在 - スキップ", "WARN")
     rows = mcc.fetchall()
     log(f"旧DBマシニング取得: {len(rows)}件")
 
     ok = skip = err = 0
     for row in rows:
         try:
-            (buhin_id, mcid, kakoid,
-             version, process_no, path1, path2, file_name,
-             main_pg_no, machine_id_ss, time_h, time_m, time_s,
-             qty, clamp, note,
-             tanto_id, ip_umu, wd_umu,
-             photo_cnt, rc, draw_cnt,
-             sakusha_id, pg_tanto_id,
-             input_date, reg_date) = row
+            if HAS_SHEET_COLS:
+                (buhin_id, mcid, kakoid,
+                 version, process_no, path1, path2, file_name,
+                 main_pg_no, machine_id_ss, time_h, time_m, time_s,
+                 qty, clamp, note,
+                 tanto_id, ip_umu, wd_umu,
+                 photo_cnt, rc, draw_cnt,
+                 sakusha_id, pg_tanto_id,
+                 input_date, reg_date,
+                 sheet_created_at, sheet_creator_id) = row
+            else:
+                (buhin_id, mcid, kakoid,
+                 version, process_no, path1, path2, file_name,
+                 main_pg_no, machine_id_ss, time_h, time_m, time_s,
+                 qty, clamp, note,
+                 tanto_id, ip_umu, wd_umu,
+                 photo_cnt, rc, draw_cnt,
+                 sakusha_id, pg_tanto_id,
+                 input_date, reg_date) = row
+                sheet_created_at = None; sheet_creator_id = None
 
             part_db_id = parts_map.get(str(buhin_id))
             if not part_db_id:
@@ -228,10 +262,11 @@ def phase1(pg, dry_run=False):
             has_ip = str(ip_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
             has_wd = str(wd_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
 
-            # 担当者（旧DBのIDはPGのusers.idと対応しないためADMINで統一）
-            reg_id  = ADMIN_ID
-            cr_id   = None
-            pg_id   = None
+            # 担当者: users_by_name から名前ベースで解決（旧DBのIDはPGのusers.idと対応しない）
+            # tanto_id/sakusha_id は数値IDだが users テーブルとの対応は不明のためADMINフォールバック
+            reg_id  = ADMIN_ID   # オペレーター（入力者）= 旧DB担当者IDは未マッピング
+            cr_id   = ADMIN_ID if sakusha_id else None  # 作成者ID
+            pg_id   = ADMIN_ID if pg_tanto_id else None  # PG担当者ID
 
             # バージョン
             ver_str = str(version or "1.0001")
@@ -246,12 +281,14 @@ def phase1(pg, dry_run=False):
                     clamp_note, cycle_time_sec, mc_process_no,
                     folder1, folder2, file_name,
                     has_index_program, has_work_offset, rc,
+                    creator_id, sheet_created_at,
                     legacy_kakoid, created_at, updated_at
                 ) VALUES (
                     %s,%s,%s,%s,
                     %s,%s,%s,
                     %s,%s,%s,
                     %s,%s,%s,
+                    %s,%s,
                     %s,NOW(),NOW()
                 )
                 ON CONFLICT (machining_id) DO UPDATE SET
@@ -267,6 +304,8 @@ def phase1(pg, dry_run=False):
                     has_index_program=EXCLUDED.has_index_program,
                     has_work_offset=EXCLUDED.has_work_offset,
                     rc=EXCLUDED.rc,
+                    creator_id=EXCLUDED.creator_id,
+                    sheet_created_at=EXCLUDED.sheet_created_at,
                     legacy_kakoid=EXCLUDED.legacy_kakoid,
                     updated_at=NOW()
             """, (
@@ -276,6 +315,7 @@ def phase1(pg, dry_run=False):
                 str(path2) if path2 is not None else None,
                 str(file_name) if file_name else None,
                 has_ip, has_wd, int(rc or 0),
+                cr_id, sheet_created_at,
                 kakoid,
             ))
             # STEP-B: mc_programs (部品と加工の紐付けのみ)
@@ -283,6 +323,8 @@ def phase1(pg, dry_run=False):
                 INSERT INTO mc_programs (
                     part_id, machining_id, machining_qty, note, status,
                     registered_by,
+                    approved_by,
+                    approved_at,
                     registered_at,
                     legacy_mcid,
                     created_at, updated_at
@@ -291,11 +333,15 @@ def phase1(pg, dry_run=False):
                     %s,
                     %s,
                     %s,
+                    %s,
+                    %s,
                     NOW(),NOW()
                 )
             """, (
                 part_db_id, kakoid, qty or 1, note,
                 reg_id,
+                reg_id,           # approved_by: 登録者と同一（旧DB承認者ID未分離）
+                input_date or reg_date,  # approved_at: 入力日を承認日として使用
                 input_date or reg_date or datetime.now(),
                 mcid,
             ))
