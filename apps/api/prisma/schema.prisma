@@ -122,6 +122,7 @@ model Machine {
   workRecords WorkRecord[]
   mcMachiningDetails McMachiningDetail[]
   timecards   MachineTimecard[]
+  mcSetupSheetLogs McSetupSheetLog[] @relation("SetupSheetLogMachine")
   @@map("machines")
 }
 
@@ -593,7 +594,7 @@ model McSetupSheetLog {
   isReference   Boolean @default(false)    @map("is_reference")
   sheetType     String? @db.VarChar(10)    @map("sheet_type")
   quantity      Int?                       @map("quantity")
-  machineIdLog  Int?                       @map("machine_id")
+  machineIdLog  Int?                       @map("machine_id_log")
   purpose       String? @db.VarChar(20)    @map("purpose")
 
   mcProgram McProgram @relation(fields: [mcProgramId], references: [id])

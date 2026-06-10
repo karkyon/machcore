@@ -383,6 +383,9 @@ function McPrintPageInner() {
         ) : (
           <div className="max-w-xl mx-auto">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              {/* リピート確認ブロック */}
+              <RepeatConfirmBlock />
+
               <div className="bg-teal-600 px-5 py-3 text-white">
                 <h2 className="font-bold">段取シート発行オプション</h2>
               </div>
