@@ -401,6 +401,11 @@ def phase4(pg, dry_run=False):
     mcc = mc.cursor()
     pgc = pg.cursor()
 
+    if not dry_run:
+        pgc.execute("DELETE FROM mc_work_offsets")
+        pg.commit()
+        log("mc_work_offsets既存データ削除完了")
+
     pgc.execute("SELECT machining_id FROM mc_machining_details")
     valid_machining_ids: set[int] = {r[0] for r in pgc.fetchall()}
 
@@ -428,6 +433,7 @@ def phase4(pg, dry_run=False):
                     INSERT INTO mc_work_offsets
                       (machining_id, g_code, x_offset, y_offset, z_offset, a_offset, r_offset, note)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT DO NOTHING
                 """, (kakoid,
                       str(row_dict.get("G") or ""),
                       row_dict.get("X"), row_dict.get("Y"),
@@ -452,6 +458,11 @@ def phase5(pg, dry_run=False):
     mc  = ss_connect(SS_MC_DB)
     mcc = mc.cursor()
     pgc = pg.cursor()
+
+    if not dry_run:
+        pgc.execute("DELETE FROM mc_index_programs")
+        pg.commit()
+        log("mc_index_programs既存データ削除完了")
 
     pgc.execute("SELECT machining_id FROM mc_machining_details")
     valid_machining_ids: set[int] = {r[0] for r in pgc.fetchall()}
@@ -480,6 +491,7 @@ def phase5(pg, dry_run=False):
                     INSERT INTO mc_index_programs
                       (machining_id, sort_order, axis_0, axis_1, axis_2, note)
                     VALUES (%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT DO NOTHING
                 """, (kakoid,
                       int(row_dict.get("IP_ID") or 0),
                       str(row_dict.get("STEP_N") or ""),

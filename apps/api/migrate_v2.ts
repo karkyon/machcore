@@ -342,9 +342,10 @@ async function migrateHistory(
     if (outCont.includes('印刷') && outDate) {
       const opId = userMap.byId.get(outOp) || 1;
       try {
+        const outVer = row['Out_Ver'] ? String(parseInt(row['Out_Ver'])) : null;
         await prisma.setupSheetLog.create({
           data: { ncProgramId: newNcId, operatorId: opId, printedAt: outDate,
-            pdfPath: null, sessionId: null }
+            version: outVer, pdfPath: null, sessionId: null, workCollected: false }
         });
         slOk++;
       } catch { slNg++; }
@@ -364,7 +365,10 @@ async function migrateHistory(
             ncProgramId: newNcId, operatorId: workOpId, machineId: workMcId,
             workDate, setupTimeMin: setupMin, machiningTimeMin: machMin,
             quantity: p > 0 ? p : null,
-            note: [danOp && `段取: ${danOp}`, laOp && `加工: ${laOp}`].filter(Boolean).join(', ') || null
+            note: [
+              danOp ? `段取: ${danOp}` : null,
+              laOp && laOp !== danOp ? `加工: ${laOp}` : null,
+            ].filter(Boolean).join(', ') || null
           }
         });
         wrOk++;
