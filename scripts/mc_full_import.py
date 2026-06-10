@@ -103,13 +103,12 @@ def phase1(pg, dry_run=False):
         log("既存データ全破棄...")
         pgc.execute("DELETE FROM mc_files")
         pgc.execute("DELETE FROM mc_change_history")
-        pgc.execute("DELETE FROM mc_index_programs")
-        pgc.execute("DELETE FROM mc_work_offsets")
-        pgc.execute("DELETE FROM mc_tooling")
         pgc.execute("DELETE FROM mc_setup_sheet_logs")
         pgc.execute("DELETE FROM operation_logs WHERE mc_program_id IS NOT NULL")
         pgc.execute("DELETE FROM work_sessions WHERE mc_program_id IS NOT NULL")
         pgc.execute("DELETE FROM mc_programs")
+        # mc_machining_details削除でmc_tooling/mc_work_offsets/mc_index_programsもCASCADE
+        pgc.execute("DELETE FROM mc_machining_details")
         pg.commit()
         log("全破棄完了")
 
@@ -236,39 +235,65 @@ def phase1(pg, dry_run=False):
             if dry_run:
                 ok += 1; continue
 
+            # STEP-A: mc_machining_details (加工詳細; machining_id=加工ID でUPSERT)
             pgc.execute("""
-                INSERT INTO mc_programs (
-                    part_id, machining_id, mc_process_no, version, status,
-                    machine_id, o_number, cycle_time_sec, machining_qty,
-                    clamp_note, note,
+                INSERT INTO mc_machining_details (
+                    machining_id, version, machine_id, o_number,
+                    clamp_note, cycle_time_sec, mc_process_no,
                     folder1, folder2, file_name,
-                    rc, has_index_program, has_work_offset,
-                    registered_by, creator_id, pg_created_by,
-                    registered_at,
-                    legacy_mcid, legacy_kakoid,
-                    created_at, updated_at
+                    has_index_program, has_work_offset, rc,
+                    legacy_kakoid, created_at, updated_at
                 ) VALUES (
-                    %s,%s,%s,%s,'APPROVED',
                     %s,%s,%s,%s,
-                    %s,%s,
                     %s,%s,%s,
                     %s,%s,%s,
                     %s,%s,%s,
-                    %s,
-                    %s,%s,
-                    NOW(),NOW()
+                    %s,NOW(),NOW()
                 )
+                ON CONFLICT (machining_id) DO UPDATE SET
+                    version=EXCLUDED.version,
+                    machine_id=EXCLUDED.machine_id,
+                    o_number=EXCLUDED.o_number,
+                    clamp_note=EXCLUDED.clamp_note,
+                    cycle_time_sec=EXCLUDED.cycle_time_sec,
+                    mc_process_no=EXCLUDED.mc_process_no,
+                    folder1=EXCLUDED.folder1,
+                    folder2=EXCLUDED.folder2,
+                    file_name=EXCLUDED.file_name,
+                    has_index_program=EXCLUDED.has_index_program,
+                    has_work_offset=EXCLUDED.has_work_offset,
+                    rc=EXCLUDED.rc,
+                    legacy_kakoid=EXCLUDED.legacy_kakoid,
+                    updated_at=NOW()
             """, (
-                part_db_id, kakoid, process_no, ver_str,
-                machine_db_id, main_pg_no, ct_sec, qty or 1,
-                clamp, note,
+                kakoid, ver_str, machine_db_id, main_pg_no,
+                clamp, ct_sec, process_no,
                 str(path1) if path1 is not None else None,
                 str(path2) if path2 is not None else None,
                 str(file_name) if file_name else None,
-                int(rc or 0), has_ip, has_wd,
-                reg_id, cr_id, pg_id,
+                has_ip, has_wd, int(rc or 0),
+                kakoid,
+            ))
+            # STEP-B: mc_programs (部品と加工の紐付けのみ)
+            pgc.execute("""
+                INSERT INTO mc_programs (
+                    part_id, machining_id, machining_qty, note, status,
+                    registered_by,
+                    registered_at,
+                    legacy_mcid,
+                    created_at, updated_at
+                ) VALUES (
+                    %s,%s,%s,%s,'APPROVED',
+                    %s,
+                    %s,
+                    %s,
+                    NOW(),NOW()
+                )
+            """, (
+                part_db_id, kakoid, qty or 1, note,
+                reg_id,
                 input_date or reg_date or datetime.now(),
-                mcid, kakoid,
+                mcid,
             ))
             ok += 1
             if ok % 1000 == 0:
@@ -299,12 +324,9 @@ def phase2(pg, dry_run=False):
         pg.commit()
         log("mc_tooling既存データ削除完了")
 
-    # machining_id → mc_program_id マップ（同一加工IDに複数mc_programがある場合は全て）
-    # ACC_ツーリングの「加工ID」= マシニングの「加工ID」= mc_programs.machining_id
-    pgc.execute("SELECT id, machining_id FROM mc_programs")
-    kakoid_map: dict[int, list[int]] = {}
-    for mc_id, kk in pgc.fetchall():
-        kakoid_map.setdefault(kk, []).append(mc_id)
+    # machining_id マップ（mc_machining_detailsの実在IDセット）
+    pgc.execute("SELECT machining_id FROM mc_machining_details")
+    valid_machining_ids: set[int] = {r[0] for r in pgc.fetchall()}
 
     mcc.execute("""
         SELECT 加工ID, 順番, N, 工具, T, H, D, D値, SUB, コメント, 工具名, ツーリングID
@@ -322,27 +344,25 @@ def phase2(pg, dry_run=False):
             tool_name_merged = str(tool_name or "").strip() or None
             tool_name_full   = str(tool_name2 or "").strip() or None
             n_no_str         = str(n_no or "").strip() or None
-            mc_ids = kakoid_map.get(kakoid, [])
-            if not mc_ids: skip += 1; continue
+            if kakoid not in valid_machining_ids: skip += 1; continue
             if not dry_run:
-                for mc_id in mc_ids:
-                    pgc.execute("""
-                        INSERT INTO mc_tooling (
-                            mc_program_id, sort_order, tool_no, tool_name, t_no,
-                            length_offset_no, dia_offset_no, d_value_content,
-                            sub_pg_no, note, raw_program_line
-                        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    """, (mc_id,
-                          int(float(order or 0)),
-                          n_no_str,
-                          tool_name_merged,
-                          str(t_no).strip() if t_no else None,
-                          str(h_no).strip() if h_no else None,
-                          str(d_no).strip() if d_no else None,
-                          str(d_val).strip() if d_val else None,
-                          str(sub_pg).strip() if sub_pg else None,
-                          str(comment).strip() if comment else None,
-                          tool_name_full))
+                pgc.execute("""
+                    INSERT INTO mc_tooling (
+                        machining_id, sort_order, tool_no, tool_name, t_no,
+                        length_offset_no, dia_offset_no, d_value_content,
+                        sub_pg_no, note, raw_program_line
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (kakoid,
+                      int(float(order or 0)),
+                      n_no_str,
+                      tool_name_merged,
+                      str(t_no).strip() if t_no else None,
+                      str(h_no).strip() if h_no else None,
+                      str(d_no).strip() if d_no else None,
+                      str(d_val).strip() if d_val else None,
+                      str(sub_pg).strip() if sub_pg else None,
+                      str(comment).strip() if comment else None,
+                      tool_name_full))
             ok += 1
             if ok % 5000 == 0:
                 if not dry_run: pg.commit()
@@ -365,11 +385,11 @@ def phase3(pg, dry_run=False):
     pgc = pg.cursor()
     if not dry_run:
         pgc.execute("""
-            UPDATE mc_programs p
-            SET rc = (SELECT COUNT(*) FROM mc_tooling t WHERE t.mc_program_id = p.id)
+            UPDATE mc_machining_details d
+            SET rc = (SELECT COUNT(*) FROM mc_tooling t WHERE t.machining_id = d.machining_id)
         """)
         pg.commit()
-    pgc.execute("SELECT SUM(rc) FROM mc_programs")
+    pgc.execute("SELECT SUM(rc) FROM mc_machining_details")
     log(f"PHASE3完了: RC総計={pgc.fetchone()[0]}")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -381,10 +401,8 @@ def phase4(pg, dry_run=False):
     mcc = mc.cursor()
     pgc = pg.cursor()
 
-    pgc.execute("SELECT id, legacy_kakoid FROM mc_programs")
-    kakoid_map: dict[int, list[int]] = {}
-    for mc_id, kk in pgc.fetchall():
-        kakoid_map.setdefault(kk, []).append(mc_id)
+    pgc.execute("SELECT machining_id FROM mc_machining_details")
+    valid_machining_ids: set[int] = {r[0] for r in pgc.fetchall()}
 
     # ACC_ワークオフセットのカラム確認して取得
     try:
@@ -404,19 +422,17 @@ def phase4(pg, dry_run=False):
         try:
             row_dict = dict(zip(cols, row))
             kakoid   = row_dict.get("加工ID")
-            mc_ids   = kakoid_map.get(kakoid, [])
-            if not mc_ids: skip += 1; continue
+            if kakoid not in valid_machining_ids: skip += 1; continue
             if not dry_run:
-                for mc_id in mc_ids:
-                    pgc.execute("""
-                        INSERT INTO mc_work_offsets
-                          (mc_program_id, g_code, x_offset, y_offset, z_offset, a_offset, r_offset, note)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-                    """, (mc_id,
-                          str(row_dict.get("G") or ""),
-                          row_dict.get("X"), row_dict.get("Y"),
-                          row_dict.get("Z"), row_dict.get("A"),
-                          row_dict.get("R"), None))
+                pgc.execute("""
+                    INSERT INTO mc_work_offsets
+                      (machining_id, g_code, x_offset, y_offset, z_offset, a_offset, r_offset, note)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (kakoid,
+                      str(row_dict.get("G") or ""),
+                      row_dict.get("X"), row_dict.get("Y"),
+                      row_dict.get("Z"), row_dict.get("A"),
+                      row_dict.get("R"), None))
             ok += 1
         except Exception as e:
             err += 1
@@ -437,10 +453,8 @@ def phase5(pg, dry_run=False):
     mcc = mc.cursor()
     pgc = pg.cursor()
 
-    pgc.execute("SELECT id, legacy_kakoid FROM mc_programs")
-    kakoid_map: dict[int, list[int]] = {}
-    for mc_id, kk in pgc.fetchall():
-        kakoid_map.setdefault(kk, []).append(mc_id)
+    pgc.execute("SELECT machining_id FROM mc_machining_details")
+    valid_machining_ids: set[int] = {r[0] for r in pgc.fetchall()}
 
     try:
         mcc.execute("SELECT TOP 1 * FROM ACC_インデックスプログラム")
@@ -459,21 +473,19 @@ def phase5(pg, dry_run=False):
         try:
             row_dict = dict(zip(cols, row))
             kakoid   = row_dict.get("加工ID")
-            mc_ids   = kakoid_map.get(kakoid, [])
-            if not mc_ids: skip += 1; continue
+            if kakoid not in valid_machining_ids: skip += 1; continue
             if not dry_run:
-                for mc_id in mc_ids:
-                    # STEP_Nは文字列（///はコメント）→ axis_0に格納、sort_orderはIP_ID昇順
-                    pgc.execute("""
-                        INSERT INTO mc_index_programs
-                          (mc_program_id, sort_order, axis_0, axis_1, axis_2, note)
-                        VALUES (%s,%s,%s,%s,%s,%s)
-                    """, (mc_id,
-                          int(row_dict.get("IP_ID") or 0),
-                          str(row_dict.get("STEP_N") or ""),
-                          row_dict.get("第1軸"),
-                          row_dict.get("第2軸"),
-                          None))
+                # STEP_Nは文字列（///はコメント）→ axis_0に格納、sort_orderはIP_ID昇順
+                pgc.execute("""
+                    INSERT INTO mc_index_programs
+                      (machining_id, sort_order, axis_0, axis_1, axis_2, note)
+                    VALUES (%s,%s,%s,%s,%s,%s)
+                """, (kakoid,
+                      int(row_dict.get("IP_ID") or 0),
+                      str(row_dict.get("STEP_N") or ""),
+                      row_dict.get("第1軸"),
+                      row_dict.get("第2軸"),
+                      None))
             ok += 1
         except Exception as e:
             err += 1
@@ -581,9 +593,9 @@ def phase7(pg, dry_run=False):
         machining_map.setdefault(mach_id, []).append(mc_id)
     log(f"machining_id種類: {len(machining_map)}件")
 
-    # folder_map構築（プログラム用）
+    # folder_map構築（プログラム用）— mc_machining_detailsから取得
     pgc.execute("""
-        SELECT DISTINCT folder1, folder2, file_name FROM mc_programs
+        SELECT DISTINCT folder1, folder2, file_name FROM mc_machining_details
         WHERE file_name IS NOT NULL AND folder1 IS NOT NULL AND file_name != ''
     """)
     combos = pgc.fetchall()
@@ -695,13 +707,14 @@ def phase7(pg, dry_run=False):
     log("\n--- 7C: プログラム (Programs) ---")
     ok=skip=nomatch=notfound=err=0
     pgc.execute("""
-        SELECT id, machining_id, folder1, folder2, file_name
-        FROM mc_programs
-        WHERE file_name IS NOT NULL AND file_name != '' AND folder1 IS NOT NULL
+        SELECT d.machining_id, p.id, d.folder1, d.folder2, d.file_name
+        FROM mc_machining_details d
+        JOIN mc_programs p ON p.machining_id = d.machining_id
+        WHERE d.file_name IS NOT NULL AND d.file_name != '' AND d.folder1 IS NOT NULL
     """)
     programs = pgc.fetchall()
     log(f"  対象: {len(programs)}件")
-    for mc_id, mach_id, folder1, folder2, file_name in programs:
+    for mach_id, mc_id, folder1, folder2, file_name in programs:
         key     = (folder1, folder2)
         src_dir = folder_map.get(key)
         if not src_dir: nomatch+=1; continue
@@ -742,13 +755,13 @@ def phase8(pg, dry_run=False):
     pgc = pg.cursor()
     if not dry_run:
         pgc.execute("""
-            UPDATE mc_programs p SET
-              rc = (SELECT COUNT(*) FROM mc_tooling t WHERE t.mc_program_id=p.id),
-              has_index_program = (EXISTS(SELECT 1 FROM mc_index_programs i WHERE i.mc_program_id=p.id)),
-              has_work_offset   = (EXISTS(SELECT 1 FROM mc_work_offsets w WHERE w.mc_program_id=p.id))
+            UPDATE mc_machining_details d SET
+              rc = (SELECT COUNT(*) FROM mc_tooling t WHERE t.machining_id=d.machining_id),
+              has_index_program = (EXISTS(SELECT 1 FROM mc_index_programs i WHERE i.machining_id=d.machining_id)),
+              has_work_offset   = (EXISTS(SELECT 1 FROM mc_work_offsets w WHERE w.machining_id=d.machining_id))
         """)
         pg.commit()
-    pgc.execute("SELECT SUM(rc) FROM mc_programs")
+    pgc.execute("SELECT SUM(rc) FROM mc_machining_details")
     log(f"PHASE8完了: RC総計={pgc.fetchone()[0]}")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -758,6 +771,7 @@ def final_report(pg):
     section("最終レポート")
     pgc = pg.cursor()
     items = [
+        ("mc_machining_details","SELECT COUNT(*) FROM mc_machining_details"),
         ("mc_programs",       "SELECT COUNT(*) FROM mc_programs"),
         ("mc_tooling",        "SELECT COUNT(*) FROM mc_tooling"),
         ("mc_work_offsets",   "SELECT COUNT(*) FROM mc_work_offsets"),
@@ -782,11 +796,11 @@ def phase9(pg, dry_run=False):
     pgc = pg.cursor()
     pgc.execute("SELECT COALESCE(MAX(legacy_mcid),0) FROM mc_programs WHERE legacy_mcid IS NOT NULL")
     max_legacy = pgc.fetchone()[0]
-    pgc.execute("SELECT COALESCE(MAX(machining_id),0) FROM mc_programs")
+    pgc.execute("SELECT COALESCE(MAX(machining_id),0) FROM mc_machining_details")
     max_machining = pgc.fetchone()[0]
     next_id = max(max_legacy, max_machining) + 1
     log(f"MAX(legacy_mcid): {max_legacy}")
-    log(f"MAX(machining_id) in mc_programs: {max_machining}")
+    log(f"MAX(machining_id) in mc_machining_details: {max_machining}")
     log(f"次回採番予定番号: {next_id}")
     pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE legacy_mcid IS NULL")
     null_cnt = pgc.fetchone()[0]
