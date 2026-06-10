@@ -247,6 +247,16 @@ export default function McEditPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [machines]);
 
+  // detail+machines両方揃い後の再解決
+  useEffect(() => {
+    if (detail && machines.length > 0 && detail.machine?.machineCode) {
+      const code = detail.machine.machineCode;
+      const m = machines.find(m => m.machineCode === code);
+      if (m) setMachineId(String(m.id));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail, machines]);
+
   useEffect(() => {
     if (isAuthenticated) {
       timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
@@ -828,7 +838,7 @@ export default function McEditPage() {
                     <select value={machineId} onChange={e => { console.log("[EDIT] 機械変更", e.target.value); setMachineId(e.target.value); }}
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
                       <option value="">— 選択 —</option>
-                      {machines.filter(m => m.isActive).map(m => (
+                      {machines.filter(m => m.isActive !== false).map(m => (
                         <option key={m.id} value={String(m.id)}>{m.machineCode}</option>
                       ))}
                     </select>
