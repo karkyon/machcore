@@ -75,6 +75,8 @@ function McPrintPageInner() {
 
   const fmtElapsed = (s: number) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 
+  const isNew = nc?.status === "NEW";
+
   const printBody = {
     include_tooling:        includeTooling,
     include_clamp:          includeClamp,
@@ -87,8 +89,6 @@ function McPrintPageInner() {
       machine_id: repeatPurpose !== 'reference' ? repeatMachineId ?? undefined : undefined,
     } : {}),
   };
-
-  const isNew = nc?.status === "NEW";
 
   const validateRepeat = (): string | null => {
     if (isNew) return null;
