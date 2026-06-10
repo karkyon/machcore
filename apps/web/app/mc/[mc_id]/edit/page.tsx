@@ -960,6 +960,27 @@ export default function McEditPage() {
                     </div>
                   </div>
                 </div>
+                {/* 入力日・オペレーター・承認日・承認者(読み取り専用) */}
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">入力日</label>
+                    <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-mono">{detail?.registeredAt ? detail.registeredAt.slice(0,10) : "—"}</div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">オペレーター</label>
+                    <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700">{detail?.registrar?.name ?? "—"}</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">承認日</label>
+                    <div className={`px-3 py-2 text-sm border rounded-lg font-mono ${detail?.approvedAt ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>{detail?.approvedAt ? detail.approvedAt.slice(0,10) : "未承認"}</div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">承認者</label>
+                    <div className={`px-3 py-2 text-sm border rounded-lg ${detail?.approver ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-bold" : "bg-slate-50 border-slate-200 text-slate-400"}`}>{detail?.approver?.name ?? "未承認"}</div>
+                  </div>
+                </div>
               </div>
             )}
 
