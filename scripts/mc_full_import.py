@@ -511,21 +511,31 @@ def phase5(pg, dry_run=False):
     mc.close()
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# PHASE 6: mc_change_history 移行
+# PHASE 6: ACC_変更履歴 → 3テーブル分離移行
+#
+# 旧 ACC_変更履歴 1レコードの構造（3アクティビティが混在）：
+#   ① 段取シート印刷   : 内容 に "段取シート印刷" / "仮登録" / "印刷" を含む
+#                         → mc_setup_sheet_logs
+#   ② 作業実績         : TH/TM/TS > 0 or ﾜｰｸ数 > 0 or 段取開始 IS NOT NULL
+#                         → work_records (mc_program_id, work_type='MC')
+#   ③ マシニング変更    : 内容 が "新規登録" / "変更" / "承認" 等
+#                         → mc_change_history
+#
+# ※ 1レコードが複数テーブルに書き込まれるケースあり
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def phase6(pg, dry_run=False):
-    section("PHASE 6: mc_change_history移行")
+    section("PHASE 6: ACC_変更履歴 → 3テーブル分離移行")
     mc  = ss_connect(SS_MC_DB)
     mcc = mc.cursor()
     pgc = pg.cursor()
 
     if not dry_run:
         pgc.execute("DELETE FROM mc_change_history")
+        pgc.execute("DELETE FROM mc_setup_sheet_logs")
+        pgc.execute("DELETE FROM work_records WHERE mc_program_id IS NOT NULL")
         pg.commit()
-        log("mc_change_history既存データ削除完了")
+        log("mc_change_history / mc_setup_sheet_logs / work_records(MC分) 削除完了")
 
-    # legacy_mcid=NULLのレコードを除外してNoneキー混入を防ぐ
-    # 同一legacy_mcidに複数mc_programs（共通部品登録）がある場合はlist
     pgc.execute("SELECT id, legacy_mcid FROM mc_programs WHERE legacy_mcid IS NOT NULL")
     mcid_map: dict[int, list[int]] = {}
     for mc_id, lmid in pgc.fetchall():
@@ -533,6 +543,9 @@ def phase6(pg, dry_run=False):
 
     pgc.execute("SELECT id, name FROM users")
     users_map = {r[1]: r[0] for r in pgc.fetchall()}
+
+    pgc.execute("SELECT id, machine_code FROM machines WHERE system_type='MC'")
+    machines_map = {r[1]: r[0] for r in pgc.fetchall()}
 
     try:
         mcc.execute("SELECT TOP 1 * FROM ACC_変更履歴")
@@ -546,14 +559,32 @@ def phase6(pg, dry_run=False):
     rows = mcc.fetchall()
     log(f"ACC_変更履歴取得: {len(rows)}件")
 
-    change_type_map = {
-        "新規": "NEW_REGISTRATION", "新規登録": "NEW_REGISTRATION",
-        "変更": "CHANGE", "編集": "CHANGE",
-        "承認": "APPROVAL",
-        "削除": "CHANGE", "復元": "CHANGE",
-    }
+    PRINT_KEYWORDS = ["段取シート印刷", "SP段取シート印刷", "段取シート　印刷", "仮登録", "印刷"]
+    CHANGE_KEYWORDS = [
+        ("NEW_REGISTRATION", ["新規登録", "新規"]),
+        ("APPROVAL",         ["承認"]),
+        ("CHANGE",           ["大変更", "小変更", "変更", "修正", "編集", "削除", "復元", "更新"]),
+    ]
 
-    ok = skip = err = 0
+    def classify(content_str):
+        if not content_str:
+            return False, True, "CHANGE"
+        s = str(content_str).strip()
+        is_print  = any(s.startswith(kw) or kw in s for kw in PRINT_KEYWORDS)
+        is_change = False; change_type = "CHANGE"
+        for ct, kws in CHANGE_KEYWORDS:
+            if any(s.startswith(kw) for kw in kws):
+                is_change = True; change_type = ct; break
+        if not is_print and not is_change:
+            is_change = True
+        return is_print, is_change, change_type
+
+    def toint(v):
+        try: return int(v or 0)
+        except: return 0
+
+    sl_ok = wr_ok = ch_ok = skip = err = 0
+    batch = 0
     for row in rows:
         try:
             row_dict  = dict(zip(cols, row))
@@ -561,39 +592,121 @@ def phase6(pg, dry_run=False):
             mc_db_ids = mcid_map.get(mcid, [])
             if not mc_db_ids: skip += 1; continue
 
-            operator  = str(row_dict.get("作成") or row_dict.get("ｵﾍﾟﾚｰﾀｰ") or "").strip()
-            op_id     = users_map.get(operator, ADMIN_ID)
-            ct        = change_type_map.get(str(row_dict.get("内容区分") or "").strip(), "CHANGE")
-            changed_at = row_dict.get("作成日") or row_dict.get("入力日")
-            content    = row_dict.get("内容")
-            # 旧DB ACC_変更履歴は変更後バージョンのみ保持
-            # ver_before は "旧Ver" カラムがあれば使用、なければNone
-            ver_before = row_dict.get("旧Ver") or row_dict.get("OldVer") or None
-            ver_after  = str(row_dict.get("Ver") or "").strip() or None
-            hist_id    = row_dict.get("加工ID")
+            op_name   = str(row_dict.get("作成") or row_dict.get("ｵﾍﾟﾚｰﾀｰ") or "").strip()
+            op_id     = users_map.get(op_name, ADMIN_ID)
+            content   = str(row_dict.get("内容") or "").strip()
+            ver_after = str(row_dict.get("Ver") or "").strip() or None
+            ver_before= row_dict.get("旧Ver") or row_dict.get("OldVer") or None
+            created_at= row_dict.get("作成日") or row_dict.get("入力日")
+            hist_id   = row_dict.get("加工ID")
+
+            is_print, is_change, change_type = classify(content)
+
+            th = toint(row_dict.get("TH")); tm = toint(row_dict.get("TM")); ts = toint(row_dict.get("TS"))
+            work_cnt  = toint(row_dict.get("ﾜｰｸ数"))
+            setup_cnt = toint(row_dict.get("段取_ﾜｰｸ数") or row_dict.get("段取ﾜｰｸ数") or 0)
+            ichi_s    = toint(row_dict.get("1S_個数") or row_dict.get("1S個数") or 0)
+            dan_start = row_dict.get("段取開始"); work_end = row_dict.get("加工終了")
+            total_min = th * 60 + tm + (1 if ts >= 30 else 0)
+            has_work  = (total_min > 0 or work_cnt > 0 or dan_start is not None)
+
+            machine_name_val = str(row_dict.get("機械") or "").strip()
+            machine_db_id = machines_map.get(machine_name_val) if machine_name_val else None
+
+            prg_man_val  = str(row_dict.get("Prg") or "").strip() or None
+            prg_time_min = toint(row_dict.get("PrgTimeH")) * 60 + toint(row_dict.get("PrgTimeM"))
+
+            setup_time_min = None
+            if row_dict.get("段取時間") is not None:
+                try:
+                    v = float(str(row_dict.get("段取時間")))
+                    setup_time_min = int(v * 60) if v < 24 else int(v)
+                except: pass
+
+            mach_time_min = None
+            if row_dict.get("加工時間") is not None:
+                try:
+                    v = float(str(row_dict.get("加工時間")))
+                    mach_time_min = int(v * 60) if v < 24 else int(v)
+                except: pass
+            if mach_time_min is None and total_min > 0:
+                mach_time_min = total_min
+
+            cycle_sec = None
+            cycle_raw = row_dict.get("ｻｲｸﾙﾀｲﾑ/1P") or row_dict.get("サイクルタイム/1P")
+            if cycle_raw:
+                try: cycle_sec = int(float(str(cycle_raw)) * 60)
+                except: pass
+
+            sheet_type_val = "SP" if is_print and ("SP" in content or "特殊" in content) else ("MC" if is_print else None)
 
             if not dry_run:
                 for mc_db_id in mc_db_ids:
-                    pgc.execute("""
-                        INSERT INTO mc_change_history
-                          (mc_program_id, change_type, operator_id,
-                           version_before, version_after, content,
-                           changed_at, legacy_hist_id)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-                    """, (mc_db_id, ct, op_id, ver_before, ver_after,
-                          content, changed_at, hist_id))
-            ok += 1
-            if ok % 10000 == 0:
+                    if is_print:
+                        pgc.execute("""
+                            INSERT INTO mc_setup_sheet_logs
+                              (mc_program_id, operator_id, printed_at, version,
+                               work_collected, sheet_type, quantity, machine_id_log)
+                            VALUES (%s,%s,%s,%s,false,%s,%s,%s)
+                        """, (mc_db_id, op_id, created_at or datetime.now(),
+                              ver_after, sheet_type_val,
+                              ichi_s if ichi_s > 0 else None, machine_db_id))
+                        sl_ok += 1
+                    if has_work:
+                        wd = created_at
+                        if wd and hasattr(wd, 'date'): wd = wd.date()
+                        pgc.execute("""
+                            INSERT INTO work_records
+                              (mc_program_id, operator_id, machine_id,
+                               work_date, setup_time_min, machining_time_min,
+                               cycle_time_sec, quantity, started_at, finished_at,
+                               setup_work_count, prg_man, prg_time_min, work_type, created_at)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'MC',NOW())
+                        """, (mc_db_id, op_id, machine_db_id,
+                              wd or datetime.now().date(),
+                              setup_time_min, mach_time_min, cycle_sec,
+                              work_cnt if work_cnt > 0 else None,
+                              dan_start, work_end,
+                              setup_cnt if setup_cnt > 0 else None,
+                              prg_man_val,
+                              prg_time_min if prg_time_min > 0 else None))
+                        wr_ok += 1
+                    if is_change:
+                        pgc.execute("""
+                            INSERT INTO mc_change_history
+                              (mc_program_id, change_type, operator_id,
+                               version_before, version_after, content,
+                               changed_at, legacy_hist_id)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                        """, (mc_db_id, change_type, op_id, ver_before, ver_after,
+                              content or None, created_at or datetime.now(), hist_id))
+                        ch_ok += 1
+            else:
+                if is_print: sl_ok += 1
+                if has_work: wr_ok += 1
+                if is_change: ch_ok += 1
+
+            batch += 1
+            if batch % 5000 == 0:
                 if not dry_run: pg.commit()
-                log(f"  {ok}件挿入中...")
+                log(f"  {batch}件処理... sl={sl_ok} wr={wr_ok} ch={ch_ok} skip={skip} err={err}")
+
         except Exception as e:
             err += 1
-            if not dry_run: pg.rollback()
-            if err <= 5: log(f"  ERR: {e}", "WARN")
+            if not dry_run:
+                try: pg.rollback()
+                except: pass
+            if err <= 10: log(f"  ERR MCID={row_dict.get('MCID')}: {e}", "WARN")
 
     if not dry_run: pg.commit()
+    pgc.execute("SELECT COUNT(*) FROM mc_setup_sheet_logs WHERE mc_program_id IS NOT NULL")
+    log(f"  mc_setup_sheet_logs(MC): {pgc.fetchone()[0]}")
+    pgc.execute("SELECT COUNT(*) FROM work_records WHERE mc_program_id IS NOT NULL")
+    log(f"  work_records(MC):        {pgc.fetchone()[0]}")
     pgc.execute("SELECT COUNT(*) FROM mc_change_history")
-    log(f"PHASE6完了: ok={ok} skip={skip} err={err} DB総数={pgc.fetchone()[0]}")
+    log(f"  mc_change_history:       {pgc.fetchone()[0]}")
+    log(f"PHASE6完了: 入力={len(rows)} skip={skip} err={err}")
+    log(f"  [印刷履歴={sl_ok} / 作業実績={wr_ok} / 変更履歴={ch_ok}]")
     mc.close()
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
