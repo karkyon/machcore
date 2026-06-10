@@ -52,8 +52,8 @@ export class McFilesService {
     // 候補1: /mnt/mc_files/mc_files/xxx → uploads/mc_files/xxx
     const c1 = filePath.replace(/^\/mnt\/mc_files\/mc_files\//, localBase + '/mc_files/');
     if (c1 !== filePath && fs.existsSync(c1)) return c1;
-    // 候補2: /mnt/mc_files/xxx → uploads/mc_files/xxx
-    const c2 = filePath.replace(/^\/mnt\/mc_files\//, localBase + '/mc_files/');
+    // 候補2: /mnt/mc_files/xxx → /mnt/mc_files/MC/files/xxx (パス修正後の旧パス救済)
+    const c2 = filePath.replace(/^\/mnt\/mc_files\/(?!MC\/)/, '/mnt/mc_files/MC/files/');
     if (c2 !== filePath && fs.existsSync(c2)) return c2;
     // 候補3: /mnt/ncfiles/mc_files/xxx → uploads/mc_files/xxx
     const c3 = filePath.replace(/^\/mnt\/ncfiles\/mc_files\//, localBase + '/mc_files/');

@@ -17,15 +17,15 @@ const SIDEBAR_ITEMS = [
 ];
 
 const MC_DEFAULT_PATHS = {
-  program: "/mnt/mc_files/mc_files/pg",
-  photo:   "/mnt/mc_files/mc_files/photos",
-  drawing: "/mnt/mc_files/mc_files/drawings",
-  setupsheet: "/mnt/mc_files/mc_files/setupsheet",
+  program:    "/mnt/mc_files/MC/files/Programs",
+  photo:      "/mnt/mc_files/MC/files/Pictures",
+  drawing:    "/mnt/mc_files/MC/files/Drawings",
+  setupsheet: "/mnt/mc_files/MC/files/setupsheet",
 };
 const NC_DEFAULT_PATHS = {
-  program: "/mnt/nc_files/pg",
-  photo:   "/mnt/nc_files/photos",
-  drawing: "/mnt/nc_files/drawings",
+  program: "/mnt/nc_files/nc_files/{ncProgramId}/",
+  photo:   "/mnt/nc_files/nc_files/{ncProgramId}/images/",
+  drawing: "/mnt/nc_files/nc_files/{ncProgramId}/images/",
 };
 
 export default function AdminSettingsPage() {
