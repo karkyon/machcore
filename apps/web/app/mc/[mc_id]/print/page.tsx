@@ -181,7 +181,7 @@ function McPrintPageInner() {
   };
 
   // リピート確認ブロック（isNew=false の時のみ表示）
-  const RepeatConfirmBlock = () => {
+  const repeatConfirmBlock = (() => {
     if (isNew) return null;
     if (repeatConfirmed) return (
       <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm flex items-center justify-between">
@@ -251,7 +251,7 @@ function McPrintPageInner() {
         </div>
       </div>
     );
-  };
+  })();
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
@@ -384,7 +384,7 @@ function McPrintPageInner() {
           <div className="max-w-xl mx-auto">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               {/* リピート確認ブロック */}
-              <RepeatConfirmBlock />
+              {repeatConfirmBlock}
 
               <div className="bg-teal-600 px-5 py-3 text-white">
                 <h2 className="font-bold">段取シート発行オプション</h2>
@@ -412,16 +412,7 @@ function McPrintPageInner() {
                   </>
                 )}
               </div>
-              {!isNew && (
-                <div className="px-5 py-3 border-t border-slate-100">
-                  <label className="flex items-center gap-3 text-sm cursor-pointer">
-                    <input type="checkbox" checked={isReference} onChange={e => setIsReference(e.target.checked)}
-                      className="accent-amber-500 w-4 h-4" />
-                    <span className="text-amber-700 font-bold">参考出力（生産に使用しない・回収不要）</span>
-                  </label>
-                  {isReference && <p className="text-[11px] text-amber-600 mt-1 ml-7">参考出力はダッシュボードの未回収一覧に表示されません</p>}
-                </div>
-              )}
+
               <div className="px-5 py-4 pb-6 flex flex-col gap-4 border-t border-slate-100 mt-2">
                 <button onClick={() => checkSpAndPrint("preview")} disabled={printing}
                   className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-bold py-3.5 rounded-xl text-sm">
