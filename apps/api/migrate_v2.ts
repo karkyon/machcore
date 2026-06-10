@@ -140,7 +140,7 @@ async function migrateUsers(): Promise<{ byId: Map<number, number>; byName: Map<
     try {
       const u = await prisma.user.upsert({
         where: { employeeCode: code }, update: {},
-        create: { employeeCode: code, name, passwordHash: hash, role: 'OPERATOR', isActive: true }
+        create: { employeeCode: code, name, passwordHash: hash, role: 'OPERATOR', isActive: true, systemType: 'BOTH' }
       });
       byId.set(oid, u.id);
       byName.set(name, u.id);
@@ -150,7 +150,7 @@ async function migrateUsers(): Promise<{ byId: Map<number, number>; byName: Map<
   // 管理者
   await prisma.user.upsert({
     where: { employeeCode: 'ADMIN001' }, update: {},
-    create: { employeeCode: 'ADMIN001', name: '管理者', passwordHash: await bcrypt.hash('Admin@1234', 10), role: 'ADMIN', isActive: true }
+    create: { employeeCode: 'ADMIN001', name: '管理者', passwordHash: await bcrypt.hash('Admin@1234', 10), role: 'ADMIN', isActive: true, systemType: 'BOTH' }
   });
   console.log(`  ✅ ${byId.size} 件  ⚠️ パスワード変更通知必須`);
   return { byId, byName };

@@ -525,8 +525,11 @@ def phase6(pg, dry_run=False):
         log("mc_change_history既存データ削除完了")
 
     # legacy_mcid=NULLのレコードを除外してNoneキー混入を防ぐ
+    # 同一legacy_mcidに複数mc_programs（共通部品登録）がある場合はlist
     pgc.execute("SELECT id, legacy_mcid FROM mc_programs WHERE legacy_mcid IS NOT NULL")
-    mcid_map: dict[int, int] = {r[1]: r[0] for r in pgc.fetchall()}
+    mcid_map: dict[int, list[int]] = {}
+    for mc_id, lmid in pgc.fetchall():
+        mcid_map.setdefault(lmid, []).append(mc_id)
 
     pgc.execute("SELECT id, name FROM users")
     users_map = {r[1]: r[0] for r in pgc.fetchall()}
@@ -555,8 +558,8 @@ def phase6(pg, dry_run=False):
         try:
             row_dict  = dict(zip(cols, row))
             mcid      = row_dict.get("MCID")
-            mc_db_id  = mcid_map.get(mcid)
-            if not mc_db_id: skip += 1; continue
+            mc_db_ids = mcid_map.get(mcid, [])
+            if not mc_db_ids: skip += 1; continue
 
             operator  = str(row_dict.get("作成") or row_dict.get("ｵﾍﾟﾚｰﾀｰ") or "").strip()
             op_id     = users_map.get(operator, ADMIN_ID)
@@ -570,14 +573,15 @@ def phase6(pg, dry_run=False):
             hist_id    = row_dict.get("加工ID")
 
             if not dry_run:
-                pgc.execute("""
-                    INSERT INTO mc_change_history
-                      (mc_program_id, change_type, operator_id,
-                       version_before, version_after, content,
-                       changed_at, legacy_hist_id)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (mc_db_id, ct, op_id, ver_before, ver_after,
-                      content, changed_at, hist_id))
+                for mc_db_id in mc_db_ids:
+                    pgc.execute("""
+                        INSERT INTO mc_change_history
+                          (mc_program_id, change_type, operator_id,
+                           version_before, version_after, content,
+                           changed_at, legacy_hist_id)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                    """, (mc_db_id, ct, op_id, ver_before, ver_after,
+                          content, changed_at, hist_id))
             ok += 1
             if ok % 10000 == 0:
                 if not dry_run: pg.commit()
