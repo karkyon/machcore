@@ -2284,7 +2284,9 @@ export class McService {
     };
     const fmtVer = (v: string) => v ? v.replace(/^(\d+)\.(\d{4})$/,(_:any,a:any,b:any)=>a+'.'+b) : '';
     const resolveVal = (src: string): string => {
-      if (!src || src.startsWith('__')) return '';
+      if (!src) return '';
+      // __stat__ プレフィックスは統計値キーなので通過させる
+      if (src.startsWith('__') && !src.startsWith('__stat_')) return '';
       if (src === 'approvedAt')   return fmtDate(d.approvedAt);
       if (src === 'registeredAt') return fmtDate(d.registeredAt);
       if (src === 'version')      return fmtVer(d.version ?? '');
