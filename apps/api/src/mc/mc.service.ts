@@ -1245,6 +1245,9 @@ export class McService {
         work_collected: r.workCollected,
         is_reference:   (r as any).isReference ?? false,
         sheet_type:     rank === 1 ? 'NEW' : 'REPEAT',
+        quantity:       (r as any).quantity       ?? null,
+        machine_id_log: (r as any).machineIdLog   ?? null,
+        purpose:        (r as any).purpose        ?? null,
       };
     });
   }
@@ -2988,7 +2991,11 @@ export class McService {
         data: { mcProgramId: mcId, operatorId, version: data.version ?? null,
                 pdfPath: savedPdfPath,
                 ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}),
-                sheetType: 'REPEAT' } }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
+                sheetType: 'REPEAT',
+                quantity:     (options as any).quantity    ?? null,
+                machineIdLog: (options as any).machine_id  ?? null,
+                purpose:      (options as any).purpose     ?? null,
+              } }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
     }
 
     return pdfBuffer;

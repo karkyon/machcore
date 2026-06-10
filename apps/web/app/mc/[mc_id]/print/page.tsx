@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { mcApi, McDetail } from "@/lib/api";
+import { mcApi, McDetail, machinesApi, Machine } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
@@ -34,6 +34,13 @@ function McPrintPageInner() {
   const [includeIndexPrograms,  setIncludeIndexPrograms]  = useState(true);
   const [isReference,           setIsReference]           = useState(false);
 
+  // リピート確認ステップ
+  const [repeatPurpose,   setRepeatPurpose]   = useState<'setup' | 'reference' | 'continuous'>('setup');
+  const [repeatQty,       setRepeatQty]       = useState<number>(1);
+  const [repeatMachineId, setRepeatMachineId] = useState<number | null>(null);
+  const [repeatConfirmed, setRepeatConfirmed] = useState(false);
+  const [machines,        setMachines]        = useState<Machine[]>([]);
+
   const [printing,       setPrinting]       = useState(false);
   const [directPrinting, setDirectPrinting] = useState(false);
   const [printError,     setPrintError]     = useState<string | null>(null);
@@ -44,6 +51,13 @@ function McPrintPageInner() {
   const [pendingPrint, setPendingPrint] = useState<"preview" | "direct" | null>(null);
 
   const showToast = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); }, []);
+
+  useEffect(() => {
+    machinesApi.list().then(r => {
+      const list = Array.isArray((r as any).data) ? (r as any).data : (Array.isArray(r) ? r : []);
+      setMachines(list);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     mcApi.getPrintData(mcId).then(r => setNc((r as any).data ?? r)).catch(() => {});
@@ -67,11 +81,26 @@ function McPrintPageInner() {
     include_drawings:       includeDrawings,
     include_work_offsets:   includeWorkOffsets,
     include_index_programs: includeIndexPrograms,
+    ...(!isNew && repeatConfirmed ? {
+      purpose:    repeatPurpose,
+      quantity:   repeatPurpose !== 'reference' ? repeatQty : undefined,
+      machine_id: repeatPurpose !== 'reference' ? repeatMachineId ?? undefined : undefined,
+    } : {}),
   };
 
   const isNew = nc?.status === "NEW";
 
+  const validateRepeat = (): string | null => {
+    if (isNew) return null;
+    if (!repeatConfirmed) return '発行前の確認を完了してください';
+    if (repeatPurpose !== 'reference' && (!repeatQty || repeatQty < 1)) return 'ワーク数を入力してください';
+    if (repeatPurpose !== 'reference' && !repeatMachineId) return '使用機械を選択してください';
+    return null;
+  };
+
   const checkSpAndPrint = async (mode: "preview" | "direct") => {
+    const vErr = validateRepeat();
+    if (vErr) { setPrintError(vErr); return; }
     if (spSkipped) {
       // チェック済み → そのまま印刷
       if (mode === "preview") await handlePrint();
@@ -149,6 +178,79 @@ function McPrintPageInner() {
     if (!sec) return "—";
     const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
     return `${h}H ${String(m).padStart(2,"0")}M ${String(s).padStart(2,"0")}S`;
+  };
+
+  // リピート確認ブロック（isNew=false の時のみ表示）
+  const RepeatConfirmBlock = () => {
+    if (isNew) return null;
+    if (repeatConfirmed) return (
+      <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm flex items-center justify-between">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="font-bold text-emerald-700">✅ 発行前の確認完了</span>
+          <span className="text-slate-600">用途: <span className="font-bold">{repeatPurpose === 'setup' ? '段取' : repeatPurpose === 'reference' ? '参考資料' : '連続使用'}</span></span>
+          {repeatPurpose !== 'reference' && <span className="text-slate-600">W数: <span className="font-bold">{repeatQty}</span></span>}
+          {repeatPurpose !== 'reference' && repeatMachineId && (
+            <span className="text-slate-600">機械: <span className="font-bold">{machines.find(m => m.id === repeatMachineId)?.machineCode ?? '—'}</span></span>
+          )}
+        </div>
+        <button onClick={() => setRepeatConfirmed(false)} className="text-xs text-slate-500 underline ml-4 shrink-0">変更</button>
+      </div>
+    );
+    return (
+      <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 space-y-3">
+        <div className="text-sm font-bold text-amber-800">⚠️ 発行前の確認</div>
+        {/* 用途 */}
+        <div>
+          <label className="text-xs font-bold text-slate-600 mb-1 block">用途</label>
+          <div className="flex gap-3 flex-wrap">
+            {([['setup','段取'],['reference','参考資料'],['continuous','連続使用']] as const).map(([val,label]) => (
+              <label key={val} className="flex items-center gap-1.5 cursor-pointer">
+                <input type="radio" name="repeatPurpose" value={val}
+                  checked={repeatPurpose === val}
+                  onChange={() => setRepeatPurpose(val)}
+                  className="accent-amber-600" />
+                <span className="text-sm">{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        {/* ワーク数 */}
+        {repeatPurpose !== 'reference' && (
+          <div>
+            <label className="text-xs font-bold text-slate-600 mb-1 block">ワーク数 <span className="text-red-500">*</span></label>
+            <input type="number" min={1} value={repeatQty}
+              onChange={e => setRepeatQty(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-24 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400" />
+          </div>
+        )}
+        {/* 使用機械 */}
+        {repeatPurpose !== 'reference' && (
+          <div>
+            <label className="text-xs font-bold text-slate-600 mb-1 block">使用機械 <span className="text-red-500">*</span></label>
+            <select value={repeatMachineId ?? ''}
+              onChange={e => setRepeatMachineId(e.target.value ? parseInt(e.target.value) : null)}
+              className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+              <option value="">— 選択してください —</option>
+              {machines.filter(m => m.isActive).map(m => (
+                <option key={m.id} value={m.id}>{m.machineCode} {m.machineName !== m.machineCode ? `(${m.machineName})` : ''}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {/* 確認ボタン */}
+        <div>
+          <button
+            onClick={() => {
+              if (repeatPurpose !== 'reference' && (!repeatQty || repeatQty < 1)) { setPrintError('ワーク数を入力してください'); return; }
+              if (repeatPurpose !== 'reference' && !repeatMachineId) { setPrintError('使用機械を選択してください'); return; }
+              setPrintError(null);
+              setRepeatConfirmed(true);
+            }}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold rounded-lg transition-colors"
+          >確認完了</button>
+        </div>
+      </div>
+    );
   };
 
   return (

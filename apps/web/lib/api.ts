@@ -698,6 +698,9 @@ export type McSetupSheetLog = {
   work_collected: boolean;
   is_reference:   boolean;
   sheet_type:     'NEW' | 'REPEAT' | null;
+  quantity:       number | null;
+  machine_id_log: number | null;
+  purpose:        string | null;
 };
 
 export type CreateMcWorkRecordBody = {

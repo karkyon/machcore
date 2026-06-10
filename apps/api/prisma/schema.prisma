@@ -592,9 +592,13 @@ model McSetupSheetLog {
   workCollected Boolean @default(false)    @map("work_collected")
   isReference   Boolean @default(false)    @map("is_reference")
   sheetType     String? @db.VarChar(10)    @map("sheet_type")
+  quantity      Int?                       @map("quantity")
+  machineIdLog  Int?                       @map("machine_id")
+  purpose       String? @db.VarChar(20)    @map("purpose")
 
   mcProgram McProgram @relation(fields: [mcProgramId], references: [id])
   operator  User      @relation(fields: [operatorId],  references: [id])
+  machine   Machine?  @relation("SetupSheetLogMachine", fields: [machineIdLog], references: [id])
 
   @@index([mcProgramId, printedAt])
   @@map("mc_setup_sheet_logs")

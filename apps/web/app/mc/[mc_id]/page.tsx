@@ -1116,6 +1116,15 @@ export default function McDetailPage() {
                       )}
                       <span className="text-slate-400">{new Date(p.printed_at).toLocaleString("ja-JP")}</span>
                       <span className="text-slate-600">{p.operator_name ?? "—"}</span>
+                      {p.purpose === 'reference' && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600">参考資料</span>
+                      )}
+                      {p.purpose === 'continuous' && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700">連続使用</span>
+                      )}
+                      {p.quantity != null && (
+                        <span className="text-slate-500">W数: <span className="font-bold text-slate-700">{p.quantity}</span></span>
+                      )}
                       {p.version && <span className="font-mono text-slate-400">Ver.{p.version}</span>}
                       {!p.work_collected && (
                         <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">未回収</span>
