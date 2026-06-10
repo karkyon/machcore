@@ -1232,7 +1232,10 @@ export class McService {
     const rows = await this.prisma.mcSetupSheetLog.findMany({
       where:   { mcProgramId: mcId },
       orderBy: { printedAt: 'desc' },
-      include: { operator: { select: { name: true } } },
+      include: {
+        operator: { select: { name: true } },
+        machine:  { select: { machineCode: true } },
+      },
     });
     const logsAsc = [...rows].sort((a, b) => a.id - b.id);
     return rows.map(r => {
@@ -1240,14 +1243,15 @@ export class McService {
       return {
         id:             r.id,
         printed_at:     r.printedAt,
-        version:        (r as any).machining?.version ?? r.version ?? null,
+        version:        r.version ?? null,
         operator_name:  r.operator?.name ?? null,
+        machine_code:   (r as any).machine?.machineCode ?? null,
         work_collected: r.workCollected,
         is_reference:   (r as any).isReference ?? false,
         sheet_type:     rank === 1 ? 'NEW' : 'REPEAT',
-        quantity:       (r as any).quantity       ?? null,
-        machine_id_log: (r as any).machineIdLog   ?? null,
-        purpose:        (r as any).purpose        ?? null,
+        quantity:       (r as any).quantity    ?? null,
+        machine_id_log: (r as any).machineIdLog ?? null,
+        purpose:        (r as any).purpose     ?? null,
       };
     });
   }
