@@ -48,7 +48,14 @@ const apiFetch = async (path: string, opts?: RequestInit) => {
     ...opts,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(opts?.headers ?? {}) },
   });
-  if (!res.ok) { const msg = await res.text().catch(() => ""); throw new Error(`HTTP ${res.status}: ${msg}`); }
+  if (!res.ok) {
+    if (res.status === 401) {
+      sessionStorage.removeItem("admin_token");
+      if (typeof window !== "undefined") window.location.replace("/admin/login");
+      return null as any;
+    }
+    const msg = await res.text().catch(() => ""); throw new Error(`HTTP ${res.status}: ${msg}`);
+  }
   const ct = res.headers.get("content-type") ?? "";
   if (ct.includes("application/pdf")) return res.blob();
   return res.json();
