@@ -104,6 +104,7 @@ def phase1(pg, dry_run=False):
         pgc.execute("DELETE FROM mc_files")
         pgc.execute("DELETE FROM mc_change_history")
         pgc.execute("DELETE FROM mc_setup_sheet_logs")
+        pgc.execute("DELETE FROM work_records WHERE mc_program_id IS NOT NULL")
         pgc.execute("DELETE FROM operation_logs WHERE mc_program_id IS NOT NULL")
         pgc.execute("DELETE FROM work_sessions WHERE mc_program_id IS NOT NULL")
         pgc.execute("DELETE FROM mc_programs")
@@ -518,7 +519,13 @@ def phase6(pg, dry_run=False):
     mcc = mc.cursor()
     pgc = pg.cursor()
 
-    pgc.execute("SELECT id, legacy_mcid FROM mc_programs")
+    if not dry_run:
+        pgc.execute("DELETE FROM mc_change_history")
+        pg.commit()
+        log("mc_change_history既存データ削除完了")
+
+    # legacy_mcid=NULLのレコードを除外してNoneキー混入を防ぐ
+    pgc.execute("SELECT id, legacy_mcid FROM mc_programs WHERE legacy_mcid IS NOT NULL")
     mcid_map: dict[int, int] = {r[1]: r[0] for r in pgc.fetchall()}
 
     pgc.execute("SELECT id, name FROM users")
@@ -556,8 +563,10 @@ def phase6(pg, dry_run=False):
             ct        = change_type_map.get(str(row_dict.get("内容区分") or "").strip(), "CHANGE")
             changed_at = row_dict.get("作成日") or row_dict.get("入力日")
             content    = row_dict.get("内容")
-            ver_before = row_dict.get("Ver")
-            ver_after  = row_dict.get("Ver")
+            # 旧DB ACC_変更履歴は変更後バージョンのみ保持
+            # ver_before は "旧Ver" カラムがあれば使用、なければNone
+            ver_before = row_dict.get("旧Ver") or row_dict.get("OldVer") or None
+            ver_after  = str(row_dict.get("Ver") or "").strip() or None
             hist_id    = row_dict.get("加工ID")
 
             if not dry_run:
