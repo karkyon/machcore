@@ -1138,6 +1138,7 @@ export default function McDetailPage() {
                       )}
                       <span className="text-slate-400">{new Date(p.printed_at).toLocaleString("ja-JP")}</span>
                       <span className="text-slate-600">{p.operator_name ?? "—"}</span>
+                      {(p as any).machine_code && <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 font-mono text-[10px]">{(p as any).machine_code}</span>}
                       {p.purpose === 'reference' && (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600">参考資料</span>
                       )}
