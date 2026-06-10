@@ -33,9 +33,8 @@ export class McFilesService {
 
   private async getBasePath(): Promise<string> {
     const s = await this.prisma.companySetting.findFirst();
-    // uploadBasePath (/mnt/ncfiles) をベースパスとして使用。
-    // mcStoragePath (/mnt/ncfiles/mc_files) はすでに mc_files サブディレクトリを含むため
-    // path.join(base, 'mc_files', ...) で二重になるのを防ぐ。
+    // uploadBasePath (/mnt/mc_files) をベースパスとして使用。
+    // 実ファイル: /mnt/mc_files/{drawings,photos,pg,thumbnails,others}
     // 段取シートPDF保存には mcStoragePath を直接使用する（generateSetupSheetPdf参照）。
     return s?.uploadBasePath ?? '/mnt/mc_files';
   }
@@ -234,17 +233,17 @@ export class McFilesService {
     if (fileTypeEnum === 'PROGRAM') {
       if (isFolderUpload) {
         // ケース2: フォルダ構成 → {base}/mc_files/pg/{machining_id}/{original_filename}
-        flatDir    = path.join(basePath, 'mc_files', 'pg', String(machId));
+        flatDir    = path.join(basePath, 'pg', String(machId));
         storedName = file.filename;  // オリジナルのまま維持
         // 同名のファイル（単体アップで作られた pg/{machId} ファイル）が存在したら退避
-        const pgFlatFile = path.join(basePath, 'mc_files', 'pg', String(machId));
+        const pgFlatFile = path.join(basePath, 'pg', String(machId));
         if (fs.existsSync(pgFlatFile) && fs.statSync(pgFlatFile).isFile()) {
           const ts2 = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-          fs.renameSync(pgFlatFile, path.join(basePath, 'mc_files', 'pg', `${machId}.bak_${ts2}`));
+          fs.renameSync(pgFlatFile, path.join(basePath, 'pg', `${machId}.bak_${ts2}`));
         }
       } else {
         // ケース1: 単一ファイル → {base}/mc_files/pg/{machining_id}[.ext]
-        flatDir    = path.join(basePath, 'mc_files', 'pg');
+        flatDir    = path.join(basePath, 'pg');
         storedName = `${machId}${ext}`;  // ファイル名=加工ID+拡張子
       }
 
@@ -259,18 +258,18 @@ export class McFilesService {
       }
 
     } else if (fileTypeEnum === 'DRAWING') {
-      flatDir = path.join(basePath, 'mc_files', 'drawings');
+      flatDir = path.join(basePath, 'drawings');
       const n = this.maxSeq(flatDir, String(machId)) + 1;
       storedName = `${machId}-${n}${ext}`;
 
     } else if (fileTypeEnum === 'PHOTO') {
-      flatDir = path.join(basePath, 'mc_files', 'photos');
+      flatDir = path.join(basePath, 'photos');
       const n = this.maxSeq(flatDir, String(machId)) + 1;
       storedName = `${machId}-${n}${ext}`;
 
     } else {
       // OTHER
-      flatDir = path.join(basePath, 'mc_files', 'others');
+      flatDir = path.join(basePath, 'others');
       storedName = `${machId}-${Date.now()}${ext}`;
     }
 
@@ -282,7 +281,7 @@ export class McFilesService {
     let thumbnailPath: string | null = null;
     if (isImage && fileTypeEnum !== 'PROGRAM') {
       try {
-        const thumbDir  = path.join(basePath, 'mc_files', 'thumbnails');
+        const thumbDir  = path.join(basePath, 'thumbnails');
         this.ensureDir(thumbDir);
         const thumbName = `thumb_${path.basename(storedName, ext)}.jpg`;
         const thumbFull = path.join(thumbDir, thumbName);
@@ -384,7 +383,7 @@ export class McFilesService {
 
     // 既存なし → 新規保存
     const name = originalName ?? `${machId}`;
-    const flatDir = path.join(basePath, 'mc_files', 'pg');
+    const flatDir = path.join(basePath, 'pg');
     this.ensureDir(flatDir);
     const storedName = `${machId}`;
     const filePath   = path.join(flatDir, storedName);
@@ -536,7 +535,7 @@ export class McFilesService {
 
     if (fs.existsSync(rec.filePath)) {
       const ts      = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-      const trashDir = path.join(basePath, 'mc_files', 'trash');
+      const trashDir = path.join(basePath, 'trash');
       this.ensureDir(trashDir);
       const ext2    = path.extname(rec.storedName);
       fs.renameSync(rec.filePath, path.join(trashDir, `${path.basename(rec.storedName, ext2)}_${ts}${ext2}`));
