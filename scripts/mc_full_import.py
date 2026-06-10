@@ -43,8 +43,8 @@ SS_PB_DB     = "imotodb"    # 部品・得意先マスタ
 ADMIN_ID     = 22           # ADMIN001 users.id
 
 # ファイルパス
-# SMBマウント: //192.168.1.9/d2 → /mnt/mc_files
-# MCアップロードベースパス(admin設定値): /mnt/mc_files
+# SMBマウント: //192.168.1.9/D2/imotodb → /mnt/mc_files
+# 実ファイル: /mnt/mc_files/{drawings,photos,pg,setupsheet,...}
 SMB_MC_ROOT  = Path("/mnt/mc_files/MC")
 SRC_DRAW     = SMB_MC_ROOT / "図"
 SRC_PHOTO    = SMB_MC_ROOT / "写真"
