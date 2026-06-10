@@ -2219,6 +2219,13 @@ export class McService {
     const d    = data as any;
     const part    = d.part    ?? {};
     const machine = d.machine ?? {};
+    // 発行時入力機械名を解決
+    if ((options as any).machine_id) {
+      try {
+        const m = await this.prisma.machine.findUnique({ where: { id: (options as any).machine_id }, select: { machineCode: true } });
+        if (m) (options as any)._machineName = m.machineCode;
+      } catch {}
+    }
 
     // ── 作業統計集計（repeat_p2 統計フィールド用）──
     const fmtHM = (min: number | null): string => {
@@ -2319,6 +2326,15 @@ export class McService {
       if (src === '__stat_total_best__') return (stats as any)?.totalBestHM ?? '';
       if (src === '__stat_work_count__') return (stats as any)?.workCount   != null ? String((stats as any).workCount)   : '';
       if (src === '__stat_rec_count__')  return (stats as any)?.recordCount != null ? String((stats as any).recordCount) : '';
+      // 発行時入力値（フロントから options で渡される）
+      if (src === '__option_quantity__') return (options as any).quantity  != null ? String((options as any).quantity)  : '';
+      if (src === '__option_machine__')  return (options as any).machine_id != null
+        ? (() => { try { return String((options as any)._machineName ?? (options as any).machine_id); } catch { return ''; } })()
+        : '';
+      if (src === '__option_purpose__')  {
+        const p = (options as any).purpose;
+        return p === 'setup' ? '段取' : p === 'reference' ? '参考資料' : p === 'continuous' ? '連続使用' : '';
+      }
       const keys = src.split('.');
       let val: any = d;
       for (const k of keys) { val = val?.[k]; if (val == null) return ''; }
