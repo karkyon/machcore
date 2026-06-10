@@ -612,7 +612,7 @@ export class AdminController {
       select: { mcStoragePath: true, ncStoragePath: true, mcPrinter: true, ncPrinter: true, uploadBasePath: true, printerName: true },
     });
     return {
-      mc_storage_path:   s?.mcStoragePath  ?? s?.uploadBasePath ?? "/mnt/mc_files/mc_files",
+      mc_storage_path:   s?.mcStoragePath  ?? s?.uploadBasePath ?? "/mnt/mc_files/MC/files",
       nc_storage_path:   s?.ncStoragePath  ?? "/mnt/nc_files",
       upload_base_path:  s?.uploadBasePath ?? "/mnt/mc_files",
       mc_printer:        s?.mcPrinter ?? s?.printerName ?? "",

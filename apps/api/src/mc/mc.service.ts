@@ -1979,7 +1979,7 @@ export class McService {
       let savedPdfPath: string | null = null;
       try {
         const _stg = await this.prisma.companySetting.findFirst({ select: { mcStoragePath: true, uploadBasePath: true } });
-        const _base = _stg?.mcStoragePath ?? _stg?.uploadBasePath ?? '/mnt/mc_files/mc_files';
+        const _base = _stg?.mcStoragePath ?? _stg?.uploadBasePath ?? '/mnt/mc_files/MC/files';
         let _ssDir = require('path').join(_base, 'setupsheet', String(mcId));
         try {
           if (!require('fs').existsSync(_ssDir)) require('fs').mkdirSync(_ssDir, { recursive: true });
@@ -2981,7 +2981,7 @@ export class McService {
       let savedPdfPath: string | null = null;
       try {
         const setting2 = await this.prisma.companySetting.findFirst({ select: { mcStoragePath: true, uploadBasePath: true } });
-        const basePath = setting2?.mcStoragePath ?? setting2?.uploadBasePath ?? '/mnt/mc_files/mc_files';
+        const basePath = setting2?.mcStoragePath ?? setting2?.uploadBasePath ?? '/mnt/mc_files/MC/files';
         // SMBマウント失敗時フォールバック: ローカルパスに保存
         let ssDir = require('path').join(basePath, 'setupsheet', String(mcId));
         try {
