@@ -761,11 +761,21 @@ def phase6(pg, dry_run=False):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # PHASE 7: 図・写真・プログラム ファイル移行
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-def phase7(pg, dry_run=False):
+def phase7(pg, dry_run=False, force_copy=False):
     section("PHASE 7: 図・写真・プログラム ファイル移行")
 
     ensure_dirs(DST_DRAW, DST_PHOTO, DST_PRG,
                 UPLOAD_DRAW, UPLOAD_PHOTO, UPLOAD_PG)
+
+    if force_copy and not dry_run:
+        log("--force-copy: コピー先ディレクトリを全削除して再作成...")
+        import shutil as _shutil
+        for d in [DST_DRAW, DST_PHOTO, DST_PRG]:
+            if d.exists():
+                _shutil.rmtree(d)
+                log(f"  削除: {d}")
+        ensure_dirs(DST_DRAW, DST_PHOTO, DST_PRG)
+        log("--force-copy: 完了、ゼロからコピーします")
 
     pgc = pg.cursor()
 
@@ -839,8 +849,8 @@ def phase7(pg, dry_run=False):
             dst = UPLOAD_DRAW / stored
             try:
                 if not dry_run:
-                    if not dst.exists(): shutil.copy2(f, dst)
-                    if src_dir != DST_DRAW and not (DST_DRAW / stored).exists():
+                    if force_copy or not dst.exists(): shutil.copy2(f, dst)
+                    if src_dir != DST_DRAW and (force_copy or not (DST_DRAW / stored).exists()):
                         shutil.copy2(f, DST_DRAW / stored)
                 files_dst = DST_DRAW / stored
                 fsize = dst.stat().st_size
@@ -875,8 +885,8 @@ def phase7(pg, dry_run=False):
             dst = UPLOAD_PHOTO / stored
             try:
                 if not dry_run:
-                    if not dst.exists(): shutil.copy2(f, dst)
-                    if src_dir != DST_PHOTO and not (DST_PHOTO / stored).exists():
+                    if force_copy or not dst.exists(): shutil.copy2(f, dst)
+                    if src_dir != DST_PHOTO and (force_copy or not (DST_PHOTO / stored).exists()):
                         shutil.copy2(f, DST_PHOTO / stored)
                 files_dst = DST_PHOTO / stored
                 fsize = dst.stat().st_size
@@ -917,8 +927,8 @@ def phase7(pg, dry_run=False):
         files_dst = files_dir / file_name
         try:
             if not dry_run:
-                if not dst_file.exists(): shutil.copy2(src_file, dst_file)
-                if not files_dst.exists(): shutil.copy2(src_file, files_dst)
+                if force_copy or not dst_file.exists(): shutil.copy2(src_file, dst_file)
+                if force_copy or not files_dst.exists(): shutil.copy2(src_file, files_dst)
             fsize   = dst_file.stat().st_size
             pg_role = "SUB" if str(file_name).lower().endswith(".spf") else "MAIN"
             insert_file(mc_id, "PROGRAM", file_name, file_name, "text/plain",
@@ -1020,6 +1030,8 @@ def main():
                         help="実行フェーズ (0=全, 1-9=個別)")
     parser.add_argument("--dry-run", action="store_true",
                         help="DBへの書き込みなし")
+    parser.add_argument("--force-copy", action="store_true",
+                        help="PHASE7: コピー先ファイルを全削除してから再コピー")
     args = parser.parse_args()
 
     dry = args.dry_run
@@ -1030,12 +1042,16 @@ def main():
 
     pg = pg_connect()
     try:
+        force_copy = args.force_copy
         phases = {1:phase1, 2:phase2, 3:phase3, 4:phase4,
                   5:phase5, 6:phase6, 7:phase7, 8:phase8, 9:phase9}
         run = list(range(1,10)) if args.phase == 0 else [args.phase]
         for p in run:
             try:
-                phases[p](pg, dry_run=dry)
+                if p == 7:
+                    phases[p](pg, dry_run=dry, force_copy=force_copy)
+                else:
+                    phases[p](pg, dry_run=dry)
             except Exception as e:
                 log(f"PHASE {p} エラー: {e}", "ERROR")
                 log(traceback.format_exc(), "ERROR")
