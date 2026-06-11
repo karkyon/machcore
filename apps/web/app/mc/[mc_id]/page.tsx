@@ -1130,7 +1130,7 @@ export default function McDetailPage() {
                         {r.cycle_time_sec != null && <span className="text-green-500 text-[10px]">C/T:{fmtCycle(r.cycle_time_sec)}</span>}
                       </div>
                     )}
-                    {/* 行4: 集計 */}
+                    {/* 行4: 集計・中断 */}
                     {totalMin > 0 && (
                       <div className="flex items-center gap-4 text-[10px] text-slate-400 mt-0.5 px-1">
                         <span>合計: <span className="font-mono font-bold text-slate-600">{fmtMin(totalMin)}</span></span>
@@ -1138,7 +1138,26 @@ export default function McDetailPage() {
                         {r.interrupt_work_min  != null && r.interrupt_work_min  > 0 && <span>量産中断: {r.interrupt_work_min}分</span>}
                       </div>
                     )}
-                    {r.note && <div className="text-slate-400 text-[10px] mt-1 italic px-1">{r.note}</div>}
+                    {/* 行5: 開始/チェック/終了時刻 */}
+                    {(r.started_at || r.checked_at || r.finished_at) && (() => {
+                      const fmtDT = (s: string | null) => s ? new Date(s).toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+                      return (
+                      <div className="flex items-center gap-3 text-[10px] text-slate-400 mt-0.5 px-1 flex-wrap">
+                        {r.started_at  && <span>段取開始: <span className="font-mono text-slate-500">{fmtDT(r.started_at)}</span></span>}
+                        {r.checked_at  && <span>ﾁｪｯｸ: <span className="font-mono text-slate-500">{fmtDT(r.checked_at)}</span></span>}
+                        {r.finished_at && <span>加工終了: <span className="font-mono text-slate-500">{fmtDT(r.finished_at)}</span></span>}
+                      </div>
+                      );
+                    })()}
+                    {/* 行6: PGマン・PG時間・PG±・備考 */}
+                    {(r.prg_man || r.prg_time_min || r.prg_plas || r.note) && (
+                      <div className="flex items-center gap-3 text-[10px] text-slate-400 mt-0.5 px-1 flex-wrap">
+                        {r.prg_man && <span>Prg: <span className="font-bold text-slate-600">{r.prg_man}</span></span>}
+                        {r.prg_time_min != null && r.prg_time_min > 0 && <span>PG時間: <span className="font-mono">{fmtMin(r.prg_time_min)}</span></span>}
+                        {r.prg_plas && <span className={`px-1 rounded font-bold ${r.prg_plas==='+' ? 'bg-teal-100 text-teal-700' : 'bg-red-100 text-red-700'}`}>{r.prg_plas}</span>}
+                        {r.note && <span className="italic text-slate-400">{r.note}</span>}
+                      </div>
+                    )}
                   </div>
                   );
                 })}

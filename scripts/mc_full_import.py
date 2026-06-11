@@ -162,11 +162,7 @@ def phase1(pg, dry_run=False):
 
     # ユーザーマスタ
     pgc.execute("SELECT id, name FROM users")
-    users_by_id  = {}
-    users_by_name = {}
-    for uid, uname in pgc.fetchall():
-        users_by_id[uid]    = uname
-        users_by_name[uname] = uid
+    users_map = {r[1]: r[0] for r in pgc.fetchall()}
 
     # 機械IDマスタ (imotomc)
     mcc.execute("SELECT 機械ID, 機械名 FROM ACC_機械")
@@ -262,12 +258,11 @@ def phase1(pg, dry_run=False):
             has_ip = str(ip_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
             has_wd = str(wd_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
 
-            # 担当者: ｵﾍﾟﾚｰﾀｰ カラム（名前文字列）から users テーブルで名前解決
-            operater_name = str(row[8] if not HAS_SHEET_COLS else row[8] or '').strip()  # ｵﾍﾟﾚｰﾀｰ列
-            sakusha_name  = str(row[23] if not HAS_SHEET_COLS else row[23] or '').strip()  # 作成者ID列(名前として使用)
-            reg_id  = users_map.get(operater_name) or ADMIN_ID
-            cr_id   = users_map.get(sakusha_name)  or (ADMIN_ID if sakusha_id else None)
-            pg_id   = ADMIN_ID if pg_tanto_id else None  # PG担当者ID
+            # 担当者: ACC_マシニングには担当者名文字列カラムがないためADMIN_IDフォールバック
+            # registered_byはPHASE6後にACC_変更履歴の最初の「新規登録」レコードの作成者で更新する
+            reg_id  = ADMIN_ID  # PHASE6後に更新
+            cr_id   = ADMIN_ID if sakusha_id else None
+            pg_id   = ADMIN_ID if pg_tanto_id else None
 
             # バージョン
             ver_str = str(version or "1.0001")
@@ -666,27 +661,38 @@ def phase6(pg, dry_run=False):
             prg_man_val  = str(row_dict.get("Prg") or "").strip() or None
             prg_time_min = toint(row_dict.get("PrgTimeH")) * 60 + toint(row_dict.get("PrgTimeM"))
 
-            setup_time_min = None
-            if row_dict.get("段取時間") is not None:
-                try:
-                    v = float(str(row_dict.get("段取時間")))
-                    setup_time_min = int(v * 60) if v < 24 else int(v)
-                except: pass
+            # 旧DB時間フォーマット: "3H 30M" or "0H 9M 6S" → 分/秒に変換
+            def parse_hms_to_min(s):
+                if not s: return None
+                s = str(s).strip()
+                h = m = 0
+                mh = re.search(r'(\d+)H', s)
+                mm = re.search(r'H\s*(\d+)M', s)
+                if mh: h = int(mh.group(1))
+                if mm: m = int(mm.group(1))
+                return h * 60 + m if (h > 0 or m > 0) else None
+            def parse_hms_to_sec(s):
+                if not s: return None
+                s = str(s).strip()
+                h = m = sc = 0
+                mh = re.search(r'(\d+)H', s)
+                mm = re.search(r'H\s*(\d+)M', s)
+                ms = re.search(r'M\s*(\d+)S', s)
+                if mh: h = int(mh.group(1))
+                if mm: m = int(mm.group(1))
+                if ms: sc = int(ms.group(1))
+                return h * 3600 + m * 60 + sc if (h > 0 or m > 0 or sc > 0) else None
 
-            mach_time_min = None
-            if row_dict.get("加工時間") is not None:
-                try:
-                    v = float(str(row_dict.get("加工時間")))
-                    mach_time_min = int(v * 60) if v < 24 else int(v)
-                except: pass
+            setup_time_min = parse_hms_to_min(row_dict.get("段取時間"))
+            mach_time_min  = parse_hms_to_min(row_dict.get("加工時間"))
+            total_hms_min  = parse_hms_to_min(row_dict.get("総時間"))
             if mach_time_min is None and total_min > 0:
                 mach_time_min = total_min
 
-            cycle_sec = None
-            cycle_raw = row_dict.get("ｻｲｸﾙﾀｲﾑ/1P") or row_dict.get("サイクルタイム/1P")
-            if cycle_raw:
-                try: cycle_sec = int(float(str(cycle_raw)) * 60)
-                except: pass
+            cycle_sec = parse_hms_to_sec(row_dict.get("ｻｲｸﾙﾀｲﾑ/1P") or row_dict.get("サイクルタイム/1P"))
+            # TH/TM/TSからサイクル秒を計算（旧DBのサイクルタイムは加工時間H/M/S）
+            if cycle_sec is None and (th > 0 or tm > 0 or ts > 0):
+                cycle_sec = th * 3600 + tm * 60 + ts
 
             sheet_type_val = "SP" if is_print and ("SP" in content or "特殊" in content) else ("MC" if is_print else None)
 
@@ -764,7 +770,37 @@ def phase6(pg, dry_run=False):
                 except: pass
             if err <= 10: log(f"  ERR MCID={row_dict.get('MCID')}: {e}", "WARN")
 
-    if not dry_run: pg.commit()
+    if not dry_run:
+        pg.commit()
+        # PHASE6B: registered_by/approved_by を変更履歴の新規登録・承認レコードで更新
+        log("PHASE6B: registered_by/approved_by 更新...")
+        # 新規登録の作成者→registered_by
+        pgc.execute("""
+            UPDATE mc_programs p SET registered_by = ch.operator_id
+            FROM (
+                SELECT DISTINCT ON (mc_program_id) mc_program_id, operator_id
+                FROM mc_change_history
+                WHERE change_type = 'NEW_REGISTRATION'
+                ORDER BY mc_program_id, changed_at ASC
+            ) ch
+            WHERE p.id = ch.mc_program_id AND ch.operator_id IS NOT NULL
+        """)
+        # 承認の作成者→approved_by/approved_at
+        pgc.execute("""
+            UPDATE mc_programs p SET approved_by = ch.operator_id, approved_at = ch.changed_at
+            FROM (
+                SELECT DISTINCT ON (mc_program_id) mc_program_id, operator_id, changed_at
+                FROM mc_change_history
+                WHERE change_type = 'APPROVAL'
+                ORDER BY mc_program_id, changed_at DESC
+            ) ch
+            WHERE p.id = ch.mc_program_id AND ch.operator_id IS NOT NULL
+        """)
+        pg.commit()
+        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE registered_by != 22")
+        log(f"  管理者以外のregistered_by: {pgc.fetchone()[0]}件")
+        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE approved_by IS NOT NULL AND approved_by != 22")
+        log(f"  管理者以外のapproved_by: {pgc.fetchone()[0]}件")
     pgc.execute("SELECT COUNT(*) FROM mc_setup_sheet_logs WHERE mc_program_id IS NOT NULL")
     log(f"  mc_setup_sheet_logs(MC): {pgc.fetchone()[0]}")
     pgc.execute("SELECT COUNT(*) FROM work_records WHERE mc_program_id IS NOT NULL")
