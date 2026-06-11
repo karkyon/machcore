@@ -840,6 +840,10 @@ def phase7(pg, dry_run=False, force_copy=False):
         if DST_PRG.exists():
             log(f"  Programs: コピー先クリア ({DST_PRG})")
             _shutil.rmtree(DST_PRG)
+        # rmtree後に親ディレクトリも含めて再作成
+        DST_ROOT.mkdir(parents=True, exist_ok=True)
+        DST_DRAW.mkdir(parents=True, exist_ok=True)
+        DST_PHOTO.mkdir(parents=True, exist_ok=True)
         DST_PRG.mkdir(parents=True, exist_ok=True)
         log("コピー先ディレクトリクリア完了")
 
