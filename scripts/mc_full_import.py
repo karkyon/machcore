@@ -835,16 +835,14 @@ def phase7(pg, dry_run=False, force_copy=False):
             if dst_dir.exists():
                 log(f"  {label}: コピー先クリア ({dst_dir})")
                 _shutil.rmtree(dst_dir)
-            dst_dir.mkdir(parents=True, exist_ok=True)
+            os.makedirs(str(dst_dir), exist_ok=True)
         # Programs は machining_id サブディレクトリ構造のため個別削除
         if DST_PRG.exists():
             log(f"  Programs: コピー先クリア ({DST_PRG})")
             _shutil.rmtree(DST_PRG)
-        # rmtree後に親ディレクトリも含めて再作成
-        DST_ROOT.mkdir(parents=True, exist_ok=True)
-        DST_DRAW.mkdir(parents=True, exist_ok=True)
-        DST_PHOTO.mkdir(parents=True, exist_ok=True)
-        DST_PRG.mkdir(parents=True, exist_ok=True)
+        # rmtree後に os.makedirs で強制再作成（Pathのmkdirは親が消えると失敗する）
+        for _d in [str(DST_ROOT), str(DST_DRAW), str(DST_PHOTO), str(DST_PRG)]:
+            os.makedirs(_d, exist_ok=True)
         log("コピー先ディレクトリクリア完了")
 
     pgc.execute("SELECT id, machining_id FROM mc_programs")
