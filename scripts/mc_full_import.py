@@ -262,10 +262,11 @@ def phase1(pg, dry_run=False):
             has_ip = str(ip_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
             has_wd = str(wd_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
 
-            # 担当者: users_by_name から名前ベースで解決（旧DBのIDはPGのusers.idと対応しない）
-            # tanto_id/sakusha_id は数値IDだが users テーブルとの対応は不明のためADMINフォールバック
-            reg_id  = ADMIN_ID   # オペレーター（入力者）= 旧DB担当者IDは未マッピング
-            cr_id   = ADMIN_ID if sakusha_id else None  # 作成者ID
+            # 担当者: ｵﾍﾟﾚｰﾀｰ カラム（名前文字列）から users テーブルで名前解決
+            operater_name = str(row[8] if not HAS_SHEET_COLS else row[8] or '').strip()  # ｵﾍﾟﾚｰﾀｰ列
+            sakusha_name  = str(row[23] if not HAS_SHEET_COLS else row[23] or '').strip()  # 作成者ID列(名前として使用)
+            reg_id  = users_map.get(operater_name) or ADMIN_ID
+            cr_id   = users_map.get(sakusha_name)  or (ADMIN_ID if sakusha_id else None)
             pg_id   = ADMIN_ID if pg_tanto_id else None  # PG担当者ID
 
             # バージョン
@@ -704,21 +705,37 @@ def phase6(pg, dry_run=False):
                     if has_work:
                         wd = created_at
                         if wd and hasattr(wd, 'date'): wd = wd.date()
+                        # 段取担当者・量産担当者 名前→ID解決
+                        tanto_name   = str(row_dict.get('段取')    or '').strip()
+                        sagyosha_name= str(row_dict.get('作業者')   or '').strip()
+                        check_man    = str(row_dict.get('ﾁｪｯｸMan') or '').strip()
+                        setup_op_id  = users_map.get(tanto_name)
+                        prod_op_id   = users_map.get(sagyosha_name)
+                        setup_op_ids = [setup_op_id] if setup_op_id else []
+                        prod_op_ids  = [prod_op_id]  if prod_op_id  else []
+                        import json as _json
+                        # ﾁｪｯｸTime → checked_at
+                        chk_time = row_dict.get('ﾁｪｯｸTime')
                         pgc.execute("""
                             INSERT INTO work_records
                               (mc_program_id, operator_id, machine_id,
                                work_date, setup_time_min, machining_time_min,
-                               cycle_time_sec, quantity, started_at, finished_at,
-                               setup_work_count, prg_man, prg_time_min, work_type, created_at)
-                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'MC',NOW())
+                               cycle_time_sec, quantity, started_at, checked_at, finished_at,
+                               setup_work_count, prg_man, prg_time_min, prg_plas,
+                               setup_operator_ids, production_operator_ids,
+                               work_type, created_at)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'MC',NOW())
                         """, (mc_db_id, op_id, machine_db_id,
                               wd or datetime.now().date(),
                               setup_time_min, mach_time_min, cycle_sec,
                               work_cnt if work_cnt > 0 else None,
-                              dan_start, work_end,
+                              dan_start, chk_time, work_end,
                               setup_cnt if setup_cnt > 0 else None,
                               prg_man_val,
-                              prg_time_min if prg_time_min > 0 else None))
+                              prg_time_min if prg_time_min > 0 else None,
+                              str(row_dict.get('PrgPlas') or '') or None,
+                              _json.dumps(setup_op_ids),
+                              _json.dumps(prod_op_ids)))
                         wr_ok += 1
                     if is_change:
                         pgc.execute("""
@@ -849,7 +866,7 @@ def phase7(pg, dry_run=False, force_copy=False):
         files = sorted(f for f in SRC_DRAW.rglob("*") if f.is_file())
         log(f"  コピー元: {SRC_DRAW} ({len(files)}件)")
         for i, f in enumerate(files):
-            m = re.match(r'^\'(\d+)-(\d+)\.(tif|TIF|jpg|JPG|png|PNG)$', f.name)
+            m = re.match(r'^(\d+)-(\d+)\.(tif|TIF|jpg|JPG|png|PNG)$', f.name)
             if not m: continue
             mach_id = int(m.group(1)); seq = int(m.group(2)); ext = f.suffix.lower()
             stored = f"{mach_id}-{seq}{ext}"
@@ -881,7 +898,7 @@ def phase7(pg, dry_run=False, force_copy=False):
         files = sorted(f for f in SRC_PHOTO.rglob("*") if f.is_file())
         log(f"  コピー元: {SRC_PHOTO} ({len(files)}件)")
         for i, f in enumerate(files):
-            m = re.match(r'^\'(\d+)-(\d+)\.(jpg|jpeg|JPG|png|PNG)$', f.name)
+            m = re.match(r'^(\d+)-(\d+)\.(jpg|jpeg|JPG|png|PNG)$', f.name)
             if not m: continue
             mach_id = int(m.group(1)); seq = int(m.group(2)); ext = f.suffix.lower()
             stored = f"{mach_id}-{seq}{ext}"
