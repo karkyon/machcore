@@ -1124,6 +1124,20 @@ export class McService {
         machine:  { select: { machineCode: true } },
       },
     });
+    // 担当者IDリストを名前に変換するためにusers一覧を取得
+    const allIds = new Set<number>();
+    rows.forEach(r => {
+      ((r.setupOperatorIds ?? []) as number[]).forEach(id => allIds.add(id));
+      ((r.productionOperatorIds ?? []) as number[]).forEach(id => allIds.add(id));
+    });
+    const userMap = new Map<number, string>();
+    if (allIds.size > 0) {
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: Array.from(allIds) } },
+        select: { id: true, name: true },
+      });
+      users.forEach(u => userMap.set(u.id, u.name));
+    }
     return rows.map(r => ({
       id:              r.id,
       work_date:       r.workDate,
@@ -1143,6 +1157,8 @@ export class McService {
       note:            r.note,
       setup_operator_ids:      r.setupOperatorIds,
       production_operator_ids: r.productionOperatorIds,
+      setup_operator_names:      ((r.setupOperatorIds ?? []) as number[]).map(id => userMap.get(id) ?? String(id)),
+      production_operator_names: ((r.productionOperatorIds ?? []) as number[]).map(id => userMap.get(id) ?? String(id)),
       prg_man:         (r as any).prgMan      ?? null,
       prg_time_min:    (r as any).prgTimeMin  ?? null,
       prg_plas:        (r as any).prgPlas     ?? null,

@@ -1098,24 +1098,47 @@ export default function McDetailPage() {
                     const m = Math.floor(s/60), sec = s%60;
                     return m > 0 ? `${m}分${sec}秒` : `${sec}秒`;
                   };
+                  const setupNames = (r as any).setup_operator_names as string[] | undefined;
+                  const prodNames  = (r as any).production_operator_names as string[] | undefined;
                   return (
                   <div key={r.id} className={`px-4 py-3 border-b border-slate-100 ${i % 2 === 0 ? "bg-white" : "bg-slate-50"}`}>
-                    {/* 行1: 日付・担当者・機械 */}
+                    {/* 行1: 日付・機械・W数 */}
                     <div className="flex items-center gap-3 text-xs mb-1.5">
                       <span className="font-mono text-slate-400 shrink-0">{fmtDate(r.work_date)}</span>
-                      <span className="font-bold text-teal-700">{r.operator_name ?? "—"}</span>
-                      {r.machine_code && <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-mono text-[10px]">{r.machine_code}</span>}
-                      {r.quantity != null && <span className="ml-auto text-slate-600 font-bold shrink-0">W数: <span className="text-teal-700">{r.quantity}</span></span>}
+                      {r.machine_code && <span className="px-1.5 py-0.5 bg-teal-50 border border-teal-200 rounded text-teal-700 font-mono font-bold text-[10px]">{r.machine_code}</span>}
+                      {r.quantity != null && <span className="ml-auto text-slate-600 font-bold shrink-0">W数: <span className="text-teal-700 text-sm">{r.quantity}</span></span>}
                     </div>
-                    {/* 行2: 時間 */}
-                    <div className="flex items-center gap-4 text-xs text-slate-600">
-                      <span>段取: <span className="font-mono font-bold">{fmtMin(r.setup_time_min)}</span></span>
-                      <span>加工: <span className="font-mono font-bold">{fmtMin(r.machining_time_min)}</span></span>
-                      {totalMin > 0 && <span className="text-slate-400">計: <span className="font-mono">{fmtMin(totalMin)}</span></span>}
-                      {r.cycle_time_sec != null && <span className="text-slate-400">C/T: <span className="font-mono">{fmtCycle(r.cycle_time_sec)}</span></span>}
-                      {r.setup_work_count != null && <span className="text-slate-400">段取W: {r.setup_work_count}</span>}
-                    </div>
-                    {r.note && <div className="text-slate-400 text-xs mt-1 italic">{r.note}</div>}
+                    {/* 行2: 段取担当者・段取時間 */}
+                    {(setupNames && setupNames.length > 0 || r.setup_time_min != null) && (
+                      <div className="flex items-center gap-3 text-xs mb-1 bg-blue-50 rounded px-2 py-1">
+                        <span className="text-blue-600 font-bold shrink-0">段取</span>
+                        {setupNames && setupNames.length > 0
+                          ? setupNames.map((n, j) => <span key={j} className="font-bold text-blue-800">{n}</span>)
+                          : <span className="text-slate-400">—</span>}
+                        <span className="ml-auto font-mono font-bold text-blue-700">{fmtMin(r.setup_time_min)}</span>
+                        {r.setup_work_count != null && <span className="text-blue-500 text-[10px]">({r.setup_work_count}W)</span>}
+                      </div>
+                    )}
+                    {/* 行3: 量産担当者・加工時間 */}
+                    {(prodNames && prodNames.length > 0 || r.machining_time_min != null) && (
+                      <div className="flex items-center gap-3 text-xs mb-1 bg-green-50 rounded px-2 py-1">
+                        <span className="text-green-600 font-bold shrink-0">量産</span>
+                        {prodNames && prodNames.length > 0
+                          ? prodNames.map((n, j) => <span key={j} className="font-bold text-green-800">{n}</span>)
+                          : <span className="text-slate-400">—</span>}
+                        <span className="ml-auto font-mono font-bold text-green-700">{fmtMin(r.machining_time_min)}</span>
+                        {r.cycle_time_sec != null && <span className="text-green-500 text-[10px]">C/T:{fmtCycle(r.cycle_time_sec)}</span>}
+                      </div>
+                    )}
+                    {/* 行4: 集計 */}
+                    {totalMin > 0 && (
+                      <div className="flex items-center gap-4 text-[10px] text-slate-400 mt-0.5 px-1">
+                        <span>合計: <span className="font-mono font-bold text-slate-600">{fmtMin(totalMin)}</span></span>
+                        {r.interrupt_setup_min != null && r.interrupt_setup_min > 0 && <span>段取中断: {r.interrupt_setup_min}分</span>}
+                        {r.interrupt_work_min  != null && r.interrupt_work_min  > 0 && <span>量産中断: {r.interrupt_work_min}分</span>}
+                      </div>
+                    )}
+                    {r.note && <div className="text-slate-400 text-[10px] mt-1 italic px-1">{r.note}</div>}
                   </div>
                   );
                 })}
