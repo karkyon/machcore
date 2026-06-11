@@ -763,26 +763,32 @@ def phase6(pg, dry_run=False):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def phase7(pg, dry_run=False, force_copy=False):
     section("PHASE 7: 図・写真・プログラム ファイル移行")
+    import shutil as _shutil
 
-    ensure_dirs(DST_DRAW, DST_PHOTO, DST_PRG,
-                UPLOAD_DRAW, UPLOAD_PHOTO, UPLOAD_PG)
-
-    if force_copy and not dry_run:
-        log("--force-copy: コピー先ディレクトリを全削除して再作成...")
-        import shutil as _shutil
-        for d in [DST_DRAW, DST_PHOTO, DST_PRG]:
-            if d.exists():
-                _shutil.rmtree(d)
-                log(f"  削除: {d}")
-        ensure_dirs(DST_DRAW, DST_PHOTO, DST_PRG)
-        log("--force-copy: 完了、ゼロからコピーします")
+    # コピー先ディレクトリを必ず作成
+    ensure_dirs(DST_DRAW, DST_PHOTO, DST_PRG)
 
     pgc = pg.cursor()
 
     if not dry_run:
+        # mc_filesレコードは必ず全削除して再登録
         pgc.execute("DELETE FROM mc_files")
         pg.commit()
         log("mc_files既存データ削除完了")
+
+        # --force-copy またはデフォルトでコピー先を全削除→再コピー
+        # ※ コピー元(SRC_*) と コピー先(DST_*) は別マウント。必ず削除→再コピーが正しい動作
+        for label, dst_dir in [("Drawings", DST_DRAW), ("Pictures", DST_PHOTO)]:
+            if dst_dir.exists():
+                log(f"  {label}: コピー先クリア ({dst_dir})")
+                _shutil.rmtree(dst_dir)
+            dst_dir.mkdir(parents=True, exist_ok=True)
+        # Programs は machining_id サブディレクトリ構造のため個別削除
+        if DST_PRG.exists():
+            log(f"  Programs: コピー先クリア ({DST_PRG})")
+            _shutil.rmtree(DST_PRG)
+        DST_PRG.mkdir(parents=True, exist_ok=True)
+        log("コピー先ディレクトリクリア完了")
 
     pgc.execute("SELECT id, machining_id FROM mc_programs")
     machining_map: dict[int, list[int]] = {}
@@ -790,7 +796,7 @@ def phase7(pg, dry_run=False, force_copy=False):
         machining_map.setdefault(mach_id, []).append(mc_id)
     log(f"machining_id種類: {len(machining_map)}件")
 
-    # folder_map構築（プログラム用）— mc_machining_detailsから取得
+    # folder_map構築（プログラム用）
     pgc.execute("""
         SELECT DISTINCT folder1, folder2, file_name FROM mc_machining_details
         WHERE file_name IS NOT NULL AND folder1 IS NOT NULL AND file_name != ''
@@ -798,7 +804,7 @@ def phase7(pg, dry_run=False, force_copy=False):
     combos = pgc.fetchall()
 
     log("プログラムファイルインデックス構築中...")
-    file_index: dict[str, list[Path]] = {}
+    file_index: dict[str, list] = {}
     if SRC_PRG.exists():
         for top in SRC_PRG.iterdir():
             if not top.is_dir(): continue
@@ -809,9 +815,11 @@ def phase7(pg, dry_run=False, force_copy=False):
                             file_index.setdefault(f.name, []).append(f)
                 elif sub.is_file():
                     file_index.setdefault(sub.name, []).append(sub)
+    else:
+        log(f"[WARN] SRC_PRG が存在しない: {SRC_PRG}", "WARN")
     log(f"インデックス: {len(file_index)}種類")
 
-    folder_map: dict[tuple, Path] = {}
+    folder_map: dict[tuple, object] = {}
     for folder1, folder2, file_name in combos:
         key = (folder1, folder2)
         if key in folder_map: continue
@@ -832,80 +840,72 @@ def phase7(pg, dry_run=False, force_copy=False):
               str(src_path) if src_path else None,
               fsize, pg_role, sort_order, ADMIN_ID))
 
-    # ── 7A: 図 ─────────────────────────────────────
+    # ── 7A: 図 (SRC_DRAW → DST_DRAW) ──────────────
     log("\n--- 7A: 図 (Drawings) ---")
-    ok=skip=nomatch=err=0
-    processed = set()
-    src_dirs = [d for d in [UPLOAD_DRAW, DST_DRAW, SRC_DRAW] if d.exists()]
-    for src_dir in src_dirs:
-        files = sorted(f for f in src_dir.iterdir() if f.is_file())
-        log(f"  ソース: {src_dir} ({len(files)}件)")
+    ok = nomatch = err = 0
+    if not SRC_DRAW.exists():
+        log(f"[WARN] SRC_DRAW が存在しない: {SRC_DRAW} - スキップ", "WARN")
+    else:
+        files = sorted(f for f in SRC_DRAW.rglob("*") if f.is_file())
+        log(f"  コピー元: {SRC_DRAW} ({len(files)}件)")
         for i, f in enumerate(files):
-            m = re.match(r'^(\d+)-(\d+)\.(tif|TIF|jpg|JPG|png|PNG)$', f.name)
-            if not m: skip+=1; continue
-            mach_id=int(m.group(1)); seq=int(m.group(2)); ext=f.suffix.lower()
+            m = re.match(r'^\'(\d+)-(\d+)\.(tif|TIF|jpg|JPG|png|PNG)$', f.name)
+            if not m: continue
+            mach_id = int(m.group(1)); seq = int(m.group(2)); ext = f.suffix.lower()
             stored = f"{mach_id}-{seq}{ext}"
-            if stored in processed: skip+=1; continue
-            if mach_id not in machining_map: nomatch+=1; continue
-            dst = UPLOAD_DRAW / stored
+            if mach_id not in machining_map: nomatch += 1; continue
+            dst = DST_DRAW / stored
             try:
                 if not dry_run:
-                    if force_copy or not dst.exists(): shutil.copy2(f, dst)
-                    if src_dir != DST_DRAW and (force_copy or not (DST_DRAW / stored).exists()):
-                        shutil.copy2(f, DST_DRAW / stored)
-                files_dst = DST_DRAW / stored
-                fsize = dst.stat().st_size
+                    _shutil.copy2(f, dst)
+                fsize = f.stat().st_size
                 mime  = "image/tiff" if ext == ".tif" else "image/jpeg"
                 for mc_id in machining_map[mach_id]:
                     insert_file(mc_id, "DRAWING", f.name, stored, mime, dst, fsize, sort_order=seq, src_path=f)
-                ok+=1; processed.add(stored)
+                ok += 1
             except Exception as e:
-                err+=1
-                if err<=10: log(f"  ERR {f.name}: {e}", "WARN")
-            if (i+1)%1000==0:
+                err += 1
+                if err <= 10: log(f"  ERR {f.name}: {e}", "WARN")
+            if (i + 1) % 1000 == 0:
                 if not dry_run: pg.commit()
-                log(f"    {i+1}/{len(files)} ok={ok} skip={skip} nomatch={nomatch} err={err}")
-    if not dry_run: pg.commit()
-    log(f"7A完了: ok={ok} skip={skip} nomatch={nomatch} err={err}")
+                log(f"    {i+1}/{len(files)} ok={ok} nomatch={nomatch} err={err}")
+        if not dry_run: pg.commit()
+    log(f"7A完了: ok={ok} nomatch={nomatch} err={err}")
 
-    # ── 7B: 写真 ────────────────────────────────────
+    # ── 7B: 写真 (SRC_PHOTO → DST_PHOTO) ──────────
     log("\n--- 7B: 写真 (Pictures) ---")
-    ok=skip=nomatch=err=0
-    processed = set()
-    src_dirs = [d for d in [UPLOAD_PHOTO, DST_PHOTO, SRC_PHOTO] if d.exists()]
-    for src_dir in src_dirs:
-        files = sorted(f for f in src_dir.iterdir() if f.is_file())
-        log(f"  ソース: {src_dir} ({len(files)}件)")
+    ok = nomatch = err = 0
+    if not SRC_PHOTO.exists():
+        log(f"[WARN] SRC_PHOTO が存在しない: {SRC_PHOTO} - スキップ", "WARN")
+    else:
+        files = sorted(f for f in SRC_PHOTO.rglob("*") if f.is_file())
+        log(f"  コピー元: {SRC_PHOTO} ({len(files)}件)")
         for i, f in enumerate(files):
-            m = re.match(r'^(\d+)-(\d+)\.(jpg|jpeg|JPG|png|PNG)$', f.name)
-            if not m: skip+=1; continue
-            mach_id=int(m.group(1)); seq=int(m.group(2)); ext=f.suffix.lower()
+            m = re.match(r'^\'(\d+)-(\d+)\.(jpg|jpeg|JPG|png|PNG)$', f.name)
+            if not m: continue
+            mach_id = int(m.group(1)); seq = int(m.group(2)); ext = f.suffix.lower()
             stored = f"{mach_id}-{seq}{ext}"
-            if stored in processed: skip+=1; continue
-            if mach_id not in machining_map: nomatch+=1; continue
-            dst = UPLOAD_PHOTO / stored
+            if mach_id not in machining_map: nomatch += 1; continue
+            dst = DST_PHOTO / stored
             try:
                 if not dry_run:
-                    if force_copy or not dst.exists(): shutil.copy2(f, dst)
-                    if src_dir != DST_PHOTO and (force_copy or not (DST_PHOTO / stored).exists()):
-                        shutil.copy2(f, DST_PHOTO / stored)
-                files_dst = DST_PHOTO / stored
-                fsize = dst.stat().st_size
+                    _shutil.copy2(f, dst)
+                fsize = f.stat().st_size
                 for mc_id in machining_map[mach_id]:
                     insert_file(mc_id, "PHOTO", f.name, stored, "image/jpeg", dst, fsize, sort_order=seq, src_path=f)
-                ok+=1; processed.add(stored)
+                ok += 1
             except Exception as e:
-                err+=1
-                if err<=10: log(f"  ERR {f.name}: {e}", "WARN")
-            if (i+1)%1000==0:
+                err += 1
+                if err <= 10: log(f"  ERR {f.name}: {e}", "WARN")
+            if (i + 1) % 1000 == 0:
                 if not dry_run: pg.commit()
-                log(f"    {i+1}/{len(files)} ok={ok} skip={skip} nomatch={nomatch} err={err}")
-    if not dry_run: pg.commit()
-    log(f"7B完了: ok={ok} skip={skip} nomatch={nomatch} err={err}")
+                log(f"    {i+1}/{len(files)} ok={ok} nomatch={nomatch} err={err}")
+        if not dry_run: pg.commit()
+    log(f"7B完了: ok={ok} nomatch={nomatch} err={err}")
 
-    # ── 7C: プログラム ──────────────────────────────
+    # ── 7C: プログラム (SRC_PRG → DST_PRG) ────────
     log("\n--- 7C: プログラム (Programs) ---")
-    ok=skip=nomatch=notfound=err=0
+    ok = nomatch = notfound = err = 0
     pgc.execute("""
         SELECT d.machining_id, p.id, d.folder1, d.folder2, d.file_name
         FROM mc_machining_details d
@@ -915,38 +915,36 @@ def phase7(pg, dry_run=False, force_copy=False):
     programs = pgc.fetchall()
     log(f"  対象: {len(programs)}件")
     for mach_id, mc_id, folder1, folder2, file_name in programs:
-        key     = (folder1, folder2)
-        src_dir = folder_map.get(key)
-        if not src_dir: nomatch+=1; continue
+        key      = (folder1, folder2)
+        src_dir  = folder_map.get(key)
+        if not src_dir: nomatch += 1; continue
         src_file = src_dir / file_name
-        if not src_file.exists() or not src_file.is_file(): notfound+=1; continue
-        dst_dir = UPLOAD_PG / str(mach_id)
+        if not src_file.exists() or not src_file.is_file(): notfound += 1; continue
+        dst_dir  = DST_PRG / str(mach_id)
         dst_dir.mkdir(parents=True, exist_ok=True)
         dst_file = dst_dir / file_name
-        files_dir = DST_PRG / str(mach_id)
-        files_dir.mkdir(parents=True, exist_ok=True)
-        files_dst = files_dir / file_name
         try:
             if not dry_run:
-                if force_copy or not dst_file.exists(): shutil.copy2(src_file, dst_file)
-                if force_copy or not files_dst.exists(): shutil.copy2(src_file, files_dst)
-            fsize   = dst_file.stat().st_size
+                _shutil.copy2(src_file, dst_file)
+            fsize   = src_file.stat().st_size
             pg_role = "SUB" if str(file_name).lower().endswith(".spf") else "MAIN"
             insert_file(mc_id, "PROGRAM", file_name, file_name, "text/plain",
                         dst_file, fsize, pg_role=pg_role, sort_order=0, src_path=src_file)
-            ok+=1
+            ok += 1
         except Exception as e:
-            err+=1
-            if err<=10: log(f"  ERR {mach_id}/{file_name}: {e}", "WARN")
-        if ok%500==0 and ok>0:
+            err += 1
+            if err <= 10: log(f"  ERR {mach_id}/{file_name}: {e}", "WARN")
+        if ok % 500 == 0 and ok > 0:
             if not dry_run: pg.commit()
             log(f"  {ok}件完了... nomatch={nomatch} notfound={notfound} err={err}")
     if not dry_run: pg.commit()
-    log(f"7C完了: ok={ok} skip={skip} nomatch={nomatch} notfound={notfound} err={err}")
+    log(f"7C完了: ok={ok} nomatch={nomatch} notfound={notfound} err={err}")
 
     pgc.execute("SELECT file_type, COUNT(*) FROM mc_files GROUP BY file_type ORDER BY file_type")
     log("\n--- mc_files 集計 ---")
     for row in pgc.fetchall(): log(f"  {row[0]}: {row[1]}件")
+
+
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # PHASE 8: カウント更新
