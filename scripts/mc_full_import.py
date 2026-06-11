@@ -819,16 +819,17 @@ def phase7(pg, dry_run=False, force_copy=False):
         if paths:
             folder_map[key] = paths[0].parent
 
-    def insert_file(mc_id, ftype, orig, stored, mime, fpath, fsize, pg_role=None, sort_order=0):
+    def insert_file(mc_id, ftype, orig, stored, mime, fpath, fsize, pg_role=None, sort_order=0, src_path=None):
         if dry_run: return
         pgc.execute("""
             INSERT INTO mc_files
               (mc_program_id, file_type, original_name, stored_name, mime_type,
-               file_path, thumbnail_path, file_size, pg_role, sort_order,
+               file_path, source_path, thumbnail_path, file_size, pg_role, sort_order,
                is_deleted, uploaded_by, uploaded_at)
-            VALUES (%s,%s,%s,%s,%s,%s,NULL,%s,%s,%s,false,%s,NOW())
+            VALUES (%s,%s,%s,%s,%s,%s,%s,NULL,%s,%s,%s,false,%s,NOW())
             ON CONFLICT DO NOTHING
         """, (mc_id, ftype, orig, stored, mime, str(fpath),
+              str(src_path) if src_path else None,
               fsize, pg_role, sort_order, ADMIN_ID))
 
     # ── 7A: 図 ─────────────────────────────────────
@@ -856,7 +857,7 @@ def phase7(pg, dry_run=False, force_copy=False):
                 fsize = dst.stat().st_size
                 mime  = "image/tiff" if ext == ".tif" else "image/jpeg"
                 for mc_id in machining_map[mach_id]:
-                    insert_file(mc_id, "DRAWING", f.name, stored, mime, dst, fsize, sort_order=seq)
+                    insert_file(mc_id, "DRAWING", f.name, stored, mime, dst, fsize, sort_order=seq, src_path=f)
                 ok+=1; processed.add(stored)
             except Exception as e:
                 err+=1
@@ -891,7 +892,7 @@ def phase7(pg, dry_run=False, force_copy=False):
                 files_dst = DST_PHOTO / stored
                 fsize = dst.stat().st_size
                 for mc_id in machining_map[mach_id]:
-                    insert_file(mc_id, "PHOTO", f.name, stored, "image/jpeg", dst, fsize, sort_order=seq)
+                    insert_file(mc_id, "PHOTO", f.name, stored, "image/jpeg", dst, fsize, sort_order=seq, src_path=f)
                 ok+=1; processed.add(stored)
             except Exception as e:
                 err+=1
@@ -932,7 +933,7 @@ def phase7(pg, dry_run=False, force_copy=False):
             fsize   = dst_file.stat().st_size
             pg_role = "SUB" if str(file_name).lower().endswith(".spf") else "MAIN"
             insert_file(mc_id, "PROGRAM", file_name, file_name, "text/plain",
-                        dst_file, fsize, pg_role=pg_role, sort_order=0)
+                        dst_file, fsize, pg_role=pg_role, sort_order=0, src_path=src_file)
             ok+=1
         except Exception as e:
             err+=1

@@ -546,6 +546,7 @@ model McFile {
   storedName    String   @db.VarChar(255)   @map("stored_name")
   mimeType      String   @db.VarChar(100)   @map("mime_type")
   filePath      String   @db.VarChar(500)   @map("file_path")
+  sourcePath    String?  @db.VarChar(500)   @map("source_path")
   thumbnailPath String?  @db.VarChar(500)   @map("thumbnail_path")
   fileSize      Int                         @map("file_size")
   pgRole        String?  @db.VarChar(10)    @map("pg_role")
