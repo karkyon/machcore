@@ -179,68 +179,50 @@ def phase1(pg, dry_run=False):
 
     # ACC_MC × ACC_マシニング JOIN で全データ取得
     # ※ シート作成日・シート作成者IDを追加取得（カラムが存在しない場合は例外をキャッチ）
-    try:
-        mcc.execute("""
-            SELECT
-                mc.部品ID, mc.MCID, mc.加工ID,
-                m.Version, m.[MC工程No], m.パス1, m.パス2, m.ファイル名,
-                m.メインPGNo, m.機械ID, m.加工時間H, m.加工時間M, m.加工時間S,
-                m.加工個数, m.クランプ, m.備考,
-                m.担当者ID, m.IP有無, m.WD有無,
-                m.写真枚数, m.RC, m.図枚数,
-                m.作成者ID, m.PG担当者ID,
-                m.入力日付, m.登録日付,
-                m.シート作成日, m.シート作成者ID
-            FROM ACC_MC mc
-            INNER JOIN ACC_マシニング m ON mc.加工ID = m.加工ID AND mc.MCID = m.MCID
-            WHERE m.削除区分 = 0
-            ORDER BY mc.MCID
-        """)
-        HAS_SHEET_COLS = True
-    except Exception:
-        mcc.execute("""
-            SELECT
-                mc.部品ID, mc.MCID, mc.加工ID,
-                m.Version, m.[MC工程No], m.パス1, m.パス2, m.ファイル名,
-                m.メインPGNo, m.機械ID, m.加工時間H, m.加工時間M, m.加工時間S,
-                m.加工個数, m.クランプ, m.備考,
-                m.担当者ID, m.IP有無, m.WD有無,
-                m.写真枚数, m.RC, m.図枚数,
-                m.作成者ID, m.PG担当者ID,
-                m.入力日付, m.登録日付
-            FROM ACC_MC mc
-            INNER JOIN ACC_マシニング m ON mc.加工ID = m.加工ID AND mc.MCID = m.MCID
-            WHERE m.削除区分 = 0
-            ORDER BY mc.MCID
-        """)
-        HAS_SHEET_COLS = False
-        log("シート作成日/作成者IDカラム非存在 - スキップ", "WARN")
+    # 旧DBの正確なカラム名で取得
+    # S_DATE=作成日(シート), 作成=作成者名(シート), 氏名=承認者名, 入力日=承認日,
+    # ｵﾍﾟﾚｰﾀｰ=オペレーター, IN_DATE=入力日(登録日)
+    mcc.execute("""
+        SELECT
+            mc.部品ID, mc.MCID, mc.加工ID,
+            m.Version, m.[MC工程No,], m.パス1, m.パス2, m.ファイル名,
+            m.メインPGNo, m.機械ID, m.加工時間H, m.加工時間M, m.加工時間S,
+            m.加工個数, m.クランプ, m.備考,
+            m.担当者ID, m.[IP 有･無], m.[WD 有･無],
+            m.写真枚数, m.RC, m.図枚数,
+            m.作成者ID, m.PG担当者ID,
+            m.IN_DATE, m.登録日付,
+            m.S_DATE, m.作成,
+            m.氏名, m.入力日
+        FROM ACC_MC mc
+        INNER JOIN ACC_マシニング m ON mc.加工ID = m.加工ID AND mc.MCID = m.MCID
+        WHERE m.削除区分 = 0
+        ORDER BY mc.MCID
+    """)
+    HAS_SHEET_COLS = True  # 常にTrue（正しい列名で取得）
     rows = mcc.fetchall()
     log(f"旧DBマシニング取得: {len(rows)}件")
 
     ok = skip = err = 0
     for row in rows:
         try:
-            if HAS_SHEET_COLS:
-                (buhin_id, mcid, kakoid,
-                 version, process_no, path1, path2, file_name,
-                 main_pg_no, machine_id_ss, time_h, time_m, time_s,
-                 qty, clamp, note,
-                 tanto_id, ip_umu, wd_umu,
-                 photo_cnt, rc, draw_cnt,
-                 sakusha_id, pg_tanto_id,
-                 input_date, reg_date,
-                 sheet_created_at, sheet_creator_id) = row
-            else:
-                (buhin_id, mcid, kakoid,
-                 version, process_no, path1, path2, file_name,
-                 main_pg_no, machine_id_ss, time_h, time_m, time_s,
-                 qty, clamp, note,
-                 tanto_id, ip_umu, wd_umu,
-                 photo_cnt, rc, draw_cnt,
-                 sakusha_id, pg_tanto_id,
-                 input_date, reg_date) = row
-                sheet_created_at = None; sheet_creator_id = None
+            # 列順: 部品ID,MCID,加工ID,Version,[MC工程No,],パス1,パス2,ファイル名,
+            #        メインPGNo,機械ID,加工時間H,加工時間M,加工時間S,
+            #        加工個数,クランプ,備考,担当者ID,[IP 有･無],[WD 有･無],
+            #        写真枚数,RC,図枚数,作成者ID,PG担当者ID,
+            #        IN_DATE(入力日),登録日付,S_DATE(シート作成日),作成(シート作成者名),
+            #        氏名(承認者名),入力日(承認日)
+            (buhin_id, mcid, kakoid,
+             version, process_no, path1, path2, file_name,
+             main_pg_no, machine_id_ss, time_h, time_m, time_s,
+             qty, clamp, note,
+             tanto_id, ip_umu, wd_umu,
+             photo_cnt, rc, draw_cnt,
+             sakusha_id, pg_tanto_id,
+             in_date, reg_date,
+             sheet_created_at, creator_name_raw,
+             approver_name_raw, approved_date) = row
+            HAS_SHEET_COLS = True  # 常に真
 
             part_db_id = parts_map.get(str(buhin_id))
             if not part_db_id:
@@ -258,11 +240,20 @@ def phase1(pg, dry_run=False):
             has_ip = str(ip_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
             has_wd = str(wd_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
 
-            # 担当者: ACC_マシニングには担当者名文字列カラムがないためADMIN_IDフォールバック
-            # registered_byはPHASE6後にACC_変更履歴の最初の「新規登録」レコードの作成者で更新する
-            reg_id  = ADMIN_ID  # PHASE6後に更新
-            cr_id   = ADMIN_ID if sakusha_id else None
-            pg_id   = ADMIN_ID if pg_tanto_id else None
+            # 担当者: 旧DBマシニングの名前カラムから直接解決
+            # ⑤ オペレーター(ｵﾍﾟﾚｰﾀｰ列) → registered_by: PHASE6Cで更新されるため初期値ADMIN
+            # ③ 承認者(氏名列) → approved_by
+            # ④ 承認日(入力日列) → approved_at
+            # ② 作成者シート(作成列) → creator_id (mc_machining_details)
+            reg_id       = ADMIN_ID  # PHASE6Cで ｵﾍﾟﾚｰﾀｰ列から上書き更新
+            approver_id  = _p1_resolve(approver_name_raw)
+            creator_id_v = _p1_resolve(creator_name_raw)
+            cr_id        = creator_id_v  # mc_machining_details.creator_id
+            pg_id        = ADMIN_ID if pg_tanto_id else None
+            # 承認日: 旧DB 入力日列（マシニング）= 承認した日付
+            approved_at_v = approved_date if approved_date else (in_date or reg_date)
+            # 入力日: IN_DATE列が実際の「入力日」(ユーザ操作日)
+            registered_at_v = in_date if in_date else reg_date
 
             # バージョン
             ver_str = str(version or "1.0001")
@@ -336,9 +327,9 @@ def phase1(pg, dry_run=False):
             """, (
                 part_db_id, kakoid, qty or 1, note,
                 reg_id,
-                reg_id,           # approved_by: 登録者と同一（旧DB承認者ID未分離）
-                input_date or reg_date,  # approved_at: 入力日を承認日として使用
-                input_date or reg_date or datetime.now(),
+                approver_id,         # ③ 承認者: 氏名列から解決
+                approved_at_v,       # ④ 承認日: 入力日列（マシニング）
+                registered_at_v or datetime.now(),  # ⑥ 入力日: IN_DATE列
                 mcid,
             ))
             ok += 1
