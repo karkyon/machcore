@@ -178,29 +178,27 @@ def phase1(pg, dry_run=False):
 
     # ACC_MC × ACC_マシニング JOIN で全データ取得
     # ※ シート作成日・シート作成者IDを追加取得（カラムが存在しない場合は例外をキャッチ）
-    # 旧DBの正確なカラム名で取得
-    # S_DATE=作成日(シート), 作成=作成者名(シート), 氏名=承認者名, 入力日=承認日,
-    # ｵﾍﾟﾚｰﾀｰ=オペレーター, IN_DATE=入力日(登録日)
-    # 旧DBの実際のテーブル名: MC, ﾏｼﾆﾝｸﾞ (ACCプレフィックスなし・半角カタカナ)
-    # access_MC_spec.htmlのSQLサンプルより確認
+    # 旧DBの実際のカラム名で構築したSELECT
     mcc.execute("""
         SELECT
             mc.部品ID, mc.MCID, mc.加工ID,
-            m.ﾊﾞｰｼﾞｮﾝ, m.[MC工程No,], m.ﾌｫﾙﾀﾞ1, m.ﾌｫﾙﾀﾞ2, m.ﾌｧｲﾙ名,
-            m.ﾒｲﾝﾌﾟﾛｸﾞﾗﾑNo, m.機械, m.加工時間H, m.加工時間M, m.加工時間S,
+            m.Version, NULL,
+            m.パス1, m.パス2, m.ファイル名,
+            NULL, m.機械ID,
+            m.加工時間H, m.加工時間M, m.加工時間S,
             m.加工個数, m.クランプ, m.備考,
-            NULL, m.[IP 有･無], m.[WD 有･無],
+            NULL, m.IP有無, m.WD有無,
             m.写真枚数, m.RC, m.図枚数,
             NULL, NULL,
             m.IN_DATE, NULL,
-            m.S_DATE, m.作成,
-            m.氏名, m.入力日
-        FROM MC mc
-        INNER JOIN ﾏｼﾆﾝｸﾞ m ON mc.加工ID = m.加工ID
+            m.S_DATE, NULL,
+            NULL, NULL
+        FROM ACC_MC mc
+        INNER JOIN ACC_マシニング m ON mc.加工ID = m.加工ID
         WHERE m.削除区分 = 0
         ORDER BY mc.MCID
     """)
-    HAS_SHEET_COLS = True  # 常にTrue（正しい列名で取得）
+    HAS_SHEET_COLS = True  # 常にTrue（実際のカラム名で取得）
     rows = mcc.fetchall()
     log(f"旧DBマシニング取得: {len(rows)}件")
 
