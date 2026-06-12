@@ -646,7 +646,10 @@ def phase6(pg, dry_run=False):
                 for mc_db_id in mc_db_ids:
                     if is_print:
                         # printed_at = 入力日（旧DB Now段取シートクエリの印刷日時カラム）
-                        _input_date_val = row_dict.get('入力日') or created_at or datetime.now()
+                        # SQL ServerはJSTで返すがPGはUTCで保存→-9時間変換
+                        from datetime import timedelta as _td
+                        _raw_input = row_dict.get('入力日') or created_at or datetime.now()
+                        _input_date_val = (_raw_input - _td(hours=9)) if _raw_input else datetime.now()
                         pgc.execute("""
                             INSERT INTO mc_setup_sheet_logs
                               (mc_program_id, operator_id, printed_at, version,
@@ -1377,29 +1380,37 @@ def phase10(pg, dry_run=False):
         slogs_by_key[(mc_pid, date_str)].append((log_id, printed_at))
 
     # Step5: 旧VBAクエリ結果をキーにして未回収IDを特定
+    # 旧DBの入力日はJST→PGのUTC変換で-9時間されているので照合時も変換
+    from datetime import timedelta as _td2
     uncollected_ids = []
+    not_found_list = []  # デバッグ用
     not_found = 0
     for mcid, kakoid, input_date in vba_rows:
         mc_db_id = legacy_to_dbid.get(mcid)
         if not mc_db_id:
             not_found += 1
+            not_found_list.append((mcid, kakoid, input_date, 'NO_MC_DB_ID'))
             continue
-        date_str = str(input_date)[:10] if input_date else ''
+        # JST→UTC変換（PHASE6でも同様に変換しているため）
+        input_date_utc = (input_date - _td2(hours=9)) if input_date else None
+        date_str = str(input_date_utc)[:10] if input_date_utc else ''
         candidates = slogs_by_key.get((mc_db_id, date_str), [])
         if candidates:
-            # 同日に複数あれば印刷時刻が最も近いもの（入力日時と一致）を選ぶ
-            if input_date and len(candidates) > 1:
-                # 入力日時と最も近いものを選択
+            # 同日に複数あれば印刷時刻が最も近いもの（UTC変換後の入力日時と一致）を選ぶ
+            if input_date_utc and len(candidates) > 1:
                 best = min(candidates, key=lambda x: abs(
-                    (x[1] - input_date).total_seconds() if x[1] and input_date else 999999
+                    (x[1] - input_date_utc).total_seconds() if x[1] and input_date_utc else 999999
                 ))
                 uncollected_ids.append(best[0])
             else:
                 uncollected_ids.append(candidates[0][0])
         else:
             not_found += 1
+            not_found_list.append((mcid, kakoid, input_date, date_str))
 
     log(f"  未回収ID特定: {len(uncollected_ids)}件 (未マッチ: {not_found}件)")
+    for _nf in not_found_list:
+        log(f"  未マッチ詳細: MCID={_nf[0]} 加工ID={_nf[1]} 入力日={_nf[2]} date_str={_nf[3]}", "WARN")
 
     if not dry_run and uncollected_ids:
         pgc.execute(
