@@ -1386,7 +1386,7 @@ def phase10(pg, dry_run=False):
         pg.commit()
         log(f"  全件 work_collected=true にリセット")
 
-        # 未回収分だけ false に戻す
+        # 未回収分だけ false に戻す + sheet_type設定
         if uncollected_ids:
             pgc.execute(
                 "UPDATE mc_setup_sheet_logs SET work_collected = false WHERE id = ANY(%s)",
@@ -1394,6 +1394,41 @@ def phase10(pg, dry_run=False):
             )
             pg.commit()
             log(f"  未回収分 work_collected=false 設定: {pgc.rowcount}件")
+
+        # 仮登録MCIDの未回収ログは sheet_type='NEW' に設定
+        mcc.execute("""
+            SELECT DISTINCT MC.MCID
+            FROM ACC_MC MC
+            INNER JOIN ACC_変更履歴 H ON MC.MCID = H.MCID
+            WHERE RTRIM(H.内容) = '仮登録' OR RTRIM(H.内容) = '仮試作'
+        """)
+        tentative_mcids = {row[0] for row in mcc.fetchall()}
+        log(f"  仮登録/仮試作MCID: {len(tentative_mcids)}件")
+
+        # 未回収ログのsheet_type更新: 仮登録→NEW, それ以外→MC
+        pgc.execute("""
+            UPDATE mc_setup_sheet_logs sl
+            SET sheet_type = CASE
+                WHEN p.legacy_mcid = ANY(%s) THEN 'NEW'
+                ELSE 'MC'
+            END
+            FROM mc_programs p
+            WHERE sl.mc_program_id = p.id
+              AND sl.work_collected = false
+        """, (list(tentative_mcids),))
+        pg.commit()
+        log(f"  未回収ログ sheet_type更新: {pgc.rowcount}件")
+
+        # mc_programs.status: 仮登録MCIDをNEWに設定
+        pgc.execute("""
+            UPDATE mc_programs SET status = 'NEW'::mc_program_status
+            WHERE legacy_mcid = ANY(%s) AND status != 'NEW'::mc_program_status
+        """, (list(tentative_mcids),))
+        pg.commit()
+        log(f"  仮登録status=NEW強制設定: {pgc.rowcount}件")
+
+        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE status='NEW'::mc_program_status")
+        log(f"  mc_programs status=NEW総数: {pgc.fetchone()[0]}件")
 
         pgc.execute("SELECT COUNT(*) FROM mc_setup_sheet_logs WHERE work_collected = false")
         remaining = pgc.fetchone()[0]
