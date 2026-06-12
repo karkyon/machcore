@@ -1323,101 +1323,81 @@ def phase10(pg, dry_run=False):
 
     # ─────────────────────────────────────────────
     # PART2: mc_setup_sheet_logs.work_collected 正規化
-    # 旧VBAクエリに引っかかるMCIDの印刷ログのみ、
-    # 印刷後に変更/承認/作業記録があるものを回収済みにする
+    # 旧VBAクエリ（段取ｼｰﾄ戻り1フォーム）を完全再現して
+    # 実際に未回収のMCIDのみ最新印刷ログを未回収にする
     # ─────────────────────────────────────────────
-    log("\nPART2: mc_setup_sheet_logs.work_collected 正規化...")
+    log("\nPART2: mc_setup_sheet_logs.work_collected 正規化（旧VBAクエリ完全再現）...")
 
-    PRINT_KEYWORDS_RAW = [
-        "段取シート印刷", "段取シート印刷 ", "段取シート印刷 連続使用",
-        "SP段取シート印刷", "SP段取ｼｰﾄ印刷", "仮登録", "仮試作",
-    ]
+    # ── 旧VBAクエリをそのままSQL Serverで実行 ──
+    # WHERE 内容 = '段取ｼｰﾄ印刷' OR '仮登録' OR '段取ｼｰﾄ印刷 連続使用'
+    #           OR 'SP段取ｼｰﾄ印刷' OR '仮試作'
+    # ※ 旧DBの実データは末尾スペースあり（'段取シート印刷 '）のため RTRIM比較
+    mcc.execute("""
+        SELECT DISTINCT MC.MCID
+        FROM ACC_MC MC
+        INNER JOIN ACC_変更履歴 H ON MC.MCID = H.MCID
+        WHERE RTRIM(H.内容) = '段取シート印刷'
+           OR RTRIM(H.内容) = '段取シート印刷 連続使用'
+           OR RTRIM(H.内容) = 'SP段取シート印刷'
+           OR RTRIM(H.内容) = 'SP段取ｼｰﾄ印刷'
+           OR RTRIM(H.内容) = '仮登録'
+           OR RTRIM(H.内容) = '仮試作'
+    """)
+    uncollected_mcids = {row[0] for row in mcc.fetchall()}
+    log(f"  旧VBAクエリ結果: 未回収MCID {len(uncollected_mcids)}件")
 
-    # 旧DBで「印刷系」MCIDのセットを再確認（mcid_has_printはPART1で作成済み）
-    # mc_setup_sheet_logs 全件取得 (mc_program_id, id, printed_at)
+    # ── 全mc_setup_sheet_logs を mc_program_id 別・printedAt順で取得 ──
     pgc.execute("""
         SELECT sl.id, sl.mc_program_id, sl.printed_at, p.legacy_mcid
         FROM mc_setup_sheet_logs sl
         JOIN mc_programs p ON p.id = sl.mc_program_id
         WHERE p.legacy_mcid IS NOT NULL
-        ORDER BY sl.mc_program_id, sl.printed_at
+        ORDER BY sl.mc_program_id, sl.printed_at DESC
     """)
     all_logs = pgc.fetchall()
-    log(f"  mc_setup_sheet_logs取得: {len(all_logs)}件")
+    log(f"  mc_setup_sheet_logs総数: {len(all_logs)}件")
 
-    # mc_change_history から各MCID・日付別の変更/承認/新規登録を取得
-    pgc.execute("""
-        SELECT ch.mc_program_id, ch.changed_at, ch.change_type, p.legacy_mcid
-        FROM mc_change_history ch
-        JOIN mc_programs p ON p.id = ch.mc_program_id
-        WHERE p.legacy_mcid IS NOT NULL
-          AND ch.change_type IN ('CHANGE', 'APPROVAL', 'NEW_REGISTRATION')
-        ORDER BY ch.mc_program_id, ch.changed_at
-    """)
-    all_changes = pgc.fetchall()
-    # {mc_program_id: [changed_at, ...]} の形にまとめる
-    from collections import defaultdict
-    change_dates = defaultdict(list)
-    for mc_pid, changed_at, ct, _ in all_changes:
-        change_dates[mc_pid].append(changed_at)
-
-    # work_records も後続アクションとして使う
-    pgc.execute("""
-        SELECT mc_program_id, work_date
-        FROM work_records
-        WHERE mc_program_id IS NOT NULL
-        ORDER BY mc_program_id, work_date
-    """)
-    wr_dates = defaultdict(list)
-    for mc_pid, wd in pgc.fetchall():
-        if wd:
-            wr_dates[mc_pid].append(wd)
-
-    # 各印刷ログについて、印刷後に変更/作業があれば回収済みにする
-    collected_ids   = []   # work_collected = true にするID
-    uncollected_ids = []   # work_collected = false のまま
-
+    # ── 各mc_program_idの「最新1件」を特定 ──
+    # printedAt DESCで取得しているので最初に出たものが最新
+    seen_mc_pid = set()
+    latest_log_ids = set()
     for log_id, mc_pid, printed_at, legacy_mcid in all_logs:
-        # 旧VBAクエリに引っかからないMCID → 全て回収済み（旧記録）
-        if legacy_mcid not in mcid_has_print:
-            collected_ids.append(log_id)
-            continue
+        if mc_pid not in seen_mc_pid:
+            seen_mc_pid.add(mc_pid)
+            latest_log_ids.add(log_id)
 
-        # 印刷後に変更/承認/作業があるか確認
-        pt = printed_at  # datetime
-        has_later_change = any(cd > pt for cd in change_dates[mc_pid])
-        has_later_work   = any(
-            (datetime.combine(wd, datetime.min.time()) if hasattr(wd, 'year') and not hasattr(wd, 'hour')
-             else wd) > pt
-            for wd in wr_dates[mc_pid]
-        )
-
-        if has_later_change or has_later_work:
-            collected_ids.append(log_id)
-        else:
+    # ── work_collected 判定 ──
+    collected_ids   = []
+    uncollected_ids = []
+    for log_id, mc_pid, printed_at, legacy_mcid in all_logs:
+        # 旧VBAクエリに返ってきたMCID かつ 最新ログ → 未回収
+        if legacy_mcid in uncollected_mcids and log_id in latest_log_ids:
             uncollected_ids.append(log_id)
+        else:
+            # それ以外は全て回収済み
+            collected_ids.append(log_id)
 
-    log(f"  回収済みに更新: {len(collected_ids)}件")
-    log(f"  未回収のまま:   {len(uncollected_ids)}件")
+    log(f"  → work_collected=false（未回収）: {len(uncollected_ids)}件")
+    log(f"  → work_collected=true （回収済）: {len(collected_ids)}件")
 
     if not dry_run:
-        # バッチ更新（1000件ずつ）
-        batch_size = 1000
-        updated = 0
-        for i in range(0, len(collected_ids), batch_size):
-            batch = collected_ids[i:i+batch_size]
-            if batch:
-                pgc.execute(
-                    "UPDATE mc_setup_sheet_logs SET work_collected = true WHERE id = ANY(%s)",
-                    (batch,)
-                )
-                updated += pgc.rowcount
-                pg.commit()
-        log(f"  work_collected=true 更新完了: {updated}件")
+        # まず全件 true にリセット
+        pgc.execute("UPDATE mc_setup_sheet_logs SET work_collected = true")
+        pg.commit()
+        log(f"  全件 work_collected=true にリセット")
+
+        # 未回収分だけ false に戻す
+        if uncollected_ids:
+            pgc.execute(
+                "UPDATE mc_setup_sheet_logs SET work_collected = false WHERE id = ANY(%s)",
+                (uncollected_ids,)
+            )
+            pg.commit()
+            log(f"  未回収分 work_collected=false 設定: {pgc.rowcount}件")
 
         pgc.execute("SELECT COUNT(*) FROM mc_setup_sheet_logs WHERE work_collected = false")
         remaining = pgc.fetchone()[0]
-        log(f"  未回収残り（ダッシュボード表示件数）: {remaining}件")
+        log(f"  ダッシュボード表示件数（未回収）: {remaining}件")
 
     mc.close()
     log("PHASE10完了")
