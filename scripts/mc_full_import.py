@@ -801,6 +801,165 @@ def phase6(pg, dry_run=False):
         log(f"  管理者以外のregistered_by: {pgc.fetchone()[0]}件")
         pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE approved_by IS NOT NULL AND approved_by != 22")
         log(f"  管理者以外のapproved_by: {pgc.fetchone()[0]}件")
+
+        # PHASE6C: registered_by を ｵﾍﾟﾚｰﾀｰ列（最古）から正しく更新
+        log("PHASE6C: registered_by をｵﾍﾟﾚｰﾀｰ列から更新...")
+        mc6c = ss_connect(SS_MC_DB)
+        mc6c_c = mc6c.cursor()
+        def _resolve_one(raw_val, u_exact, u_norm):
+            if not raw_val: return None
+            import re as _re
+            val = str(raw_val).strip()
+            if val in u_exact: return u_exact[val]
+            normed = _re.sub(r'[\s\u3000]+', ' ', val).strip()
+            if normed in u_norm: return u_norm[normed]
+            return None
+        pgc.execute("SELECT id, name FROM users WHERE employee_code LIKE 'MC%' OR employee_code = 'ADMIN001'")
+        _pg_users = pgc.fetchall()
+        _u_exact = {u[1]: u[0] for u in _pg_users}
+        _u_norm  = {__import__('re').sub(r'[\s\u3000]+', ' ', u[1]).strip(): u[0] for u in _pg_users}
+        mc6c_c.execute("""
+            SELECT MCID, ｵﾍﾟﾚｰﾀｰ, 入力日 FROM ACC_変更履歴
+            WHERE ｵﾍﾟﾚｰﾀｰ IS NOT NULL AND LEN(RTRIM(ｵﾍﾟﾚｰﾀｰ)) > 0
+            ORDER BY MCID, 入力日 ASC
+        """)
+        _op_map = {}
+        for _mcid, _op_name, _ in mc6c_c.fetchall():
+            if _mcid not in _op_map:
+                _uid = _resolve_one(_op_name, _u_exact, _u_norm)
+                if _uid and _uid != ADMIN_ID: _op_map[_mcid] = _uid
+        _reg_ok = 0
+        for _mcid, _uid in _op_map.items():
+            for _mc_db_id in mcid_map.get(_mcid, []):
+                pgc.execute("UPDATE mc_programs SET registered_by=%s WHERE id=%s", (_uid, _mc_db_id))
+                _reg_ok += 1
+        pg.commit()
+        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE registered_by != %s", (ADMIN_ID,))
+        log(f"  PHASE6C: registered_by更新={_reg_ok}件 管理者以外={pgc.fetchone()[0]}件")
+
+        # PHASE6D: approved_by/approved_at を ACC_変更履歴の承認カラムから更新
+        log("PHASE6D: approved_by を承認カラムから更新...")
+        mc6c_c.execute("""
+            SELECT MCID, 承認, 承認日 FROM ACC_変更履歴
+            WHERE 承認 IS NOT NULL AND LEN(RTRIM(承認)) > 0 AND 承認日 IS NOT NULL
+            ORDER BY MCID, 承認日 DESC
+        """)
+        _seen = set(); _app_ok = 0
+        for _mcid, _aname, _adate in mc6c_c.fetchall():
+            if _mcid in _seen: continue
+            _seen.add(_mcid)
+            _uid = _resolve_one(_aname, _u_exact, _u_norm)
+            if not _uid: continue
+            for _mc_db_id in mcid_map.get(_mcid, []):
+                pgc.execute("UPDATE mc_programs SET approved_by=%s, approved_at=%s WHERE id=%s",
+                            (_uid, _adate, _mc_db_id))
+                _app_ok += 1
+        pg.commit()
+        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE approved_by IS NOT NULL AND approved_by != %s", (ADMIN_ID,))
+        log(f"  PHASE6D: approved_by更新={_app_ok}件 管理者以外={pgc.fetchone()[0]}件")
+
+        # PHASE6E: work_records setup_operator_ids/production_operator_ids を名寄せで更新
+        log("PHASE6E: work_records 段取/量産担当者 名寄せ更新...")
+        import json as _json, re as _re2
+        def _resolve_names(raw_val, u_exact, u_norm):
+            if not raw_val: return []
+            val = str(raw_val).strip()
+            parts = _re2.split(r'[&＆,、]', val)
+            ids = []
+            for part in parts:
+                part = part.strip()
+                if not part: continue
+                if part in u_exact: ids.append(u_exact[part]); continue
+                normed = _re2.sub(r'[\s\u3000]+', ' ', part).strip()
+                if normed in u_norm: ids.append(u_norm[normed]); continue
+                remaining = normed
+                while remaining:
+                    matched_id = None; matched_len = 0
+                    for nm, uid in u_norm.items():
+                        if remaining.startswith(nm) and len(nm) > matched_len:
+                            matched_id = uid; matched_len = len(nm)
+                    if matched_id: ids.append(matched_id); remaining = remaining[matched_len:].strip()
+                    else: break
+            return list(dict.fromkeys(ids))
+        mc6c_c.execute("""
+            SELECT MCID, 入力日, 段取, 作業者 FROM ACC_変更履歴
+            WHERE (TH > 0 OR TM > 0 OR TS > 0 OR ﾜｰｸ数 > 0 OR 段取開始 IS NOT NULL)
+            ORDER BY MCID, 入力日
+        """)
+        pgc.execute("SELECT id, mc_program_id, work_date FROM work_records WHERE mc_program_id IS NOT NULL")
+        _wr_map = {}
+        for _wrid, _mc_pid, _wd in pgc.fetchall():
+            _wr_map[(_mc_pid, str(_wd))] = _wrid
+        _wr_ok = 0
+        for _mcid, _input_date, _dandori, _sagyosha in mc6c_c.fetchall():
+            _setup_ids = _resolve_names(_dandori, _u_exact, _u_norm)
+            _prod_ids  = _resolve_names(_sagyosha, _u_exact, _u_norm)
+            _wd_str = str(_input_date)[:10] if _input_date else ''
+            for _mc_db_id in mcid_map.get(_mcid, []):
+                _wrid = _wr_map.get((_mc_db_id, _wd_str))
+                if not _wrid: continue
+                pgc.execute("UPDATE work_records SET setup_operator_ids=%s, production_operator_ids=%s WHERE id=%s",
+                            (_json.dumps(_setup_ids), _json.dumps(_prod_ids), _wrid))
+                _wr_ok += 1
+        pg.commit()
+        pgc.execute("SELECT COUNT(*) FROM work_records WHERE mc_program_id IS NOT NULL AND setup_operator_ids != '[]'::jsonb")
+        log(f"  PHASE6E: work_records担当者更新={_wr_ok}件 setup設定済み={pgc.fetchone()[0]}件")
+
+        # PHASE6F: sheet_created_at/creator_id を変更履歴の作成日/作成から更新
+        log("PHASE6F: sheet_created_at/creator_id 更新...")
+        mc6c_c.execute("""
+            SELECT MCID, 加工ID, 作成, 作成日 FROM ACC_変更履歴
+            WHERE 作成日 IS NOT NULL AND 作成 IS NOT NULL AND LEN(RTRIM(作成)) > 0
+            ORDER BY MCID, 入力日 ASC
+        """)
+        _mach_sheet_map = {}
+        for _mcid, _kakoid, _sakusha, _sakusha_date in mc6c_c.fetchall():
+            if _kakoid and _kakoid not in _mach_sheet_map:
+                _creator_id = _resolve_one(_sakusha, _u_exact, _u_norm)
+                if _creator_id and _sakusha_date:
+                    _mach_sheet_map[_kakoid] = (_sakusha_date, _creator_id)
+        _sheet_ok = 0
+        for _kakoid, (_sheet_date, _creator_id) in _mach_sheet_map.items():
+            pgc.execute("UPDATE mc_machining_details SET sheet_created_at=%s, creator_id=%s WHERE machining_id=%s",
+                        (_sheet_date, _creator_id, _kakoid))
+            if pgc.rowcount > 0: _sheet_ok += 1
+        pg.commit()
+        pgc.execute("SELECT COUNT(*) FROM mc_machining_details WHERE sheet_created_at IS NOT NULL")
+        log(f"  PHASE6F: sheet_created_at設定済み={pgc.fetchone()[0]}件 ok={_sheet_ok}件")
+
+        # PHASE6G: mc_setup_sheet_logs operator_id/machine_id_log 更新
+        log("PHASE6G: setup_sheet_logs operator_id/machine_id_log 更新...")
+        _machines_map_local = machines_map
+        pgc.execute("SELECT id, mc_program_id, printed_at FROM mc_setup_sheet_logs")
+        _sl_map = {}
+        for _slid, _mc_pid, _pat in pgc.fetchall():
+            _sl_map[(_mc_pid, str(_pat)[:10] if _pat else '')] = _slid
+        mc6c_c.execute("""
+            SELECT MCID, ｵﾍﾟﾚｰﾀｰ, 入力日, 機械 FROM ACC_変更履歴
+            WHERE 内容 LIKE '%段取シート%' OR 内容 LIKE '%仮登録%' OR 内容 LIKE '%印刷%'
+            ORDER BY MCID, 入力日
+        """)
+        _sl_ok2 = 0
+        for _mcid, _op_name, _input_date, _machine_name in mc6c_c.fetchall():
+            _op_id2 = _resolve_one(_op_name, _u_exact, _u_norm)
+            _mach_id2 = _machines_map_local.get(str(_machine_name).strip()) if _machine_name else None
+            if not _op_id2 and not _mach_id2: continue
+            _wd_str2 = str(_input_date)[:10] if _input_date else ''
+            for _mc_db_id in mcid_map.get(_mcid, []):
+                _slid = _sl_map.get((_mc_db_id, _wd_str2))
+                if not _slid: continue
+                _upd = []; _prm = []
+                if _op_id2: _upd.append("operator_id=%s"); _prm.append(_op_id2)
+                if _mach_id2: _upd.append("machine_id_log=%s"); _prm.append(_mach_id2)
+                if _upd:
+                    _prm.append(_slid)
+                    pgc.execute(f"UPDATE mc_setup_sheet_logs SET {chr(44).join(_upd)} WHERE id=%s", _prm)
+                    _sl_ok2 += 1
+        pg.commit()
+        pgc.execute("SELECT COUNT(*) FROM mc_setup_sheet_logs WHERE machine_id_log IS NOT NULL")
+        log(f"  PHASE6G: setup_sheet_logs更新={_sl_ok2}件 machine設定済み={pgc.fetchone()[0]}件")
+        mc6c.close()
+
     pgc.execute("SELECT COUNT(*) FROM mc_setup_sheet_logs WHERE mc_program_id IS NOT NULL")
     log(f"  mc_setup_sheet_logs(MC): {pgc.fetchone()[0]}")
     pgc.execute("SELECT COUNT(*) FROM work_records WHERE mc_program_id IS NOT NULL")
