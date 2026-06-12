@@ -1323,17 +1323,27 @@ def phase10(pg, dry_run=False):
 
     # ─────────────────────────────────────────────
     # PART2: mc_setup_sheet_logs.work_collected 正規化
-    # 旧VBAクエリ（段取ｼｰﾄ戻り1フォーム）を完全再現して
-    # 実際に未回収のMCIDのみ最新印刷ログを未回収にする
+    # 旧VBAクエリ（DISTINCTROW MCID+加工ID+入力日）をキーに完全一致更新
     # ─────────────────────────────────────────────
-    log("\nPART2: mc_setup_sheet_logs.work_collected 正規化（旧VBAクエリ完全再現）...")
+    log("\nPART2: mc_setup_sheet_logs.work_collected 正規化（旧VBAクエリキー完全一致）...")
 
-    # ── 旧VBAクエリをそのままSQL Serverで実行 ──
-    # WHERE 内容 = '段取ｼｰﾄ印刷' OR '仮登録' OR '段取ｼｰﾄ印刷 連続使用'
-    #           OR 'SP段取ｼｰﾄ印刷' OR '仮試作'
-    # ※ 旧DBの実データは末尾スペースあり（'段取シート印刷 '）のため RTRIM比較
+    # Step1: 全件 work_collected = true にリセット
+    if not dry_run:
+        pgc.execute("UPDATE mc_setup_sheet_logs SET work_collected = true")
+        pg.commit()
+        log("  全件 work_collected=true にリセット完了")
+
+    # Step2: 旧VBAクエリをそのまま実行
+    # SELECT DISTINCTROW MC.MCID, 変更履歴.加工ID, 変更履歴.入力日
+    # FROM MC INNER JOIN 変更履歴 ON MC.MCID = 変更履歴.MCID
+    # WHERE 内容='段取シート印刷' OR '仮登録' OR '段取シート印刷 連続使用'
+    #       OR 'SP段取シート印刷' OR '仮試作'
+    # ※ RTRIMで末尾スペース除去、DISTINCT で重複排除
     mcc.execute("""
-        SELECT DISTINCT MC.MCID
+        SELECT DISTINCT
+            MC.MCID,
+            H.加工ID,
+            H.入力日
         FROM ACC_MC MC
         INNER JOIN ACC_変更履歴 H ON MC.MCID = H.MCID
         WHERE RTRIM(H.内容) = '段取シート印刷'
@@ -1343,72 +1353,71 @@ def phase10(pg, dry_run=False):
            OR RTRIM(H.内容) = '仮登録'
            OR RTRIM(H.内容) = '仮試作'
     """)
-    uncollected_mcids = {row[0] for row in mcc.fetchall()}
-    log(f"  旧VBAクエリ結果: 未回収MCID {len(uncollected_mcids)}件")
+    vba_rows = mcc.fetchall()
+    log(f"  旧VBAクエリ結果: {len(vba_rows)}件 (MCID+加工ID+印刷日時)")
 
-    # ── 全mc_setup_sheet_logs を mc_program_id 別・printedAt順で取得 ──
+    # Step3: MCID→legacy_mcid→mc_program_id のマップ構築
+    pgc.execute("SELECT id, legacy_mcid FROM mc_programs WHERE legacy_mcid IS NOT NULL")
+    legacy_to_dbid = {}
+    for db_id, lmcid in pgc.fetchall():
+        legacy_to_dbid[lmcid] = db_id  # MCID=legacy_mcid は1:1
+
+    # Step4: mc_setup_sheet_logs を (mc_program_id, printed_at日付文字列) でインデックス化
     pgc.execute("""
-        SELECT sl.id, sl.mc_program_id, sl.printed_at, p.legacy_mcid
-        FROM mc_setup_sheet_logs sl
-        JOIN mc_programs p ON p.id = sl.mc_program_id
-        WHERE p.legacy_mcid IS NOT NULL
-        ORDER BY sl.mc_program_id, sl.printed_at DESC
+        SELECT id, mc_program_id, printed_at
+        FROM mc_setup_sheet_logs
     """)
-    all_logs = pgc.fetchall()
-    log(f"  mc_setup_sheet_logs総数: {len(all_logs)}件")
+    # キー: (mc_program_id, 日付10文字) → log_id リスト（同日に複数あり得る）
+    from collections import defaultdict
+    slogs_by_key = defaultdict(list)
+    for log_id, mc_pid, printed_at in pgc.fetchall():
+        date_str = str(printed_at)[:10] if printed_at else ''
+        slogs_by_key[(mc_pid, date_str)].append((log_id, printed_at))
 
-    # ── mc_program_id 単位の「最新ログ1件」を特定 ──
-    # 旧VBAクエリに返ってきたMCIDの各工程（mc_program_id）ごとの最新印刷ログを未回収にする
-    # MCIDと工程は1:1対応（legacy_mcid = MCID = mc_program_id のPK）なので
-    # mc_program_id単位の最新1件が正解
-    # printedAt DESCで取得しているので最初に出たものが最新
-    seen_mc_pid = set()
-    latest_log_ids = set()
-    for log_id, mc_pid, printed_at, legacy_mcid in all_logs:
-        if mc_pid not in seen_mc_pid:
-            seen_mc_pid.add(mc_pid)
-            latest_log_ids.add(log_id)
-
-    # ── work_collected 判定 ──
-    collected_ids   = []
+    # Step5: 旧VBAクエリ結果をキーにして未回収IDを特定
     uncollected_ids = []
-    for log_id, mc_pid, printed_at, legacy_mcid in all_logs:
-        # 旧VBAクエリに返ってきたMCID かつ 最新ログ → 未回収
-        if legacy_mcid in uncollected_mcids and log_id in latest_log_ids:
-            uncollected_ids.append(log_id)
+    not_found = 0
+    for mcid, kakoid, input_date in vba_rows:
+        mc_db_id = legacy_to_dbid.get(mcid)
+        if not mc_db_id:
+            not_found += 1
+            continue
+        date_str = str(input_date)[:10] if input_date else ''
+        candidates = slogs_by_key.get((mc_db_id, date_str), [])
+        if candidates:
+            # 同日に複数あれば印刷時刻が最も近いもの（入力日時と一致）を選ぶ
+            if input_date and len(candidates) > 1:
+                # 入力日時と最も近いものを選択
+                best = min(candidates, key=lambda x: abs(
+                    (x[1] - input_date).total_seconds() if x[1] and input_date else 999999
+                ))
+                uncollected_ids.append(best[0])
+            else:
+                uncollected_ids.append(candidates[0][0])
         else:
-            # それ以外は全て回収済み
-            collected_ids.append(log_id)
+            not_found += 1
 
-    log(f"  → work_collected=false（未回収）: {len(uncollected_ids)}件")
-    log(f"  → work_collected=true （回収済）: {len(collected_ids)}件")
+    log(f"  未回収ID特定: {len(uncollected_ids)}件 (未マッチ: {not_found}件)")
+
+    if not dry_run and uncollected_ids:
+        pgc.execute(
+            "UPDATE mc_setup_sheet_logs SET work_collected = false WHERE id = ANY(%s)",
+            (uncollected_ids,)
+        )
+        pg.commit()
+        log(f"  work_collected=false 設定: {pgc.rowcount}件")
+
+    # Step6: 仮登録/仮試作MCIDのsheet_typeをNEWに設定
+    mcc.execute("""
+        SELECT DISTINCT MC.MCID
+        FROM ACC_MC MC
+        INNER JOIN ACC_変更履歴 H ON MC.MCID = H.MCID
+        WHERE RTRIM(H.内容) = '仮登録' OR RTRIM(H.内容) = '仮試作'
+    """)
+    tentative_mcids = list({row[0] for row in mcc.fetchall()})
+    log(f"  仮登録/仮試作MCID: {len(tentative_mcids)}件")
 
     if not dry_run:
-        # まず全件 true にリセット
-        pgc.execute("UPDATE mc_setup_sheet_logs SET work_collected = true")
-        pg.commit()
-        log(f"  全件 work_collected=true にリセット")
-
-        # 未回収分だけ false に戻す + sheet_type設定
-        if uncollected_ids:
-            pgc.execute(
-                "UPDATE mc_setup_sheet_logs SET work_collected = false WHERE id = ANY(%s)",
-                (uncollected_ids,)
-            )
-            pg.commit()
-            log(f"  未回収分 work_collected=false 設定: {pgc.rowcount}件")
-
-        # 仮登録MCIDの未回収ログは sheet_type='NEW' に設定
-        mcc.execute("""
-            SELECT DISTINCT MC.MCID
-            FROM ACC_MC MC
-            INNER JOIN ACC_変更履歴 H ON MC.MCID = H.MCID
-            WHERE RTRIM(H.内容) = '仮登録' OR RTRIM(H.内容) = '仮試作'
-        """)
-        tentative_mcids = {row[0] for row in mcc.fetchall()}
-        log(f"  仮登録/仮試作MCID: {len(tentative_mcids)}件")
-
-        # 未回収ログのsheet_type更新: 仮登録→NEW, それ以外→MC
         pgc.execute("""
             UPDATE mc_setup_sheet_logs sl
             SET sheet_type = CASE
@@ -1418,24 +1427,22 @@ def phase10(pg, dry_run=False):
             FROM mc_programs p
             WHERE sl.mc_program_id = p.id
               AND sl.work_collected = false
-        """, (list(tentative_mcids),))
+        """, (tentative_mcids,))
         pg.commit()
-        log(f"  未回収ログ sheet_type更新: {pgc.rowcount}件")
+        log(f"  sheet_type更新: {pgc.rowcount}件")
 
         # mc_programs.status: 仮登録MCIDをNEWに設定
         pgc.execute("""
             UPDATE mc_programs SET status = 'NEW'::mc_program_status
             WHERE legacy_mcid = ANY(%s) AND status != 'NEW'::mc_program_status
-        """, (list(tentative_mcids),))
+        """, (tentative_mcids,))
         pg.commit()
-        log(f"  仮登録status=NEW強制設定: {pgc.rowcount}件")
-
-        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE status='NEW'::mc_program_status")
-        log(f"  mc_programs status=NEW総数: {pgc.fetchone()[0]}件")
+        log(f"  仮登録status=NEW設定: {pgc.rowcount}件")
 
         pgc.execute("SELECT COUNT(*) FROM mc_setup_sheet_logs WHERE work_collected = false")
-        remaining = pgc.fetchone()[0]
-        log(f"  ダッシュボード表示件数（未回収）: {remaining}件")
+        log(f"  ダッシュボード表示件数（未回収）: {pgc.fetchone()[0]}件")
+        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE status='NEW'::mc_program_status")
+        log(f"  mc_programs status=NEW総数: {pgc.fetchone()[0]}件")
 
     mc.close()
     log("PHASE10完了")
