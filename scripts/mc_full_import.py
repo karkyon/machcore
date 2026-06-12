@@ -158,41 +158,40 @@ def phase1(pg, dry_run=False):
     pgc.execute("SELECT id, name FROM users")
     users_map = {r[1]: r[0] for r in pgc.fetchall()}
     import re as _p1re
-    _u_norm_p1 = {_p1re.sub(r'[\\s\\u3000]+', ' ', k).strip(): v for k, v in users_map.items()}
+    _u_norm_p1 = {_p1re.sub(r'[\s\u3000]+', ' ', k).strip(): v for k, v in users_map.items()}
     def _p1_resolve(raw):
         if not raw: return None
         val = str(raw).strip()
         if val in users_map: return users_map[val]
-        normed = _p1re.sub(r'[\\s\\u3000]+', ' ', val).strip()
+        normed = _p1re.sub(r'[\s\u3000]+', ' ', val).strip()
         return _u_norm_p1.get(normed)
 
-    # 機械ID(数値) → machines.id
-    ss_machine_map = {}
-    try:
-        mcc.execute("SELECT 機械ID, 機械名 FROM ACC_機械")
-        for mid, mname in mcc.fetchall():
-            code = str(mname).strip()
-            db_id = machines_map.get(code) or machines_map.get("MC" + code)
-            if db_id: ss_machine_map[mid] = db_id
-        log(f"機械IDマップ: {len(ss_machine_map)}件")
-    except Exception as e:
-        log(f"ACC_機械取得失敗: {e}", "WARN")
+    # 機械: ACC_マシニングrawの「機械」列は文字列("MC5"等) → machines_mapから直引き
+    ss_machine_map = dict(machines_map)  # machine_code → machines.id
+    # "MC"プレフィックスなし対応
+    for code, mid in list(machines_map.items()):
+        if code.startswith("MC"):
+            ss_machine_map[code[2:]] = mid
 
-    # ACC_マシニングraw (旧DBのマシニングテーブルそのもの)
+    # ACC_マシニングraw 確定カラム(ログより):
+    # 加工ID, ﾊﾞｰｼﾞｮﾝ, [MC工程No,], ﾌｫﾙﾀﾞ1, ﾌｫﾙﾀﾞ2, ﾌｧｲﾙ名, [ﾒｲﾝﾌﾟﾛｸﾞﾗﾑNo,],
+    # 機械, 加工時間H/M/S, 加工個数, ｸﾗﾝﾌﾟ, 備考, 氏名, 入力日,
+    # [IP 有･無], [WD 有･無], 写真枚数, RC, 図枚数, ｵﾍﾟﾚｰﾀｰ,
+    # IN_DATE, 作成, S_DATE, prg
+    # ※ カンマ・スペース含むカラムは角括弧でエスケープ必須
     mcc.execute("""
         SELECT
             mc.部品ID, mc.MCID, mc.加工ID,
-            m.ﾊﾞｰｼﾞｮﾝ, m.MC工程No,, m.ﾌｫﾙﾀﾞ1, m.ﾌｫﾙﾀﾞ2, m.ﾌｧｲﾙ名,
-            m.ﾒｲﾝﾌﾟﾛｸﾞﾗﾑNo,, m.機械, m.加工時間H, m.加工時間M, m.加工時間S,
-            m.加工個数, NULL, m.備考,
-            m.担当者ID, m.IP 有･無, m.WD 有･無,
+            m.ﾊﾞｰｼﾞｮﾝ, m.[MC工程No,], m.ﾌｫﾙﾀﾞ1, m.ﾌｫﾙﾀﾞ2, m.ﾌｧｲﾙ名,
+            m.[ﾒｲﾝﾌﾟﾛｸﾞﾗﾑNo,], m.機械, m.加工時間H, m.加工時間M, m.加工時間S,
+            m.加工個数, m.ｸﾗﾝﾌﾟ, m.備考,
+            NULL, m.[IP 有･無], m.[WD 有･無],
             m.写真枚数, m.RC, m.図枚数,
-            m.オペレータID, m.IN_DATE,
-            m.作成者ID, m.S_DATE,
-            m.PG担当者ID, m.登録日付
+            m.ｵﾍﾟﾚｰﾀｰ, m.IN_DATE,
+            m.作成, m.S_DATE,
+            m.氏名, m.入力日
         FROM ACC_MC mc
         INNER JOIN ACC_マシニングraw m ON mc.加工ID = m.加工ID
-        
         ORDER BY mc.MCID
     """)
     rows = mcc.fetchall()
@@ -201,20 +200,34 @@ def phase1(pg, dry_run=False):
     ok = skip = err = 0
     for row in rows:
         try:
+            # 列順(28列):
+            # 部品ID, MCID, 加工ID,
+            # ﾊﾞｰｼﾞｮﾝ, MC工程No, ﾌｫﾙﾀﾞ1, ﾌｫﾙﾀﾞ2, ﾌｧｲﾙ名,
+            # ﾒｲﾝﾌﾟﾛｸﾞﾗﾑNo, 機械(文字列), 加工時間H, 加工時間M, 加工時間S,
+            # 加工個数, ｸﾗﾝﾌﾟ, 備考,
+            # NULL(担当者ID), IP有無, WD有無,
+            # 写真枚数, RC, 図枚数,
+            # ｵﾍﾟﾚｰﾀｰ(名前), IN_DATE,
+            # 作成(シート作成者名), S_DATE(シート作成日),
+            # 氏名(承認者名), 入力日(承認日)
             (buhin_id, mcid, kakoid,
              version, process_no, path1, path2, file_name,
-             main_pg_no, machine_id_ss, time_h, time_m, time_s,
+             main_pg_no, machine_name, time_h, time_m, time_s,
              qty, clamp, note,
-             tanto_id, ip_umu, wd_umu,
+             _dummy, ip_umu, wd_umu,
              photo_cnt, rc, draw_cnt,
-             operater_id, in_date,
-             sakusha_id, sheet_created_at,
-             pg_tanto_id, reg_date) = row
+             operater_name, in_date,
+             creator_name, sheet_created_at,
+             approver_name, approved_date) = row
 
             part_db_id = parts_map.get(str(buhin_id))
             if not part_db_id: skip += 1; continue
 
-            machine_db_id = ss_machine_map.get(machine_id_ss) if machine_id_ss else None
+            # 機械名文字列→machines.id
+            machine_db_id = None
+            if machine_name:
+                mn = str(machine_name).strip()
+                machine_db_id = ss_machine_map.get(mn)
 
             ct_sec = None
             if time_h is not None or time_m is not None or time_s is not None:
@@ -223,12 +236,18 @@ def phase1(pg, dry_run=False):
             has_ip = str(ip_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
             has_wd = str(wd_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
 
-            reg_id          = ADMIN_ID
-            approver_id     = None
-            cr_id           = None
-            registered_at_v = in_date if in_date else (reg_date or datetime.now())
-            approved_at_v   = in_date if in_date else reg_date
-            ver_str         = str(version or "1.0001")
+            # 担当者: PHASE6C/Dで変更履歴から上書きするためADMIN_IDフォールバック
+            # ① 作成者(シート): 作成列名前→ID
+            cr_id        = _p1_resolve(creator_name)
+            # ③ 承認者: 氏名列名前→ID (PHASE6Dでも更新)
+            approver_id  = _p1_resolve(approver_name)
+            # ④ 承認日: 入力日列
+            approved_at_v   = approved_date if approved_date else in_date
+            # ⑥ 入力日: IN_DATE列
+            registered_at_v = in_date if in_date else datetime.now()
+            reg_id = ADMIN_ID  # PHASE6Cでｵﾍﾟﾚｰﾀｰ列から上書き
+
+            ver_str = str(version or "1.0001")
 
             if dry_run: ok += 1; continue
 
