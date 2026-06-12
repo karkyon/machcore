@@ -690,13 +690,26 @@ def phase6(pg, dry_run=False):
                               _json.dumps(prod_op_ids)))
                         wr_ok += 1
                     if is_change:
+                        # 承認レコードは承認列から承認者IDを解決
+                        import re as _ch_re
+                        def _ch_resolve(raw):
+                            if not raw: return None
+                            v = str(raw).strip()
+                            if v in users_map: return users_map[v]
+                            n = _ch_re.sub(r'[\s\u3000]+', ' ', v).strip()
+                            return next((uid for nm, uid in users_map.items()
+                                         if _ch_re.sub(r'[\s\u3000]+', ' ', nm).strip() == n), None)
+                        if change_type == 'APPROVAL':
+                            _approver_op = _ch_resolve(row_dict.get('承認')) or op_id
+                        else:
+                            _approver_op = op_id
                         pgc.execute("""
                             INSERT INTO mc_change_history
                               (mc_program_id, change_type, operator_id,
                                version_before, version_after, content,
                                changed_at, legacy_hist_id)
                             VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-                        """, (mc_db_id, change_type, op_id, ver_before, ver_after,
+                        """, (mc_db_id, change_type, _approver_op, ver_before, ver_after,
                               content or None, created_at or datetime.now(), hist_id))
                         ch_ok += 1
             else:
@@ -767,7 +780,7 @@ def phase6(pg, dry_run=False):
         mc6c_c.execute("""
             SELECT MCID, ｵﾍﾟﾚｰﾀｰ, 入力日 FROM ACC_変更履歴
             WHERE ｵﾍﾟﾚｰﾀｰ IS NOT NULL AND LEN(RTRIM(ｵﾍﾟﾚｰﾀｰ)) > 0
-            ORDER BY MCID, 入力日 ASC
+            ORDER BY MCID, 入力日 DESC
         """)
         _op_map = {}
         for _mcid, _op_name, _ in mc6c_c.fetchall():
