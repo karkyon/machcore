@@ -1201,6 +1201,131 @@ def phase9(pg, dry_run=False):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PHASE 10: mc_programs.status 正規化
+# 旧VBAクエリ条件（段取シート印刷/仮登録/仮試作/SP印刷/連続使用）で
+# 各MCIDのstatusを正しく設定する
+#
+# 旧DB判定ロジック（access_MC_spec.html段取ｼｰﾄ戻り1フォームVBA参照）:
+#   内容='仮登録' or '仮試作'   → status=NEW
+#   内容='段取シート印刷'系     → status=APPROVED
+#   上記なし + 承認レコードあり → status=APPROVED
+#   上記なし + 承認なし         → status=NEW
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def phase10(pg, dry_run=False):
+    section("PHASE 10: mc_programs.status 正規化")
+    mc  = ss_connect(SS_MC_DB)
+    mcc = mc.cursor()
+    pgc = pg.cursor()
+
+    # 旧VBAクエリ条件と同じKEYWORDS
+    PRINT_CONTENTS = {
+        "段取シート印刷",
+        "段取シート印刷 ",        # 末尾スペース含む（旧DBの実データ）
+        "段取シート印刷 連続使用",
+        "SP段取シート印刷",
+        "SP段取ｼｰﾄ印刷",
+        "仮登録",
+        "仮試作",
+    }
+    TENTATIVE_CONTENTS = {"仮登録", "仮試作"}
+    APPROVAL_CONTENTS  = {"承認"}
+
+    # 旧DB ACC_変更履歴 から MCID別に内容を集計
+    mcc.execute("""
+        SELECT MCID, 内容, 入力日
+        FROM ACC_変更履歴
+        WHERE 内容 IS NOT NULL
+        ORDER BY MCID, 入力日 DESC
+    """)
+    rows = mcc.fetchall()
+    log(f"ACC_変更履歴取得: {len(rows)}件")
+
+    # MCID別に最新レコードとPRINT系有無・承認有無を集計
+    from collections import defaultdict
+    mcid_latest   = {}   # MCID → 最新内容（入力日DESC最初）
+    mcid_has_print = set()  # PRINT_CONTENTS に該当するMCIDセット
+    mcid_has_approval = set()
+
+    for mcid, content, input_date in rows:
+        if mcid is None: continue
+        c = str(content).strip() if content else ""
+        # 最新（DESC順なので最初に出たもの）
+        if mcid not in mcid_latest:
+            mcid_latest[mcid] = c
+        # PRINT系判定（部分一致も含む）
+        for kw in PRINT_CONTENTS:
+            if c.startswith(kw) or c == kw:
+                mcid_has_print.add(mcid)
+                break
+        # 承認判定
+        for kw in APPROVAL_CONTENTS:
+            if c.startswith(kw) or c == kw:
+                mcid_has_approval.add(mcid)
+                break
+
+    log(f"PRINT系有りMCID: {len(mcid_has_print)}件")
+    log(f"承認有りMCID: {len(mcid_has_approval)}件")
+
+    # mc_programs から legacy_mcid 取得
+    pgc.execute("SELECT id, legacy_mcid FROM mc_programs WHERE legacy_mcid IS NOT NULL")
+    mc_rows = pgc.fetchall()
+    log(f"mc_programs取得: {len(mc_rows)}件")
+
+    stat_new = stat_approved = stat_pending = 0
+
+    if not dry_run:
+        for mc_db_id, legacy_mcid in mc_rows:
+            latest_content = mcid_latest.get(legacy_mcid, "")
+            has_print = legacy_mcid in mcid_has_print
+            has_approval = legacy_mcid in mcid_has_approval
+
+            # status判定ロジック
+            if has_print:
+                # PRINT系あり
+                is_tentative = any(
+                    latest_content.startswith(kw) or latest_content == kw
+                    for kw in TENTATIVE_CONTENTS
+                )
+                if is_tentative:
+                    # 最新が仮登録/仮試作 → NEW
+                    new_status = "NEW"
+                    stat_new += 1
+                else:
+                    # 最新が印刷系 → APPROVED
+                    new_status = "APPROVED"
+                    stat_approved += 1
+            else:
+                # PRINT系なし
+                if has_approval:
+                    new_status = "APPROVED"
+                    stat_approved += 1
+                else:
+                    # 変更履歴のみ（承認なし・印刷なし） → PENDING_APPROVAL
+                    new_status = "PENDING_APPROVAL"
+                    stat_pending += 1
+
+            pgc.execute(
+                "UPDATE mc_programs SET status = %s::mc_program_status WHERE id = %s",
+                (new_status, mc_db_id)
+            )
+
+        pg.commit()
+
+    log(f"status設定完了:")
+    log(f"  APPROVED        : {stat_approved}件")
+    log(f"  NEW             : {stat_new}件")
+    log(f"  PENDING_APPROVAL: {stat_pending}件")
+
+    # 確認サマリ
+    pgc.execute("SELECT status, COUNT(*) FROM mc_programs GROUP BY status ORDER BY status")
+    for row in pgc.fetchall():
+        log(f"  DB確認 status={row[0]}: {row[1]}件")
+
+    mc.close()
+    log("PHASE10完了")
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # メイン
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def main():
@@ -1226,9 +1351,9 @@ def main():
         force_copy = args.force_copy
         skip_file  = args.skip_file_copy
         phases = {1:phase1, 2:phase2, 3:phase3, 4:phase4,
-                  5:phase5, 6:phase6, 7:phase7, 8:phase8, 9:phase9}
+                  5:phase5, 6:phase6, 7:phase7, 8:phase8, 9:phase9, 10:phase10}
         if args.phase == 0:
-            run = [p for p in range(1, 10) if not (skip_file and p == 7)]
+            run = [p for p in range(1, 11) if not (skip_file and p == 7)]
         else:
             run = [args.phase]
         for p in run:
