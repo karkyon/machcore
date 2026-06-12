@@ -236,16 +236,16 @@ def phase1(pg, dry_run=False):
             has_ip = str(ip_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
             has_wd = str(wd_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
 
-            # 担当者: PHASE6C/Dで変更履歴から上書きするためADMIN_IDフォールバック
-            # ① 作成者(シート): 作成列名前→ID
-            cr_id        = _p1_resolve(creator_name)
-            # ③ 承認者: 氏名列名前→ID (PHASE6Dでも更新)
-            approver_id  = _p1_resolve(approver_name)
-            # ④ 承認日: 入力日列
+            # ① 作成者(シート): 作成列名前→ID (直接解決)
+            cr_id           = _p1_resolve(creator_name)
+            # ⑤ オペレーター: ｵﾍﾟﾚｰﾀｰ列名前→ID (直接解決、PHASE6Cで未解決分のみ上書き)
+            reg_id          = _p1_resolve(operater_name) or ADMIN_ID
+            # ③ 承認者: 氏名列名前→ID (PHASE6Dでも補完更新)
+            approver_id     = _p1_resolve(approver_name)
+            # ④ 承認日: 入力日列（マシニング）
             approved_at_v   = approved_date if approved_date else in_date
             # ⑥ 入力日: IN_DATE列
             registered_at_v = in_date if in_date else datetime.now()
-            reg_id = ADMIN_ID  # PHASE6Cでｵﾍﾟﾚｰﾀｰ列から上書き
 
             ver_str = str(version or "1.0001")
 
@@ -777,8 +777,10 @@ def phase6(pg, dry_run=False):
         _reg_ok = 0
         for _mcid, _uid in _op_map.items():
             for _mc_db_id in mcid_map.get(_mcid, []):
-                pgc.execute("UPDATE mc_programs SET registered_by=%s WHERE id=%s", (_uid, _mc_db_id))
-                _reg_ok += 1
+                # ADMIN_IDのもののみ上書き（PHASE1で既設定のものは保持）
+                pgc.execute("UPDATE mc_programs SET registered_by=%s WHERE id=%s AND registered_by=%s",
+                            (_uid, _mc_db_id, ADMIN_ID))
+                if pgc.rowcount > 0: _reg_ok += 1
         pg.commit()
         pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE registered_by != %s", (ADMIN_ID,))
         log(f"  PHASE6C: registered_by更新={_reg_ok}件 管理者以外={pgc.fetchone()[0]}件")
@@ -866,8 +868,13 @@ def phase6(pg, dry_run=False):
                     _mach_sheet_map[_kakoid] = (_sakusha_date, _creator_id)
         _sheet_ok = 0
         for _kakoid, (_sheet_date, _creator_id) in _mach_sheet_map.items():
-            pgc.execute("UPDATE mc_machining_details SET sheet_created_at=%s, creator_id=%s WHERE machining_id=%s",
-                        (_sheet_date, _creator_id, _kakoid))
+            # NULLのもののみ上書き（PHASE1でACC_マシニングrawから設定済みのものは保持）
+            pgc.execute("""
+                UPDATE mc_machining_details
+                SET sheet_created_at=COALESCE(sheet_created_at, %s),
+                    creator_id=COALESCE(creator_id, %s)
+                WHERE machining_id=%s
+            """, (_sheet_date, _creator_id, _kakoid))
             if pgc.rowcount > 0: _sheet_ok += 1
         pg.commit()
         pgc.execute("SELECT COUNT(*) FROM mc_machining_details WHERE sheet_created_at IS NOT NULL")
