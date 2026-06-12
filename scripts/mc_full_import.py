@@ -645,12 +645,14 @@ def phase6(pg, dry_run=False):
             if not dry_run:
                 for mc_db_id in mc_db_ids:
                     if is_print:
+                        # printed_at = 入力日（旧DB Now段取シートクエリの印刷日時カラム）
+                        _input_date_val = row_dict.get('入力日') or created_at or datetime.now()
                         pgc.execute("""
                             INSERT INTO mc_setup_sheet_logs
                               (mc_program_id, operator_id, printed_at, version,
                                work_collected, sheet_type, quantity, machine_id_log)
                             VALUES (%s,%s,%s,%s,false,%s,%s,%s)
-                        """, (mc_db_id, op_id, created_at or datetime.now(),
+                        """, (mc_db_id, op_id, _input_date_val,
                               ver_after, sheet_type_val,
                               ichi_s if ichi_s > 0 else None, machine_db_id))
                         sl_ok += 1
