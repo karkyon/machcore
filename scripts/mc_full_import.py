@@ -1245,6 +1245,8 @@ def main():
                         help="DBへの書き込みなし")
     parser.add_argument("--force-copy", action="store_true",
                         help="PHASE7: コピー先ファイルを全削除してから再コピー")
+    parser.add_argument("--skip-file-copy", action="store_true",
+                        help="PHASE7をスキップ（ファイルコピーなし、データのみ移行）")
     args = parser.parse_args()
 
     dry = args.dry_run
@@ -1256,9 +1258,13 @@ def main():
     pg = pg_connect()
     try:
         force_copy = args.force_copy
+        skip_file  = args.skip_file_copy
         phases = {1:phase1, 2:phase2, 3:phase3, 4:phase4,
                   5:phase5, 6:phase6, 7:phase7, 8:phase8, 9:phase9}
-        run = list(range(1,10)) if args.phase == 0 else [args.phase]
+        if args.phase == 0:
+            run = [p for p in range(1, 10) if not (skip_file and p == 7)]
+        else:
+            run = [args.phase]
         for p in run:
             try:
                 if p == 7:
