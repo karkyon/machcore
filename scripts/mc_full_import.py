@@ -95,13 +95,12 @@ def ss_connect(db):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def phase1(pg, dry_run=False):
     section("PHASE 1: mc_programs 基本データ移行")
-    mc  = ss_connect(SS_MC_DB)   # imotomc
-    pb  = ss_connect(SS_PB_DB)   # imotodb
+    mc  = ss_connect(SS_MC_DB)
+    pb  = ss_connect(SS_PB_DB)
     mcc = mc.cursor()
     pbc = pb.cursor()
     pgc = pg.cursor()
 
-    # 既存データ全破棄
     if not dry_run:
         log("既存データ全破棄...")
         pgc.execute("DELETE FROM mc_files")
@@ -115,7 +114,6 @@ def phase1(pg, dry_run=False):
         pg.commit()
         log("全破棄完了")
 
-    # 部品マスタ (imotodb.v_旧部品マスタ)
     pbc.execute("SELECT 部品ID, 図面番号, 名称, 主機種型式, 納入先ID FROM v_旧部品マスタ")
     buhin_rows = pbc.fetchall()
     log(f"部品マスタ取得: {len(buhin_rows)}件")
@@ -154,57 +152,47 @@ def phase1(pg, dry_run=False):
         pg.commit()
     log(f"parts同期完了: 新規={parts_inserted}件, 総数={len(parts_map)}件")
 
-    # 機械マスタ
     pgc.execute("SELECT id, machine_code FROM machines WHERE system_type='MC'")
     machines_map = {r[1]: r[0] for r in pgc.fetchall()}
 
-    # ユーザーマスタ (名前→ID解決用)
     pgc.execute("SELECT id, name FROM users")
     users_map = {r[1]: r[0] for r in pgc.fetchall()}
     import re as _p1re
-    _u_norm_p1 = {_p1re.sub(r'[\s\u3000]+', ' ', k).strip(): v for k, v in users_map.items()}
+    _u_norm_p1 = {_p1re.sub(r'[\\s\\u3000]+', ' ', k).strip(): v for k, v in users_map.items()}
     def _p1_resolve(raw):
         if not raw: return None
         val = str(raw).strip()
         if val in users_map: return users_map[val]
-        normed = _p1re.sub(r'[\s\u3000]+', ' ', val).strip()
+        normed = _p1re.sub(r'[\\s\\u3000]+', ' ', val).strip()
         return _u_norm_p1.get(normed)
 
-    # 機械IDマスタ: ACC_機械テーブル(機械ID→機械コード) → machines_map
-    ss_machine_map = {}  # 機械ID(int) → MachCore machines.id
+    # 機械ID(数値) → machines.id
+    ss_machine_map = {}
     try:
         mcc.execute("SELECT 機械ID, 機械名 FROM ACC_機械")
         for mid, mname in mcc.fetchall():
             code = str(mname).strip()
-            db_id = machines_map.get(code)
-            if not db_id and not code.startswith("MC"):
-                db_id = machines_map.get("MC" + code)
-            if db_id:
-                ss_machine_map[mid] = db_id
+            db_id = machines_map.get(code) or machines_map.get("MC" + code)
+            if db_id: ss_machine_map[mid] = db_id
         log(f"機械IDマップ: {len(ss_machine_map)}件")
     except Exception as e:
-        log(f"ACC_機械取得失敗(フォールバック): {e}", "WARN")
+        log(f"ACC_機械取得失敗: {e}", "WARN")
 
-    # ACC_マシニングraw × ACC_MC で全データ取得
-    # ACC_マシニングraw = 旧DBのマシニングテーブルそのもの
-    # 確定カラム: Version, MC工程No, パス1, パス2, ファイル名, メインPGNo,
-    #             機械ID, 加工時間H, 加工時間M, 加工時間S, 加工個数, クランプ, 備考,
-    #             担当者ID, IP有無, WD有無, 写真枚数, RC, 図枚数,
-    #             オペレータID, IN_DATE, 作成者ID, S_DATE, PG担当者ID, 登録日付, 削除区分
+    # ACC_マシニングraw (旧DBのマシニングテーブルそのもの)
     mcc.execute("""
         SELECT
             mc.部品ID, mc.MCID, mc.加工ID,
-            m.Version, m.MC工程No, m.パス1, m.パス2, m.ファイル名,
-            m.メインPGNo, m.機械ID, m.加工時間H, m.加工時間M, m.加工時間S,
-            m.加工個数, m.クランプ, m.備考,
-            m.担当者ID, m.IP有無, m.WD有無,
+            m.ﾊﾞｰｼﾞｮﾝ, m.MC工程No,, m.ﾌｫﾙﾀﾞ1, m.ﾌｫﾙﾀﾞ2, m.ﾌｧｲﾙ名,
+            m.ﾒｲﾝﾌﾟﾛｸﾞﾗﾑNo,, m.機械, m.加工時間H, m.加工時間M, m.加工時間S,
+            m.加工個数, NULL, m.備考,
+            m.担当者ID, m.IP 有･無, m.WD 有･無,
             m.写真枚数, m.RC, m.図枚数,
             m.オペレータID, m.IN_DATE,
             m.作成者ID, m.S_DATE,
             m.PG担当者ID, m.登録日付
         FROM ACC_MC mc
-        INNER JOIN ACC_マシニングraw m ON mc.加工ID = m.加工ID AND mc.MCID = m.MCID
-        WHERE m.削除区分 = 0
+        INNER JOIN ACC_マシニングraw m ON mc.加工ID = m.加工ID
+        
         ORDER BY mc.MCID
     """)
     rows = mcc.fetchall()
@@ -224,36 +212,26 @@ def phase1(pg, dry_run=False):
              pg_tanto_id, reg_date) = row
 
             part_db_id = parts_map.get(str(buhin_id))
-            if not part_db_id:
-                skip += 1; continue
+            if not part_db_id: skip += 1; continue
 
-            # 機械: 機械ID(数値) → MachCore machines.id
             machine_db_id = ss_machine_map.get(machine_id_ss) if machine_id_ss else None
 
-            # 加工時間→秒
             ct_sec = None
             if time_h is not None or time_m is not None or time_s is not None:
                 ct_sec = int(time_h or 0)*3600 + int(time_m or 0)*60 + int(time_s or 0)
 
-            # IP/WD
             has_ip = str(ip_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
             has_wd = str(wd_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
 
-            # 担当者: PHASE6C/Dで変更履歴から上書き更新するためADMIN_IDフォールバック
-            reg_id       = ADMIN_ID
-            approver_id  = None   # PHASE6Dで承認列から更新
-            cr_id        = None   # sheet_created_at = S_DATE列から取得済み
-            # 入力日: IN_DATE列
+            reg_id          = ADMIN_ID
+            approver_id     = None
+            cr_id           = None
             registered_at_v = in_date if in_date else (reg_date or datetime.now())
-            # 承認日: PHASE6Dで更新されるため初期値はIN_DATE
             approved_at_v   = in_date if in_date else reg_date
+            ver_str         = str(version or "1.0001")
 
-            ver_str = str(version or "1.0001")
+            if dry_run: ok += 1; continue
 
-            if dry_run:
-                ok += 1; continue
-
-            # STEP-A: mc_machining_details
             pgc.execute("""
                 INSERT INTO mc_machining_details (
                     machining_id, version, machine_id, o_number,
@@ -262,60 +240,33 @@ def phase1(pg, dry_run=False):
                     has_index_program, has_work_offset, rc,
                     creator_id, sheet_created_at,
                     legacy_kakoid, created_at, updated_at
-                ) VALUES (
-                    %s,%s,%s,%s,
-                    %s,%s,%s,
-                    %s,%s,%s,
-                    %s,%s,%s,
-                    %s,%s,
-                    %s,NOW(),NOW()
-                )
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())
                 ON CONFLICT (machining_id) DO UPDATE SET
-                    version=EXCLUDED.version,
-                    machine_id=EXCLUDED.machine_id,
-                    o_number=EXCLUDED.o_number,
-                    clamp_note=EXCLUDED.clamp_note,
-                    cycle_time_sec=EXCLUDED.cycle_time_sec,
-                    mc_process_no=EXCLUDED.mc_process_no,
-                    folder1=EXCLUDED.folder1,
-                    folder2=EXCLUDED.folder2,
-                    file_name=EXCLUDED.file_name,
-                    has_index_program=EXCLUDED.has_index_program,
-                    has_work_offset=EXCLUDED.has_work_offset,
-                    rc=EXCLUDED.rc,
-                    creator_id=EXCLUDED.creator_id,
+                    version=EXCLUDED.version, machine_id=EXCLUDED.machine_id,
+                    o_number=EXCLUDED.o_number, clamp_note=EXCLUDED.clamp_note,
+                    cycle_time_sec=EXCLUDED.cycle_time_sec, mc_process_no=EXCLUDED.mc_process_no,
+                    folder1=EXCLUDED.folder1, folder2=EXCLUDED.folder2, file_name=EXCLUDED.file_name,
+                    has_index_program=EXCLUDED.has_index_program, has_work_offset=EXCLUDED.has_work_offset,
+                    rc=EXCLUDED.rc, creator_id=EXCLUDED.creator_id,
                     sheet_created_at=EXCLUDED.sheet_created_at,
-                    legacy_kakoid=EXCLUDED.legacy_kakoid,
-                    updated_at=NOW()
-            """, (
-                kakoid, ver_str, machine_db_id, main_pg_no,
-                clamp, ct_sec, process_no,
-                str(path1) if path1 is not None else None,
-                str(path2) if path2 is not None else None,
-                str(file_name) if file_name else None,
-                has_ip, has_wd, int(rc or 0),
-                cr_id, sheet_created_at,
-                kakoid,
-            ))
-            # STEP-B: mc_programs
+                    legacy_kakoid=EXCLUDED.legacy_kakoid, updated_at=NOW()
+            """, (kakoid, ver_str, machine_db_id, main_pg_no,
+                  clamp, ct_sec, process_no,
+                  str(path1) if path1 is not None else None,
+                  str(path2) if path2 is not None else None,
+                  str(file_name) if file_name else None,
+                  has_ip, has_wd, int(rc or 0),
+                  cr_id, sheet_created_at, kakoid))
+
             pgc.execute("""
                 INSERT INTO mc_programs (
                     part_id, machining_id, machining_qty, note, status,
                     registered_by, approved_by, approved_at,
                     registered_at, legacy_mcid, created_at, updated_at
-                ) VALUES (
-                    %s,%s,%s,%s,'APPROVED',
-                    %s,%s,%s,
-                    %s,%s,NOW(),NOW()
-                )
-            """, (
-                part_db_id, kakoid, qty or 1, note,
-                reg_id,
-                approver_id,        # PHASE6Dで更新
-                approved_at_v,
-                registered_at_v,
-                mcid,
-            ))
+                ) VALUES (%s,%s,%s,%s,'APPROVED',%s,%s,%s,%s,%s,NOW(),NOW())
+            """, (part_db_id, kakoid, qty or 1, note,
+                  reg_id, approver_id, approved_at_v, registered_at_v, mcid))
+
             ok += 1
             if ok % 1000 == 0:
                 pg.commit()
