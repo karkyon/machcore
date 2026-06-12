@@ -111,7 +111,6 @@ def phase1(pg, dry_run=False):
         pgc.execute("DELETE FROM operation_logs WHERE mc_program_id IS NOT NULL")
         pgc.execute("DELETE FROM work_sessions WHERE mc_program_id IS NOT NULL")
         pgc.execute("DELETE FROM mc_programs")
-        # mc_machining_details削除でmc_tooling/mc_work_offsets/mc_index_programsもCASCADE
         pgc.execute("DELETE FROM mc_machining_details")
         pg.commit()
         log("全破棄完了")
@@ -121,17 +120,15 @@ def phase1(pg, dry_run=False):
     buhin_rows = pbc.fetchall()
     log(f"部品マスタ取得: {len(buhin_rows)}件")
 
-    # 得意先マスタ (imotodb.v_旧得意先マスタ)
     pbc.execute("SELECT 納入先ID, 会社名 FROM v_旧得意先マスタ")
     client_map = {r[0]: r[1] for r in pbc.fetchall()}
 
-    # parts テーブルへ upsert
     pgc.execute("SELECT id, part_id FROM parts")
-    parts_map = {r[1]: r[0] for r in pgc.fetchall()}  # part_id文字列 → DB id
+    parts_map = {r[1]: r[0] for r in pgc.fetchall()}
 
     parts_inserted = 0
     for buhin_id, drawing_no, name, main_model, client_id in buhin_rows:
-        pid_str    = str(buhin_id)
+        pid_str     = str(buhin_id)
         client_name = client_map.get(client_id, "")
         if pid_str not in parts_map:
             if not dry_run:
@@ -161,74 +158,77 @@ def phase1(pg, dry_run=False):
     pgc.execute("SELECT id, machine_code FROM machines WHERE system_type='MC'")
     machines_map = {r[1]: r[0] for r in pgc.fetchall()}
 
-    # ユーザーマスタ
+    # ユーザーマスタ (名前→ID解決用)
     pgc.execute("SELECT id, name FROM users")
     users_map = {r[1]: r[0] for r in pgc.fetchall()}
+    import re as _p1re
+    _u_norm_p1 = {_p1re.sub(r'[\s\u3000]+', ' ', k).strip(): v for k, v in users_map.items()}
+    def _p1_resolve(raw):
+        if not raw: return None
+        val = str(raw).strip()
+        if val in users_map: return users_map[val]
+        normed = _p1re.sub(r'[\s\u3000]+', ' ', val).strip()
+        return _u_norm_p1.get(normed)
 
-    # 機械IDマスタ (imotomc)
-    # m.機械 は機械名文字列("MC5"等)なので直接 machines_map で引く
-    # ss_machine_map: 機械名文字列 → MachCore machines.id
-    ss_machine_map = {}
-    for mcode, mid in machines_map.items():
-        ss_machine_map[mcode] = mid  # "MC5" → id
-    # "MC"プレフィックスなし("5"等)のケースも対応
-    for mcode, mid in list(machines_map.items()):
-        if mcode.startswith("MC"):
-            ss_machine_map[mcode[2:]] = mid  # "5" → id (フォールバック)
+    # 機械IDマスタ: ACC_機械テーブル(機械ID→機械コード) → machines_map
+    ss_machine_map = {}  # 機械ID(int) → MachCore machines.id
+    try:
+        mcc.execute("SELECT 機械ID, 機械名 FROM ACC_機械")
+        for mid, mname in mcc.fetchall():
+            code = str(mname).strip()
+            db_id = machines_map.get(code)
+            if not db_id and not code.startswith("MC"):
+                db_id = machines_map.get("MC" + code)
+            if db_id:
+                ss_machine_map[mid] = db_id
+        log(f"機械IDマップ: {len(ss_machine_map)}件")
+    except Exception as e:
+        log(f"ACC_機械取得失敗(フォールバック): {e}", "WARN")
 
-    # ACC_MC × ACC_マシニング JOIN で全データ取得
-    # ※ シート作成日・シート作成者IDを追加取得（カラムが存在しない場合は例外をキャッチ）
-    # 旧DBの実際のカラム名で構築したSELECT
+    # ACC_マシニングraw × ACC_MC で全データ取得
+    # ACC_マシニングraw = 旧DBのマシニングテーブルそのもの
+    # 確定カラム: Version, MC工程No, パス1, パス2, ファイル名, メインPGNo,
+    #             機械ID, 加工時間H, 加工時間M, 加工時間S, 加工個数, クランプ, 備考,
+    #             担当者ID, IP有無, WD有無, 写真枚数, RC, 図枚数,
+    #             オペレータID, IN_DATE, 作成者ID, S_DATE, PG担当者ID, 登録日付, 削除区分
     mcc.execute("""
         SELECT
             mc.部品ID, mc.MCID, mc.加工ID,
-            m.Version, NULL,
-            m.パス1, m.パス2, m.ファイル名,
-            NULL, m.機械ID,
-            m.加工時間H, m.加工時間M, m.加工時間S,
+            m.Version, m.MC工程No, m.パス1, m.パス2, m.ファイル名,
+            m.メインPGNo, m.機械ID, m.加工時間H, m.加工時間M, m.加工時間S,
             m.加工個数, m.クランプ, m.備考,
-            NULL, m.IP有無, m.WD有無,
+            m.担当者ID, m.IP有無, m.WD有無,
             m.写真枚数, m.RC, m.図枚数,
-            NULL, NULL,
-            m.IN_DATE, NULL,
-            m.S_DATE, NULL,
-            NULL, NULL
+            m.オペレータID, m.IN_DATE,
+            m.作成者ID, m.S_DATE,
+            m.PG担当者ID, m.登録日付
         FROM ACC_MC mc
-        INNER JOIN ACC_マシニング m ON mc.加工ID = m.加工ID
+        INNER JOIN ACC_マシニングraw m ON mc.加工ID = m.加工ID AND mc.MCID = m.MCID
         WHERE m.削除区分 = 0
         ORDER BY mc.MCID
     """)
-    HAS_SHEET_COLS = True  # 常にTrue（実際のカラム名で取得）
     rows = mcc.fetchall()
     log(f"旧DBマシニング取得: {len(rows)}件")
 
     ok = skip = err = 0
     for row in rows:
         try:
-            # 列順: 部品ID,MCID,加工ID,Version,[MC工程No,],パス1,パス2,ファイル名,
-            #        メインPGNo,機械ID,加工時間H,加工時間M,加工時間S,
-            #        加工個数,クランプ,備考,担当者ID,[IP 有･無],[WD 有･無],
-            #        写真枚数,RC,図枚数,作成者ID,PG担当者ID,
-            #        IN_DATE(入力日),登録日付,S_DATE(シート作成日),作成(シート作成者名),
-            #        氏名(承認者名),入力日(承認日)
             (buhin_id, mcid, kakoid,
              version, process_no, path1, path2, file_name,
              main_pg_no, machine_id_ss, time_h, time_m, time_s,
              qty, clamp, note,
              tanto_id, ip_umu, wd_umu,
              photo_cnt, rc, draw_cnt,
-             sakusha_id, pg_tanto_id,
-             in_date, reg_date,
-             sheet_created_at, creator_name_raw,
-             approver_name_raw, approved_date) = row
-            HAS_SHEET_COLS = True  # 常に真
+             operater_id, in_date,
+             sakusha_id, sheet_created_at,
+             pg_tanto_id, reg_date) = row
 
             part_db_id = parts_map.get(str(buhin_id))
             if not part_db_id:
                 skip += 1; continue
 
-            # 機械
-            machine_db_id = ss_machine_map.get(machine_id_ss)
+            # 機械: 機械ID(数値) → MachCore machines.id
+            machine_db_id = ss_machine_map.get(machine_id_ss) if machine_id_ss else None
 
             # 加工時間→秒
             ct_sec = None
@@ -239,28 +239,21 @@ def phase1(pg, dry_run=False):
             has_ip = str(ip_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
             has_wd = str(wd_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
 
-            # 担当者: 旧DBマシニングの名前カラムから直接解決
-            # ⑤ オペレーター(ｵﾍﾟﾚｰﾀｰ列) → registered_by: PHASE6Cで更新されるため初期値ADMIN
-            # ③ 承認者(氏名列) → approved_by
-            # ④ 承認日(入力日列) → approved_at
-            # ② 作成者シート(作成列) → creator_id (mc_machining_details)
-            reg_id       = ADMIN_ID  # PHASE6Cで ｵﾍﾟﾚｰﾀｰ列から上書き更新
-            approver_id  = _p1_resolve(approver_name_raw)
-            creator_id_v = _p1_resolve(creator_name_raw)
-            cr_id        = creator_id_v  # mc_machining_details.creator_id
-            pg_id        = ADMIN_ID if pg_tanto_id else None
-            # 承認日: 旧DB 入力日列（マシニング）= 承認した日付
-            approved_at_v = approved_date if approved_date else (in_date or reg_date)
-            # 入力日: IN_DATE列が実際の「入力日」(ユーザ操作日)
-            registered_at_v = in_date if in_date else reg_date
+            # 担当者: PHASE6C/Dで変更履歴から上書き更新するためADMIN_IDフォールバック
+            reg_id       = ADMIN_ID
+            approver_id  = None   # PHASE6Dで承認列から更新
+            cr_id        = None   # sheet_created_at = S_DATE列から取得済み
+            # 入力日: IN_DATE列
+            registered_at_v = in_date if in_date else (reg_date or datetime.now())
+            # 承認日: PHASE6Dで更新されるため初期値はIN_DATE
+            approved_at_v   = in_date if in_date else reg_date
 
-            # バージョン
             ver_str = str(version or "1.0001")
 
             if dry_run:
                 ok += 1; continue
 
-            # STEP-A: mc_machining_details (加工詳細; machining_id=加工ID でUPSERT)
+            # STEP-A: mc_machining_details
             pgc.execute("""
                 INSERT INTO mc_machining_details (
                     machining_id, version, machine_id, o_number,
@@ -304,31 +297,23 @@ def phase1(pg, dry_run=False):
                 cr_id, sheet_created_at,
                 kakoid,
             ))
-            # STEP-B: mc_programs (部品と加工の紐付けのみ)
+            # STEP-B: mc_programs
             pgc.execute("""
                 INSERT INTO mc_programs (
                     part_id, machining_id, machining_qty, note, status,
-                    registered_by,
-                    approved_by,
-                    approved_at,
-                    registered_at,
-                    legacy_mcid,
-                    created_at, updated_at
+                    registered_by, approved_by, approved_at,
+                    registered_at, legacy_mcid, created_at, updated_at
                 ) VALUES (
                     %s,%s,%s,%s,'APPROVED',
-                    %s,
-                    %s,
-                    %s,
-                    %s,
-                    %s,
-                    NOW(),NOW()
+                    %s,%s,%s,
+                    %s,%s,NOW(),NOW()
                 )
             """, (
                 part_db_id, kakoid, qty or 1, note,
                 reg_id,
-                approver_id,         # ③ 承認者: 氏名列から解決
-                approved_at_v,       # ④ 承認日: 入力日列（マシニング）
-                registered_at_v or datetime.now(),  # ⑥ 入力日: IN_DATE列
+                approver_id,        # PHASE6Dで更新
+                approved_at_v,
+                registered_at_v,
                 mcid,
             ))
             ok += 1
@@ -344,6 +329,7 @@ def phase1(pg, dry_run=False):
     pgc.execute("SELECT COUNT(*) FROM mc_programs")
     log(f"PHASE1完了: ok={ok} skip={skip} err={err} DB総数={pgc.fetchone()[0]}")
     mc.close(); pb.close()
+
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # PHASE 2: mc_tooling 移行
