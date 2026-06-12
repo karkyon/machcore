@@ -166,37 +166,37 @@ def phase1(pg, dry_run=False):
     users_map = {r[1]: r[0] for r in pgc.fetchall()}
 
     # 機械IDマスタ (imotomc)
-    mcc.execute("SELECT 機械ID, 機械名 FROM ACC_機械")
+    # m.機械 は機械名文字列("MC5"等)なので直接 machines_map で引く
+    # ss_machine_map: 機械名文字列 → MachCore machines.id
     ss_machine_map = {}
-    for mid, mname in mcc.fetchall():
-        # 機械名→MachCoreのmachine_code変換
-        code = str(mname).strip()
-        if code in machines_map:
-            ss_machine_map[mid] = machines_map[code]
-        else:
-            # "MC1"等に変換試行
-            mc_code = f"MC{code}" if not code.startswith("MC") else code
-            ss_machine_map[mid] = machines_map.get(mc_code)
+    for mcode, mid in machines_map.items():
+        ss_machine_map[mcode] = mid  # "MC5" → id
+    # "MC"プレフィックスなし("5"等)のケースも対応
+    for mcode, mid in list(machines_map.items()):
+        if mcode.startswith("MC"):
+            ss_machine_map[mcode[2:]] = mid  # "5" → id (フォールバック)
 
     # ACC_MC × ACC_マシニング JOIN で全データ取得
     # ※ シート作成日・シート作成者IDを追加取得（カラムが存在しない場合は例外をキャッチ）
     # 旧DBの正確なカラム名で取得
     # S_DATE=作成日(シート), 作成=作成者名(シート), 氏名=承認者名, 入力日=承認日,
     # ｵﾍﾟﾚｰﾀｰ=オペレーター, IN_DATE=入力日(登録日)
+    # 旧DBの実際のテーブル名: MC, ﾏｼﾆﾝｸﾞ (ACCプレフィックスなし・半角カタカナ)
+    # access_MC_spec.htmlのSQLサンプルより確認
     mcc.execute("""
         SELECT
             mc.部品ID, mc.MCID, mc.加工ID,
-            m.Version, m.[MC工程No,], m.パス1, m.パス2, m.ファイル名,
-            m.メインPGNo, m.機械ID, m.加工時間H, m.加工時間M, m.加工時間S,
+            m.ﾊﾞｰｼﾞｮﾝ, m.[MC工程No,], m.ﾌｫﾙﾀﾞ1, m.ﾌｫﾙﾀﾞ2, m.ﾌｧｲﾙ名,
+            m.ﾒｲﾝﾌﾟﾛｸﾞﾗﾑNo, m.機械, m.加工時間H, m.加工時間M, m.加工時間S,
             m.加工個数, m.クランプ, m.備考,
-            m.担当者ID, m.[IP 有･無], m.[WD 有･無],
+            NULL, m.[IP 有･無], m.[WD 有･無],
             m.写真枚数, m.RC, m.図枚数,
-            m.作成者ID, m.PG担当者ID,
-            m.IN_DATE, m.登録日付,
+            NULL, NULL,
+            m.IN_DATE, NULL,
             m.S_DATE, m.作成,
             m.氏名, m.入力日
-        FROM ACC_MC mc
-        INNER JOIN ACC_マシニング m ON mc.加工ID = m.加工ID AND mc.MCID = m.MCID
+        FROM MC mc
+        INNER JOIN ﾏｼﾆﾝｸﾞ m ON mc.加工ID = m.加工ID
         WHERE m.削除区分 = 0
         ORDER BY mc.MCID
     """)
