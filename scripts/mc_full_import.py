@@ -136,11 +136,12 @@ def phase1(pg, dry_run=False):
         if pid_str not in parts_map:
             if not dry_run:
                 pgc.execute("""
-                    INSERT INTO parts (part_id, drawing_no, name, main_model, client_name, is_active, created_at, updated_at)
-                    VALUES (%s,%s,%s,%s,%s,true,NOW(),NOW())
+                    INSERT INTO parts (part_id, drawing_no, name, main_model, client_name, is_active, synced_at)
+                    VALUES (%s,%s,%s,%s,%s,true,NOW())
                     ON CONFLICT (part_id) DO UPDATE SET
                         drawing_no=EXCLUDED.drawing_no, name=EXCLUDED.name,
-                        main_model=EXCLUDED.main_model, client_name=EXCLUDED.client_name
+                        main_model=EXCLUDED.main_model, client_name=EXCLUDED.client_name,
+                        synced_at=NOW()
                     RETURNING id
                 """, (pid_str, drawing_no or "", name or "", main_model, client_name))
                 new_id = pgc.fetchone()[0]
