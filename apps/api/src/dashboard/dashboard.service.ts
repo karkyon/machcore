@@ -45,7 +45,7 @@ export class DashboardService {
     const rows = await this.prisma.mcSetupSheetLog.findMany({
       where: { workCollected: false },
       orderBy: [
-        { mcProgram: { machining: { machine: { sortOrder: 'asc' } } } },
+        { mcProgram: { machining: { machine: { id: 'asc' } } } },
         { printedAt: 'asc' },
       ],
       include: {

@@ -1357,13 +1357,14 @@ def phase10(pg, dry_run=False):
     all_logs = pgc.fetchall()
     log(f"  mc_setup_sheet_logs総数: {len(all_logs)}件")
 
-    # ── 各mc_program_idの「最新1件」を特定 ──
+    # ── legacy_mcid 単位の「最新ログ1件」を特定 ──
+    # 旧VBAは DISTINCT MCID = MCIDごと最新の印刷ログ1件のみ未回収
     # printedAt DESCで取得しているので最初に出たものが最新
-    seen_mc_pid = set()
+    seen_legacy_mcid = set()
     latest_log_ids = set()
     for log_id, mc_pid, printed_at, legacy_mcid in all_logs:
-        if mc_pid not in seen_mc_pid:
-            seen_mc_pid.add(mc_pid)
+        if legacy_mcid not in seen_legacy_mcid:
+            seen_legacy_mcid.add(legacy_mcid)
             latest_log_ids.add(log_id)
 
     # ── work_collected 判定 ──
