@@ -676,6 +676,7 @@ def phase6(pg, dry_run=False):
     for row in rows:
         try:
             row_dict  = dict(zip(cols, row))
+            kubun_str = str(row_dict.get('内容区分') or '').strip()  # 内容区分IDの文字列名
             mcid      = row_dict.get("MCID")
             mc_db_ids = mcid_map.get(mcid, [])
             if not mc_db_ids: skip += 1; continue
