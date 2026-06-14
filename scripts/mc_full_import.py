@@ -638,33 +638,21 @@ def phase6(pg, dry_run=False):
             sheet_type = 'MC'
             work_collected = False
 
-        # ── 変更履歴 判定 ──
-        # 内容区分ID 1-16,99 → mc_change_history（17=作業記録のみは除く）
-        CHANGE_TYPE_MAP = {
-            2: 'NEW_REGISTRATION', 8: 'NEW_REGISTRATION',
-            4: 'APPROVAL',
-            1: 'PRINT', 3: 'PRINT', 7: 'PRINT', 12: 'PRINT',
-        }
-        if nk == 17:  # 作業記録のみ → 変更履歴に入れない
+        # ── 変更履歴 判定（ストアド完全準拠）──
+        # 印刷系(1,3,7,12)・作業記録(17) は mc_change_history に入れない
+        # enumの許容値: NEW_REGISTRATION, CHANGE, APPROVAL, MIGRATION
+        if nk in (1, 3, 7, 12, 17):
             is_change = False
             change_type = 'CHANGE'
+        elif nk in (2, 8):
+            is_change = True
+            change_type = 'NEW_REGISTRATION'
+        elif nk == 4:
+            is_change = True
+            change_type = 'APPROVAL'
         else:
             is_change = True
-            if nk in CHANGE_TYPE_MAP:
-                change_type = CHANGE_TYPE_MAP[nk]
-            elif nk in (4,):
-                change_type = 'APPROVAL'
-            elif nk in (2, 8):
-                change_type = 'NEW_REGISTRATION'
-            elif nk in (1, 3, 7, 12):
-                change_type = 'PRINT'
-            else:
-                change_type = 'CHANGE'
-
-        # ── 作業記録 判定 ──
-        # ストアド条件：段取時間 or 加工時間 or 総時間 or 単位系時間 のいずれかが空でない
-        # → この判定は row_dict の各値を見て呼び出し側で判断
-
+            change_type = 'CHANGE'
         return is_print, is_change, change_type, sheet_type, work_collected, nk
 
     def toint(v):
