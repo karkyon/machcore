@@ -1047,18 +1047,27 @@ def phase7(pg, dry_run=False, force_copy=False):
 
         # --force-copy またはデフォルトでコピー先を全削除→再コピー
         # ※ コピー元(SRC_*) と コピー先(DST_*) は別マウント。必ず削除→再コピーが正しい動作
-        for label, dst_dir in [("Drawings", DST_DRAW), ("Pictures", DST_PHOTO)]:
+        import time as _time
+
+        def _safe_rmtree_and_mkdir(dst_dir, label):
+            """CIFS上でrmtree後makedirs失敗する問題をリトライで対処"""
             if dst_dir.exists():
                 log(f"  {label}: コピー先クリア ({dst_dir})")
-                _shutil.rmtree(dst_dir)
-            os.makedirs(str(dst_dir), exist_ok=True)
-        # Programs は machining_id サブディレクトリ構造のため個別削除
-        if DST_PRG.exists():
-            log(f"  Programs: コピー先クリア ({DST_PRG})")
-            _shutil.rmtree(DST_PRG)
-        # rmtree後に os.makedirs で強制再作成（Pathのmkdirは親が消えると失敗する）
-        for _d in [str(DST_ROOT), str(DST_DRAW), str(DST_PHOTO), str(DST_PRG)]:
-            os.makedirs(_d, exist_ok=True)
+                _shutil.rmtree(str(dst_dir))
+            # CIFS遅延対応: 最大10回リトライ
+            for _attempt in range(10):
+                try:
+                    os.makedirs(str(dst_dir), exist_ok=True)
+                    break
+                except OSError:
+                    _time.sleep(1)
+                    if _attempt == 9:
+                        # 親ディレクトリから順に作成
+                        os.makedirs(str(dst_dir.parent), exist_ok=True)
+                        os.makedirs(str(dst_dir), exist_ok=True)
+
+        for label, dst_dir in [("Drawings", DST_DRAW), ("Pictures", DST_PHOTO), ("Programs", DST_PRG)]:
+            _safe_rmtree_and_mkdir(dst_dir, label)
         log("コピー先ディレクトリクリア完了")
 
     pgc.execute("SELECT id, machining_id FROM mc_programs")
