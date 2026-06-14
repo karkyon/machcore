@@ -550,25 +550,122 @@ def phase6(pg, dry_run=False):
     rows = mcc.fetchall()
     log(f"ACC_変更履歴取得: {len(rows)}件")
 
-    PRINT_KEYWORDS = ["段取シート印刷", "SP段取シート印刷", "段取シート　印刷", "仮登録", "印刷"]
-    CHANGE_KEYWORDS = [
-        ("NEW_REGISTRATION", ["新規登録", "新規"]),
-        ("APPROVAL",         ["承認"]),
-        ("CHANGE",           ["大変更", "小変更", "変更", "修正", "編集", "削除", "復元", "更新"]),
-    ]
-
-    def classify(content_str):
+    # ── 内容区分ID 判定（ストアド usp_init_copy_machining_logdata_MCID に完全準拠）──
+    # 内容文字列から内容区分IDを判定するマッピング（優先順位順）
+    def get_naiyo_kubun_id(content_str, kubun_str):
+        """旧DBの内容区分文字列（内容区分ID列）から内容区分IDを返す"""
+        # ACC_変更履歴 には 内容区分ID 列がある → それを直接使う
+        # ない場合は内容文字列から推定
+        if kubun_str:
+            k = str(kubun_str).strip()
+            _map = {
+                '段取シート印刷': 1, '新規登録': 2, '仮登録': 3, '承認': 4,
+                '共通部品追加': 5, '大変更': 6, '仮試作': 7, '試作登録': 8,
+                '小変更': 9, 'ｺﾋﾟｰ実行': 10, '変更': 11, 'SP段取シート印刷': 12,
+                '追加': 13, '訂正': 14, '修正': 15, '削除': 16, '作業記録': 17,
+            }
+            if k in _map:
+                return _map[k]
+        # 内容区分がない場合は内容文字列から判定
         if not content_str:
-            return False, True, "CHANGE"
+            return 99
         s = str(content_str).strip()
-        is_print  = any(s.startswith(kw) or kw in s for kw in PRINT_KEYWORDS)
-        is_change = False; change_type = "CHANGE"
-        for ct, kws in CHANGE_KEYWORDS:
-            if any(s.startswith(kw) for kw in kws):
-                is_change = True; change_type = ct; break
-        if not is_print and not is_change:
+        if s.startswith('段取シート印刷') or s.startswith('段取ｼｰﾄ印刷'):
+            return 1
+        if s.startswith('新規登録') or s.startswith('試作登録'):
+            return 2 if '新規' in s else 8
+        if s.startswith('仮登録'):
+            return 3
+        if s.startswith('承認'):
+            return 4
+        if s.startswith('共通部品追加'):
+            return 5
+        if s.startswith('大変更'):
+            return 6
+        if s.startswith('仮試作'):
+            return 7
+        if s.startswith('ｺﾋﾟｰ実行') or s.startswith('コピー実行'):
+            return 10
+        if s.startswith('SP段取シート印刷') or s.startswith('SP段取ｼｰﾄ印刷'):
+            return 12
+        if s.startswith('小変更'):
+            return 9
+        if s.startswith('変更'):
+            return 11
+        if s.startswith('追加'):
+            return 13
+        if s.startswith('訂正'):
+            return 14
+        if s.startswith('修正'):
+            return 15
+        if s.startswith('削除'):
+            return 16
+        if s.startswith('作業記録'):
+            return 17
+        return 99
+
+    def classify(content_str, kubun_str=None):
+        """
+        ストアドロジックに基づく分類
+        Returns: (is_print, is_change, change_type, sheet_type, work_collected)
+        """
+        nk = get_naiyo_kubun_id(content_str, kubun_str)
+        s = str(content_str).strip() if content_str else ''
+
+        # 回収済み判定：内容に「済」が含まれれば回収済み（ストアドのstatus判定と同一）
+        has_zumi = '済' in s
+
+        # 参考出力：内容に「参考」が含まれれば参考（work_collected=true固定）
+        has_sanko = '参考' in s
+
+        # ── 段取シート発行 判定 ──
+        # 内容区分ID 1(段取シート印刷), 3(仮登録), 7(仮試作) → mc_setup_sheet_logs
+        # 12(SP段取シート印刷) → 段取シートは作らない（処理履歴のみ）
+        if nk == 1:  # 段取シート印刷
+            is_print = True
+            sheet_type = 'REFERENCE' if has_sanko else 'MC'
+            work_collected = True if (has_zumi or has_sanko) else False
+        elif nk == 3:  # 仮登録
+            is_print = True
+            sheet_type = 'NEW'
+            work_collected = True if has_zumi else False
+        elif nk == 7:  # 仮試作
+            is_print = True
+            sheet_type = 'NEW'
+            work_collected = True if has_zumi else False
+        else:
+            is_print = False
+            sheet_type = 'MC'
+            work_collected = False
+
+        # ── 変更履歴 判定 ──
+        # 内容区分ID 1-16,99 → mc_change_history（17=作業記録のみは除く）
+        CHANGE_TYPE_MAP = {
+            2: 'NEW_REGISTRATION', 8: 'NEW_REGISTRATION',
+            4: 'APPROVAL',
+            1: 'PRINT', 3: 'PRINT', 7: 'PRINT', 12: 'PRINT',
+        }
+        if nk == 17:  # 作業記録のみ → 変更履歴に入れない
+            is_change = False
+            change_type = 'CHANGE'
+        else:
             is_change = True
-        return is_print, is_change, change_type
+            if nk in CHANGE_TYPE_MAP:
+                change_type = CHANGE_TYPE_MAP[nk]
+            elif nk in (4,):
+                change_type = 'APPROVAL'
+            elif nk in (2, 8):
+                change_type = 'NEW_REGISTRATION'
+            elif nk in (1, 3, 7, 12):
+                change_type = 'PRINT'
+            else:
+                change_type = 'CHANGE'
+
+        # ── 作業記録 判定 ──
+        # ストアド条件：段取時間 or 加工時間 or 総時間 or 単位系時間 のいずれかが空でない
+        # → この判定は row_dict の各値を見て呼び出し側で判断
+
+        return is_print, is_change, change_type, sheet_type, work_collected, nk
 
     def toint(v):
         try: return int(v or 0)
@@ -591,7 +688,7 @@ def phase6(pg, dry_run=False):
             created_at= row_dict.get("作成日") or row_dict.get("入力日")
             hist_id   = row_dict.get("加工ID")
 
-            is_print, is_change, change_type = classify(content)
+            is_print, is_change, change_type, sheet_type_val, work_coll_val, nk_id = classify(content, kubun_str)
 
             th = toint(row_dict.get("TH")); tm = toint(row_dict.get("TM")); ts = toint(row_dict.get("TS"))
             work_cnt  = toint(row_dict.get("ﾜｰｸ数"))
