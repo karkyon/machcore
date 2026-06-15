@@ -143,8 +143,7 @@ export default function ImageEditor({ imageUrl, fileId, ncId, processingId, toke
       fd.append("nc_program_id", String(ncId));
       fd.append("processing_id", processingId ?? "");
 
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3011/api";
-      const res = await fetch(`${apiBase}/files/${fileId}/save-edited`, {
+      const res = await fetch(`/api/files/${fileId}/save-edited`, {
         method:  "POST",
         headers: { Authorization: `Bearer ${token}` },
         body:    fd,

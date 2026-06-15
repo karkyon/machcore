@@ -99,10 +99,7 @@ export default function PrintPage() {
     setPrinting(true);
     setPrintError(null);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3011/api";
-      console.log("[print] POST to:", `${apiUrl}/nc/${ncId}/print`);
-
-      const res = await fetch(`${apiUrl}/nc/${ncId}/print`, {
+      const res = await fetch(`/api/nc/${ncId}/print`, {
         method:  "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -143,8 +140,7 @@ export default function PrintPage() {
     if (!token) { setPrintError("認証が必要です"); return; }
     setDirectPrinting(true); setPrintError(null);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3011/api";
-      const res = await fetch(`${apiUrl}/nc/${ncId}/direct-print`, {
+      const res = await fetch(`/api/nc/${ncId}/direct-print`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ include_tools: includeTools, include_clamp: includeClamp, include_drawings: includeDrawings }),
