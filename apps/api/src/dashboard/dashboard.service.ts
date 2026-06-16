@@ -45,20 +45,22 @@ export class DashboardService {
     const rows = await this.prisma.mcSetupSheetLog.findMany({
       where: { workCollected: false },
       orderBy: [
-        { mcProgram: { machining: { machine: { id: 'asc' } } } },
+        // machine_id_log（変更履歴の印刷時機械）でソート
+        // machiningの機械ではなく印刷時に実際に使った機械で並べる
+        { machine: { id: 'asc' } },
         { printedAt: 'asc' },
       ],
       include: {
-        operator:  { select: { name: true } },
+        operator: { select: { name: true } },
+        machine:  { select: { machineCode: true, machineName: true, sortOrder: true } },
         mcProgram: {
           include: {
             part:     { select: { partId: true, drawingNo: true, name: true, clientName: true, mainModel: true } },
-            machining: { include: { machine: true } },
+            machining: { select: { mcProcessNo: true, version: true } },
           },
         },
       },
     });
-    // sheet_type: 各ログが保持する sheetType を直接使用（プログラム単位の集計不要）
     const items = rows.map(s => ({
       id:             s.id,
       mc_id:          s.mcProgramId,
@@ -69,10 +71,11 @@ export class DashboardService {
       part_name:      s.mcProgram.part.name,
       client_name:    s.mcProgram.part.clientName ?? null,
       main_model:     s.mcProgram.part.mainModel ?? null,
-      mc_process_no:  (s as any).mcProgram?.machining?.mcProcessNo ?? null,
-      machine_code:   s.mcProgram.machining?.machine?.machineCode ?? null,
-      machine_name:   s.mcProgram.machining?.machine?.machineName ?? null,
-      machine_sort:   s.mcProgram.machining?.machine?.sortOrder ?? 999,
+      mc_process_no:  s.mcProgram?.machining?.mcProcessNo ?? null,
+      // machine_id_log（変更履歴の印刷時機械）を使用 = 旧DBのNow段取シートクエリと同一
+      machine_code:   s.machine?.machineCode ?? null,
+      machine_name:   s.machine?.machineName ?? null,
+      machine_sort:   s.machine?.sortOrder ?? 999,
       version:        s.version ?? null,
       printed_at:     s.printedAt,
       operator_name:  s.operator.name,
