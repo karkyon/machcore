@@ -516,249 +516,311 @@ def phase5(pg, dry_run=False):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def phase6(pg, dry_run=False):
     section("PHASE 6: ACC_変更履歴 → 3テーブル分離移行")
-    mc  = ss_connect(SS_MC_DB)
-    mcc = mc.cursor()
+    import json as _json, re as _re2
+    from datetime import timedelta as _td
+
     pgc = pg.cursor()
 
+    # テーブルクリア
     if not dry_run:
-        pgc.execute("DELETE FROM mc_change_history")
-        pgc.execute("DELETE FROM mc_setup_sheet_logs")
+        pgc.execute("DELETE FROM mc_change_history WHERE mc_program_id IS NOT NULL")
+        pgc.execute("DELETE FROM mc_setup_sheet_logs WHERE mc_program_id IS NOT NULL")
         pgc.execute("DELETE FROM work_records WHERE mc_program_id IS NOT NULL")
         pg.commit()
         log("mc_change_history / mc_setup_sheet_logs / work_records(MC分) 削除完了")
 
+    # ユーザーマップ
+    pgc.execute("SELECT id, name FROM users")
+    _u_rows = pgc.fetchall()
+    _u_exact = {r[1]: r[0] for r in _u_rows}
+    _u_norm  = {_re2.sub(r"[\s\u3000]+", " ", r[1]).strip(): r[0] for r in _u_rows}
+
+    def _resolve(raw_val):
+        if not raw_val: return None
+        val = str(raw_val).strip()
+        if val in _u_exact: return _u_exact[val]
+        normed = _re2.sub(r"[\s\u3000]+", " ", val).strip()
+        if normed in _u_norm: return _u_norm[normed]
+        return None
+
+    def _resolve_multi(raw_val):
+        if not raw_val: return []
+        parts = _re2.split(r"[&\uff06,\u3001]", str(raw_val))
+        ids = []
+        for part in parts:
+            part = part.strip()
+            if not part: continue
+            uid = _resolve(part)
+            if uid:
+                ids.append(uid)
+                continue
+            # スペース区切り複数名前方貪欲マッチ
+            remaining = _re2.sub(r"[\s\u3000]+", " ", part).strip()
+            while remaining:
+                matched_id = None; matched_len = 0
+                for nm, uid in _u_norm.items():
+                    if remaining.startswith(nm) and len(nm) > matched_len:
+                        matched_id = uid; matched_len = len(nm)
+                if matched_id:
+                    ids.append(matched_id); remaining = remaining[matched_len:].strip()
+                else:
+                    break
+        return list(dict.fromkeys(ids))
+
+    # 機械マップ (機械名→machines.id)
+    pgc.execute("SELECT id, machine_code FROM machines WHERE system_type='MC'")
+    _machines_map = {r[1]: r[0] for r in pgc.fetchall()}
+
+    # mcid_map (legacy_mcid → [mc_program_id,...])
     pgc.execute("SELECT id, legacy_mcid FROM mc_programs WHERE legacy_mcid IS NOT NULL")
-    mcid_map: dict[int, list[int]] = {}
+    mcid_map = {}
     for mc_id, lmid in pgc.fetchall():
         mcid_map.setdefault(lmid, []).append(mc_id)
 
-    pgc.execute("SELECT id, name FROM users")
-    users_map = {r[1]: r[0] for r in pgc.fetchall()}
+    # 旧DBから変更履歴全件取得
+    ss_conn = ss_connect(SS_MC_DB)
+    ss_cur  = ss_conn.cursor()
 
-    pgc.execute("SELECT id, machine_code FROM machines WHERE system_type='MC'")
-    machines_map = {r[1]: r[0] for r in pgc.fetchall()}
-
+    # カラム確認
     try:
-        mcc.execute("SELECT TOP 1 * FROM ACC_変更履歴")
-        cols = [d[0] for d in mcc.description]
+        ss_cur.execute("SELECT TOP 1 * FROM ACC_変更履歴")
+        cols = [d[0] for d in ss_cur.description]
         log(f"ACC_変更履歴カラム: {cols}")
     except Exception as e:
-        log(f"ACC_変更履歴取得失敗: {e}", "WARN")
-        mc.close(); return
+        log(f"[WARN] ACC_変更履歴カラム確認失敗: {e}", "WARN")
+        cols = []
 
-    mcc.execute("SELECT * FROM ACC_変更履歴 ORDER BY MCID, 作成日")
-    rows = mcc.fetchall()
-    log(f"ACC_変更履歴取得: {len(rows)}件")
+    ss_cur.execute("""
+        SELECT MCID, 加工ID, 内容, 内容区分ID, 内容区分, Ver,
+               作成, 作成日, ｵﾍﾟﾚｰﾀｰ, 入力日,
+               承認, 承認日,
+               Prg, PrgPlas, PrgTimeH, PrgTimeM,
+               段取, 作業者, 機械, TH, TM, TS,
+               [1S_個数], R_IN_DATE, R_OP,
+               段取開始, ﾁｪｯｸTime, ﾁｪｯｸMan, 加工終了,
+               [段取_ﾜｰｸ数], [ﾜｰｸ数],
+               段取時間, 加工時間, 総時間,
+               [ｻｲｸﾙﾀｲﾑ/1P], [加工時間/1P], [総時間/1P]
+        FROM ACC_変更履歴
+        ORDER BY MCID, 入力日
+    """)
+    all_rows = ss_cur.fetchall()
+    log(f"ACC_変更履歴取得: {len(all_rows)}件")
 
-    # ── 内容区分ID 判定（ストアド usp_init_copy_machining_logdata_MCID に完全準拠）──
-    # 内容文字列から内容区分IDを判定するマッピング（優先順位順）
-    def get_naiyo_kubun_id(content_str, kubun_str):
-        """旧DBの内容区分文字列（内容区分ID列）から内容区分IDを返す"""
-        # ACC_変更履歴 には 内容区分ID 列がある → それを直接使う
-        # ない場合は内容文字列から推定
-        if kubun_str:
-            k = str(kubun_str).strip()
-            _map = {
-                '段取シート印刷': 1, '新規登録': 2, '仮登録': 3, '承認': 4,
-                '共通部品追加': 5, '大変更': 6, '仮試作': 7, '試作登録': 8,
-                '小変更': 9, 'ｺﾋﾟｰ実行': 10, '変更': 11, 'SP段取シート印刷': 12,
-                '追加': 13, '訂正': 14, '修正': 15, '削除': 16, '作業記録': 17,
-            }
-            if k in _map:
-                return _map[k]
-        # 内容区分がない場合は内容文字列から判定
-        if not content_str:
-            return 99
-        s = str(content_str).strip()
-        if s.startswith('段取シート印刷') or s.startswith('段取ｼｰﾄ印刷'):
-            return 1
-        if s.startswith('新規登録') or s.startswith('試作登録'):
-            return 2 if '新規' in s else 8
-        if s.startswith('仮登録'):
-            return 3
-        if s.startswith('承認'):
-            return 4
-        if s.startswith('共通部品追加'):
-            return 5
-        if s.startswith('大変更'):
-            return 6
-        if s.startswith('仮試作'):
-            return 7
-        if s.startswith('ｺﾋﾟｰ実行') or s.startswith('コピー実行'):
-            return 10
-        if s.startswith('SP段取シート印刷') or s.startswith('SP段取ｼｰﾄ印刷'):
-            return 12
-        if s.startswith('小変更'):
-            return 9
-        if s.startswith('変更'):
-            return 11
-        if s.startswith('追加'):
-            return 13
-        if s.startswith('訂正'):
-            return 14
-        if s.startswith('修正'):
-            return 15
-        if s.startswith('削除'):
-            return 16
-        if s.startswith('作業記録'):
-            return 17
-        return 99
+    COL_NAMES = [
+        "MCID","加工ID","内容","内容区分ID","内容区分","Ver",
+        "作成","作成日","ｵﾍﾟﾚｰﾀｰ","入力日",
+        "承認","承認日",
+        "Prg","PrgPlas","PrgTimeH","PrgTimeM",
+        "段取","作業者","機械","TH","TM","TS",
+        "1S_個数","R_IN_DATE","R_OP",
+        "段取開始","ﾁｪｯｸTime","ﾁｪｯｸMan","加工終了",
+        "段取_ﾜｰｸ数","ﾜｰｸ数",
+        "段取時間","加工時間","総時間",
+        "ｻｲｸﾙﾀｲﾑ/1P","加工時間/1P","総時間/1P"
+    ]
 
-    def classify(content_str, kubun_str=None):
-        """
-        ストアドロジックに基づく分類
-        Returns: (is_print, is_change, change_type, sheet_type, work_collected)
-        """
-        nk = get_naiyo_kubun_id(content_str, kubun_str)
-        s = str(content_str).strip() if content_str else ''
+    # ──────────────────────────────────────────────
+    # 時間パース (HH:MM:SS または "3H 30M" テキスト形式)
+    # ──────────────────────────────────────────────
+    def _parse_hms_min(s):
+        if not s: return None
+        s = str(s).strip()
+        mh = _re2.search(r"(\d+)H", s); mm = _re2.search(r"H\s*(\d+)M", s)
+        if mh:
+            h = int(mh.group(1)); m = int(mm.group(1)) if mm else 0
+            return h * 60 + m if (h > 0 or m > 0) else None
+        return None
 
-        # 回収済み判定：内容に「済」が含まれれば回収済み（ストアドのstatus判定と同一）
-        has_zumi = '済' in s
+    def _parse_hms_sec(s):
+        if not s: return None
+        s = str(s).strip()
+        mh = _re2.search(r"(\d+)H", s)
+        mm = _re2.search(r"H\s*(\d+)M", s)
+        ms = _re2.search(r"M\s*(\d+)S", s)
+        h = int(mh.group(1)) if mh else 0
+        m = int(mm.group(1)) if mm else 0
+        sc= int(ms.group(1)) if ms else 0
+        return h*3600 + m*60 + sc if (h or m or sc) else None
 
-        # 参考出力：内容に「参考」が含まれれば参考（work_collected=true固定）
-        has_sanko = '参考' in s
-
-        # ── 段取シート発行 判定 ──
-        # 内容区分ID 1(段取シート印刷), 3(仮登録), 7(仮試作) → mc_setup_sheet_logs
-        # 12(SP段取シート印刷) → 段取シートは作らない（処理履歴のみ）
-        if nk == 1:  # 段取シート印刷
-            is_print = True
-            sheet_type = 'REFERENCE' if has_sanko else 'MC'
-            work_collected = True if (has_zumi or has_sanko) else False
-        elif nk == 3:  # 仮登録
-            is_print = True
-            sheet_type = 'NEW'
-            work_collected = True if has_zumi else False
-        elif nk == 7:  # 仮試作
-            is_print = True
-            sheet_type = 'NEW'
-            work_collected = True if has_zumi else False
-        else:
-            is_print = False
-            sheet_type = 'MC'
-            work_collected = False
-
-        # ── 変更履歴 判定（ストアド完全準拠）──
-        # 印刷系(1,3,7,12)・作業記録(17) は mc_change_history に入れない
-        # enumの許容値: NEW_REGISTRATION, CHANGE, APPROVAL, MIGRATION
-        if nk in (1, 3, 7, 12, 17):
-            is_change = False
-            change_type = 'CHANGE'
-        elif nk in (2, 8):
-            is_change = True
-            change_type = 'NEW_REGISTRATION'
-        elif nk == 4:
-            is_change = True
-            change_type = 'APPROVAL'
-        else:
-            is_change = True
-            change_type = 'CHANGE'
-        return is_print, is_change, change_type, sheet_type, work_collected, nk
-
-    def toint(v):
-        try: return int(v or 0)
-        except: return 0
-
-    sl_ok = wr_ok = ch_ok = skip = err = 0
-    batch = 0
-    for row in rows:
+    def _to_jst_utc(dt):
+        """SQL Serverから来るJSTのnaive datetimeをUTCに変換（-9h）"""
+        if dt is None: return None
+        from datetime import timezone
         try:
-            row_dict  = dict(zip(cols, row))
-            kubun_str = str(row_dict.get('内容区分') or '').strip()  # 内容区分IDの文字列名
-            mcid      = row_dict.get("MCID")
+            return dt - _td(hours=9)
+        except Exception:
+            return dt
+
+    # カウンタ
+    sl_ok = sl_skip = sl_err = 0
+    ch_ok = ch_skip = ch_err = 0
+    wr_ok = wr_skip = wr_err = 0
+    err_msgs = []
+    commit_every = 500
+    row_count = 0
+
+    for raw_row in all_rows:
+        rd = dict(zip(COL_NAMES, raw_row))
+        row_count += 1
+
+        try:
+            mcid = rd["MCID"]
             mc_db_ids = mcid_map.get(mcid, [])
-            if not mc_db_ids: skip += 1; continue
+            if not mc_db_ids:
+                sl_skip += 1; continue
 
-            op_name   = str(row_dict.get("作成") or row_dict.get("ｵﾍﾟﾚｰﾀｰ") or "").strip()
-            op_id     = users_map.get(op_name, ADMIN_ID)
-            content   = str(row_dict.get("内容") or "").strip()
-            ver_after = str(row_dict.get("Ver") or "").strip() or None
-            ver_before= row_dict.get("旧Ver") or row_dict.get("OldVer") or None
-            created_at= row_dict.get("作成日") or row_dict.get("入力日")
-            hist_id   = row_dict.get("加工ID")
+            nk = rd["内容区分ID"] or 0
+            try: nk = int(nk)
+            except: nk = 0
 
-            is_print, is_change, change_type, sheet_type_val, work_coll_val, nk_id = classify(content, kubun_str)
+            content     = str(rd["内容"] or "").strip()
+            input_dt    = _to_jst_utc(rd["入力日"])
+            return_dt   = rd["R_IN_DATE"]   # 戻り日付（段取シートバック日）
+            ver_str     = str(rd["Ver"] or "").strip() or None
+            op_name     = str(rd["ｵﾍﾟﾚｰﾀｰ"] or "").strip()
+            creator_name= str(rd["作成"]    or "").strip()
+            approver_name=str(rd["承認"]    or "").strip()
+            machine_name= str(rd["機械"]    or "").strip()
 
-            th = toint(row_dict.get("TH")); tm = toint(row_dict.get("TM")); ts = toint(row_dict.get("TS"))
-            work_cnt  = toint(row_dict.get("ﾜｰｸ数"))
-            setup_cnt = toint(row_dict.get("段取_ﾜｰｸ数") or row_dict.get("段取ﾜｰｸ数") or 0)
-            ichi_s    = toint(row_dict.get("1S_個数") or row_dict.get("1S個数") or 0)
-            dan_start = row_dict.get("段取開始"); work_end = row_dict.get("加工終了")
-            total_min = th * 60 + tm + (1 if ts >= 30 else 0)
-            has_work  = (total_min > 0 or work_cnt > 0 or dan_start is not None)
+            op_id       = _resolve(op_name) or ADMIN_ID
+            creator_id  = _resolve(creator_name) or ADMIN_ID
+            approver_id = _resolve(approver_name) if approver_name else None
+            machine_id  = _machines_map.get(machine_name)
 
-            machine_name_val = str(row_dict.get("機械") or "").strip()
-            machine_db_id = machines_map.get(machine_name_val) if machine_name_val else None
+            # ━━ work_collected 判定 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # ストアド準拠:
+            # 1) 内容に「済」含む → 回収済
+            # 2) R_IN_DATE(戻り日付)がNULLでない → 回収済(usp_init_copy_mc_dataの補完と同等)
+            has_zumi = "済" in content
+            has_return_dt = return_dt is not None and str(return_dt).strip() != ""
+            work_collected = has_zumi or has_return_dt
 
-            prg_man_val  = str(row_dict.get("Prg") or "").strip() or None
-            prg_time_min = toint(row_dict.get("PrgTimeH")) * 60 + toint(row_dict.get("PrgTimeM"))
+            # ━━ setup_sheet_type 判定 ━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 内容区分ID=3→NEW, 7→NEW, 1で参考含む→REFERENCE(is_reference=True), 1→REPEAT
+            if nk in (3, 7):
+                sheet_type  = "NEW"
+                is_reference = False
+            elif nk == 1:
+                if "参考" in content:
+                    sheet_type   = "REPEAT"
+                    is_reference = True
+                    work_collected = True  # 参考出力は回収済(setup_sheet_type_cd=9補完)
+                else:
+                    sheet_type   = "REPEAT"
+                    is_reference = False
+            else:
+                sheet_type   = None
+                is_reference = False
 
-            # 旧DB時間フォーマット: "3H 30M" or "0H 9M 6S" → 分/秒に変換
-            def parse_hms_to_min(s):
-                if not s: return None
-                s = str(s).strip()
-                h = m = 0
-                mh = re.search(r'(\d+)H', s)
-                mm = re.search(r'H\s*(\d+)M', s)
-                if mh: h = int(mh.group(1))
-                if mm: m = int(mm.group(1))
-                return h * 60 + m if (h > 0 or m > 0) else None
-            def parse_hms_to_sec(s):
-                if not s: return None
-                s = str(s).strip()
-                h = m = sc = 0
-                mh = re.search(r'(\d+)H', s)
-                mm = re.search(r'H\s*(\d+)M', s)
-                ms = re.search(r'M\s*(\d+)S', s)
-                if mh: h = int(mh.group(1))
-                if mm: m = int(mm.group(1))
-                if ms: sc = int(ms.group(1))
-                return h * 3600 + m * 60 + sc if (h > 0 or m > 0 or sc > 0) else None
+            for mc_db_id in mc_db_ids:
 
-            setup_time_min = parse_hms_to_min(row_dict.get("段取時間"))
-            mach_time_min  = parse_hms_to_min(row_dict.get("加工時間"))
-            total_hms_min  = parse_hms_to_min(row_dict.get("総時間"))
-            if mach_time_min is None and total_min > 0:
-                mach_time_min = total_min
-
-            cycle_sec = parse_hms_to_sec(row_dict.get("ｻｲｸﾙﾀｲﾑ/1P") or row_dict.get("サイクルタイム/1P"))
-            # TH/TM/TSからサイクル秒を計算（旧DBのサイクルタイムは加工時間H/M/S）
-            if cycle_sec is None and (th > 0 or tm > 0 or ts > 0):
-                cycle_sec = th * 3600 + tm * 60 + ts
-
-            sheet_type_val = "SP" if is_print and ("SP" in content or "特殊" in content) else ("MC" if is_print else None)
-
-            if not dry_run:
-                for mc_db_id in mc_db_ids:
-                    if is_print:
-                        # printed_at = 入力日（旧DB Now段取シートクエリの印刷日時カラム）
-                        # SQL ServerはJSTで返すがPGはUTCで保存→-9時間変換
-                        from datetime import timedelta as _td
-                        _raw_input = row_dict.get('入力日') or created_at or datetime.now()
-                        _input_date_val = (_raw_input - _td(hours=9)) if _raw_input else datetime.now()
+                # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                # [1][3][7] → mc_setup_sheet_logs に INSERT
+                # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                if nk in (1, 3, 7) and not dry_run:
+                    try:
+                        qty_val = rd["ﾜｰｸ数"]
+                        qty = int(float(str(qty_val))) if qty_val else None
                         pgc.execute("""
                             INSERT INTO mc_setup_sheet_logs
                               (mc_program_id, operator_id, printed_at, version,
-                               work_collected, sheet_type, quantity, machine_id_log)
-                            VALUES (%s,%s,%s,%s,false,%s,%s,%s)
-                        """, (mc_db_id, op_id, _input_date_val,
-                              ver_after, sheet_type_val,
-                              ichi_s if ichi_s > 0 else None, machine_db_id))
+                               work_collected, is_reference, sheet_type,
+                               quantity, machine_id_log)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (mc_db_id, op_id,
+                              input_dt or datetime.now(),
+                              ver_str,
+                              work_collected,
+                              is_reference,
+                              sheet_type,
+                              qty,
+                              machine_id))
                         sl_ok += 1
-                    if has_work:
-                        wd = created_at
-                        if wd and hasattr(wd, 'date'): wd = wd.date()
-                        # 段取担当者・量産担当者 名前→ID解決
-                        tanto_name   = str(row_dict.get('段取')    or '').strip()
-                        sagyosha_name= str(row_dict.get('作業者')   or '').strip()
-                        check_man    = str(row_dict.get('ﾁｪｯｸMan') or '').strip()
-                        setup_op_id  = users_map.get(tanto_name)
-                        prod_op_id   = users_map.get(sagyosha_name)
-                        setup_op_ids = [setup_op_id] if setup_op_id else []
-                        prod_op_ids  = [prod_op_id]  if prod_op_id  else []
-                        import json as _json
-                        # ﾁｪｯｸTime → checked_at
-                        chk_time = row_dict.get('ﾁｪｯｸTime')
+                    except Exception as e2:
+                        sl_err += 1
+                        if sl_err <= 5: err_msgs.append(f"SL ERR mcid={mcid}: {e2}")
+
+                # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                # [2][4][5][6][8][9][10][11][13][14][15][16][99] → mc_change_history
+                # 内容区分ID=1,3,7,12,17 は入れない
+                # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                if nk in (2,4,5,6,8,9,10,11,13,14,15,16,99) and not dry_run:
+                    if nk in (2, 8):
+                        change_type = "NEW_REGISTRATION"
+                        ch_op_id = creator_id
+                    elif nk == 4:
+                        change_type = "APPROVAL"
+                        ch_op_id = approver_id or creator_id
+                        # 承認時の入力日は承認日
+                        input_dt_ch = _to_jst_utc(rd["承認日"]) if rd["承認日"] else input_dt
+                    else:
+                        change_type = "CHANGE"
+                        ch_op_id = creator_id
+                    if ch_op_id is None: ch_op_id = ADMIN_ID
+
+                    changed_at_val = (input_dt_ch if nk == 4 else input_dt) or datetime.now()
+
+                    try:
+                        pgc.execute("""
+                            INSERT INTO mc_change_history
+                              (mc_program_id, change_type, operator_id,
+                               version_after, content, changed_at)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (mc_db_id, change_type, ch_op_id,
+                              ver_str, content[:500] if content else None,
+                              changed_at_val))
+                        ch_ok += 1
+                    except Exception as e2:
+                        ch_err += 1
+                        if ch_err <= 5: err_msgs.append(f"CH ERR mcid={mcid} nk={nk}: {e2}")
+
+                # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                # [17] 作業記録 OR 総時間あり → work_records
+                # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                has_work = (nk == 17) or (rd["総時間"] is not None and str(rd["総時間"]).strip() != "")
+                if has_work and not dry_run:
+                    wd_date = input_dt.date() if input_dt else datetime.now().date()
+
+                    setup_min  = _parse_hms_min(rd["段取時間"])
+                    mach_min   = _parse_hms_min(rd["加工時間"])
+                    th = int(rd["TH"] or 0); tm = int(rd["TM"] or 0); ts = int(rd["TS"] or 0)
+                    cycle_sec  = _parse_hms_sec(rd["ｻｲｸﾙﾀｲﾑ/1P"])
+                    if cycle_sec is None and (th or tm or ts):
+                        cycle_sec = th*3600 + tm*60 + ts
+
+                    qty_val = rd["ﾜｰｸ数"]
+                    work_qty = int(float(str(qty_val))) if qty_val else None
+                    setup_qty_val = rd["段取_ﾜｰｸ数"]
+                    setup_qty = int(float(str(setup_qty_val))) if setup_qty_val else None
+
+                    # 担当者
+                    setup_ids = _resolve_multi(rd["段取"])
+                    prod_ids  = _resolve_multi(rd["作業者"])
+                    work_op_id = _resolve(rd["ｵﾍﾟﾚｰﾀｰ"]) or ADMIN_ID
+
+                    # 時刻 (SQL Serverから来るJSTのnaive datetime/varchar)
+                    def _parse_dt(v):
+                        if v is None: return None
+                        if hasattr(v, "year"): return _to_jst_utc(v)
+                        s = str(v).strip()
+                        if not s: return None
+                        for fmt in ["%Y/%m/%d", "%Y-%m-%d"]:
+                            try: return datetime.strptime(s, fmt)
+                            except: pass
+                        return None
+
+                    started_at  = _parse_dt(rd["段取開始"])
+                    checked_at  = _parse_dt(rd["ﾁｪｯｸTime"])
+                    finished_at = _parse_dt(rd["加工終了"])
+
+                    # Prg
+                    prg_man     = str(rd["Prg"] or "").strip() or None
+                    prg_plas    = str(rd["PrgPlas"] or "").strip() or None
+                    prg_h = int(rd["PrgTimeH"] or 0); prg_m = int(rd["PrgTimeM"] or 0)
+                    prg_min = prg_h*60 + prg_m if (prg_h or prg_m) else None
+
+                    try:
                         pgc.execute("""
                             INSERT INTO work_records
                               (mc_program_id, operator_id, machine_id,
@@ -768,63 +830,39 @@ def phase6(pg, dry_run=False):
                                setup_operator_ids, production_operator_ids,
                                work_type, created_at)
                             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'MC',NOW())
-                        """, (mc_db_id, op_id, machine_db_id,
-                              wd or datetime.now().date(),
-                              setup_time_min, mach_time_min, cycle_sec,
-                              work_cnt if work_cnt > 0 else None,
-                              dan_start, chk_time, work_end,
-                              setup_cnt if setup_cnt > 0 else None,
-                              prg_man_val,
-                              prg_time_min if prg_time_min > 0 else None,
-                              str(row_dict.get('PrgPlas') or '') or None,
-                              _json.dumps(setup_op_ids),
-                              _json.dumps(prod_op_ids)))
+                        """, (mc_db_id, work_op_id, machine_id,
+                              wd_date,
+                              setup_min, mach_min, cycle_sec,
+                              work_qty,
+                              started_at, checked_at, finished_at,
+                              setup_qty,
+                              prg_man, prg_min, prg_plas,
+                              _json.dumps(setup_ids),
+                              _json.dumps(prod_ids)))
                         wr_ok += 1
-                    if is_change:
-                        # 承認レコードは承認列から承認者IDを解決
-                        import re as _ch_re
-                        def _ch_resolve(raw):
-                            if not raw: return None
-                            v = str(raw).strip()
-                            if v in users_map: return users_map[v]
-                            n = _ch_re.sub(r'[\s\u3000]+', ' ', v).strip()
-                            return next((uid for nm, uid in users_map.items()
-                                         if _ch_re.sub(r'[\s\u3000]+', ' ', nm).strip() == n), None)
-                        if change_type == 'APPROVAL':
-                            _approver_op = _ch_resolve(row_dict.get('承認')) or op_id
-                        else:
-                            _approver_op = op_id
-                        pgc.execute("""
-                            INSERT INTO mc_change_history
-                              (mc_program_id, change_type, operator_id,
-                               version_before, version_after, content,
-                               changed_at, legacy_hist_id)
-                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-                        """, (mc_db_id, change_type, _approver_op, ver_before, ver_after,
-                              content or None, created_at or datetime.now(), hist_id))
-                        ch_ok += 1
-            else:
-                if is_print: sl_ok += 1
-                if has_work: wr_ok += 1
-                if is_change: ch_ok += 1
-
-            batch += 1
-            if batch % 5000 == 0:
-                if not dry_run: pg.commit()
-                log(f"  {batch}件処理... sl={sl_ok} wr={wr_ok} ch={ch_ok} skip={skip} err={err}")
+                    except Exception as e2:
+                        wr_err += 1
+                        if wr_err <= 5: err_msgs.append(f"WR ERR mcid={mcid}: {e2}")
 
         except Exception as e:
-            err += 1
-            if not dry_run:
-                try: pg.rollback()
-                except: pass
-            if err <= 10: log(f"  ERR MCID={row_dict.get('MCID')}: {e}", "WARN")
+            sl_err += 1
+            if len(err_msgs) < 10: err_msgs.append(f"ERR MCID={rd.get('MCID')}: {e}")
+
+        if row_count % commit_every == 0 and not dry_run:
+            pg.commit()
+            log(f"  進捗: {row_count}/{len(all_rows)} "
+                f"SL={sl_ok} CH={ch_ok} WR={wr_ok} err={sl_err+ch_err+wr_err}")
+
+    if not dry_run: pg.commit()
+    ss_conn.close()
+
+    for msg in err_msgs: log(f"  {msg}", "WARN")
+    log(f"PHASE6完了: 入力={row_count} skip={sl_skip} SL_err={sl_err} CH_err={ch_err} WR_err={wr_err}")
+    log(f"  [印刷履歴={sl_ok} / 変更履歴={ch_ok} / 作業実績={wr_ok}]")
 
     if not dry_run:
-        pg.commit()
         # PHASE6B: registered_by/approved_by を変更履歴の新規登録・承認レコードで更新
         log("PHASE6B: registered_by/approved_by 更新...")
-        # 新規登録の作成者→registered_by
         pgc.execute("""
             UPDATE mc_programs p SET registered_by = ch.operator_id
             FROM (
@@ -833,9 +871,8 @@ def phase6(pg, dry_run=False):
                 WHERE change_type = 'NEW_REGISTRATION'
                 ORDER BY mc_program_id, changed_at ASC
             ) ch
-            WHERE p.id = ch.mc_program_id AND ch.operator_id IS NOT NULL
-        """)
-        # 承認の作成者→approved_by/approved_at
+            WHERE p.id = ch.mc_program_id AND ch.operator_id IS NOT NULL AND ch.operator_id != %s
+        """, (ADMIN_ID,))
         pgc.execute("""
             UPDATE mc_programs p SET approved_by = ch.operator_id, approved_at = ch.changed_at
             FROM (
@@ -847,27 +884,15 @@ def phase6(pg, dry_run=False):
             WHERE p.id = ch.mc_program_id AND ch.operator_id IS NOT NULL
         """)
         pg.commit()
-        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE registered_by != 22")
+        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE registered_by != %s", (ADMIN_ID,))
         log(f"  管理者以外のregistered_by: {pgc.fetchone()[0]}件")
-        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE approved_by IS NOT NULL AND approved_by != 22")
+        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE approved_by IS NOT NULL AND approved_by != %s", (ADMIN_ID,))
         log(f"  管理者以外のapproved_by: {pgc.fetchone()[0]}件")
 
-        # PHASE6C: registered_by を ｵﾍﾟﾚｰﾀｰ列（最古）から正しく更新
-        log("PHASE6C: registered_by をｵﾍﾟﾚｰﾀｰ列から更新...")
+        # PHASE6C: registered_by を ACC_変更履歴 ｵﾍﾟﾚｰﾀｰ列最新から補完（ADMIN_IDのままのもの）
+        log("PHASE6C: registered_by ｵﾍﾟﾚｰﾀｰ列最新から補完...")
         mc6c = ss_connect(SS_MC_DB)
         mc6c_c = mc6c.cursor()
-        def _resolve_one(raw_val, u_exact, u_norm):
-            if not raw_val: return None
-            import re as _re
-            val = str(raw_val).strip()
-            if val in u_exact: return u_exact[val]
-            normed = _re.sub(r'[\s\u3000]+', ' ', val).strip()
-            if normed in u_norm: return u_norm[normed]
-            return None
-        pgc.execute("SELECT id, name FROM users WHERE employee_code LIKE 'MC%' OR employee_code = 'ADMIN001'")
-        _pg_users = pgc.fetchall()
-        _u_exact = {u[1]: u[0] for u in _pg_users}
-        _u_norm  = {__import__('re').sub(r'[\s\u3000]+', ' ', u[1]).strip(): u[0] for u in _pg_users}
         mc6c_c.execute("""
             SELECT MCID, ｵﾍﾟﾚｰﾀｰ, 入力日 FROM ACC_変更履歴
             WHERE ｵﾍﾟﾚｰﾀｰ IS NOT NULL AND LEN(RTRIM(ｵﾍﾟﾚｰﾀｰ)) > 0
@@ -876,21 +901,20 @@ def phase6(pg, dry_run=False):
         _op_map = {}
         for _mcid, _op_name, _ in mc6c_c.fetchall():
             if _mcid not in _op_map:
-                _uid = _resolve_one(_op_name, _u_exact, _u_norm)
+                _uid = _resolve(_op_name)
                 if _uid and _uid != ADMIN_ID: _op_map[_mcid] = _uid
         _reg_ok = 0
         for _mcid, _uid in _op_map.items():
             for _mc_db_id in mcid_map.get(_mcid, []):
-                # ADMIN_IDのもののみ上書き（PHASE1で既設定のものは保持）
                 pgc.execute("UPDATE mc_programs SET registered_by=%s WHERE id=%s AND registered_by=%s",
                             (_uid, _mc_db_id, ADMIN_ID))
-                if pgc.rowcount > 0: _reg_ok += 1
+                _reg_ok += 1
         pg.commit()
         pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE registered_by != %s", (ADMIN_ID,))
-        log(f"  PHASE6C: registered_by更新={_reg_ok}件 管理者以外={pgc.fetchone()[0]}件")
+        log(f"  PHASE6C: registered_by補完={_reg_ok}件 管理者以外={pgc.fetchone()[0]}件")
 
-        # PHASE6D: approved_by/approved_at を ACC_変更履歴の承認カラムから更新
-        log("PHASE6D: approved_by を承認カラムから更新...")
+        # PHASE6D: approved_by を ACC_変更履歴 承認カラムから補完
+        log("PHASE6D: approved_by 承認カラムから補完...")
         mc6c_c.execute("""
             SELECT MCID, 承認, 承認日 FROM ACC_変更履歴
             WHERE 承認 IS NOT NULL AND LEN(RTRIM(承認)) > 0 AND 承認日 IS NOT NULL
@@ -900,64 +924,26 @@ def phase6(pg, dry_run=False):
         for _mcid, _aname, _adate in mc6c_c.fetchall():
             if _mcid in _seen: continue
             _seen.add(_mcid)
-            _uid = _resolve_one(_aname, _u_exact, _u_norm)
+            _uid = _resolve(_aname)
             if not _uid: continue
             for _mc_db_id in mcid_map.get(_mcid, []):
-                pgc.execute("UPDATE mc_programs SET approved_by=%s, approved_at=%s WHERE id=%s",
-                            (_uid, _adate, _mc_db_id))
+                pgc.execute("""
+                    UPDATE mc_programs SET approved_by=%s, approved_at=%s
+                    WHERE id=%s AND (approved_by IS NULL OR approved_by = %s)
+                """, (_uid, _adate - _td(hours=9) if _adate else None, _mc_db_id, ADMIN_ID))
                 _app_ok += 1
         pg.commit()
         pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE approved_by IS NOT NULL AND approved_by != %s", (ADMIN_ID,))
-        log(f"  PHASE6D: approved_by更新={_app_ok}件 管理者以外={pgc.fetchone()[0]}件")
+        log(f"  PHASE6D: approved_by補完={_app_ok}件 管理者以外={pgc.fetchone()[0]}件")
 
-        # PHASE6E: work_records setup_operator_ids/production_operator_ids を名寄せで更新
-        log("PHASE6E: work_records 段取/量産担当者 名寄せ更新...")
-        import json as _json, re as _re2
-        def _resolve_names(raw_val, u_exact, u_norm):
-            if not raw_val: return []
-            val = str(raw_val).strip()
-            parts = _re2.split(r'[&＆,、]', val)
-            ids = []
-            for part in parts:
-                part = part.strip()
-                if not part: continue
-                if part in u_exact: ids.append(u_exact[part]); continue
-                normed = _re2.sub(r'[\s\u3000]+', ' ', part).strip()
-                if normed in u_norm: ids.append(u_norm[normed]); continue
-                remaining = normed
-                while remaining:
-                    matched_id = None; matched_len = 0
-                    for nm, uid in u_norm.items():
-                        if remaining.startswith(nm) and len(nm) > matched_len:
-                            matched_id = uid; matched_len = len(nm)
-                    if matched_id: ids.append(matched_id); remaining = remaining[matched_len:].strip()
-                    else: break
-            return list(dict.fromkeys(ids))
-        mc6c_c.execute("""
-            SELECT MCID, 入力日, 段取, 作業者 FROM ACC_変更履歴
-            WHERE (TH > 0 OR TM > 0 OR TS > 0 OR ﾜｰｸ数 > 0 OR 段取開始 IS NOT NULL)
-            ORDER BY MCID, 入力日
-        """)
-        pgc.execute("SELECT id, mc_program_id, work_date FROM work_records WHERE mc_program_id IS NOT NULL")
-        _wr_map = {}
-        for _wrid, _mc_pid, _wd in pgc.fetchall():
-            _wr_map[(_mc_pid, str(_wd))] = _wrid
-        _wr_ok = 0
-        for _mcid, _input_date, _dandori, _sagyosha in mc6c_c.fetchall():
-            _setup_ids = _resolve_names(_dandori, _u_exact, _u_norm)
-            _prod_ids  = _resolve_names(_sagyosha, _u_exact, _u_norm)
-            _wd_str = str(_input_date)[:10] if _input_date else ''
-            for _mc_db_id in mcid_map.get(_mcid, []):
-                _wrid = _wr_map.get((_mc_db_id, _wd_str))
-                if not _wrid: continue
-                pgc.execute("UPDATE work_records SET setup_operator_ids=%s, production_operator_ids=%s WHERE id=%s",
-                            (_json.dumps(_setup_ids), _json.dumps(_prod_ids), _wrid))
-                _wr_ok += 1
-        pg.commit()
+        # PHASE6E: work_records 段取/量産担当者の再名寄せ（既にINSERT時に処理済みだが補完）
+        log("PHASE6E: work_records setup/production_operator_ids 確認...")
         pgc.execute("SELECT COUNT(*) FROM work_records WHERE mc_program_id IS NOT NULL AND setup_operator_ids != '[]'::jsonb")
-        log(f"  PHASE6E: work_records担当者更新={_wr_ok}件 setup設定済み={pgc.fetchone()[0]}件")
+        log(f"  setup_operator_ids設定済み: {pgc.fetchone()[0]}件")
+        pgc.execute("SELECT COUNT(*) FROM work_records WHERE mc_program_id IS NOT NULL AND production_operator_ids != '[]'::jsonb")
+        log(f"  production_operator_ids設定済み: {pgc.fetchone()[0]}件")
 
-        # PHASE6F: sheet_created_at/creator_id を変更履歴の作成日/作成から更新
+        # PHASE6F: sheet_created_at/creator_id を ACC_変更履歴の作成日/作成から更新（NULLのみ）
         log("PHASE6F: sheet_created_at/creator_id 更新...")
         mc6c_c.execute("""
             SELECT MCID, 加工ID, 作成, 作成日 FROM ACC_変更履歴
@@ -967,54 +953,23 @@ def phase6(pg, dry_run=False):
         _mach_sheet_map = {}
         for _mcid, _kakoid, _sakusha, _sakusha_date in mc6c_c.fetchall():
             if _kakoid and _kakoid not in _mach_sheet_map:
-                _creator_id = _resolve_one(_sakusha, _u_exact, _u_norm)
+                _creator_id = _resolve(_sakusha)
                 if _creator_id and _sakusha_date:
                     _mach_sheet_map[_kakoid] = (_sakusha_date, _creator_id)
         _sheet_ok = 0
         for _kakoid, (_sheet_date, _creator_id) in _mach_sheet_map.items():
-            # NULLのもののみ上書き（PHASE1でACC_マシニングrawから設定済みのものは保持）
             pgc.execute("""
                 UPDATE mc_machining_details
-                SET sheet_created_at=COALESCE(sheet_created_at, %s),
-                    creator_id=COALESCE(creator_id, %s)
-                WHERE machining_id=%s
-            """, (_sheet_date, _creator_id, _kakoid))
+                SET sheet_created_at = COALESCE(sheet_created_at, %s),
+                    creator_id = COALESCE(creator_id, %s)
+                WHERE machining_id = %s
+            """, (_sheet_date - _td(hours=9) if _sheet_date else None,
+                  _creator_id, _kakoid))
             if pgc.rowcount > 0: _sheet_ok += 1
         pg.commit()
         pgc.execute("SELECT COUNT(*) FROM mc_machining_details WHERE sheet_created_at IS NOT NULL")
         log(f"  PHASE6F: sheet_created_at設定済み={pgc.fetchone()[0]}件 ok={_sheet_ok}件")
 
-        # PHASE6G: mc_setup_sheet_logs operator_id/machine_id_log 更新
-        log("PHASE6G: setup_sheet_logs operator_id/machine_id_log 更新...")
-        _machines_map_local = machines_map
-        pgc.execute("SELECT id, mc_program_id, printed_at FROM mc_setup_sheet_logs")
-        _sl_map = {}
-        for _slid, _mc_pid, _pat in pgc.fetchall():
-            _sl_map[(_mc_pid, str(_pat)[:10] if _pat else '')] = _slid
-        mc6c_c.execute("""
-            SELECT MCID, ｵﾍﾟﾚｰﾀｰ, 入力日, 機械 FROM ACC_変更履歴
-            WHERE 内容 LIKE '%段取シート%' OR 内容 LIKE '%仮登録%' OR 内容 LIKE '%印刷%'
-            ORDER BY MCID, 入力日
-        """)
-        _sl_ok2 = 0
-        for _mcid, _op_name, _input_date, _machine_name in mc6c_c.fetchall():
-            _op_id2 = _resolve_one(_op_name, _u_exact, _u_norm)
-            _mach_id2 = _machines_map_local.get(str(_machine_name).strip()) if _machine_name else None
-            if not _op_id2 and not _mach_id2: continue
-            _wd_str2 = str(_input_date)[:10] if _input_date else ''
-            for _mc_db_id in mcid_map.get(_mcid, []):
-                _slid = _sl_map.get((_mc_db_id, _wd_str2))
-                if not _slid: continue
-                _upd = []; _prm = []
-                if _op_id2: _upd.append("operator_id=%s"); _prm.append(_op_id2)
-                if _mach_id2: _upd.append("machine_id_log=%s"); _prm.append(_mach_id2)
-                if _upd:
-                    _prm.append(_slid)
-                    pgc.execute(f"UPDATE mc_setup_sheet_logs SET {chr(44).join(_upd)} WHERE id=%s", _prm)
-                    _sl_ok2 += 1
-        pg.commit()
-        pgc.execute("SELECT COUNT(*) FROM mc_setup_sheet_logs WHERE machine_id_log IS NOT NULL")
-        log(f"  PHASE6G: setup_sheet_logs更新={_sl_ok2}件 machine設定済み={pgc.fetchone()[0]}件")
         mc6c.close()
 
     pgc.execute("SELECT COUNT(*) FROM mc_setup_sheet_logs WHERE mc_program_id IS NOT NULL")
@@ -1023,13 +978,9 @@ def phase6(pg, dry_run=False):
     log(f"  work_records(MC):        {pgc.fetchone()[0]}")
     pgc.execute("SELECT COUNT(*) FROM mc_change_history")
     log(f"  mc_change_history:       {pgc.fetchone()[0]}")
-    log(f"PHASE6完了: 入力={len(rows)} skip={skip} err={err}")
-    log(f"  [印刷履歴={sl_ok} / 作業実績={wr_ok} / 変更履歴={ch_ok}]")
-    mc.close()
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# PHASE 7: 図・写真・プログラム ファイル移行
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
 def phase7(pg, dry_run=False, force_copy=False):
     section("PHASE 7: 図・写真・プログラム ファイル移行")
     import shutil as _shutil
