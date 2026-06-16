@@ -65,24 +65,21 @@ function McPrintPageInner() {
 
   // ── 前回印刷時の機械・ワーク数・用途をデフォルト値としてセット ──
   useEffect(() => {
-    if (!machines.length) return; // machines取得後に実行
+    if (!machines.length) return;
     mcApi.setupSheetLogs(mcId).then(r => {
       const logs: any[] = Array.isArray((r as any).data) ? (r as any).data : (Array.isArray(r) ? r : []);
-      // 未回収 & REPEATシートのうち最新（printedAt降順先頭）を取得
-      const latest = logs.find(l => !l.work_collected && l.sheet_type === 'REPEAT')
-        ?? logs.find(l => !l.work_collected)
+      if (!logs.length) return;
+      const latest = logs.find(l => !l.work_collected && (l.sheet_type === 'REPEAT' || l.sheet_type === 'NEW'))
+        ?? logs.find(l => l.sheet_type === 'REPEAT' || l.sheet_type === 'NEW')
         ?? logs[0];
       if (!latest) return;
-      // machine_id_log → machines配列のidと照合してデフォルトセット
-      if (latest.machine_id_log && repeatMachineId === null) {
-        const m = machines.find(m => m.id === latest.machine_id_log);
-        if (m) setRepeatMachineId(m.id);
-      }
-      // ワーク数
-      if (latest.quantity && latest.quantity > 0 && repeatQty === 1) {
-        setRepeatQty(latest.quantity);
-      }
-      // 用途
+      const midLog: number | null = latest.machine_id_log ?? null;
+      const mcode: string | null  = latest.machine_code  ?? null;
+      let foundMachine: any = null;
+      if (midLog) foundMachine = machines.find((m: any) => m.id === midLog) ?? null;
+      if (!foundMachine && mcode) foundMachine = machines.find((m: any) => m.machineCode === mcode) ?? null;
+      if (foundMachine) setRepeatMachineId(foundMachine.id);
+      if (latest.quantity != null && latest.quantity > 0) setRepeatQty(latest.quantity);
       if (latest.purpose) {
         const purposeMap: Record<string, 'setup' | 'reference' | 'continuous'> = {
           setup: 'setup', reference: 'reference', continuous: 'continuous',
@@ -92,7 +89,8 @@ function McPrintPageInner() {
         if (mapped) setRepeatPurpose(mapped);
       }
     }).catch(() => {});
-  }, [mcId, machines]); // machinesが取得されてから実行
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mcId, machines.length]);
 
   useEffect(() => {
     if (isAuthenticated) {
