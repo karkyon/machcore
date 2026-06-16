@@ -188,8 +188,8 @@ export default function McDashboard() {
                   {prog.mc_process_no && (
                     <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded font-bold">P{prog.mc_process_no}</span>
                   )}
-                  <span className={`text-xs px-2 py-0.5 rounded font-bold ${prog.sheet_type === "NEW" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
-                    {prog.sheet_type === "NEW" ? "新規" : "リピート"}
+                  <span className={`text-xs px-2 py-0.5 rounded font-bold ${(sbSelectedSheet?.sheet_type ?? prog.sheet_type) === "NEW" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
+                    {(sbSelectedSheet?.sheet_type ?? prog.sheet_type) === "NEW" ? "新規" : "リピート"}
                   </span>
                 </div>
               ))}
@@ -214,8 +214,8 @@ export default function McDashboard() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-bold text-slate-700">発行No. {sheet.id}</span>
                             {prog && (
-                              <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${prog.sheet_type === "NEW" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
-                                {prog.sheet_type === "NEW" ? "新規" : "リピート"}
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${(sbSelectedSheet?.sheet_type ?? prog.sheet_type) === "NEW" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
+                                {(sbSelectedSheet?.sheet_type ?? prog.sheet_type) === "NEW" ? "新規" : "リピート"}
                               </span>
                             )}
                             {sheet.version && <span className="font-mono text-xs text-teal-600">v{sheet.version}</span>}

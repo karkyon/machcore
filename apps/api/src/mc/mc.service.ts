@@ -1297,6 +1297,15 @@ export class McService {
       _count: { id: true },
     });
     const countMap = new Map(allSheetCounts.map(r => [r.mcProgramId, r._count.id]));
+    // 未回収シートのsheet_typeをmc_program_id単位で集約（NEW優先）
+    const sheetTypeMap = new Map<number, string>();
+    for (const s of sheets) {
+      const st = (s as any).sheetType;
+      if (!st) continue;
+      const existing = sheetTypeMap.get(s.mcProgramId);
+      // NEWが1件でもあればNEW、それ以外はREPEAT
+      if (!existing || st === 'NEW') sheetTypeMap.set(s.mcProgramId, st);
+    }
     return {
       found:    true,
       programs: programs.map(p => ({
@@ -1306,9 +1315,9 @@ export class McService {
         drawing_no:     p.part.drawingNo,
         part_name:      p.part.name,
         total_sheets:   countMap.get(p.id) ?? 0,
-        // total_sheets=1 かつ uncollected → 新規（初回印刷）
-        // total_sheets>1 または 既収済みあり → リピート
-        sheet_type:     (countMap.get(p.id) ?? 0) <= 1 ? 'NEW' : 'REPEAT',
+        // 未回収シートのsheet_typeカラム（DB値）を優先使用
+        // DB値がない場合のみtotal_sheets判定にフォールバック
+        sheet_type:     (sheetTypeMap.get(p.id) ?? ((countMap.get(p.id) ?? 0) <= 1 ? 'NEW' : 'REPEAT')),
       })),
       sheets: sheets.map(s => ({
         id:           s.id,
@@ -1318,6 +1327,7 @@ export class McService {
         operator_name: s.operator?.name ?? null,
         work_collected: s.workCollected,
         is_reference:   (s as any).isReference ?? false,
+        sheet_type:     (s as any).sheetType ?? null,
         has_pdf:        !!(s.pdfPath && require('fs').existsSync(s.pdfPath)),
       })),
     };
