@@ -63,6 +63,37 @@ function McPrintPageInner() {
     mcApi.getPrintData(mcId).then(r => setNc((r as any).data ?? r)).catch(() => {});
   }, [mcId]);
 
+  // ── 前回印刷時の機械・ワーク数・用途をデフォルト値としてセット ──
+  useEffect(() => {
+    if (!machines.length) return; // machines取得後に実行
+    mcApi.setupSheetLogs(mcId).then(r => {
+      const logs: any[] = Array.isArray((r as any).data) ? (r as any).data : (Array.isArray(r) ? r : []);
+      // 未回収 & REPEATシートのうち最新（printedAt降順先頭）を取得
+      const latest = logs.find(l => !l.work_collected && l.sheet_type === 'REPEAT')
+        ?? logs.find(l => !l.work_collected)
+        ?? logs[0];
+      if (!latest) return;
+      // machine_id_log → machines配列のidと照合してデフォルトセット
+      if (latest.machine_id_log && repeatMachineId === null) {
+        const m = machines.find(m => m.id === latest.machine_id_log);
+        if (m) setRepeatMachineId(m.id);
+      }
+      // ワーク数
+      if (latest.quantity && latest.quantity > 0 && repeatQty === 1) {
+        setRepeatQty(latest.quantity);
+      }
+      // 用途
+      if (latest.purpose) {
+        const purposeMap: Record<string, 'setup' | 'reference' | 'continuous'> = {
+          setup: 'setup', reference: 'reference', continuous: 'continuous',
+          段取: 'setup', 参考資料: 'reference', 連続使用: 'continuous',
+        };
+        const mapped = purposeMap[latest.purpose];
+        if (mapped) setRepeatPurpose(mapped);
+      }
+    }).catch(() => {});
+  }, [mcId, machines]); // machinesが取得されてから実行
+
   useEffect(() => {
     if (isAuthenticated) {
       timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
