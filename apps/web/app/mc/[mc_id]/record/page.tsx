@@ -895,8 +895,8 @@ function McRecordPageInner() {
         machMin,
         totalMin,
         cyclePerPSec,
-        machPerPMin:  machMin > 0 && qtyN > 0 ? Math.round(machMin / machQtyBase * 10) / 10 : null,
-        totalPerPMin: totalMin > 0 && totalQty > 0 ? Math.round(totalMin / totalQty * 10) / 10 : null,
+        machPerPSec:  machMin > 0 && qtyN > 0 ? Math.round(machMin / machQtyBase * 60) : null,
+        totalPerPSec: totalMin > 0 && totalQty > 0 ? Math.round(totalMin / totalQty * 60) : null,
       };
     }
 
@@ -920,8 +920,8 @@ function McRecordPageInner() {
       const cyclePerPSec2 = cyclePerPSec;
       return {
         setupMin, machMin, totalMin, cyclePerPSec: cyclePerPSec2,
-        machPerPMin:  machMin > 0 && qtyN > 0 ? Math.round(machMin / machQtyBase * 10) / 10 : null,
-        totalPerPMin: totalMin > 0 && totalQty > 0 ? Math.round(totalMin / totalQty * 10) / 10 : null,
+        machPerPSec:  machMin > 0 && qtyN > 0 ? Math.round(machMin / machQtyBase * 60) : null,
+        totalPerPSec: totalMin > 0 && totalQty > 0 ? Math.round(totalMin / totalQty * 60) : null,
       };
     }
 
@@ -973,8 +973,8 @@ function McRecordPageInner() {
       machMin,
       totalMin,
       cyclePerPSec,
-      machPerPMin:  machMin != null && machMin > 0 && qtyN > 0 ? Math.round(machMin / machQtyBase * 10) / 10 : null,
-      totalPerPMin: totalMin != null && totalMin > 0 && totalQty > 0 ? Math.round(totalMin / totalQty * 10) / 10 : null,
+      machPerPSec:  machMin != null && machMin > 0 && qtyN > 0 ? Math.round(machMin / machQtyBase * 60) : null,
+      totalPerPSec: totalMin != null && totalMin > 0 && totalQty > 0 ? Math.round(totalMin / totalQty * 60) : null,
     };
   }, [timeMode, setupH, setupMm, machH, machMm, startedAt, checkedAt, finishedAt,
       dStopH, dStopM, yStopH, yStopM, quantity, setupQty, cycleH, cycleM, cycleS, cyclePcs,
@@ -1565,16 +1565,16 @@ function McRecordPageInner() {
                         <div className="font-bold text-purple-700 text-sm">{fmtSec(times.cyclePerPSec)}</div>
                       </div>
                     )}
-                    {times.machPerPMin != null && (
+                    {times.machPerPSec != null && (
                       <div className="bg-white rounded-lg p-2 border border-slate-100">
                         <div className="text-slate-400 mb-0.5">加工時間/1P</div>
-                        <div className="font-bold text-teal-600 text-sm">{fmtMin(times.machPerPMin)}</div>
+                        <div className="font-bold text-teal-600 text-sm">{fmtSec(times.machPerPSec)}</div>
                       </div>
                     )}
-                    {times.totalPerPMin != null && (
+                    {times.totalPerPSec != null && (
                       <div className="bg-white rounded-lg p-2 border border-slate-100">
                         <div className="text-slate-400 mb-0.5">総時間/1P</div>
-                        <div className="font-bold text-slate-600 text-sm">{fmtMin(times.totalPerPMin)}</div>
+                        <div className="font-bold text-slate-600 text-sm">{fmtSec(times.totalPerPSec)}</div>
                       </div>
                     )}
                   </div>
