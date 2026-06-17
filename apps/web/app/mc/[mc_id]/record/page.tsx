@@ -15,8 +15,12 @@ function NumInput({ value, onChange, min=0, max=999, className="" }: {
     e.preventDefault();
     const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
     const i = all.indexOf(e.currentTarget);
-    if (e.shiftKey) { if (i > 0) all[i-1].focus(); }
-    else { if (i < all.length-1) all[i+1].focus(); }
+    const lbl = e.currentTarget.closest("div")?.previousElementSibling?.textContent?.trim().slice(0,20) ?? "NumInput";
+    if (e.shiftKey) {
+      if (i > 0) { console.log(`[RECORD][NumInput:${lbl}] Shift+Enter後退`, {from:i, to:i-1, value:e.currentTarget.value}); all[i-1].focus(); }
+    } else {
+      if (i < all.length-1) { console.log(`[RECORD][NumInput:${lbl}] Enter前進`, {from:i, to:i+1, value:e.currentTarget.value}); all[i+1].focus(); }
+    }
   };
   return (
     <input type="number" min={min} max={max} value={value} data-fi="true"
@@ -55,19 +59,24 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
   };
   const names = selected.map(id => users.find(u=>u.id===id)?.name ?? "").filter(Boolean).join(" & ");
   const navKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const lbl = e.currentTarget.closest("div.relative")?.previousElementSibling?.textContent?.trim().slice(0,20) ?? "MultiSelect";
+    console.log(`[RECORD][MultiSelect:${lbl}] KeyDown`,{key:e.key,shift:e.shiftKey,open});
     if (e.key === "Enter") {
       e.preventDefault();
       if (e.shiftKey) {
         setOpen(false);
         const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
-        const i = all.indexOf(e.currentTarget); if (i > 0) all[i-1].focus();
+        const i = all.indexOf(e.currentTarget);
+        if (i > 0) { console.log(`[RECORD][MultiSelect:${lbl}] Shift+Enter後退`); all[i-1].focus(); }
       } else {
+        console.log(`[RECORD][MultiSelect:${lbl}] Enter→ドロップダウンTOGGLE`);
         setOpen(v => !v);
       }
     } else if (e.key === "Tab" && e.shiftKey) {
       setOpen(false);
       const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
-      const i = all.indexOf(e.currentTarget); if (i > 0) { e.preventDefault(); all[i-1].focus(); }
+      const i = all.indexOf(e.currentTarget);
+      if (i > 0) { e.preventDefault(); console.log(`[RECORD][MultiSelect:${lbl}] Shift+Tab後退`); all[i-1].focus(); }
     } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       setOpen(true);
     } else if (e.key === "Escape") {
@@ -114,10 +123,14 @@ function SingleUserSelect({ users, selected, onChange, placeholder }: {
   const nav = (e: React.KeyboardEvent<HTMLSelectElement>) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
+    const lbl = e.currentTarget.closest("div")?.previousElementSibling?.textContent?.trim().slice(0,20) ?? "SingleSelect";
     const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
     const i = all.indexOf(e.currentTarget);
-    if (e.shiftKey) { if (i > 0) all[i-1].focus(); }
-    else { if (i < all.length-1) all[i+1].focus(); }
+    if (e.shiftKey) {
+      if (i > 0) { console.log(`[RECORD][SingleSelect:${lbl}] Shift+Enter後退`); all[i-1].focus(); }
+    } else {
+      if (i < all.length-1) { console.log(`[RECORD][SingleSelect:${lbl}] Enter前進`); all[i+1].focus(); }
+    }
   };
   return (
     <select value={selected ?? ""} data-fi="true"
@@ -130,11 +143,10 @@ function SingleUserSelect({ users, selected, onChange, placeholder }: {
   );
 }
 
-// ── カスタム日時入力（年→月→日→時→分 数値入力+Enter/Tab自動移動） ──
-function DateTimeInput({ value, onChange, hasError, onAfterMi }: {
-  value: string; onChange: (v: string) => void; hasError?: boolean; onAfterMi?: () => void;
+// ── カスタム日時入力（年→月→日→時→分 数値入力+Enter前進/Shift+Enter後退） ──
+function DateTimeInput({ value, onChange, hasError, onAfterMi, label="日時" }: {
+  value: string; onChange: (v: string) => void; hasError?: boolean; onAfterMi?: () => void; label?: string;
 }) {
-  // 各フィールドをローカルstateで管理（Hydration回避・手入力対応）
   const [y,  setY]  = React.useState("");
   const [mo, setMo] = React.useState("");
   const [d,  setD]  = React.useState("");
@@ -145,101 +157,127 @@ function DateTimeInput({ value, onChange, hasError, onAfterMi }: {
   const dRef  = React.useRef<HTMLInputElement>(null);
   const hRef  = React.useRef<HTMLInputElement>(null);
   const miRef = React.useRef<HTMLInputElement>(null);
-  const calRef= React.useRef<HTMLInputElement>(null);
-  const afterMiHandler = onAfterMi ?? (() => {
-    // onAfterMi未指定時: 分の次のdata-fi要素へ移動（カレンダーはスキップ）
-    if (miRef.current) {
-      const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
-      const i = all.indexOf(miRef.current);
-      if (i < all.length-1) all[i+1].focus();
-    }
-  });
-  const _unused_calRef = (() => { calRef.current?.focus(); });
 
-  // value→各stateへ同期（外部からの変更を反映）
+  // value→各stateへ同期（外部変更を反映）
   React.useEffect(() => {
     if (value && value.length >= 16) {
-      setY(value.slice(0,4)); setMo(String(parseInt(value.slice(5,7))));
-      setD(String(parseInt(value.slice(8,10)))); setH(String(parseInt(value.slice(11,13))));
+      setY(value.slice(0,4));
+      setMo(String(parseInt(value.slice(5,7))));
+      setD(String(parseInt(value.slice(8,10))));
+      setH(String(parseInt(value.slice(11,13))));
       setMi(String(parseInt(value.slice(14,16))));
     } else { setY(""); setMo(""); setD(""); setH(""); setMi(""); }
   }, [value]);
 
   const emit = (ny: string, nmo: string, nd: string, nh: string, nmi: string) => {
-    const yi = parseInt(ny); const moi = parseInt(nmo); const di = parseInt(nd);
-    const hi = parseInt(nh); const mii = parseInt(nmi);
-    if (yi >= 1000 && yi <= 9999 && moi >= 1 && moi <= 12 && di >= 1 && hi >= 0 && hi <= 23 && mii >= 0 && mii <= 59) {
-      const maxD = new Date(yi, moi, 0).getDate();
-      const safeD = Math.min(di, maxD);
-      const p = (n: number, len=2) => String(n).padStart(len,"0");
-      const dtv=`${p(yi,4)}-${p(moi)}-${p(safeD)}T${p(hi)}:${p(mii)}`; console.log("[RECORD] DateTimeInput確定",{value:dtv}); onChange(dtv);
+    const yi=parseInt(ny), moi=parseInt(nmo), di=parseInt(nd), hi=parseInt(nh), mii=parseInt(nmi);
+    if (yi>=1000&&yi<=9999&&moi>=1&&moi<=12&&di>=1&&hi>=0&&hi<=23&&mii>=0&&mii<=59) {
+      const maxD=new Date(yi,moi,0).getDate();
+      const safeD=Math.min(di,maxD);
+      const p=(n:number,len=2)=>String(n).padStart(len,"0");
+      const dtv=`${p(yi,4)}-${p(moi)}-${p(safeD)}T${p(hi)}:${p(mii)}`;
+      console.log(`[RECORD][DTI:${label}] 値確定`, {value:dtv});
+      onChange(dtv);
     }
   };
 
+  // data-fi付き全要素を取得してFW/BW移動
+  const moveFi = (el: HTMLElement, forward: boolean) => {
+    const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+    const i = all.indexOf(el);
+    const target = forward ? all[i+1] : all[i-1];
+    if (target) {
+      console.log(`[RECORD][DTI:${label}] フォーカス移動`, {from:el.getAttribute("placeholder")||el.tagName, to:target.getAttribute("placeholder")||target.tagName, direction:forward?"→":"←"});
+      target.focus();
+    }
+  };
+
+  const afterMi = onAfterMi ?? (() => { if (miRef.current) moveFi(miRef.current, true); });
+
   const ic = "border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white text-center py-1.5 px-1";
   const ec = hasError ? " border-red-400 bg-red-50" : "";
-  const onFocusSel = (e: React.FocusEvent<HTMLInputElement>) => e.target.select();
 
-  const makeProps = (
-    val: string, setter: (v:string)=>void,
-    min: number, max: number, maxLen: number,
+  const mkKD = (
+    placeholder: string,
     nextRef: React.RefObject<HTMLInputElement|null>|null,
-    onCommit: (v: string)=>void
-  ) => ({
-    type: "number" as const,
-    value: val,
-    min, max,
-    className: `${ic}${ec}`,
-    style: { width: maxLen === 4 ? "4rem" : maxLen === 2 ? "3.2rem" : "3rem" } as React.CSSProperties,
-    onFocus: onFocusSel,
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
-      const v = e.target.value.replace(/[^0-9]/g,"").slice(0, maxLen);
-      setter(v);
-      onCommit(v);
-      if (v.length >= maxLen && nextRef) setTimeout(() => nextRef.current?.focus(), 0);
-    },
-    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter" && !e.shiftKey && nextRef) {
-        e.preventDefault();
-        nextRef.current?.focus();
-      } else if ((e.key === "Enter" && e.shiftKey) || (e.key === "Tab" && e.shiftKey)) {
-        e.preventDefault();
-        const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
-        const idx = allFi.indexOf(e.currentTarget);
-        if (idx > 0) allFi[idx - 1].focus();
+    isLast=false
+  ) => (e: React.KeyboardEvent<HTMLInputElement>) => {
+    console.log(`[RECORD][DTI:${label}][${placeholder}] KeyDown`, {key:e.key, shift:e.shiftKey, value:e.currentTarget.value});
+    if (e.key==="Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (isLast) { afterMi(); }
+      else if (nextRef?.current) {
+        console.log(`[RECORD][DTI:${label}] Enter前進 ${placeholder}→${nextRef.current.getAttribute("placeholder")}`);
+        nextRef.current.focus();
       }
-    },
-  });
+    } else if ((e.key==="Enter"&&e.shiftKey)||(e.key==="Tab"&&e.shiftKey)) {
+      e.preventDefault();
+      moveFi(e.currentTarget, false);
+    }
+  };
+
+  const mkCh = (
+    placeholder: string,
+    setter: (v:string)=>void,
+    maxLen: number,
+    nextRef: React.RefObject<HTMLInputElement|null>|null,
+    onCommit: (v:string)=>void
+  ) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v=e.target.value.replace(/[^0-9]/g,"").slice(0,maxLen);
+    setter(v);
+    onCommit(v);
+    console.log(`[RECORD][DTI:${label}][${placeholder}] 入力`, {value:v, len:v.length, maxLen});
+    if (v.length>=maxLen && nextRef?.current) {
+      console.log(`[RECORD][DTI:${label}] 桁数到達→自動前進 ${placeholder}→${nextRef.current.getAttribute("placeholder")}`);
+      setTimeout(()=>nextRef.current?.focus(),0);
+    }
+  };
+
+  const mkFocus = (placeholder: string) => (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select();
+    console.log(`[RECORD][DTI:${label}][${placeholder}] フォーカスIN`, {currentValue:e.target.value});
+  };
+
+  const baseStyle = (maxLen:number) => ({ width: maxLen===4?"4rem":"3.2rem" } as React.CSSProperties);
 
   return (
-    <div className={"flex items-center gap-1 flex-wrap" + (hasError ? " rounded-lg ring-1 ring-red-400 p-0.5" : "")}>
-      <input {...makeProps(y, setY, 1000, 9999, 4, moRef, v => emit(v, mo, d, h, mi))} placeholder="年" />
+    <div className={"flex items-center gap-1 flex-wrap" + (hasError?" rounded-lg ring-1 ring-red-400 p-0.5":"")}>
+      <input type="number" value={y} min={1000} max={9999} placeholder="年" data-fi="true"
+        className={`${ic}${ec}`} style={baseStyle(4)}
+        onFocus={mkFocus("年")}
+        onChange={mkCh("年",setY,4,moRef,v=>emit(v,mo,d,h,mi))}
+        onKeyDown={mkKD("年",moRef)} />
       <span className="text-xs text-slate-400">/</span>
-      <input ref={moRef} {...makeProps(mo, setMo, 1, 12, 2, dRef, v => emit(y, v, d, h, mi))} placeholder="月" />
+      <input ref={moRef} type="number" value={mo} min={1} max={12} placeholder="月" data-fi="true"
+        className={`${ic}${ec}`} style={baseStyle(2)}
+        onFocus={mkFocus("月")}
+        onChange={mkCh("月",setMo,2,dRef,v=>emit(y,v,d,h,mi))}
+        onKeyDown={mkKD("月",dRef)} />
       <span className="text-xs text-slate-400">/</span>
-      <input ref={dRef}  {...makeProps(d, setD, 1, 31, 2, hRef, v => emit(y, mo, v, h, mi))} placeholder="日" />
+      <input ref={dRef} type="number" value={d} min={1} max={31} placeholder="日" data-fi="true"
+        className={`${ic}${ec}`} style={baseStyle(2)}
+        onFocus={mkFocus("日")}
+        onChange={mkCh("日",setD,2,hRef,v=>emit(y,mo,v,h,mi))}
+        onKeyDown={mkKD("日",hRef)} />
       <span className="text-xs text-slate-400 ml-0.5"> </span>
-      <input ref={hRef}  {...makeProps(h, setH, 0, 23, 2, miRef, v => emit(y, mo, d, v, mi))} placeholder="時" />
+      <input ref={hRef} type="number" value={h} min={0} max={23} placeholder="時" data-fi="true"
+        className={`${ic}${ec}`} style={baseStyle(2)}
+        onFocus={mkFocus("時")}
+        onChange={mkCh("時",setH,2,miRef,v=>emit(y,mo,d,v,mi))}
+        onKeyDown={mkKD("時",miRef)} />
       <span className="text-xs text-slate-400">:</span>
-      <input ref={miRef} {...makeProps(mi, setMi, 0, 59, 2, null, v => emit(y, mo, d, h, v))}
-        placeholder="分"
-        onKeyDown={e => {
-          const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
-          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); afterMiHandler(); }
-          else if ((e.key === "Tab" && e.shiftKey) || (e.key === "Enter" && e.shiftKey)) {
-            e.preventDefault();
-            const el = e.currentTarget as HTMLElement;
-            const idx = allFi.indexOf(el);
-            if (idx > 0) allFi[idx - 1].focus();
-          }
-        }} />
+      <input ref={miRef} type="number" value={mi} min={0} max={59} placeholder="分" data-fi="true"
+        className={`${ic}${ec}`} style={baseStyle(2)}
+        onFocus={mkFocus("分")}
+        onChange={mkCh("分",setMi,2,null,v=>emit(y,mo,d,h,v))}
+        onKeyDown={mkKD("分",null,true)} />
       {/* カレンダーピッカー: SVGアイコンクリックで開く */}
       <label className="ml-1 cursor-pointer text-slate-400 hover:text-teal-600" title="カレンダーから選択">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="inline-block align-middle">
           <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
         </svg>
         <input type="datetime-local" value={value} tabIndex={-1}
-          onChange={e => { onChange(e.target.value); }}
+          onChange={e => { console.log(`[RECORD][DTI:${label}] カレンダー選択`,{value:e.target.value}); onChange(e.target.value); }}
           className="sr-only"
           style={{position:"absolute",opacity:0,width:0,height:0}} />
       </label>
@@ -1120,8 +1158,8 @@ function McRecordPageInner() {
                       onKeyDown={e => {
                         const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
                         const idx = allFi.indexOf(e.currentTarget);
-                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (idx >= 0 && idx < allFi.length-1) allFi[idx+1].focus(); }
-                        else if ((e.key === "Enter" && e.shiftKey) || (e.key === "Tab" && e.shiftKey)) { e.preventDefault(); if (idx > 0) allFi[idx-1].focus(); }
+                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); console.log("[RECORD][機械select] Enter前進"); if (idx>=0&&idx<allFi.length-1) allFi[idx+1].focus(); }
+                        else if ((e.key==="Enter"&&e.shiftKey)||(e.key==="Tab"&&e.shiftKey)) { e.preventDefault(); console.log("[RECORD][機械select] Shift+Enter後退"); if (idx>0) allFi[idx-1].focus(); }
                       }}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
                       <option value="">— 選択 —</option>
@@ -1192,18 +1230,26 @@ function McRecordPageInner() {
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">段取開始</label>
                         <div id="dti-started" data-dti="true">
-                          <DateTimeInput value={startedAt}
+                          <DateTimeInput value={startedAt} label="段取開始"
                             onChange={v => { setStartedAt(v); setTimeValidErr(validateDateOrder(v, checkedAt, finishedAt)); }}
-                            onAfterMi={() => { (document.querySelector("#dti-checked input[placeholder='年']") as HTMLElement|null)?.focus(); }} />
+                            onAfterMi={() => {
+                              const t = document.querySelector("#dti-checked input[placeholder='年']") as HTMLElement|null;
+                              console.log("[RECORD] 段取開始→段取終了年へ移動");
+                              t?.focus();
+                            }} />
                         </div>
                       </div>
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">段取終了（ﾁｪｯｸTime）</label>
                         <div id="dti-checked" data-dti="true">
-                          <DateTimeInput value={checkedAt}
+                          <DateTimeInput value={checkedAt} label="段取終了"
                             hasError={!!(timeValidErr && timeValidErr.includes("段取終了"))}
                             onChange={v => { setCheckedAt(v); setTimeValidErr(validateDateOrder(startedAt, v, finishedAt)); }}
-                            onAfterMi={() => { (document.querySelector("#dti-finished input[placeholder='年']") as HTMLElement|null)?.focus(); }} />
+                            onAfterMi={() => {
+                              const t = document.querySelector("#dti-finished input[placeholder='年']") as HTMLElement|null;
+                              console.log("[RECORD] 段取終了→加工終了年へ移動");
+                              t?.focus();
+                            }} />
                         </div>
                       </div>
                     </div>
@@ -1287,7 +1333,7 @@ function McRecordPageInner() {
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">加工終了</label>
                         <div id="dti-finished" data-dti="true">
-                          <DateTimeInput value={finishedAt}
+                          <DateTimeInput value={finishedAt} label="加工終了"
                             hasError={!!(timeValidErr && timeValidErr.includes("加工終了"))}
                             onChange={v => { setFinishedAt(v); setTimeValidErr(validateDateOrder(startedAt, checkedAt, v)); }} />
                         </div>
