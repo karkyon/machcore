@@ -223,6 +223,23 @@ export default function McEditPage() {
     return list;
   }, [users, detail]);
 
+  // machineId の最終解決: detail と machines の両方がそろった後に実行
+  // 非稼働機械は machinesApi.list() に存在しないため、machineCode が残ったまま
+  // になっている可能性がある。detail.machine.id で確定する。
+  useEffect(() => {
+    if (!detail || machines.length === 0) return;
+    setMachineId(prev => {
+      if (prev && isNaN(parseInt(prev))) {
+        const dm = (detail as any)?.machine;
+        if (dm?.id != null && dm.machineCode === prev) return String(dm.id);
+        const found = machines.find((m: any) => m.machineCode === prev);
+        return found ? String(found.id) : "";
+      }
+      return prev;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail, machines]);
+
   useEffect(() => {
     mcApi.findOne(mcId).then(r => {
       const d = (r as any).data ?? r;
@@ -285,10 +302,14 @@ export default function McEditPage() {
       const list = (r as any).data ?? [];
       setMachines(list);
       // detail が先に取得済みの場合はここで即座に machineCode → id 解決
+      // 非稼働機械はアクティブリストに存在しないため、detail.machine.id を直接使う
       setMachineId(prev => {
         if (prev && isNaN(parseInt(prev))) {
           const found = list.find((m: any) => m.machineCode === prev);
-          return found ? String(found.id) : "";
+          if (found) return String(found.id);
+          // 非稼働機械: machineCode をキーに detail.machine から id を引く
+          // (detail は並行fetchのため未着の可能性あり → useEffect[detail,machines]で再解決)
+          return prev; // machineCode を保持し続ける（後続useEffectで解決）
         }
         return prev;
       });
@@ -941,7 +962,7 @@ export default function McEditPage() {
                       {displayMachines
                         .filter(m => m.isActive !== false || String(m.id) === machineId)
                         .map(m => (
-                        <option key={m.id} value={String(m.id)}>{m.machineCode}{m.isActive === false ? "（非アクティブ）" : ""}</option>
+                        <option key={m.id} value={String(m.id)}>{m.machineCode}{m.isActive === false ? "（非稼働）" : ""}</option>
                       ))}
                     </select>
                   </div>
@@ -1006,7 +1027,7 @@ export default function McEditPage() {
                       {displayCreatorUsers
                         .filter(u => u.isActive || String(u.id) === creatorId)
                         .map(u => (
-                          <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（非アクティブ）" : ""}</option>
+                          <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（無効）" : ""}</option>
                         ))}
                     </select>
                   </div>
@@ -1053,7 +1074,7 @@ export default function McEditPage() {
                         {displayPgUsers
                           .filter(u => u.isActive || String(u.id) === pgCreatedBy)
                           .map(u => (
-                            <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（非アクティブ）" : ""}</option>
+                            <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（無効）" : ""}</option>
                           ))}
                       </select>
                     </div>
