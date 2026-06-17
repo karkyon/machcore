@@ -134,9 +134,14 @@ function DateTimeInput({ value, onChange, hasError, onAfterMi }: {
       if (v.length >= maxLen && nextRef) setTimeout(() => nextRef.current?.focus(), 0);
     },
     onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if ((e.key === "Enter" || e.key === "Tab") && nextRef) {
+      if (e.key === "Enter" && !e.shiftKey && nextRef) {
         e.preventDefault();
         nextRef.current?.focus();
+      } else if ((e.key === "Enter" && e.shiftKey) || (e.key === "Tab" && e.shiftKey)) {
+        e.preventDefault();
+        const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+        const idx = allFi.indexOf(e.currentTarget);
+        if (idx > 0) allFi[idx - 1].focus();
       }
     },
   });
@@ -153,13 +158,26 @@ function DateTimeInput({ value, onChange, hasError, onAfterMi }: {
       <span className="text-xs text-slate-400">:</span>
       <input ref={miRef} {...makeProps(mi, setMi, 0, 59, 2, null, v => emit(y, mo, d, h, v))}
         placeholder="分"
-        onKeyDown={e => { if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); afterMiHandler(); } }} />
-      {/* カレンダーピッカー（日時アイコン付きで表示） */}
-      <input ref={calRef} type="datetime-local" value={value} tabIndex={-1}
-        onChange={e => { onChange(e.target.value); }}
-        title="カレンダーから選択"
-        className="w-8 border border-slate-200 rounded bg-white cursor-pointer opacity-60 hover:opacity-100 focus:outline-none focus:ring-1 focus:ring-teal-400"
-        style={{colorScheme:"light"}} />
+        onKeyDown={e => {
+          const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); afterMiHandler(); }
+          else if ((e.key === "Tab" && e.shiftKey) || (e.key === "Enter" && e.shiftKey)) {
+            e.preventDefault();
+            const el = e.currentTarget as HTMLElement;
+            const idx = allFi.indexOf(el);
+            if (idx > 0) allFi[idx - 1].focus();
+          }
+        }} />
+      {/* カレンダーピッカー: ボタンでinputをクリック、inputは不可視 */}
+      <label className="ml-1 cursor-pointer text-slate-400 hover:text-teal-600" title="カレンダーから選択">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="inline-block align-middle">
+          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <input ref={calRef} type="datetime-local" value={value} tabIndex={-1}
+          onChange={e => { onChange(e.target.value); }}
+          className="sr-only"
+          style={{position:"absolute",opacity:0,width:0,height:0}} />
+      </label>
     </div>
   );
 }
@@ -586,20 +604,22 @@ function McRecordPageInner() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isAuthenticated]);
 
-  // ── Enterキーで次フォーカス可能フィールドへ移動（data-fi属性付き要素が対象） ──
+  // ── Enter/Shift+EnterでFW/BW移動（data-fi属性付き要素が対象） ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Enter") return;
       const el = e.target as HTMLElement;
-      // DateTimeInput内の入力はコンポーネント側で処理済み
-      if (el.closest("[data-dti]")) return;
-      // textarea・button・select（DateTimeInput外）はスキップ
       if (el.tagName === "TEXTAREA" || el.tagName === "BUTTON") return;
       if (!el.hasAttribute("data-fi")) return;
+      if (el.closest("[data-dti]")) return;
       e.preventDefault();
       const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
       const idx = allFi.indexOf(el);
-      if (idx >= 0 && idx < allFi.length - 1) allFi[idx + 1].focus();
+      if (e.shiftKey) {
+        if (idx > 0) allFi[idx - 1].focus();
+      } else {
+        if (idx >= 0 && idx < allFi.length - 1) allFi[idx + 1].focus();
+      }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
@@ -1026,6 +1046,12 @@ function McRecordPageInner() {
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1.5">今回使用機械</label>
                     <select value={machineId} onChange={e => setMachineId(e.target.value)} data-fi="true"
+                      onKeyDown={e => {
+                        const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+                        const idx = allFi.indexOf(e.currentTarget);
+                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (idx >= 0 && idx < allFi.length-1) allFi[idx+1].focus(); }
+                        else if ((e.key === "Enter" && e.shiftKey) || (e.key === "Tab" && e.shiftKey)) { e.preventDefault(); if (idx > 0) allFi[idx-1].focus(); }
+                      }}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
                       <option value="">— 選択 —</option>
                       {machines.filter(m => m.isActive).map(m => (
@@ -1041,6 +1067,13 @@ function McRecordPageInner() {
                       <NumInput value={cycleS} onChange={setCycleS} min={0} max={59} /><span className="text-xs text-slate-500">S</span>
                       <span className="text-xs text-slate-500 ml-2">個/1サイクル:</span>
                       <input type="number" min="1" value={cyclePcs} onChange={e => setCyclePcs(e.target.value)}
+                        data-fi="true" onFocus={e => e.target.select()}
+                        onKeyDown={e => {
+                          const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+                          const idx = allFi.indexOf(e.currentTarget);
+                          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (idx >= 0 && idx < allFi.length-1) allFi[idx+1].focus(); }
+                          else if ((e.key === "Enter" && e.shiftKey) || (e.key === "Tab" && e.shiftKey)) { e.preventDefault(); if (idx > 0) allFi[idx-1].focus(); }
+                        }}
                         className="w-14 border border-slate-200 rounded px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-teal-400" />
                     </div>
                   </div>
@@ -1104,7 +1137,20 @@ function McRecordPageInner() {
                       </div>
                     </div>
                     {startedAt && checkedAt && (() => {
-                      const mins = Math.max(0, Math.round((new Date(checkedAt).getTime()-new Date(startedAt).getTime())/60000) - (dStopH*60+dStopM));
+                      const sv2 = new Date(startedAt); const cv2 = new Date(checkedAt);
+                      let lunch2 = 0;
+                      if (!isNaN(sv2.getTime()) && !isNaN(cv2.getTime())) {
+                        const c2 = new Date(sv2); c2.setHours(0,0,0,0);
+                        const e2 = new Date(cv2); e2.setHours(0,0,0,0);
+                        while (c2 <= e2) {
+                          const ls = new Date(c2); ls.setHours(12,0,0,0);
+                          const le = new Date(c2); le.setHours(13,0,0,0);
+                          const os = sv2 > ls ? sv2 : ls; const oe = cv2 < le ? cv2 : le;
+                          if (oe > os) lunch2 += Math.round((oe.getTime()-os.getTime())/60000);
+                          c2.setDate(c2.getDate()+1);
+                        }
+                      }
+                      const mins = Math.max(0, Math.round((cv2.getTime()-sv2.getTime())/60000) - lunch2 - (dStopH*60+dStopM));
                       return mins > 0 ? <p className="text-xs text-blue-600 font-bold">→ 段取時間: {Math.floor(mins/60)}H {mins%60}M</p> : null;
                     })()}
                     <div className="grid grid-cols-2 gap-3">
@@ -1133,6 +1179,13 @@ function McRecordPageInner() {
                     <label className="text-xs font-bold text-slate-500 block mb-1.5">段取良品数</label>
                     <div className="flex items-center gap-1">
                       <input type="number" min="0" value={setupQty} onChange={e => setSetupQty(e.target.value)}
+                        data-fi="true" onFocus={e => (e.target as HTMLInputElement).select()}
+                        onKeyDown={e => {
+                          const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+                          const idx = allFi.indexOf(e.currentTarget);
+                          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (idx >= 0 && idx < allFi.length-1) allFi[idx+1].focus(); }
+                          else if ((e.key === "Enter" && e.shiftKey) || (e.key === "Tab" && e.shiftKey)) { e.preventDefault(); if (idx > 0) allFi[idx-1].focus(); }
+                        }}
                         className="w-24 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-400" placeholder="0" />
                       <span className="text-xs text-slate-500">個</span>
                     </div>
@@ -1171,7 +1224,20 @@ function McRecordPageInner() {
                       <div />
                     </div>
                     {checkedAt && finishedAt && (() => {
-                      const mins = Math.max(0, Math.round((new Date(finishedAt).getTime()-new Date(checkedAt).getTime())/60000) - (yStopH*60+yStopM));
+                      const cv3 = new Date(checkedAt); const fv3 = new Date(finishedAt);
+                      let lunch3 = 0;
+                      if (!isNaN(cv3.getTime()) && !isNaN(fv3.getTime())) {
+                        const c3 = new Date(cv3); c3.setHours(0,0,0,0);
+                        const e3 = new Date(fv3); e3.setHours(0,0,0,0);
+                        while (c3 <= e3) {
+                          const ls = new Date(c3); ls.setHours(12,0,0,0);
+                          const le = new Date(c3); le.setHours(13,0,0,0);
+                          const os = cv3 > ls ? cv3 : ls; const oe = fv3 < le ? fv3 : le;
+                          if (oe > os) lunch3 += Math.round((oe.getTime()-os.getTime())/60000);
+                          c3.setDate(c3.getDate()+1);
+                        }
+                      }
+                      const mins = Math.max(0, Math.round((fv3.getTime()-cv3.getTime())/60000) - lunch3 - (yStopH*60+yStopM));
                       return mins > 0 ? <p className="text-xs text-green-600 font-bold">→ 加工時間: {Math.floor(mins/60)}H {mins%60}M</p> : null;
                     })()}
                     <div className="grid grid-cols-2 gap-3">

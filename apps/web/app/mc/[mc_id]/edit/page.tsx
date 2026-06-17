@@ -278,7 +278,7 @@ export default function McEditPage() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isAuthenticated]);
 
-  // ── Enterキーで次フォーカス可能フィールドへ移動 ──
+  // ── Enter/Shift+EnterでFW/BW移動 ──
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Enter") return;
@@ -288,7 +288,11 @@ export default function McEditPage() {
       e.preventDefault();
       const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
       const idx = allFi.indexOf(el);
-      if (idx >= 0 && idx < allFi.length - 1) allFi[idx + 1].focus();
+      if (e.shiftKey) {
+        if (idx > 0) allFi[idx - 1].focus();
+      } else {
+        if (idx >= 0 && idx < allFi.length - 1) allFi[idx + 1].focus();
+      }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
