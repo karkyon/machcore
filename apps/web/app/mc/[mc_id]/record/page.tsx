@@ -256,31 +256,31 @@ function DateTimeInput({ value, onChange, hasError, onAfterMi, label="日時" }:
 
   return (
     <div className={"flex items-center gap-1 flex-wrap" + (hasError?" rounded-lg ring-1 ring-red-400 p-0.5":"")}>
-      <input type="number" value={y} min={1000} max={9999} placeholder="年" data-fi="true" suppressHydrationWarning
+      <input type="text" inputMode="numeric" value={y} placeholder="年" data-fi="true"
         className={`${ic}${ec}`} style={baseStyle(4)}
         onFocus={mkFocus("年")}
         onChange={mkCh("年",setY,4,moRef,v=>emit(v,mo,d,h,mi))}
         onKeyDown={mkKD("年",moRef)} />
       <span className="text-xs text-slate-400">/</span>
-      <input ref={moRef} type="number" value={mo} min={1} max={12} placeholder="月" data-fi="true" suppressHydrationWarning
+      <input ref={moRef} type="text" inputMode="numeric" value={mo} placeholder="月" data-fi="true"
         className={`${ic}${ec}`} style={baseStyle(2)}
         onFocus={mkFocus("月")}
         onChange={mkCh("月",setMo,2,dRef,v=>emit(y,v,d,h,mi))}
         onKeyDown={mkKD("月",dRef)} />
       <span className="text-xs text-slate-400">/</span>
-      <input ref={dRef} type="number" value={d} min={1} max={31} placeholder="日" data-fi="true" suppressHydrationWarning
+      <input ref={dRef} type="text" inputMode="numeric" value={d} placeholder="日" data-fi="true"
         className={`${ic}${ec}`} style={baseStyle(2)}
         onFocus={mkFocus("日")}
         onChange={mkCh("日",setD,2,hRef,v=>emit(y,mo,v,h,mi))}
         onKeyDown={mkKD("日",hRef)} />
       <span className="text-xs text-slate-400 ml-0.5"> </span>
-      <input ref={hRef} type="number" value={h} min={0} max={23} placeholder="時" data-fi="true" suppressHydrationWarning
+      <input ref={hRef} type="text" inputMode="numeric" value={h} placeholder="時" data-fi="true"
         className={`${ic}${ec}`} style={baseStyle(2)}
         onFocus={mkFocus("時")}
         onChange={mkCh("時",setH,2,miRef,v=>emit(y,mo,d,v,mi))}
         onKeyDown={mkKD("時",miRef)} />
       <span className="text-xs text-slate-400">:</span>
-      <input ref={miRef} type="number" value={mi} min={0} max={59} placeholder="分" data-fi="true" suppressHydrationWarning
+      <input ref={miRef} type="text" inputMode="numeric" value={mi} placeholder="分" data-fi="true"
         className={`${ic}${ec}`} style={baseStyle(2)}
         onFocus={mkFocus("分")}
         onChange={mkCh("分",setMi,2,null,v=>emit(y,mo,d,h,v))}
