@@ -122,8 +122,12 @@ export class McFilesService {
       this.ensureDir(thumbDir);
       const ext      = path.extname(file.storedName || file.filePath);
       const baseName = path.basename(file.storedName || file.filePath, ext);
+      // PHOTOとDRAWINGでサブディレクトリを分けて名前衝突を防ぐ
+      const typeSubDir = file.fileType === 'PHOTO' ? 'photos' : 'drawings';
+      const typeThumbDir = path.join(thumbDir, typeSubDir);
+      if (!require('fs').existsSync(typeThumbDir)) require('fs').mkdirSync(typeThumbDir, { recursive: true });
       const thumbName = `thumb_${baseName}.jpg`;
-      const thumbFull = path.join(thumbDir, thumbName);
+      const thumbFull = path.join(typeThumbDir, thumbName);
 
       await sharp(srcPath)
         .resize(300, 300, { fit: 'inside' })
@@ -279,7 +283,9 @@ export class McFilesService {
     let thumbnailPath: string | null = null;
     if (isImage && fileTypeEnum !== 'PROGRAM') {
       try {
-        const thumbDir  = path.join(basePath, 'MC', 'files', 'thumbnails');
+        // PHOTOとDRAWINGでサブディレクトリを分けて名前衝突を防ぐ
+        const typeSubDir = fileTypeEnum === 'PHOTO' ? 'photos' : 'drawings';
+        const thumbDir  = path.join(basePath, 'MC', 'files', 'thumbnails', typeSubDir);
         this.ensureDir(thumbDir);
         const thumbName = `thumb_${path.basename(storedName, ext)}.jpg`;
         const thumbFull = path.join(thumbDir, thumbName);

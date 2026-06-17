@@ -572,25 +572,44 @@ function McRecordPageInner() {
     let machMin:  number | null = null;
     let totalMin: number | null = null;
 
+    // 昼休み控除: 12:00-13:00を跨ぐ日数を返す（複数日対応）
+    const lunchDeductMin = (s: Date, e: Date): number => {
+      if (isNaN(s.getTime()) || isNaN(e.getTime()) || e <= s) return 0;
+      let count = 0;
+      const cur = new Date(s);
+      cur.setHours(0, 0, 0, 0);
+      const endDay = new Date(e);
+      endDay.setHours(0, 0, 0, 0);
+      while (cur <= endDay) {
+        const lS = new Date(cur); lS.setHours(12, 0, 0, 0);
+        const lE = new Date(cur); lE.setHours(13, 0, 0, 0);
+        const oS = s > lS ? s : lS;
+        const oE = e < lE ? e : lE;
+        if (oE > oS) count += Math.round((oE.getTime() - oS.getTime()) / 60000);
+        cur.setDate(cur.getDate() + 1);
+      }
+      return count;
+    };
+
     if (startedAt && finishedAt) {
-      const sv = new Date(startedAt).getTime();
-      const fv = new Date(finishedAt).getTime();
-      if (!isNaN(sv) && !isNaN(fv)) {
-        totalMin = Math.max(0, Math.round((fv - sv) / 60000) - dStopMin - yStopMin);
+      const sv = new Date(startedAt); const fv = new Date(finishedAt);
+      if (!isNaN(sv.getTime()) && !isNaN(fv.getTime())) {
+        const rawMin = Math.round((fv.getTime() - sv.getTime()) / 60000);
+        totalMin = Math.max(0, rawMin - lunchDeductMin(sv, fv) - dStopMin - yStopMin);
       }
     }
     if (startedAt && checkedAt) {
-      const sv = new Date(startedAt).getTime();
-      const cv = new Date(checkedAt).getTime();
-      if (!isNaN(sv) && !isNaN(cv)) {
-        setupMin = Math.max(0, Math.round((cv - sv) / 60000) - dStopMin);
+      const sv = new Date(startedAt); const cv = new Date(checkedAt);
+      if (!isNaN(sv.getTime()) && !isNaN(cv.getTime())) {
+        const rawMin = Math.round((cv.getTime() - sv.getTime()) / 60000);
+        setupMin = Math.max(0, rawMin - lunchDeductMin(sv, cv) - dStopMin);
       }
     }
     if (checkedAt && finishedAt) {
-      const cv = new Date(checkedAt).getTime();
-      const fv = new Date(finishedAt).getTime();
-      if (!isNaN(cv) && !isNaN(fv)) {
-        machMin = Math.max(0, Math.round((fv - cv) / 60000) - yStopMin);
+      const cv = new Date(checkedAt); const fv = new Date(finishedAt);
+      if (!isNaN(cv.getTime()) && !isNaN(fv.getTime())) {
+        const rawMin = Math.round((fv.getTime() - cv.getTime()) / 60000);
+        machMin = Math.max(0, rawMin - lunchDeductMin(cv, fv) - yStopMin);
       }
     }
     // 何も計算できていない場合はnull返す
@@ -941,6 +960,7 @@ function McRecordPageInner() {
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">段取開始</label>
                         <input type="datetime-local" value={startedAt}
                           onChange={e => { setStartedAt(e.target.value); setTimeValidErr(validateDateOrder(e.target.value, checkedAt, finishedAt)); }}
+                          onKeyDown={e => { if ((e.target as HTMLInputElement).value.length >= 4 && /^\d{4}$/.test((e.target as HTMLInputElement).value.slice(0,4)) && e.key >= '0' && e.key <= '9' && (e.target as HTMLInputElement).selectionStart === 4) { e.preventDefault(); (e.target as HTMLInputElement).setSelectionRange(5,7); } }}
                           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
                       </div>
                       <div>

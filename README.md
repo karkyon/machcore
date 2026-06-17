@@ -314,7 +314,7 @@ mount | grep ncfiles   # //192.168.1.9/d2/NC → /mnt/ncfiles
 sudo mount -t cifs //192.168.1.9/d1 /mnt/mcfiles -o username=machcore,password=RTW65b,vers=2.0,uid=karkyon,gid=karkyon,file_mode=0644,dir_mode=0755
 
 # 全フェーズ実行（既存データ全破棄→完全再インポート）
-python3 ~/projects/machcore/scripts/mc_full_import.py --phase 0 2>&1 | tee /tmp/mc_import_full.log
+python3 ~/projects/machcore/scripts/mc_full_import.py --phase 0 2>&1 | tee ~/projects/machcore/logs/mc_import_$(date +%Y%m%d_%H%M).log
 
 # 個別フェーズ実行
 python3 ~/projects/machcore/scripts/mc_full_import.py --phase 1  # mc_programs + parts
