@@ -746,7 +746,8 @@ function McRecordPageInner() {
       const calcK = (wsD: Date, weD: Date): number => {
         let total = 0;
         for (const row of rows) {
-          if (row.id === null) continue;
+          // id===null = タイムカード未登録(休日)→ 稼働0として扱う（continueしない=0加算）
+          if (row.id === null) continue; // 休日は稼働なし: 0加算のためskip(合計に影響なし)
           const tcS = new Date(row.date + "T" + row.startTime + ":00");
           const tcE = new Date(row.date + "T" + row.endTime + ":00");
           const ovS = tcS > wsD ? tcS : wsD;
@@ -765,11 +766,12 @@ function McRecordPageInner() {
       };
 
       const wsD = new Date(sa), ckD = ca ? new Date(ca) : null, weD = fa ? new Date(fa) : null;
+      // タイムカード取得完了: 休日=id null=稼働0として計算済み。必ず値をセット（フォールバック計算を使わない）
       const sk = ckD ? calcK(wsD, ckD) : null;
       const mk = ckD && weD ? calcK(ckD, weD) : null;
       console.log("[RECORD] タイムカードBG取得完了", { setupKadouMin: sk, machKadouMin: mk, dates });
-      setSetupKadouMin(sk);
-      setMachKadouMin(mk);
+      setSetupKadouMin(sk ?? 0);
+      setMachKadouMin(mk ?? 0);
     } catch (e) {
       console.log("[RECORD] タイムカードBG取得失敗", e);
     }

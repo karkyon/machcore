@@ -1469,8 +1469,9 @@ export class McService {
   // 全activeマシンの当日デフォルトレコード一括生成（upsert: 既存があれば何もしない）
   async initTimecards(workDate: string, operatorId: number) {
     // 営業カレンダーで休日チェック
+    // JST日付文字列(YYYY-MM-DD)をUTC正午で解釈してカレンダー検索（TZずれ防止）
     const calEntry = await this.prisma.businessCalendar.findFirst({
-      where: { workDate: new Date(workDate) },
+      where: { workDate: new Date(workDate + 'T12:00:00Z') },
     });
     if (calEntry?.isHoliday) {
       this.logger.info('TIMECARD', `${workDate} は休日のためタイムカード生成スキップ`, { note: calEntry.note });
