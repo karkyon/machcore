@@ -716,6 +716,65 @@ function McRecordPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [machines, selectedSheet, detail]);
 
+  // タイムカードバックグラウンド取得 & kadouMin自動計算
+  const fetchKadouFromTimecards = React.useCallback(async (sa: string, ca: string, fa: string, mId: number | string) => {
+    if (!sa) return;
+    const ws = sa.slice(0, 10);
+    const we = fa ? fa.slice(0, 10) : ca ? ca.slice(0, 10) : ws;
+    const dates: string[] = [];
+    const cur = new Date(ws + "T12:00:00");
+    const end = new Date(we + "T12:00:00");
+    while (cur <= end) { dates.push(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
+    if (dates.length === 0) return;
+
+    // machineCodeを特定
+    const mCode = typeof mId === "string" ? mId
+      : machines.find(m => m.id === mId)?.machineCode ?? "";
+    if (!mCode) return;
+
+    try {
+      const rows: Array<{id:number|null,date:string,startTime:string,endTime:string}> = [];
+      for (const dt of dates) {
+        const res = await mcApi.timecardsByDate(dt);
+        const all: any[] = (res as any).data ?? [];
+        const card = all.find((c: any) => c.machine?.machineCode === mCode);
+        const fmtT = (s: string) => s && s.length >= 8 ? s.slice(0, 5) : "08:00";
+        if (card) rows.push({ id: card.id, date: dt, startTime: fmtT(card.start_time ?? ""), endTime: fmtT(card.end_time ?? "") });
+        else rows.push({ id: null, date: dt, startTime: "08:00", endTime: "17:00" });
+      }
+
+      const calcK = (wsD: Date, weD: Date): number => {
+        let total = 0;
+        for (const row of rows) {
+          if (row.id === null) continue;
+          const tcS = new Date(row.date + "T" + row.startTime + ":00");
+          const tcE = new Date(row.date + "T" + row.endTime + ":00");
+          const ovS = tcS > wsD ? tcS : wsD;
+          const ovE = tcE < weD ? tcE : weD;
+          let diff = Math.round((ovE.getTime() - ovS.getTime()) / 60000);
+          if (diff <= 0) continue;
+          const lS = new Date(row.date + "T12:00:00");
+          const lE = new Date(row.date + "T13:00:00");
+          const loS = ovS > lS ? ovS : lS;
+          const loE = ovE < lE ? ovE : lE;
+          const lo = Math.round((loE.getTime() - loS.getTime()) / 60000);
+          if (lo > 0) diff -= lo;
+          if (diff > 0) total += diff;
+        }
+        return total;
+      };
+
+      const wsD = new Date(sa), ckD = ca ? new Date(ca) : null, weD = fa ? new Date(fa) : null;
+      const sk = ckD ? calcK(wsD, ckD) : null;
+      const mk = ckD && weD ? calcK(ckD, weD) : null;
+      console.log("[RECORD] タイムカードBG取得完了", { setupKadouMin: sk, machKadouMin: mk, dates });
+      setSetupKadouMin(sk);
+      setMachKadouMin(mk);
+    } catch (e) {
+      console.log("[RECORD] タイムカードBG取得失敗", e);
+    }
+  }, [machines]);
+
   useEffect(() => {
     if (isAuthenticated) {
       timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
@@ -723,9 +782,13 @@ function McRecordPageInner() {
       setTimeout(() => {
         (document.querySelector("#dti-started input[placeholder='年']") as HTMLElement|null)?.focus();
       }, 100);
+      // タイムカードをバックグラウンド取得
+      if (startedAt) fetchKadouFromTimecards(startedAt, checkedAt, finishedAt, machineId);
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
       setElapsed(0);
+      setSetupKadouMin(null);
+      setMachKadouMin(null);
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isAuthenticated]);
@@ -837,14 +900,30 @@ function McRecordPageInner() {
       };
     }
 
-    // datetime mode — VBA W_TIME ロジック準拠
-    // startedAt か finishedAt どちらかあれば計算を試みる
+    // datetime mode — タイムカード稼働実績があればそれを優先
     const dStopMin = dStopH * 60 + dStopM;
     const yStopMin = yStopH * 60 + yStopM;
 
     let setupMin: number | null = null;
     let machMin:  number | null = null;
     let totalMin: number | null = null;
+
+    // タイムカード稼働実績がある場合はそれを優先（中断時間のみ控除）
+    if (setupKadouMin !== null) {
+      setupMin = Math.max(0, setupKadouMin - dStopMin);
+    }
+    if (machKadouMin !== null) {
+      machMin = Math.max(0, machKadouMin - yStopMin);
+    }
+    if (setupMin !== null && machMin !== null) {
+      totalMin = setupMin + machMin;
+      const cyclePerPSec2 = cyclePerPSec;
+      return {
+        setupMin, machMin, totalMin, cyclePerPSec: cyclePerPSec2,
+        machPerPMin:  machMin > 0 && qtyN > 0 ? Math.round(machMin / machQtyBase * 10) / 10 : null,
+        totalPerPMin: totalMin > 0 && totalQty > 0 ? Math.round(totalMin / totalQty * 10) / 10 : null,
+      };
+    }
 
     // 昼休み控除: 12:00-13:00を跨ぐ日数を返す（複数日対応）
     const lunchDeductMin = (s: Date, e: Date): number => {
@@ -898,7 +977,8 @@ function McRecordPageInner() {
       totalPerPMin: totalMin != null && totalMin > 0 && totalQty > 0 ? Math.round(totalMin / totalQty * 10) / 10 : null,
     };
   }, [timeMode, setupH, setupMm, machH, machMm, startedAt, checkedAt, finishedAt,
-      dStopH, dStopM, yStopH, yStopM, quantity, setupQty, cycleH, cycleM, cycleS, cyclePcs]);
+      dStopH, dStopM, yStopH, yStopM, quantity, setupQty, cycleH, cycleM, cycleS, cyclePcs,
+      setupKadouMin, machKadouMin]);
 
   const times = calcTimes();
 
@@ -1249,7 +1329,7 @@ function McRecordPageInner() {
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">段取開始</label>
                         <div id="dti-started" data-dti="true">
                           <DateTimeInput value={startedAt} label="段取開始"
-                            onChange={v => { setStartedAt(v); setTimeValidErr(validateDateOrder(v, checkedAt, finishedAt)); }}
+                            onChange={v => { setStartedAt(v); setTimeValidErr(validateDateOrder(v, checkedAt, finishedAt)); setSetupKadouMin(null); setMachKadouMin(null); }}
                             onAfterMi={() => {
                               const t = document.querySelector("#dti-checked input[placeholder='年']") as HTMLElement|null;
                               console.log("[RECORD] 段取開始→段取終了年へ移動");
@@ -1262,7 +1342,7 @@ function McRecordPageInner() {
                         <div id="dti-checked" data-dti="true">
                           <DateTimeInput value={checkedAt} label="段取終了"
                             hasError={!!(timeValidErr && timeValidErr.includes("段取終了"))}
-                            onChange={v => { setCheckedAt(v); setTimeValidErr(validateDateOrder(startedAt, v, finishedAt)); }} />
+                            onChange={v => { setCheckedAt(v); setTimeValidErr(validateDateOrder(startedAt, v, finishedAt)); setSetupKadouMin(null); setMachKadouMin(null); }} />
                         </div>
                       </div>
                     </div>
@@ -1348,7 +1428,7 @@ function McRecordPageInner() {
                         <div id="dti-finished" data-dti="true">
                           <DateTimeInput value={finishedAt} label="加工終了"
                             hasError={!!(timeValidErr && timeValidErr.includes("加工終了"))}
-                            onChange={v => { setFinishedAt(v); setTimeValidErr(validateDateOrder(startedAt, checkedAt, v)); }} />
+                            onChange={v => { setFinishedAt(v); setTimeValidErr(validateDateOrder(startedAt, checkedAt, v)); setSetupKadouMin(null); setMachKadouMin(null); }} />
                         </div>
                       </div>
                       <div />
