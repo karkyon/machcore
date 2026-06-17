@@ -1169,26 +1169,10 @@ export class McService {
     const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcId } });
     if (!mc) throw new NotFoundException(`MC_id ${mcId} が存在しません`);
 
-    // 時刻から時間を自動計算
-    let setupMin = dto.setup_time_min ?? null;
-    let machMin  = dto.machining_time_min ?? null;
-
-    if (dto.started_at && dto.finished_at) {
-      const start   = new Date(dto.started_at);
-      const checked = dto.checked_at ? new Date(dto.checked_at) : null;
-      const finish  = new Date(dto.finished_at);
-      const interruptSetup = dto.interrupt_setup_min ?? 0;
-      const interruptWork  = dto.interrupt_work_min  ?? 0;
-
-      if (checked) {
-        setupMin = Math.max(0, Math.round((checked.getTime() - start.getTime()) / 60000) - interruptSetup);
-        machMin  = Math.max(0, Math.round((finish.getTime() - checked.getTime()) / 60000) - interruptWork);
-      } else {
-        const total = Math.max(0, Math.round((finish.getTime() - start.getTime()) / 60000) - interruptSetup - interruptWork);
-        setupMin = total;
-        machMin  = total;
-      }
-    }
+    // フロントエンドで昼休み控除済みの値を送信しているのでそのまま使う
+    // （フロントが未送信の場合のみ時刻から計算するが昼休み控除は行わない）
+    const setupMin = dto.setup_time_min ?? null;
+    const machMin  = dto.machining_time_min ?? null;
 
     const record = await this.prisma.workRecord.create({
       data: {
