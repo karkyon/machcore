@@ -1478,6 +1478,17 @@ export class McService {
       return { created: 0, message: '休日のためスキップ' };
     }
 
+    // DB設定からデフォルト開始・終了時刻を取得（JST→UTC変換）
+    const tcSettings = await this.getSystemSettings();
+    const defStart = tcSettings['timecard_default_start'] ?? '08:00';
+    const defEnd   = tcSettings['timecard_default_end']   ?? '17:00';
+    const toUtcTs  = (date: string, jstTime: string) => {
+      // JST時刻文字列(HH:MM)をUTCのDateに変換
+      const [h, m] = jstTime.split(':').map(Number);
+      const utcH = ((h - 9) + 24) % 24;
+      return new Date(`${date}T${String(utcH).padStart(2,'0')}:${String(m).padStart(2,'0')}:00Z`);
+    };
+
     const machines = await this.prisma.machine.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: 'asc' },
@@ -1495,8 +1506,8 @@ export class McService {
           machineId:  m.id,
           operatorId,
           workDate:   new Date(workDate),
-          startTime:  new Date(`${workDate}T08:00:00Z`),
-          endTime:    new Date(`${workDate}T17:00:00Z`),
+          startTime:  toUtcTs(workDate, defStart),
+          endTime:    toUtcTs(workDate, defEnd),
         },
       });
       created.push(tc.id);
