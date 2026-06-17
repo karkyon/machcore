@@ -20,7 +20,7 @@ function NumInput({ value, onChange, min=0, max=999, className="" }: {
   };
   return (
     <input type="number" min={min} max={max} value={value} data-fi="true"
-      onChange={e => onChange(Math.max(min, Math.min(max, Number(e.target.value) || 0)))}
+      onChange={e => { const v=Math.max(min,Math.min(max,Number(e.target.value)||0)); console.log("[RECORD] NumInput変更",{value:v}); onChange(v); }}
       onFocus={e => e.target.select()}
       onKeyDown={nav}
       className={`border border-slate-200 rounded px-2 py-1.5 text-sm text-center w-16 focus:outline-none focus:ring-2 focus:ring-teal-400 ${className}`}
@@ -48,7 +48,11 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
-  const toggle = (id: number) => onChange(selected.includes(id) ? selected.filter(x=>x!==id) : [...selected, id]);
+  const toggle = (id: number) => {
+    const next = selected.includes(id) ? selected.filter(x=>x!==id) : [...selected, id];
+    console.log("[RECORD] MultiUserSelect変更",{ids:next,names:next.map((i:number)=>users.find(u=>u.id===i)?.name??"").filter(Boolean)});
+    onChange(next);
+  };
   const names = selected.map(id => users.find(u=>u.id===id)?.name ?? "").filter(Boolean).join(" & ");
   const navKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === "Enter") {
@@ -117,7 +121,7 @@ function SingleUserSelect({ users, selected, onChange, placeholder }: {
   };
   return (
     <select value={selected ?? ""} data-fi="true"
-      onChange={e => onChange(e.target.value ? parseInt(e.target.value) : null)}
+      onChange={e => { const v=e.target.value?parseInt(e.target.value):null; console.log("[RECORD] SingleUserSelect変更",{id:v,name:e.target.options[e.target.selectedIndex]?.text}); onChange(v); }}
       onKeyDown={nav}
       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
       <option value="">{placeholder ?? "— 選択 —"}</option>
@@ -168,7 +172,7 @@ function DateTimeInput({ value, onChange, hasError, onAfterMi }: {
       const maxD = new Date(yi, moi, 0).getDate();
       const safeD = Math.min(di, maxD);
       const p = (n: number, len=2) => String(n).padStart(len,"0");
-      onChange(`${p(yi,4)}-${p(moi)}-${p(safeD)}T${p(hi)}:${p(mii)}`);
+      const dtv=`${p(yi,4)}-${p(moi)}-${p(safeD)}T${p(hi)}:${p(mii)}`; console.log("[RECORD] DateTimeInput確定",{value:dtv}); onChange(dtv);
     }
   };
 
@@ -602,6 +606,7 @@ function McRecordPageInner() {
   useEffect(() => {
     mcApi.findOne(mcId).then(r => {
       const d = (r as any).data ?? (r as any);
+      console.log("[RECORD] 初期データ取得", JSON.stringify({id:d?.id,mcid:d?.mcid,part:d?.part,machine:d?.machine,cycleTimeSec:d?.cycleTimeSec,machiningQty:d?.machiningQty},null,2));
       setDetail(d);
       // 機械・サイクルタイムの初期値をdetailから設定
       if (d?.machine?.machineCode) {
@@ -622,7 +627,7 @@ function McRecordPageInner() {
       setSetupSheets(sheets);
       if (sheets.length > 0) setSelectedSheet(sheets[0]);
     }).catch(() => {});
-    mcApi.workRecords(mcId).then(r => setRecords((r as any).data ?? [])).catch(() => {});
+    mcApi.workRecords(mcId).then(r => { const recs=(r as any).data??[]; setRecords(recs); console.log("[RECORD] 作業記録一覧取得",{count:recs.length,latest:recs[0]}); }).catch(() => {});
     machinesApi.list().then(r => setMachines((r as any).data ?? [])).catch(() => {});
     usersApi.list().then(r => setUsers((r as any).data ?? [])).catch(() => {});
   }, [mcId]);
@@ -858,6 +863,7 @@ function McRecordPageInner() {
 
 
     const handleSubmit = async () => {
+    console.log("[RECORD] handleSubmit 全フォーム値", JSON.stringify({machineId,cycleH,cycleM,cycleS,cyclePcs,startedAt,checkedAt,finishedAt,dStopH,dStopM,yStopH,yStopM,setupOps,prodOps,checkMan,prgMan,setupQty,quantity,note,prgPlas,prgTimeH,prgTimeM,timeMode},null,2));
     console.log("[STEP2] handleSubmit sbMode=", sbMode, "token=", token ? "あり" : "なし", "isAuthenticated=", isAuthenticated);
     if (!token) { setSaveError("認証セッションが切れています。再認証してください。"); setAuthOpen(true); return; }
     // 日時バリデーション
@@ -1110,7 +1116,7 @@ function McRecordPageInner() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1.5">今回使用機械</label>
-                    <select value={machineId} onChange={e => setMachineId(e.target.value)} data-fi="true"
+                    <select value={machineId} onChange={e => { setMachineId(e.target.value); console.log("[RECORD] 機械変更",{machineId:e.target.value,label:e.target.options[e.target.selectedIndex]?.text}); }} data-fi="true"
                       onKeyDown={e => {
                         const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
                         const idx = allFi.indexOf(e.currentTarget);
@@ -1243,7 +1249,7 @@ function McRecordPageInner() {
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1.5">段取良品数</label>
                     <div className="flex items-center gap-1">
-                      <input type="number" min="0" value={setupQty} onChange={e => setSetupQty(e.target.value)}
+                      <input type="number" min="0" value={setupQty} onChange={e => { setSetupQty(e.target.value); console.log("[RECORD] 段取良品数変更",{setupQty:e.target.value}); }}
                         data-fi="true" onFocus={e => (e.target as HTMLInputElement).select()}
                         onKeyDown={e => {
                           const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
@@ -1326,7 +1332,10 @@ function McRecordPageInner() {
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1.5">全良品数（ワーク数）</label>
                     <div className="flex items-center gap-1">
-                      <input type="number" min="0" value={quantity} onChange={e => setQuantity(e.target.value)}
+                      <input type="number" min="0" value={quantity}
+                        onChange={e => { setQuantity(e.target.value); console.log("[RECORD] 全良品数変更",{quantity:e.target.value}); }}
+                        data-fi="true" onFocus={e => (e.target as HTMLInputElement).select()}
+                        onKeyDown={e => { if(e.key!=="Enter")return; e.preventDefault(); const a=Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])")); const i=a.indexOf(e.currentTarget); if(e.shiftKey){if(i>0)a[i-1].focus();}else{if(i<a.length-1)a[i+1].focus();} }}
                         className="w-24 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-400" placeholder="0" />
                       <span className="text-xs text-slate-500">個</span>
                     </div>
@@ -1435,7 +1444,7 @@ function McRecordPageInner() {
               {/* 備考 */}
               <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <label className="text-xs font-bold text-slate-500 block mb-1.5">備考</label>
-                <textarea value={note} onChange={e => setNote(e.target.value)} rows={3}
+                <textarea value={note} onChange={e => { setNote(e.target.value); console.log("[RECORD] 備考変更",{len:e.target.value.length,preview:e.target.value.slice(0,30)}); }} rows={3}
                   placeholder="問題点・注意事項・特記事項"
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none" />
                 <div className="text-right text-xs text-slate-400 mt-1">{note.length} / 1000</div>

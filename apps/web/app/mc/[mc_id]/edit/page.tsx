@@ -157,7 +157,7 @@ export default function McEditPage() {
   useEffect(() => {
     mcApi.findOne(mcId).then(r => {
       const d = (r as any).data ?? r;
-      console.log("[EDIT] detail取得", { id: d.id, version: d.version, status: d.status, machine: d.machine });
+      console.log("[EDIT] 初期データ取得", JSON.stringify({id:d.id,version:d.version,status:d.status,machine:d.machine,oNumber:d.oNumber,cycleTimeSec:d.cycleTimeSec,machiningQty:d.machiningQty},null,2));
       setDetail(d);
       // McDetail.machine は { machineCode, machineName } のみ — id は machines リストから取得
       // machines がまだ空の可能性があるので machineCode を一時保存してから後で解決
