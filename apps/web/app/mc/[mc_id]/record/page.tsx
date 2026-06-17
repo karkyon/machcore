@@ -10,9 +10,19 @@ import AuthModal from "@/components/auth/AuthModal";
 function NumInput({ value, onChange, min=0, max=999, className="" }: {
   value: number; onChange: (v: number) => void; min?: number; max?: number; className?: string;
 }) {
+  const nav = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+    const i = all.indexOf(e.currentTarget);
+    if (e.shiftKey) { if (i > 0) all[i-1].focus(); }
+    else { if (i < all.length-1) all[i+1].focus(); }
+  };
   return (
-    <input type="number" min={min} max={max} value={value}
+    <input type="number" min={min} max={max} value={value} data-fi="true"
       onChange={e => onChange(Math.max(min, Math.min(max, Number(e.target.value) || 0)))}
+      onFocus={e => e.target.select()}
+      onKeyDown={nav}
       className={`border border-slate-200 rounded px-2 py-1.5 text-sm text-center w-16 focus:outline-none focus:ring-2 focus:ring-teal-400 ${className}`}
     />
   );
@@ -31,23 +41,56 @@ function TimeInput({ h, m, onH, onM }: { h:number; m:number; onH:(v:number)=>voi
 function MultiUserSelect({ users, selected, onChange, placeholder }: {
   users: UserInfo[]; selected: number[]; onChange: (ids: number[]) => void; placeholder?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
   const toggle = (id: number) => onChange(selected.includes(id) ? selected.filter(x=>x!==id) : [...selected, id]);
   const names = selected.map(id => users.find(u=>u.id===id)?.name ?? "").filter(Boolean).join(" & ");
+  const navKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        setOpen(false);
+        const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+        const i = all.indexOf(e.currentTarget); if (i > 0) all[i-1].focus();
+      } else {
+        setOpen(v => !v);
+      }
+    } else if (e.key === "Tab" && e.shiftKey) {
+      setOpen(false);
+      const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+      const i = all.indexOf(e.currentTarget); if (i > 0) { e.preventDefault(); all[i-1].focus(); }
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      setOpen(true);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  };
+  const closeNav = (e: React.KeyboardEvent) => {
+    if (e.key === "Tab" && !e.shiftKey) {
+      setOpen(false);
+      const btn = ref.current?.querySelector<HTMLElement>("button[data-fi]");
+      if (btn) {
+        const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+        const i = all.indexOf(btn);
+        if (i < all.length-1) { e.preventDefault(); all[i+1].focus(); }
+      }
+    }
+  };
   return (
     <div ref={ref} className="relative">
-      <button type="button" onClick={() => setOpen(v=>!v)}
+      <button type="button" data-fi="true" onClick={() => setOpen(v=>!v)}
+        onFocus={() => setOpen(true)}
+        onKeyDown={navKey}
         className="w-full text-left border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white hover:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400 min-h-[38px]">
         {names || <span className="text-slate-400">{placeholder}</span>}
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto" onKeyDown={closeNav}>
           {users.filter(u=>u.isActive!==false).map(u => (
             <label key={u.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-teal-50 cursor-pointer text-sm">
               <input type="checkbox" checked={selected.includes(u.id)} onChange={() => toggle(u.id)} className="accent-teal-600" />
@@ -64,8 +107,18 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
 function SingleUserSelect({ users, selected, onChange, placeholder }: {
   users: UserInfo[]; selected: number | null; onChange: (id: number | null) => void; placeholder?: string;
 }) {
+  const nav = (e: React.KeyboardEvent<HTMLSelectElement>) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+    const i = all.indexOf(e.currentTarget);
+    if (e.shiftKey) { if (i > 0) all[i-1].focus(); }
+    else { if (i < all.length-1) all[i+1].focus(); }
+  };
   return (
-    <select value={selected ?? ""} onChange={e => onChange(e.target.value ? parseInt(e.target.value) : null)}
+    <select value={selected ?? ""} data-fi="true"
+      onChange={e => onChange(e.target.value ? parseInt(e.target.value) : null)}
+      onKeyDown={nav}
       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
       <option value="">{placeholder ?? "— 選択 —"}</option>
       {users.filter(u=>u.isActive!==false).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -89,7 +142,15 @@ function DateTimeInput({ value, onChange, hasError, onAfterMi }: {
   const hRef  = React.useRef<HTMLInputElement>(null);
   const miRef = React.useRef<HTMLInputElement>(null);
   const calRef= React.useRef<HTMLInputElement>(null);
-  const afterMiHandler = onAfterMi ?? (() => { calRef.current?.focus(); });
+  const afterMiHandler = onAfterMi ?? (() => {
+    // onAfterMi未指定時: 分の次のdata-fi要素へ移動（カレンダーはスキップ）
+    if (miRef.current) {
+      const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+      const i = all.indexOf(miRef.current);
+      if (i < all.length-1) all[i+1].focus();
+    }
+  });
+  const _unused_calRef = (() => { calRef.current?.focus(); });
 
   // value→各stateへ同期（外部からの変更を反映）
   React.useEffect(() => {
@@ -168,12 +229,12 @@ function DateTimeInput({ value, onChange, hasError, onAfterMi }: {
             if (idx > 0) allFi[idx - 1].focus();
           }
         }} />
-      {/* カレンダーピッカー: ボタンでinputをクリック、inputは不可視 */}
+      {/* カレンダーピッカー: SVGアイコンクリックで開く */}
       <label className="ml-1 cursor-pointer text-slate-400 hover:text-teal-600" title="カレンダーから選択">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="inline-block align-middle">
           <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
         </svg>
-        <input ref={calRef} type="datetime-local" value={value} tabIndex={-1}
+        <input type="datetime-local" value={value} tabIndex={-1}
           onChange={e => { onChange(e.target.value); }}
           className="sr-only"
           style={{position:"absolute",opacity:0,width:0,height:0}} />
@@ -597,6 +658,10 @@ function McRecordPageInner() {
   useEffect(() => {
     if (isAuthenticated) {
       timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
+      // 認証直後に段取開始の年inputへ自動フォーカス
+      setTimeout(() => {
+        (document.querySelector("#dti-started input[placeholder='年']") as HTMLElement|null)?.focus();
+      }, 100);
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
       setElapsed(0);
