@@ -73,6 +73,75 @@ function SingleUserSelect({ users, selected, onChange, placeholder }: {
   );
 }
 
+// ── カスタム日時入力（年→月→日→時→分 自動フォーカス） ─────────
+function DateTimeInput({ value, onChange, hasError }: {
+  value: string; onChange: (v: string) => void; hasError?: boolean;
+}) {
+  const yearRef  = React.useRef<HTMLInputElement>(null);
+  const monthRef = React.useRef<HTMLSelectElement>(null);
+  const dayRef   = React.useRef<HTMLSelectElement>(null);
+  const hourRef  = React.useRef<HTMLSelectElement>(null);
+  const minRef   = React.useRef<HTMLSelectElement>(null);
+  const parsed = React.useMemo(() => {
+    if (!value || value.length < 16) return { y: "", mo: "", d: "", h: "", mi: "" };
+    return { y: value.slice(0,4), mo: value.slice(5,7), d: value.slice(8,10), h: value.slice(11,13), mi: value.slice(14,16) };
+  }, [value]);
+  const emit = (y: string, mo: string, d: string, h: string, mi: string) => {
+    if (y.length === 4 && mo && d && h && mi) {
+      const maxD = new Date(parseInt(y), parseInt(mo), 0).getDate();
+      const safeD = Math.min(parseInt(d), maxD);
+      onChange(`${y}-${mo}-${String(safeD).padStart(2,"0")}T${h}:${mi}`);
+    } else if (!y && !mo && !d && !h && !mi) { onChange(""); }
+  };
+  const now = new Date();
+  const months = Array.from({length: 12}, (_, i) => String(i+1).padStart(2,"0"));
+  const daysInMonth = parsed.y && parsed.mo ? new Date(parseInt(parsed.y), parseInt(parsed.mo), 0).getDate() : 31;
+  const days  = Array.from({length: daysInMonth}, (_, i) => String(i+1).padStart(2,"0"));
+  const hours = Array.from({length: 24}, (_, i) => String(i).padStart(2,"0"));
+  const mins  = Array.from({length: 60}, (_, i) => String(i).padStart(2,"0"));
+  const sc = "border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white px-1 py-1.5 text-center";
+  const ec = hasError ? " border-red-400 bg-red-50" : "";
+  return (
+    <div className={"flex items-center gap-0.5 flex-wrap" + (hasError ? " rounded-lg ring-1 ring-red-400" : "")}>
+      <input ref={yearRef} type="text" inputMode="numeric" maxLength={4}
+        value={parsed.y} placeholder="年" className={`w-16 ${sc}${ec}`}
+        onChange={e => {
+          const v = e.target.value.replace(/[^0-9]/g,"").slice(0,4);
+          emit(v, parsed.mo, parsed.d, parsed.h, parsed.mi);
+          if (v.length === 4) { setTimeout(() => monthRef.current?.focus(), 0); }
+        }} />
+      <span className="text-xs text-slate-400">/</span>
+      <select ref={monthRef} value={parsed.mo} className={`w-14 ${sc}${ec}`}
+        onChange={e => { emit(parsed.y, e.target.value, parsed.d, parsed.h, parsed.mi); setTimeout(() => dayRef.current?.focus(), 0); }}>
+        <option value="">月</option>
+        {months.map(m => <option key={m} value={m}>{parseInt(m)}</option>)}
+      </select>
+      <span className="text-xs text-slate-400">/</span>
+      <select ref={dayRef} value={parsed.d} className={`w-14 ${sc}${ec}`}
+        onChange={e => { emit(parsed.y, parsed.mo, e.target.value, parsed.h, parsed.mi); setTimeout(() => hourRef.current?.focus(), 0); }}>
+        <option value="">日</option>
+        {days.map(d => <option key={d} value={d}>{parseInt(d)}</option>)}
+      </select>
+      <span className="text-xs text-slate-400 ml-1"> </span>
+      <select ref={hourRef} value={parsed.h} className={`w-14 ${sc}${ec}`}
+        onChange={e => { emit(parsed.y, parsed.mo, parsed.d, e.target.value, parsed.mi); setTimeout(() => minRef.current?.focus(), 0); }}>
+        <option value="">時</option>
+        {hours.map(h => <option key={h} value={h}>{h}</option>)}
+      </select>
+      <span className="text-xs text-slate-400">:</span>
+      <select ref={minRef} value={parsed.mi} className={`w-14 ${sc}${ec}`}
+        onChange={e => emit(parsed.y, parsed.mo, parsed.d, parsed.h, e.target.value)}>
+        <option value="">分</option>
+        {mins.map(m => <option key={m} value={m}>{m}</option>)}
+      </select>
+      {value && (
+        <button type="button" onClick={() => onChange("")}
+          className="ml-1 text-xs text-slate-400 hover:text-red-500 px-1">✕</button>
+      )}
+    </div>
+  );
+}
+
 function fmtDate(s: string | null) {
   if (!s) return "—";
   try { return new Date(s).toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit" }); } catch { return s; }
@@ -958,16 +1027,14 @@ function McRecordPageInner() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">段取開始</label>
-                        <input type="datetime-local" value={startedAt}
-                          onChange={e => { setStartedAt(e.target.value); setTimeValidErr(validateDateOrder(e.target.value, checkedAt, finishedAt)); }}
-                          onKeyDown={e => { if ((e.target as HTMLInputElement).value.length >= 4 && /^\d{4}$/.test((e.target as HTMLInputElement).value.slice(0,4)) && e.key >= '0' && e.key <= '9' && (e.target as HTMLInputElement).selectionStart === 4) { e.preventDefault(); (e.target as HTMLInputElement).setSelectionRange(5,7); } }}
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+                        <DateTimeInput value={startedAt}
+                          onChange={v => { setStartedAt(v); setTimeValidErr(validateDateOrder(v, checkedAt, finishedAt)); }} />
                       </div>
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">段取終了（ﾁｪｯｸTime）</label>
-                        <input type="datetime-local" value={checkedAt}
-                          onChange={e => { setCheckedAt(e.target.value); setTimeValidErr(validateDateOrder(startedAt, e.target.value, finishedAt)); }}
-                          className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 ${timeValidErr && timeValidErr.includes("段取終了") ? "border-red-400 bg-red-50" : "border-slate-200"}`} />
+                        <DateTimeInput value={checkedAt}
+                          hasError={!!(timeValidErr && timeValidErr.includes("段取終了"))}
+                          onChange={v => { setCheckedAt(v); setTimeValidErr(validateDateOrder(startedAt, v, finishedAt)); }} />
                       </div>
                     </div>
                     {startedAt && checkedAt && (() => {
@@ -1029,9 +1096,9 @@ function McRecordPageInner() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">加工終了</label>
-                        <input type="datetime-local" value={finishedAt}
-                          onChange={e => { setFinishedAt(e.target.value); setTimeValidErr(validateDateOrder(startedAt, checkedAt, e.target.value)); }}
-                          className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 ${timeValidErr && timeValidErr.includes("加工終了") ? "border-red-400 bg-red-50" : "border-slate-200"}`} />
+                        <DateTimeInput value={finishedAt}
+                          hasError={!!(timeValidErr && timeValidErr.includes("加工終了"))}
+                          onChange={v => { setFinishedAt(v); setTimeValidErr(validateDateOrder(startedAt, checkedAt, v)); }} />
                       </div>
                       <div />
                     </div>
