@@ -388,9 +388,13 @@ function TimecardModal({
       const ovE = tcE < weD ? tcE : weD;
       let diff = Math.round((ovE.getTime() - ovS.getTime()) / 60000);
       if (diff <= 0) continue;
-      const sh = ovS.getHours() + ovS.getMinutes() / 60;
-      const eh = ovE.getHours() + ovE.getMinutes() / 60;
-      if (sh < 12 && eh > 13) diff -= 60;
+      // 昼休み(12:00-13:00)との重複を正確に計算（sh<12判定バグを修正）
+      const lS = new Date(row.date + "T12:00:00");
+      const lE = new Date(row.date + "T13:00:00");
+      const loS = ovS > lS ? ovS : lS;
+      const loE = ovE < lE ? ovE : lE;
+      const lunchOverlap = Math.round((loE.getTime() - loS.getTime()) / 60000);
+      if (lunchOverlap > 0) diff -= lunchOverlap;
       if (diff > 0) total += diff;
     }
     return total;
