@@ -1483,11 +1483,6 @@ export class McService {
     const tcSettings = await this.getSystemSettings();
     const defStart = tcSettings['timecard_default_start'] ?? '08:00';
     const defEnd   = tcSettings['timecard_default_end']   ?? '17:00';
-    // 時刻はJST文字列をそのままDBに保存（タイムゾーン変換なし）
-    const toUtcTs  = (date: string, jstTime: string) => {
-      return new Date(`${date}T${jstTime}:00`);
-    };
-
     const machines = await this.prisma.machine.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: 'asc' },
@@ -1496,7 +1491,7 @@ export class McService {
     const created: number[] = [];
     for (const m of machines) {
       const exists = await this.prisma.machineTimecard.findFirst({
-        where: { machineId: m.id, workDate: new Date(workDate) },
+        where: { machineId: m.id, workDate: new Date(workDate + 'T12:00:00Z') },
         select: { id: true },
       });
       if (exists) continue;
@@ -1504,9 +1499,9 @@ export class McService {
         data: {
           machineId:  m.id,
           operatorId,
-          workDate:   new Date(workDate),
-          startTime:  toUtcTs(workDate, defStart),
-          endTime:    toUtcTs(workDate, defEnd),
+          workDate:   new Date(workDate + 'T12:00:00Z'),
+          startTime:  defStart + ':00',
+          endTime:    defEnd   + ':00',
         },
       });
       created.push(tc.id);
