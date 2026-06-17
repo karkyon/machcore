@@ -77,67 +77,86 @@ function SingleUserSelect({ users, selected, onChange, placeholder }: {
 function DateTimeInput({ value, onChange, hasError }: {
   value: string; onChange: (v: string) => void; hasError?: boolean;
 }) {
-  const yearRef  = React.useRef<HTMLInputElement>(null);
+  // 年はローカルstateで管理（Controlled inputのHydration問題を回避）
+  const [yearStr, setYearStr] = React.useState<string>(() => value && value.length >= 4 ? value.slice(0,4) : "");
   const monthRef = React.useRef<HTMLSelectElement>(null);
   const dayRef   = React.useRef<HTMLSelectElement>(null);
   const hourRef  = React.useRef<HTMLSelectElement>(null);
-  const minRef   = React.useRef<HTMLSelectElement>(null);
-  const parsed = React.useMemo(() => {
-    if (!value || value.length < 16) return { y: "", mo: "", d: "", h: "", mi: "" };
-    return { y: value.slice(0,4), mo: value.slice(5,7), d: value.slice(8,10), h: value.slice(11,13), mi: value.slice(14,16) };
+
+  // value変化時に年stateを同期
+  React.useEffect(() => {
+    const y = value && value.length >= 4 ? value.slice(0,4) : "";
+    setYearStr(y);
   }, [value]);
+
+  const parsed = React.useMemo(() => {
+    if (!value || value.length < 16) return { mo: "", d: "", h: "", mi: "" };
+    return { mo: value.slice(5,7), d: value.slice(8,10), h: value.slice(11,13), mi: value.slice(14,16) };
+  }, [value]);
+
   const emit = (y: string, mo: string, d: string, h: string, mi: string) => {
     if (y.length === 4 && mo && d && h && mi) {
       const maxD = new Date(parseInt(y), parseInt(mo), 0).getDate();
       const safeD = Math.min(parseInt(d), maxD);
       onChange(`${y}-${mo}-${String(safeD).padStart(2,"0")}T${h}:${mi}`);
-    } else if (!y && !mo && !d && !h && !mi) { onChange(""); }
+    }
   };
-  const now = new Date();
-  const months = Array.from({length: 12}, (_, i) => String(i+1).padStart(2,"0"));
-  const daysInMonth = parsed.y && parsed.mo ? new Date(parseInt(parsed.y), parseInt(parsed.mo), 0).getDate() : 31;
+
+  const months = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+  const daysInMonth = yearStr.length === 4 && parsed.mo
+    ? new Date(parseInt(yearStr), parseInt(parsed.mo), 0).getDate() : 31;
   const days  = Array.from({length: daysInMonth}, (_, i) => String(i+1).padStart(2,"0"));
   const hours = Array.from({length: 24}, (_, i) => String(i).padStart(2,"0"));
   const mins  = Array.from({length: 60}, (_, i) => String(i).padStart(2,"0"));
   const sc = "border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white px-1 py-1.5 text-center";
   const ec = hasError ? " border-red-400 bg-red-50" : "";
+
   return (
     <div className={"flex items-center gap-0.5 flex-wrap" + (hasError ? " rounded-lg ring-1 ring-red-400" : "")}>
-      <input ref={yearRef} type="text" inputMode="numeric" maxLength={4}
-        value={parsed.y} placeholder="年" className={`w-16 ${sc}${ec}`}
+      {/* 年: ローカルstateで入力受付→4桁で月へ自動フォーカス */}
+      <input type="text" inputMode="numeric" maxLength={4}
+        value={yearStr} placeholder="年" className={`w-16 ${sc}${ec}`}
         onChange={e => {
           const v = e.target.value.replace(/[^0-9]/g,"").slice(0,4);
-          emit(v, parsed.mo, parsed.d, parsed.h, parsed.mi);
-          if (v.length === 4) { setTimeout(() => monthRef.current?.focus(), 0); }
+          setYearStr(v);
+          if (v.length === 4) {
+            emit(v, parsed.mo, parsed.d, parsed.h, parsed.mi);
+            setTimeout(() => monthRef.current?.focus(), 0);
+          } else {
+            // 4桁未満の場合はvalueをクリア（部分入力中）
+            if (value) onChange("");
+          }
         }} />
       <span className="text-xs text-slate-400">/</span>
       <select ref={monthRef} value={parsed.mo} className={`w-14 ${sc}${ec}`}
-        onChange={e => { emit(parsed.y, e.target.value, parsed.d, parsed.h, parsed.mi); setTimeout(() => dayRef.current?.focus(), 0); }}>
+        onChange={e => { emit(yearStr, e.target.value, parsed.d, parsed.h, parsed.mi); setTimeout(() => dayRef.current?.focus(), 0); }}>
         <option value="">月</option>
         {months.map(m => <option key={m} value={m}>{parseInt(m)}</option>)}
       </select>
       <span className="text-xs text-slate-400">/</span>
       <select ref={dayRef} value={parsed.d} className={`w-14 ${sc}${ec}`}
-        onChange={e => { emit(parsed.y, parsed.mo, e.target.value, parsed.h, parsed.mi); setTimeout(() => hourRef.current?.focus(), 0); }}>
+        onChange={e => { emit(yearStr, parsed.mo, e.target.value, parsed.h, parsed.mi); setTimeout(() => hourRef.current?.focus(), 0); }}>
         <option value="">日</option>
         {days.map(d => <option key={d} value={d}>{parseInt(d)}</option>)}
       </select>
       <span className="text-xs text-slate-400 ml-1"> </span>
       <select ref={hourRef} value={parsed.h} className={`w-14 ${sc}${ec}`}
-        onChange={e => { emit(parsed.y, parsed.mo, parsed.d, e.target.value, parsed.mi); setTimeout(() => minRef.current?.focus(), 0); }}>
+        onChange={e => emit(yearStr, parsed.mo, parsed.d, e.target.value, parsed.mi)}>
         <option value="">時</option>
         {hours.map(h => <option key={h} value={h}>{h}</option>)}
       </select>
       <span className="text-xs text-slate-400">:</span>
-      <select ref={minRef} value={parsed.mi} className={`w-14 ${sc}${ec}`}
-        onChange={e => emit(parsed.y, parsed.mo, parsed.d, parsed.h, e.target.value)}>
+      <select value={parsed.mi} className={`w-14 ${sc}${ec}`}
+        onChange={e => emit(yearStr, parsed.mo, parsed.d, parsed.h, e.target.value)}>
         <option value="">分</option>
         {mins.map(m => <option key={m} value={m}>{m}</option>)}
       </select>
-      {value && (
-        <button type="button" onClick={() => onChange("")}
-          className="ml-1 text-xs text-slate-400 hover:text-red-500 px-1">✕</button>
-      )}
+      {/* 以前のdatetime-localも横に並べる（カレンダーピッカー用） */}
+      <input type="datetime-local" value={value}
+        onChange={e => { const v = e.target.value; setYearStr(v.slice(0,4)); onChange(v); }}
+        title="カレンダーから選択"
+        className="ml-1 w-8 border-0 bg-transparent text-slate-400 cursor-pointer opacity-60 hover:opacity-100 focus:outline-none"
+        style={{colorScheme:"light"}} />
     </div>
   );
 }
