@@ -278,6 +278,22 @@ export default function McEditPage() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isAuthenticated]);
 
+  // ── Enterキーで次フォーカス可能フィールドへ移動 ──
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Enter") return;
+      const el = e.target as HTMLElement;
+      if (el.tagName === "TEXTAREA" || el.tagName === "BUTTON") return;
+      if (!el.hasAttribute("data-fi")) return;
+      e.preventDefault();
+      const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+      const idx = allFi.indexOf(el);
+      if (idx >= 0 && idx < allFi.length - 1) allFi[idx + 1].focus();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
   const fmtElapsed = (s: number) =>
     `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 
@@ -846,7 +862,7 @@ export default function McEditPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">機械</label>
-                    <select value={machineId} onChange={e => { console.log("[EDIT] 機械変更", e.target.value); setMachineId(e.target.value); }}
+                    <select value={machineId} onChange={e => { console.log("[EDIT] 機械変更", e.target.value); setMachineId(e.target.value); }} data-fi="true"
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
                       <option value="">— 選択 —</option>
                       {machines.filter(m => m.isActive !== false).map(m => (
@@ -856,7 +872,7 @@ export default function McEditPage() {
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">主Oナンバ</label>
-                    <input value={oNumber} onChange={e => { console.log("[EDIT] 主Oナンバ変更", e.target.value); setONumber(e.target.value); }}
+                    <input value={oNumber} onChange={e => { console.log("[EDIT] 主Oナンバ変更", e.target.value); setONumber(e.target.value); }} data-fi="true"
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
                   </div>
                 </div>
@@ -884,20 +900,20 @@ export default function McEditPage() {
                 <div>
                   <label className="text-xs font-bold text-slate-500 block mb-2">サイクルタイム/1P</label>
                   <div className="flex items-center gap-2">
-                    <input type="number" min={0} value={cycleH} onChange={e => setCycleH(Number(e.target.value))}
+                    <input type="number" min={0} data-fi="true" value={cycleH} onChange={e => setCycleH(Number(e.target.value))}
                       className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
                     <span className="text-xs text-slate-400">H</span>
-                    <input type="number" min={0} max={59} value={cycleM} onChange={e => setCycleM(Number(e.target.value))}
+                    <input type="number" min={0} max={59} data-fi="true" value={cycleM} onChange={e => setCycleM(Number(e.target.value))}
                       className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
                     <span className="text-xs text-slate-400">M</span>
-                    <input type="number" min={0} max={59} value={cycleS} onChange={e => setCycleS(Number(e.target.value))}
+                    <input type="number" min={0} max={59} data-fi="true" value={cycleS} onChange={e => setCycleS(Number(e.target.value))}
                       className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
                     <span className="text-xs text-slate-400">S</span>
                   </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-500 block mb-1">加工個数/1サイクル</label>
-                  <input type="number" min={1} value={machiningQty} onChange={e => setMachiningQty(Number(e.target.value))}
+                  <input type="number" min={1} data-fi="true" value={machiningQty} onChange={e => setMachiningQty(Number(e.target.value))}
                     className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm text-center focus:ring-2 focus:ring-teal-400 focus:outline-none" />
                 </div>
                 <div>

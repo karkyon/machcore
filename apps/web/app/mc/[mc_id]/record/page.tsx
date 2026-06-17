@@ -74,8 +74,8 @@ function SingleUserSelect({ users, selected, onChange, placeholder }: {
 }
 
 // ── カスタム日時入力（年→月→日→時→分 数値入力+Enter/Tab自動移動） ──
-function DateTimeInput({ value, onChange, hasError }: {
-  value: string; onChange: (v: string) => void; hasError?: boolean;
+function DateTimeInput({ value, onChange, hasError, onAfterMi }: {
+  value: string; onChange: (v: string) => void; hasError?: boolean; onAfterMi?: () => void;
 }) {
   // 各フィールドをローカルstateで管理（Hydration回避・手入力対応）
   const [y,  setY]  = React.useState("");
@@ -89,6 +89,7 @@ function DateTimeInput({ value, onChange, hasError }: {
   const hRef  = React.useRef<HTMLInputElement>(null);
   const miRef = React.useRef<HTMLInputElement>(null);
   const calRef= React.useRef<HTMLInputElement>(null);
+  const afterMiHandler = onAfterMi ?? (() => { calRef.current?.focus(); });
 
   // value→各stateへ同期（外部からの変更を反映）
   React.useEffect(() => {
@@ -150,12 +151,15 @@ function DateTimeInput({ value, onChange, hasError }: {
       <span className="text-xs text-slate-400 ml-0.5"> </span>
       <input ref={hRef}  {...makeProps(h, setH, 0, 23, 2, miRef, v => emit(y, mo, d, v, mi))} placeholder="時" />
       <span className="text-xs text-slate-400">:</span>
-      <input ref={miRef} {...makeProps(mi, setMi, 0, 59, 2, calRef, v => emit(y, mo, d, h, v))} placeholder="分" />
-      {/* カレンダーピッカー（アイコンのみ表示） */}
+      <input ref={miRef} {...makeProps(mi, setMi, 0, 59, 2, null, v => emit(y, mo, d, h, v))}
+        placeholder="分"
+        onKeyDown={e => { if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); afterMiHandler(); } }} />
+      {/* カレンダーピッカー（日時アイコン付きで表示） */}
       <input ref={calRef} type="datetime-local" value={value} tabIndex={-1}
         onChange={e => { onChange(e.target.value); }}
-        className="w-7 border-0 bg-transparent cursor-pointer opacity-50 hover:opacity-100 focus:outline-none"
-        style={{colorScheme:"light", fontSize:0}} />
+        title="カレンダーから選択"
+        className="w-8 border border-slate-200 rounded bg-white cursor-pointer opacity-60 hover:opacity-100 focus:outline-none focus:ring-1 focus:ring-teal-400"
+        style={{colorScheme:"light"}} />
     </div>
   );
 }
@@ -544,7 +548,7 @@ function McRecordPageInner() {
     usersApi.list().then(r => setUsers((r as any).data ?? [])).catch(() => {});
   }, [mcId]);
 
-  // machines/selectedSheet変化時に machineId を自動解決
+  // machines/selectedSheet/detail変化時に machineId を自動解決
   useEffect(() => {
     if (!machines.length) return;
     // machineIdがmachineCode文字列なら数値idに変換
@@ -553,22 +557,24 @@ function McRecordPageInner() {
       setMachineId(m ? String(m.id) : "");
       return;
     }
-    // 段取シートバック時: selectedSheetの印刷機械を自動セット（未選択時のみ）
-    if (!machineId && selectedSheet) {
+    // machineIdが既に数値なら何もしない
+    if (machineId && !isNaN(parseInt(machineId))) return;
+    // 段取シートバック時: selectedSheetの印刷機械を最優先で自動セット
+    if (selectedSheet) {
       const mid: number|null = (selectedSheet as any).machine_id_log ?? null;
       const mcode: string|null = (selectedSheet as any).machine_code ?? null;
       let found: Machine|undefined;
       if (mid)   found = machines.find(m => m.id === mid);
       if (!found && mcode) found = machines.find(m => m.machineCode === mcode);
-      if (found) { setMachineId(String(found.id)); return; }
+      if (found && found.isActive !== false) { setMachineId(String(found.id)); return; }
     }
-    // selectedSheetがなければdetailの機械を使用（machineIdが空の場合のみ）
-    if (!machineId && detail?.machine?.machineCode) {
-      const m = machines.find(m => m.machineCode === detail.machine!.machineCode);
-      if (m) setMachineId(String(m.id));
+    // detailの機械をフォールバックとしてセット
+    if (detail?.machine?.machineCode) {
+      const m = machines.find(m => m.machineCode === detail.machine!.machineCode && m.isActive !== false);
+      if (m) { setMachineId(String(m.id)); return; }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [machines, selectedSheet]);
+  }, [machines, selectedSheet, detail]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -579,6 +585,25 @@ function McRecordPageInner() {
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isAuthenticated]);
+
+  // ── Enterキーで次フォーカス可能フィールドへ移動（data-fi属性付き要素が対象） ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Enter") return;
+      const el = e.target as HTMLElement;
+      // DateTimeInput内の入力はコンポーネント側で処理済み
+      if (el.closest("[data-dti]")) return;
+      // textarea・button・select（DateTimeInput外）はスキップ
+      if (el.tagName === "TEXTAREA" || el.tagName === "BUTTON") return;
+      if (!el.hasAttribute("data-fi")) return;
+      e.preventDefault();
+      const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
+      const idx = allFi.indexOf(el);
+      if (idx >= 0 && idx < allFi.length - 1) allFi[idx + 1].focus();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
   // 機械選択時にサイクルタイム自動セット
   useEffect(() => {
@@ -1000,7 +1025,7 @@ function McRecordPageInner() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1.5">今回使用機械</label>
-                    <select value={machineId} onChange={e => setMachineId(e.target.value)}
+                    <select value={machineId} onChange={e => setMachineId(e.target.value)} data-fi="true"
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
                       <option value="">— 選択 —</option>
                       {machines.filter(m => m.isActive).map(m => (
@@ -1062,14 +1087,20 @@ function McRecordPageInner() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">段取開始</label>
-                        <DateTimeInput value={startedAt}
-                          onChange={v => { setStartedAt(v); setTimeValidErr(validateDateOrder(v, checkedAt, finishedAt)); }} />
+                        <div id="dti-started" data-dti="true">
+                          <DateTimeInput value={startedAt}
+                            onChange={v => { setStartedAt(v); setTimeValidErr(validateDateOrder(v, checkedAt, finishedAt)); }}
+                            onAfterMi={() => { (document.querySelector("#dti-checked input[placeholder='年']") as HTMLElement|null)?.focus(); }} />
+                        </div>
                       </div>
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">段取終了（ﾁｪｯｸTime）</label>
-                        <DateTimeInput value={checkedAt}
-                          hasError={!!(timeValidErr && timeValidErr.includes("段取終了"))}
-                          onChange={v => { setCheckedAt(v); setTimeValidErr(validateDateOrder(startedAt, v, finishedAt)); }} />
+                        <div id="dti-checked" data-dti="true">
+                          <DateTimeInput value={checkedAt}
+                            hasError={!!(timeValidErr && timeValidErr.includes("段取終了"))}
+                            onChange={v => { setCheckedAt(v); setTimeValidErr(validateDateOrder(startedAt, v, finishedAt)); }}
+                            onAfterMi={() => { (document.querySelector("#dti-finished input[placeholder='年']") as HTMLElement|null)?.focus(); }} />
+                        </div>
                       </div>
                     </div>
                     {startedAt && checkedAt && (() => {
@@ -1131,9 +1162,11 @@ function McRecordPageInner() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-bold text-slate-500 block mb-1.5">加工終了</label>
-                        <DateTimeInput value={finishedAt}
-                          hasError={!!(timeValidErr && timeValidErr.includes("加工終了"))}
-                          onChange={v => { setFinishedAt(v); setTimeValidErr(validateDateOrder(startedAt, checkedAt, v)); }} />
+                        <div id="dti-finished" data-dti="true">
+                          <DateTimeInput value={finishedAt}
+                            hasError={!!(timeValidErr && timeValidErr.includes("加工終了"))}
+                            onChange={v => { setFinishedAt(v); setTimeValidErr(validateDateOrder(startedAt, checkedAt, v)); }} />
+                        </div>
                       </div>
                       <div />
                     </div>
