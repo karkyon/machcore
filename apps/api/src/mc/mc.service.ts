@@ -1479,7 +1479,7 @@ export class McService {
       return { created: 0, message: '休日のためスキップ' };
     }
 
-    // DB設定からデフォルト開始・終了時刻を取得（JST→UTC変換）
+    // DB設定からデフォルト開始・終了時刻を取得
     const tcSettings = await this.getSystemSettings();
     const defStart = tcSettings['timecard_default_start'] ?? '08:00';
     const defEnd   = tcSettings['timecard_default_end']   ?? '17:00';
@@ -1500,8 +1500,8 @@ export class McService {
           machineId:  m.id,
           operatorId,
           workDate:   new Date(workDate + 'T12:00:00Z'),
-          startTime:  defStart + ':00',
-          endTime:    defEnd   + ':00',
+          startTime:  new Date(`${workDate}T${defStart}:00`),
+          endTime:    new Date(`${workDate}T${defEnd}:00`),
         },
       });
       created.push(tc.id);
