@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
 import { authApi, WorkSessionResponse } from "../lib/api";
 
 type Operator = { id: number; name: string; role: string };
@@ -106,6 +106,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [mcProgramId, setMcProgramId] = useState<number | null>(initialPayload?.mc_program_id ?? null);
   const [ncProgramId, setNcProgramId] = useState<number | null>(initialPayload?.nc_program_id ?? null);
 
+  // アンマウント時等のクリーンアップで常に最新のtokenを参照できるようRefで追跡
+  const tokenRef = useRef<string | null>(initial.token);
+  useEffect(() => { tokenRef.current = token; }, [token]);
+
   const login = useCallback((res: WorkSessionResponse) => {
     setToken(res.access_token);
     setOperator(res.operator);
@@ -121,20 +125,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    if (token) {
-      authApi.endWorkSession(token).catch(() => {});
+    const t = tokenRef.current;
+    if (t) {
+      authApi.endWorkSession(t).catch(() => {});
     }
     setToken(null);
     setOperator(null);
     setSessionType(null);
     setMcProgramId(null);
     setNcProgramId(null);
+    tokenRef.current = null;
     if (typeof window !== "undefined") {
       localStorage.removeItem("work_token");
       localStorage.removeItem("work_operator");
       localStorage.removeItem("work_session_type");
     }
-  }, [token]);
+  }, []);
 
   // isAuthenticated = token AND operator の両方が揃っているときのみ true
   // これにより isAuthenticated=true && operator=null の状態を完全に排除する

@@ -22,7 +22,7 @@ function McPrintPageInner() {
   const isNewEntry = searchParams.get('from') === 'new';
 
   const [nc, setNc]   = useState<McDetail | null>(null);
-  const { operator, isAuthenticated, logout, token } = useAuth();
+  const { operator, isAuthenticated, logout, token, isSessionForMc } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
   const [elapsed, setElapsed]   = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -91,6 +91,23 @@ function McPrintPageInner() {
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mcId, machines.length]);
+
+  // -- 別mc_id向けセッションが残っていれば強制ログアウト --
+  useEffect(() => {
+    if (isAuthenticated && !isSessionForMc(mcId)) {
+      console.warn("[MC-PRINT] 認証セッションが別のmc_id向けのため強制ログアウト", { mcId });
+      logout();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mcId, isAuthenticated]);
+
+  // -- ページ離脱時（アンマウント）に確実にセッションをクリア --
+  useEffect(() => {
+    return () => {
+      logout();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {

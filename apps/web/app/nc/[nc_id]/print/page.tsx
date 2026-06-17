@@ -57,7 +57,15 @@ export default function PrintPage() {
       .catch(e => setLoadError(e.message));
   }, [ncId]);
 
-  // ── タイマー（認証後に起動） ──
+  // -- ページ離脱時（アンマウント）に確実にセッションをクリア --
+  useEffect(() => {
+    return () => {
+      logout();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+    // ── タイマー（認証後に起動） ──
   useEffect(() => {
     if (isAuthenticated) {
       timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);

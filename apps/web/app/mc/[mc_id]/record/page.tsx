@@ -595,6 +595,14 @@ function McRecordPageInner() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [sbMode, isAuthenticated]);
+
+  // -- ページ離脱時（アンマウント）に確実にセッションをクリア --
+  React.useEffect(() => {
+    return () => {
+      logout();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [authOpen, setAuthOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
