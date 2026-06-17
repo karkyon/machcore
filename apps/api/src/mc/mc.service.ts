@@ -1500,8 +1500,8 @@ export class McService {
           machineId:  m.id,
           operatorId,
           workDate:   new Date(workDate + 'T12:00:00Z'),
-          startTime:  new Date(`${workDate}T${defStart}:00`),
-          endTime:    new Date(`${workDate}T${defEnd}:00`),
+          startTime:  new Date(`${workDate}T${defStart}:00Z`),
+          endTime:    new Date(`${workDate}T${defEnd}:00Z`),
         },
       });
       created.push(tc.id);
