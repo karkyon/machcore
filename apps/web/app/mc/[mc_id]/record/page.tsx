@@ -73,90 +73,89 @@ function SingleUserSelect({ users, selected, onChange, placeholder }: {
   );
 }
 
-// ── カスタム日時入力（年→月→日→時→分 自動フォーカス） ─────────
+// ── カスタム日時入力（年→月→日→時→分 数値入力+Enter/Tab自動移動） ──
 function DateTimeInput({ value, onChange, hasError }: {
   value: string; onChange: (v: string) => void; hasError?: boolean;
 }) {
-  // 年はローカルstateで管理（Controlled inputのHydration問題を回避）
-  const [yearStr, setYearStr] = React.useState<string>(() => value && value.length >= 4 ? value.slice(0,4) : "");
-  const monthRef = React.useRef<HTMLSelectElement>(null);
-  const dayRef   = React.useRef<HTMLSelectElement>(null);
-  const hourRef  = React.useRef<HTMLSelectElement>(null);
+  // 各フィールドをローカルstateで管理（Hydration回避・手入力対応）
+  const [y,  setY]  = React.useState("");
+  const [mo, setMo] = React.useState("");
+  const [d,  setD]  = React.useState("");
+  const [h,  setH]  = React.useState("");
+  const [mi, setMi] = React.useState("");
 
-  // value変化時に年stateを同期
+  const moRef = React.useRef<HTMLInputElement>(null);
+  const dRef  = React.useRef<HTMLInputElement>(null);
+  const hRef  = React.useRef<HTMLInputElement>(null);
+  const miRef = React.useRef<HTMLInputElement>(null);
+  const calRef= React.useRef<HTMLInputElement>(null);
+
+  // value→各stateへ同期（外部からの変更を反映）
   React.useEffect(() => {
-    const y = value && value.length >= 4 ? value.slice(0,4) : "";
-    setYearStr(y);
+    if (value && value.length >= 16) {
+      setY(value.slice(0,4)); setMo(String(parseInt(value.slice(5,7))));
+      setD(String(parseInt(value.slice(8,10)))); setH(String(parseInt(value.slice(11,13))));
+      setMi(String(parseInt(value.slice(14,16))));
+    } else { setY(""); setMo(""); setD(""); setH(""); setMi(""); }
   }, [value]);
 
-  const parsed = React.useMemo(() => {
-    if (!value || value.length < 16) return { mo: "", d: "", h: "", mi: "" };
-    return { mo: value.slice(5,7), d: value.slice(8,10), h: value.slice(11,13), mi: value.slice(14,16) };
-  }, [value]);
-
-  const emit = (y: string, mo: string, d: string, h: string, mi: string) => {
-    if (y.length === 4 && mo && d && h && mi) {
-      const maxD = new Date(parseInt(y), parseInt(mo), 0).getDate();
-      const safeD = Math.min(parseInt(d), maxD);
-      onChange(`${y}-${mo}-${String(safeD).padStart(2,"0")}T${h}:${mi}`);
+  const emit = (ny: string, nmo: string, nd: string, nh: string, nmi: string) => {
+    const yi = parseInt(ny); const moi = parseInt(nmo); const di = parseInt(nd);
+    const hi = parseInt(nh); const mii = parseInt(nmi);
+    if (yi >= 1000 && yi <= 9999 && moi >= 1 && moi <= 12 && di >= 1 && hi >= 0 && hi <= 23 && mii >= 0 && mii <= 59) {
+      const maxD = new Date(yi, moi, 0).getDate();
+      const safeD = Math.min(di, maxD);
+      const p = (n: number, len=2) => String(n).padStart(len,"0");
+      onChange(`${p(yi,4)}-${p(moi)}-${p(safeD)}T${p(hi)}:${p(mii)}`);
     }
   };
 
-  const months = ["01","02","03","04","05","06","07","08","09","10","11","12"];
-  const daysInMonth = yearStr.length === 4 && parsed.mo
-    ? new Date(parseInt(yearStr), parseInt(parsed.mo), 0).getDate() : 31;
-  const days  = Array.from({length: daysInMonth}, (_, i) => String(i+1).padStart(2,"0"));
-  const hours = Array.from({length: 24}, (_, i) => String(i).padStart(2,"0"));
-  const mins  = Array.from({length: 60}, (_, i) => String(i).padStart(2,"0"));
-  const sc = "border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white px-1 py-1.5 text-center";
+  const ic = "border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white text-center py-1.5 px-1";
   const ec = hasError ? " border-red-400 bg-red-50" : "";
+  const onFocusSel = (e: React.FocusEvent<HTMLInputElement>) => e.target.select();
+
+  const makeProps = (
+    val: string, setter: (v:string)=>void,
+    min: number, max: number, maxLen: number,
+    nextRef: React.RefObject<HTMLInputElement|null>|null,
+    onCommit: (v: string)=>void
+  ) => ({
+    type: "number" as const,
+    value: val,
+    min, max,
+    className: `${ic}${ec}`,
+    style: { width: maxLen === 4 ? "4rem" : maxLen === 2 ? "3.2rem" : "3rem" } as React.CSSProperties,
+    onFocus: onFocusSel,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+      const v = e.target.value.replace(/[^0-9]/g,"").slice(0, maxLen);
+      setter(v);
+      onCommit(v);
+      if (v.length >= maxLen && nextRef) setTimeout(() => nextRef.current?.focus(), 0);
+    },
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if ((e.key === "Enter" || e.key === "Tab") && nextRef) {
+        e.preventDefault();
+        nextRef.current?.focus();
+      }
+    },
+  });
 
   return (
-    <div className={"flex items-center gap-0.5 flex-wrap" + (hasError ? " rounded-lg ring-1 ring-red-400" : "")}>
-      {/* 年: ローカルstateで入力受付→4桁で月へ自動フォーカス */}
-      <input type="text" inputMode="numeric" maxLength={4}
-        value={yearStr} placeholder="年" className={`w-16 ${sc}${ec}`}
-        onChange={e => {
-          const v = e.target.value.replace(/[^0-9]/g,"").slice(0,4);
-          setYearStr(v);
-          if (v.length === 4) {
-            emit(v, parsed.mo, parsed.d, parsed.h, parsed.mi);
-            setTimeout(() => monthRef.current?.focus(), 0);
-          } else {
-            // 4桁未満の場合はvalueをクリア（部分入力中）
-            if (value) onChange("");
-          }
-        }} />
+    <div className={"flex items-center gap-1 flex-wrap" + (hasError ? " rounded-lg ring-1 ring-red-400 p-0.5" : "")}>
+      <input {...makeProps(y, setY, 1000, 9999, 4, moRef, v => emit(v, mo, d, h, mi))} placeholder="年" />
       <span className="text-xs text-slate-400">/</span>
-      <select ref={monthRef} value={parsed.mo} className={`w-14 ${sc}${ec}`}
-        onChange={e => { emit(yearStr, e.target.value, parsed.d, parsed.h, parsed.mi); setTimeout(() => dayRef.current?.focus(), 0); }}>
-        <option value="">月</option>
-        {months.map(m => <option key={m} value={m}>{parseInt(m)}</option>)}
-      </select>
+      <input ref={moRef} {...makeProps(mo, setMo, 1, 12, 2, dRef, v => emit(y, v, d, h, mi))} placeholder="月" />
       <span className="text-xs text-slate-400">/</span>
-      <select ref={dayRef} value={parsed.d} className={`w-14 ${sc}${ec}`}
-        onChange={e => { emit(yearStr, parsed.mo, e.target.value, parsed.h, parsed.mi); setTimeout(() => hourRef.current?.focus(), 0); }}>
-        <option value="">日</option>
-        {days.map(d => <option key={d} value={d}>{parseInt(d)}</option>)}
-      </select>
-      <span className="text-xs text-slate-400 ml-1"> </span>
-      <select ref={hourRef} value={parsed.h} className={`w-14 ${sc}${ec}`}
-        onChange={e => emit(yearStr, parsed.mo, parsed.d, e.target.value, parsed.mi)}>
-        <option value="">時</option>
-        {hours.map(h => <option key={h} value={h}>{h}</option>)}
-      </select>
+      <input ref={dRef}  {...makeProps(d, setD, 1, 31, 2, hRef, v => emit(y, mo, v, h, mi))} placeholder="日" />
+      <span className="text-xs text-slate-400 ml-0.5"> </span>
+      <input ref={hRef}  {...makeProps(h, setH, 0, 23, 2, miRef, v => emit(y, mo, d, v, mi))} placeholder="時" />
       <span className="text-xs text-slate-400">:</span>
-      <select value={parsed.mi} className={`w-14 ${sc}${ec}`}
-        onChange={e => emit(yearStr, parsed.mo, parsed.d, parsed.h, e.target.value)}>
-        <option value="">分</option>
-        {mins.map(m => <option key={m} value={m}>{m}</option>)}
-      </select>
-      {/* 以前のdatetime-localも横に並べる（カレンダーピッカー用） */}
-      <input type="datetime-local" value={value}
-        onChange={e => { const v = e.target.value; setYearStr(v.slice(0,4)); onChange(v); }}
-        title="カレンダーから選択"
-        className="ml-1 w-8 border-0 bg-transparent text-slate-400 cursor-pointer opacity-60 hover:opacity-100 focus:outline-none"
-        style={{colorScheme:"light"}} />
+      <input ref={miRef} {...makeProps(mi, setMi, 0, 59, 2, calRef, v => emit(y, mo, d, h, v))} placeholder="分" />
+      {/* カレンダーピッカー（アイコンのみ表示） */}
+      <input ref={calRef} type="datetime-local" value={value} tabIndex={-1}
+        onChange={e => { onChange(e.target.value); }}
+        className="w-7 border-0 bg-transparent cursor-pointer opacity-50 hover:opacity-100 focus:outline-none"
+        style={{colorScheme:"light", fontSize:0}} />
     </div>
   );
 }
@@ -545,15 +544,31 @@ function McRecordPageInner() {
     usersApi.list().then(r => setUsers((r as any).data ?? [])).catch(() => {});
   }, [mcId]);
 
-  // machines 取得後に machineId を machineCode → id に解決
+  // machines/selectedSheet変化時に machineId を自動解決
   useEffect(() => {
-    if (machines.length > 0 && machineId && isNaN(parseInt(machineId))) {
+    if (!machines.length) return;
+    // machineIdがmachineCode文字列なら数値idに変換
+    if (machineId && isNaN(parseInt(machineId))) {
       const m = machines.find(m => m.machineCode === machineId);
+      setMachineId(m ? String(m.id) : "");
+      return;
+    }
+    // 段取シートバック時: selectedSheetの印刷機械を自動セット（未選択時のみ）
+    if (!machineId && selectedSheet) {
+      const mid: number|null = (selectedSheet as any).machine_id_log ?? null;
+      const mcode: string|null = (selectedSheet as any).machine_code ?? null;
+      let found: Machine|undefined;
+      if (mid)   found = machines.find(m => m.id === mid);
+      if (!found && mcode) found = machines.find(m => m.machineCode === mcode);
+      if (found) { setMachineId(String(found.id)); return; }
+    }
+    // selectedSheetがなければdetailの機械を使用（machineIdが空の場合のみ）
+    if (!machineId && detail?.machine?.machineCode) {
+      const m = machines.find(m => m.machineCode === detail.machine!.machineCode);
       if (m) setMachineId(String(m.id));
-      else setMachineId("");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [machines]);
+  }, [machines, selectedSheet]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -778,6 +793,7 @@ function McRecordPageInner() {
           }
           sessionStorage.removeItem("sb_next_record");
           sessionStorage.removeItem("sb_sheet_log_id");
+          logout();
           setTimeout(() => router.push("/"), 1500);
         }
       }
