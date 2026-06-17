@@ -1402,6 +1402,7 @@ export class McService {
       },
     });
     const fmtTime = (d: Date) => {
+      // DBにはJST時刻をそのまま保存しているためUTC時刻をそのまま使用
       const h = String(d.getUTCHours()).padStart(2, '0');
       const m = String(d.getUTCMinutes()).padStart(2, '0');
       return `${h}:${m}:00`;
@@ -1482,11 +1483,9 @@ export class McService {
     const tcSettings = await this.getSystemSettings();
     const defStart = tcSettings['timecard_default_start'] ?? '08:00';
     const defEnd   = tcSettings['timecard_default_end']   ?? '17:00';
+    // 時刻はJST文字列をそのままDBに保存（タイムゾーン変換なし）
     const toUtcTs  = (date: string, jstTime: string) => {
-      // JST時刻文字列(HH:MM)をUTCのDateに変換
-      const [h, m] = jstTime.split(':').map(Number);
-      const utcH = ((h - 9) + 24) % 24;
-      return new Date(`${date}T${String(utcH).padStart(2,'0')}:${String(m).padStart(2,'0')}:00Z`);
+      return new Date(`${date}T${jstTime}:00`);
     };
 
     const machines = await this.prisma.machine.findMany({
