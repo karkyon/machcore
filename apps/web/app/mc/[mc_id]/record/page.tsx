@@ -1258,12 +1258,7 @@ function McRecordPageInner() {
                         <div id="dti-checked" data-dti="true">
                           <DateTimeInput value={checkedAt} label="段取終了"
                             hasError={!!(timeValidErr && timeValidErr.includes("段取終了"))}
-                            onChange={v => { setCheckedAt(v); setTimeValidErr(validateDateOrder(startedAt, v, finishedAt)); }}
-                            onAfterMi={() => {
-                              const t = document.querySelector("#dti-finished input[placeholder='年']") as HTMLElement|null;
-                              console.log("[RECORD] 段取終了→加工終了年へ移動");
-                              t?.focus();
-                            }} />
+                            onChange={v => { setCheckedAt(v); setTimeValidErr(validateDateOrder(startedAt, v, finishedAt)); }} />
                         </div>
                       </div>
                     </div>
