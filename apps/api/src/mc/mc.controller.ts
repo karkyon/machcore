@@ -6,6 +6,7 @@ import type { FastifyReply } from 'fastify';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { ProgramSessionGuard } from '../common/guards/program-session.guard';
 import { OperationLogService } from '../common/operation-log.service';
 import { McService } from './mc.service';
 import { McFilesService } from './mc-files.service';
@@ -160,7 +161,7 @@ export class McController {
   }
 
   // ── 終了確認（バージョンインクリ + 変更履歴）──────
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Post(':mc_id/finalize')
   finalize(
@@ -172,7 +173,7 @@ export class McController {
   }
 
   // ── 変更キャンセル（CHANGING → 元のステータスに戻す）─
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Patch(':mc_id/revert')
   revert(@Param('mc_id', ParseIntPipe) id: number) {
@@ -180,7 +181,7 @@ export class McController {
   }
 
   // ── 承認 ─────────────────────────────────────
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('ADMIN')
   @Post(':mc_id/approve')
   approve(
@@ -191,7 +192,7 @@ export class McController {
   }
 
   // ── 更新 ────────────────────────────────────
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Put(':mc_id')
   update(
@@ -208,7 +209,7 @@ export class McController {
     return this.mc.getTooling(id);
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Put(':mc_id/tooling')
   saveTooling(
@@ -233,7 +234,7 @@ export class McController {
     return this.mc.getWorkOffsets(id);
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Put(':mc_id/work-offsets')
   saveWorkOffsets(
@@ -250,7 +251,7 @@ export class McController {
     return this.mc.getIndexPrograms(id);
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Put(':mc_id/index-programs')
   saveIndexPrograms(
@@ -310,7 +311,7 @@ export class McController {
   }
 
   /** 段取シート回収完了（work_collected=true） */
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Put(':mc_id/setup-sheet-logs/:log_id/collect')
   async collectSetupSheet(
@@ -328,7 +329,7 @@ export class McController {
   }
 
   /** PGファイルをテキストで保存（エディタ保存用） */
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Put(':mc_id/pg-content')
   async savePgContent(
@@ -439,7 +440,7 @@ export class McController {
     return reply.send(require('fs').createReadStream(filePath));
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Post(':mc_id/files/upload')
   async uploadFile(@Param('mc_id', ParseIntPipe) id: number, @Req() req: any) {
@@ -462,7 +463,7 @@ export class McController {
     return result;
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Post(':mc_id/files/:file_id/replace')
   async replaceFile(@Param('mc_id', ParseIntPipe) mcId: number, @Param('file_id', ParseIntPipe) fileId: number, @Req() req: any) {
@@ -472,7 +473,7 @@ export class McController {
     return this.mcFiles.replace(mcId, fileId, req.user.id, { filename: data.filename, mimetype: data.mimetype, data: buf });
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Delete(':mc_id/files/:file_id')
   deleteFile(@Param('mc_id', ParseIntPipe) mcId: number, @Param('file_id', ParseIntPipe) fileId: number) {
@@ -480,7 +481,7 @@ export class McController {
   }
 
   // ── リピート段取シートPDF（プレビュー）──────────────────────────
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Post(':mc_id/repeat-print')
   async repeatPrint(
@@ -499,7 +500,7 @@ export class McController {
   }
 
   // ── リピート段取シート ダイレクト印刷 ──────────────────────────
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Post(':mc_id/repeat-direct-print')
   async repeatDirectPrint(
@@ -529,7 +530,7 @@ export class McController {
     return this.mc.getPrintData(id);
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Post(':mc_id/print')
   async generatePrint(
@@ -552,7 +553,7 @@ export class McController {
     return reply.send(pdf);
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
   @Post(':mc_id/direct-print')
   async directPrint(

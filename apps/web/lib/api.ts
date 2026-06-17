@@ -194,7 +194,8 @@ export const authApi = {
     operator_id: number;
     password: string;
     session_type: string;
-    nc_program_id: number;
+    nc_program_id?: number;
+    mc_program_id?: number;
   }) => api.post<WorkSessionResponse>("/auth/work-session", body),
 
   endWorkSession: (token: string) =>

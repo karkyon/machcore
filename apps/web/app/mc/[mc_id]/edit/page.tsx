@@ -32,7 +32,7 @@ export default function McEditPage() {
 
   const [detail, setDetail]   = useState<McDetail | null>(null);
   const [machines, setMachines] = useState<Machine[]>([]);
-  const { operator, isAuthenticated, token, logout } = useAuth();
+  const { operator, isAuthenticated, token, logout, isSessionForMc } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
 
   // ── 離脱警告（useAuth後に配置必須）────────────────────────────
@@ -46,6 +46,33 @@ export default function McEditPage() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isAuthenticated]);
+
+  // ── 別マシニング情報用の認証セッションが残っていないか検証 ──────────
+  // 段取シートバック等で他の mc_id の編集セッション(JWT)を取得した状態で
+  // このページに遷移してきた場合、再認証なしで編集・段取シート発行が
+  // できてしまうことを防ぐため、不一致を検知したら即座にログアウトする。
+  React.useEffect(() => {
+    if (!mcId) return;
+    if (isAuthenticated && !isSessionForMc(mcId)) {
+      console.warn("[EDIT] 認証セッションが別のmc_id向けのため強制ログアウト", { mcId });
+      logout();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mcId, isAuthenticated]);
+
+  // ── このページ自体がアンマウントされる(=他画面へ遷移する)際に、
+  //    編集セッションが残っていれば必ず終了させる。
+  //    ヘッダーの「MC詳細」リンクやタブ切り替えなど、明示的な
+  //    「キャンセル」ボタンを経由しない遷移であってもセッションを解放する。
+  React.useEffect(() => {
+    return () => {
+      if (isAuthenticated) {
+        console.warn("[EDIT] ページ離脱を検知 — 編集セッションを終了します");
+        logout();
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // sbMode=true かつ未認証の場合は自動で認証モーダルを開く（useAuth後に配置必須）
   React.useEffect(() => {
@@ -869,8 +896,10 @@ export default function McEditPage() {
                     <select value={machineId} onChange={e => { console.log("[EDIT] 機械変更", e.target.value); setMachineId(e.target.value); }} data-fi="true"
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
                       <option value="">— 選択 —</option>
-                      {machines.filter(m => m.isActive !== false).map(m => (
-                        <option key={m.id} value={String(m.id)}>{m.machineCode}</option>
+                      {machines
+                        .filter(m => m.isActive !== false || String(m.id) === machineId)
+                        .map(m => (
+                        <option key={m.id} value={String(m.id)}>{m.machineCode}{m.isActive === false ? "（非アクティブ）" : ""}</option>
                       ))}
                     </select>
                   </div>
@@ -932,9 +961,11 @@ export default function McEditPage() {
                     <select value={creatorId} onChange={e => setCreatorId(e.target.value)}
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
                       <option value="">— 選択 —</option>
-                      {users.filter(u => u.isActive).map(u => (
-                        <option key={u.id} value={String(u.id)}>{u.name}</option>
-                      ))}
+                      {users
+                        .filter(u => u.isActive || String(u.id) === creatorId)
+                        .map(u => (
+                          <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（非アクティブ）" : ""}</option>
+                        ))}
                     </select>
                   </div>
                   <div>
@@ -977,9 +1008,11 @@ export default function McEditPage() {
                       <select value={pgCreatedBy} onChange={e => setPgCreatedBy(e.target.value)}
                         className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
                         <option value="">— 選択 —</option>
-                        {users.filter(u => u.isActive).map(u => (
-                          <option key={u.id} value={String(u.id)}>{u.name}</option>
-                        ))}
+                        {users
+                          .filter(u => u.isActive || String(u.id) === pgCreatedBy)
+                          .map(u => (
+                            <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（非アクティブ）" : ""}</option>
+                          ))}
                       </select>
                     </div>
                     <div>

@@ -4,6 +4,7 @@ import {
 } from "@nestjs/common";
 import { Roles } from "../common/decorators/roles.decorator";
 import { RolesGuard } from "../common/guards/roles.guard";
+import { ProgramSessionGuard } from "../common/guards/program-session.guard";
 import { UpdateWorkRecordDto } from "./dto/update-work-record.dto";
 import { PrintNcDto } from "./dto/print-nc.dto";
 import { SavePgFileDto } from "./dto/save-pg-file.dto";
@@ -63,7 +64,7 @@ export class NcController {
   }
 
   /** 段取シート回収完了（work_collected=true） */
-  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
   @Roles("OPERATOR", "ADMIN")
   @Put(":nc_id/setup-sheet-logs/:log_id/collect")
   async collectSetupSheet(
@@ -113,7 +114,7 @@ export class NcController {
   }
 
     /** WR-03: 作業記録 更新 */
-  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
   @Roles("OPERATOR", "ADMIN")
   @Put(":nc_id/work-records/:record_id")
   updateWorkRecord(
@@ -126,7 +127,7 @@ export class NcController {
   }
 
   /** WR-04: 作業記録 削除 */
-  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
   @Roles("OPERATOR", "ADMIN")
   @Delete(":nc_id/work-records/:record_id")
   deleteWorkRecord(
@@ -151,7 +152,7 @@ export class NcController {
   }
 
   /** NC-05: 更新 */
-  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
   @Roles("OPERATOR", "ADMIN")
   @Put(":nc_id")
   update(
@@ -177,7 +178,7 @@ export class NcController {
   }
 
   /** NC-08b: ダイレクト印刷（JWT必須） */
-  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
   @Roles("OPERATOR", "ADMIN")
   @Post(":nc_id/direct-print")
   async directPrint(
@@ -189,7 +190,7 @@ export class NcController {
   }
 
   /** NC-08: 段取シートPDF生成（JWT必須） */
-  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
   @Roles("OPERATOR", "ADMIN")
   @Post(":nc_id/print")
   async generatePrint(
@@ -213,14 +214,14 @@ export class NcController {
   }
 
   /** NC-06: PGファイル読込（JWT必須） */
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(AuthGuard("jwt"), ProgramSessionGuard)
   @Get(":nc_id/pg-file")
   getPgFile(@Param("nc_id", ParseIntPipe) id: number) {
     return this.nc.getPgFile(id);
   }
 
   /** NC-06b: PGファイル保存（JWT必須） */
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(AuthGuard("jwt"), ProgramSessionGuard)
   @Put(":nc_id/pg-file")
   async savePgFile(
     @Param("nc_id", ParseIntPipe) id: number,
@@ -240,7 +241,7 @@ export class NcController {
   }
 
   /** NC-07: PGファイルダウンロード（JWT必須） */
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(AuthGuard("jwt"), ProgramSessionGuard)
   @Get(":nc_id/download")
   async downloadPgFile(
     @Param("nc_id", ParseIntPipe) id: number,

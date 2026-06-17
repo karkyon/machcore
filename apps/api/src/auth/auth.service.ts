@@ -71,6 +71,11 @@ export class AuthService {
       role:         user.role as string,
       session_type: body.session_type,
       session_id:   session.id,
+      // セッションが対象とするプログラムIDをトークンに埋め込む。
+      // これにより、このトークンが他の mc_id / nc_id に対して
+      // 誤って使用されることを API 側 (ProgramSessionGuard) で検出できる。
+      ...(body.mc_program_id ? { mc_program_id: body.mc_program_id } : {}),
+      ...(!body.mc_program_id && body.nc_program_id ? { nc_program_id: body.nc_program_id } : {}),
     };
 
     const token = this.jwt.sign(payload, { expiresIn: expiresSec });
