@@ -15,7 +15,11 @@ function NumInput({ value, onChange, min=0, max=999, className="" }: {
     e.preventDefault();
     const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
     const i = all.indexOf(e.currentTarget);
-    const lbl = e.currentTarget.closest("div")?.previousElementSibling?.textContent?.trim().slice(0,20) ?? "NumInput";
+    const el2 = e.currentTarget;
+    const lbl = el2.closest("div")?.querySelector("label")?.textContent?.trim().slice(0,15)
+      ?? el2.closest("div")?.previousElementSibling?.textContent?.trim().slice(0,15)
+      ?? el2.closest("[class*='grid']")?.querySelector("label")?.textContent?.trim().slice(0,15)
+      ?? "NumInput";
     if (e.shiftKey) {
       if (i > 0) { console.log(`[RECORD][NumInput:${lbl}] Shift+Enter後退`, {from:i, to:i-1, value:e.currentTarget.value}); all[i-1].focus(); }
     } else {
@@ -59,7 +63,9 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
   };
   const names = selected.map(id => users.find(u=>u.id===id)?.name ?? "").filter(Boolean).join(" & ");
   const navKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-    const lbl = e.currentTarget.closest("div.relative")?.previousElementSibling?.textContent?.trim().slice(0,20) ?? "MultiSelect";
+    const lbl = e.currentTarget.closest("div.relative")?.closest("div")?.querySelector("label")?.textContent?.trim().slice(0,15)
+      ?? e.currentTarget.closest("div.relative")?.previousElementSibling?.textContent?.trim().slice(0,15)
+      ?? placeholder ?? "MultiSelect";
     console.log(`[RECORD][MultiSelect:${lbl}] KeyDown`,{key:e.key,shift:e.shiftKey,open});
     if (e.key === "Enter") {
       e.preventDefault();
@@ -97,7 +103,11 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
   return (
     <div ref={ref} className="relative">
       <button type="button" data-fi="true" onClick={() => setOpen(v=>!v)}
-        onFocus={() => setOpen(true)}
+        onFocus={e => {
+          setOpen(true);
+          const lbl = e.currentTarget.closest("div.relative")?.closest("div")?.querySelector("label")?.textContent?.trim().slice(0,15) ?? placeholder ?? "MultiSelect";
+          console.log(`[RECORD][MultiSelect:${lbl}] フォーカスIN→ドロップダウンOPEN`);
+        }}
         onKeyDown={navKey}
         className="w-full text-left border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white hover:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400 min-h-[38px]">
         {names || <span className="text-slate-400">{placeholder}</span>}
@@ -123,13 +133,17 @@ function SingleUserSelect({ users, selected, onChange, placeholder }: {
   const nav = (e: React.KeyboardEvent<HTMLSelectElement>) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
-    const lbl = e.currentTarget.closest("div")?.previousElementSibling?.textContent?.trim().slice(0,20) ?? "SingleSelect";
+    const el = e.currentTarget;
+    const lbl = el.closest("div")?.querySelector("label")?.textContent?.trim().slice(0,15)
+      ?? el.closest("div")?.previousElementSibling?.textContent?.trim().slice(0,15)
+      ?? el.closest("[class*='grid']")?.querySelector("label")?.textContent?.trim().slice(0,15)
+      ?? "Select";
     const all = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
-    const i = all.indexOf(e.currentTarget);
+    const i = all.indexOf(el);
     if (e.shiftKey) {
-      if (i > 0) { console.log(`[RECORD][SingleSelect:${lbl}] Shift+Enter後退`); all[i-1].focus(); }
+      if (i > 0) { console.log(`[RECORD][SingleSelect:${lbl}] Shift+Enter後退`, {from:i,to:i-1}); all[i-1].focus(); }
     } else {
-      if (i < all.length-1) { console.log(`[RECORD][SingleSelect:${lbl}] Enter前進`); all[i+1].focus(); }
+      if (i < all.length-1) { console.log(`[RECORD][SingleSelect:${lbl}] Enter前進`, {from:i,to:i+1}); all[i+1].focus(); }
     }
   };
   return (
@@ -242,31 +256,31 @@ function DateTimeInput({ value, onChange, hasError, onAfterMi, label="日時" }:
 
   return (
     <div className={"flex items-center gap-1 flex-wrap" + (hasError?" rounded-lg ring-1 ring-red-400 p-0.5":"")}>
-      <input type="number" value={y} min={1000} max={9999} placeholder="年" data-fi="true"
+      <input type="number" value={y} min={1000} max={9999} placeholder="年" data-fi="true" suppressHydrationWarning
         className={`${ic}${ec}`} style={baseStyle(4)}
         onFocus={mkFocus("年")}
         onChange={mkCh("年",setY,4,moRef,v=>emit(v,mo,d,h,mi))}
         onKeyDown={mkKD("年",moRef)} />
       <span className="text-xs text-slate-400">/</span>
-      <input ref={moRef} type="number" value={mo} min={1} max={12} placeholder="月" data-fi="true"
+      <input ref={moRef} type="number" value={mo} min={1} max={12} placeholder="月" data-fi="true" suppressHydrationWarning
         className={`${ic}${ec}`} style={baseStyle(2)}
         onFocus={mkFocus("月")}
         onChange={mkCh("月",setMo,2,dRef,v=>emit(y,v,d,h,mi))}
         onKeyDown={mkKD("月",dRef)} />
       <span className="text-xs text-slate-400">/</span>
-      <input ref={dRef} type="number" value={d} min={1} max={31} placeholder="日" data-fi="true"
+      <input ref={dRef} type="number" value={d} min={1} max={31} placeholder="日" data-fi="true" suppressHydrationWarning
         className={`${ic}${ec}`} style={baseStyle(2)}
         onFocus={mkFocus("日")}
         onChange={mkCh("日",setD,2,hRef,v=>emit(y,mo,v,h,mi))}
         onKeyDown={mkKD("日",hRef)} />
       <span className="text-xs text-slate-400 ml-0.5"> </span>
-      <input ref={hRef} type="number" value={h} min={0} max={23} placeholder="時" data-fi="true"
+      <input ref={hRef} type="number" value={h} min={0} max={23} placeholder="時" data-fi="true" suppressHydrationWarning
         className={`${ic}${ec}`} style={baseStyle(2)}
         onFocus={mkFocus("時")}
         onChange={mkCh("時",setH,2,miRef,v=>emit(y,mo,d,v,mi))}
         onKeyDown={mkKD("時",miRef)} />
       <span className="text-xs text-slate-400">:</span>
-      <input ref={miRef} type="number" value={mi} min={0} max={59} placeholder="分" data-fi="true"
+      <input ref={miRef} type="number" value={mi} min={0} max={59} placeholder="分" data-fi="true" suppressHydrationWarning
         className={`${ic}${ec}`} style={baseStyle(2)}
         onFocus={mkFocus("分")}
         onChange={mkCh("分",setMi,2,null,v=>emit(y,mo,d,h,v))}
