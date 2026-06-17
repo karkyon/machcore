@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, mcFilesApi, machinesApi, usersApi, clampMasterApi, McDetail, Machine, UserInfo } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
@@ -180,6 +180,48 @@ export default function McEditPage() {
   const showToast = useCallback((msg: string) => {
     setToast(msg); setTimeout(() => setToast(null), 3000);
   }, []);
+
+  // ────────── 非アクティブな現在値を選択肢に合成表示するための拡張リスト ──────────
+  // GET /machines・GET /users はサーバー側で isActive=true のみ返す仕様のため、
+  // 既に登録されている機械/ユーザーが後で非アクティブ化された場合、
+  // machines/users 配列にその要素が存在せず <select> の現在値が
+  // "--選択--" のように見えてしまう。
+  // MC詳細(detail)には現在実際に登録されている機械/ユーザーの情報が
+  // (非アクティブであっても) 含まれているため、それを使って選択肢を補完する。
+  const displayMachines = useMemo(() => {
+    const list = [...machines];
+    const dm = (detail as any)?.machine;
+    if (dm && dm.id != null && !list.some(m => String(m.id) === String(dm.id))) {
+      list.push({
+        id: dm.id,
+        machineCode: dm.machineCode ?? "",
+        machineName: dm.machineName ?? dm.machineCode ?? "",
+        isActive: dm.isActive ?? false,
+        sortOrder: dm.sortOrder ?? 9999,
+      } as any);
+    }
+    return list;
+  }, [machines, detail]);
+
+  const displayCreatorUsers = useMemo(() => {
+    const list = [...users];
+    const cId = (detail as any)?.creatorId;
+    const cName = (detail as any)?.creator?.name;
+    if (cId != null && cName && !list.some(u => String(u.id) === String(cId))) {
+      list.push({ id: cId, name: cName, role: "OPERATOR", avatarPath: null, isActive: false } as any);
+    }
+    return list;
+  }, [users, detail]);
+
+  const displayPgUsers = useMemo(() => {
+    const list = [...users];
+    const pId = (detail as any)?.pgCreatedBy;
+    const pName = (detail as any)?.pgCreator?.name;
+    if (pId != null && pName && !list.some(u => String(u.id) === String(pId))) {
+      list.push({ id: pId, name: pName, role: "OPERATOR", avatarPath: null, isActive: false } as any);
+    }
+    return list;
+  }, [users, detail]);
 
   useEffect(() => {
     mcApi.findOne(mcId).then(r => {
@@ -896,7 +938,7 @@ export default function McEditPage() {
                     <select value={machineId} onChange={e => { console.log("[EDIT] 機械変更", e.target.value); setMachineId(e.target.value); }} data-fi="true"
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
                       <option value="">— 選択 —</option>
-                      {machines
+                      {displayMachines
                         .filter(m => m.isActive !== false || String(m.id) === machineId)
                         .map(m => (
                         <option key={m.id} value={String(m.id)}>{m.machineCode}{m.isActive === false ? "（非アクティブ）" : ""}</option>
@@ -961,7 +1003,7 @@ export default function McEditPage() {
                     <select value={creatorId} onChange={e => setCreatorId(e.target.value)}
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
                       <option value="">— 選択 —</option>
-                      {users
+                      {displayCreatorUsers
                         .filter(u => u.isActive || String(u.id) === creatorId)
                         .map(u => (
                           <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（非アクティブ）" : ""}</option>
@@ -1008,7 +1050,7 @@ export default function McEditPage() {
                       <select value={pgCreatedBy} onChange={e => setPgCreatedBy(e.target.value)}
                         className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
                         <option value="">— 選択 —</option>
-                        {users
+                        {displayPgUsers
                           .filter(u => u.isActive || String(u.id) === pgCreatedBy)
                           .map(u => (
                             <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（非アクティブ）" : ""}</option>
