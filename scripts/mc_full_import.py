@@ -27,7 +27,7 @@ MachCore MC完全移行スクリプト (mc_full_import.py)
   - v_旧得意先マスタ : 納入先ID, 会社名
 """
 
-import sys, os, re, shutil, argparse, traceback
+import sys, os, re, shutil, argparse, traceback, subprocess
 from pathlib import Path
 from datetime import datetime
 
@@ -1001,10 +1001,14 @@ def phase7(pg, dry_run=False, force_copy=False):
         import time as _time
 
         def _safe_rmtree_and_mkdir(dst_dir, label):
-            """CIFS上でrmtree後makedirs失敗する問題をリトライで対処"""
+            """CIFS上でrmtree後makedirs失敗する問題をリトライで対処 (rm -rf使用)"""
             if dst_dir.exists():
                 log(f"  {label}: コピー先クリア ({dst_dir})")
-                _shutil.rmtree(str(dst_dir))
+                # CIFS上ではshutil.rmtreeがos.rmdirで失敗するため subprocess rm -rf を使用
+                _res = subprocess.run(["rm", "-rf", str(dst_dir)],
+                                      capture_output=True, text=True)
+                if _res.returncode != 0:
+                    log(f"  [WARN] rm -rf failed: {_res.stderr}", "WARN")
             # CIFS遅延対応: 最大10回リトライ
             for _attempt in range(10):
                 try:
