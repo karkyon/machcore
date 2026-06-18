@@ -237,11 +237,13 @@ export class McFilesService {
         // ケース2: フォルダ構成 → {base}/mc_files/pg/{machining_id}/{original_filename}
         flatDir    = path.join(basePath, 'MC', 'files', 'Programs', String(machId));
         storedName = file.filename;  // オリジナルのまま維持
-        // 同名のファイル（単体アップで作られた pg/{machId} ファイル）が存在したら退避
+        // 同名のファイル（単体アップで作られた pg/{machId} ファイル）が存在したら trash/ へ退避
         const pgFlatFile = path.join(basePath, 'MC', 'files', 'Programs', String(machId));
         if (fs.existsSync(pgFlatFile) && fs.statSync(pgFlatFile).isFile()) {
-          const ts2 = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-          fs.renameSync(pgFlatFile, path.join(basePath, 'MC', 'files', 'Programs', `${machId}.bak_${ts2}`));
+          const ts2     = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+          const trashD2 = path.join(basePath, 'trash');
+          this.ensureDir(trashD2);
+          fs.renameSync(pgFlatFile, path.join(trashD2, `${machId}-${ts2}`));
         }
       } else {
         // ケース1: 単一ファイル → {base}/mc_files/pg/{machining_id}[.ext]
@@ -249,14 +251,16 @@ export class McFilesService {
         storedName = `${machId}${ext}`;  // ファイル名=加工ID+拡張子
       }
 
-      // 同名ファイルが既存の場合は .bak_{timestamp} にリネーム退避
+      // 同名ファイルが既存の場合は trash/ へタイムスタンプ付きで退避
       const dest = path.join(flatDir, storedName);
       this.ensureDir(flatDir);
       if (fs.existsSync(dest)) {
         const ts      = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
         const bakExt  = path.extname(storedName);
         const bakBase = path.basename(storedName, bakExt);
-        fs.renameSync(dest, path.join(flatDir, `${bakBase}.bak_${ts}${bakExt}`));
+        const trashPg = path.join(basePath, 'trash');
+        this.ensureDir(trashPg);
+        fs.renameSync(dest, path.join(trashPg, `${bakBase}-${ts}${bakExt}`));
       }
 
     } else if (fileTypeEnum === 'DRAWING') {
@@ -323,9 +327,17 @@ export class McFilesService {
 
     const basePath = await this.getBasePath();
 
-    // 旧ファイルを同じパスで上書き（ファイル数を増やさない）
-    const filePath = old.filePath;
+    // 旧ファイルを trash/ へタイムスタンプ付きで退避してから上書き
+    const filePath  = old.filePath;
     this.ensureDir(path.dirname(filePath));
+    if (fs.existsSync(filePath)) {
+      const tsR      = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+      const trashR   = path.join(basePath, 'trash');
+      this.ensureDir(trashR);
+      const rExt     = path.extname(old.storedName);
+      const rBase    = path.basename(old.storedName, rExt);
+      fs.renameSync(filePath, path.join(trashR, `${rBase}-${tsR}${rExt}`));
+    }
     fs.writeFileSync(filePath, file.data);
 
     // サムネイルも上書き再生成
