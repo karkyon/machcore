@@ -12,6 +12,7 @@
  */
 const AGENT_BASE = "http://localhost:57300";
 const TIMEOUT_MS = 3000;
+const DIALOG_TIMEOUT_MS = 5 * 60 * 1000; // ダイアログ操作待ちのため長め
 
 export type AgentHealth = { status: string; version: string; token: string };
 
@@ -30,95 +31,71 @@ export async function isAgentOnline(): Promise<boolean> {
   return token !== null;
 }
 
-export type AgentUploadedFile = {
-  fileName:      string;
-  storedName?:   string;
-  duplicate:     boolean;   // 既存ファイルとの重複があり trash へ退避したか
-  sourceDeleted: boolean;   // 元ファイル（USB/ローカル）の削除に成功したか
+export type AgentUploadFileResult = {
+  originalName: string;
+  storedName:   string;
+  fileId:       number;
+  duplicateHandled: boolean;
+  duplicateMovedTo?: string;
+  localDeleted: boolean;
+  localDeleteError?: string;
 };
 
-export type AgentPickAndUploadResult = {
-  ok:        boolean;
-  message?:  string;
-  uploaded?: AgentUploadedFile[];
+export type PickAndUploadResult = {
+  agentAvailable: boolean;
+  cancelled:      boolean;
+  success:        boolean;
+  files: AgentUploadFileResult[];
+  error?: string;
 };
 
 /**
- * Agentへ「ファイル選択ダイアログを開いてアップロードしろ」と依頼する。
- * Bearerトークンそのものは渡さず、MachCore APIで発行したワンタイムチケットのみを渡す。
- *
- * 処理フロー（Agent側で完結）:
- *  1. ネイティブファイル/フォルダ選択ダイアログを表示
- *  2. 選択されたファイルを MachCore API (upload-by-ticket) へ直接アップロード
- *  3. アップロード成功を確認後、ローカル元ファイルを .machcore_trash へ移動
- *  4. 結果をWebへ返す
+ * Agentへ「単体ファイル選択→アップロード→ローカル削除」を一括依頼する。
+ * Agent内でネイティブファイルダイアログが表示される。
  */
-export async function requestAgentPickAndUpload(params: {
-  mcId: number;
-  token: string;
-  fileType: 'PHOTO' | 'DRAWING' | 'PROGRAM';
-  mode: 'file' | 'folder';
-  replaceFileId?: number;
-}): Promise<AgentPickAndUploadResult> {
-  const { mcId, token, fileType, mode, replaceFileId } = params;
+export async function agentPickAndUpload(ticket: string): Promise<PickAndUploadResult> {
+  const token = await getAgentToken();
+  if (!token) return { agentAvailable: false, cancelled: false, success: false, files: [], error: "Agent未起動" };
 
-  // ① MachCore API でワンタイムチケットを発行（通常のBearer認証）
-  console.log("[AGENT_UPLOAD] チケット発行リクエスト:", { mcId, fileType, mode, replaceFileId });
-  let ticketRes: Response;
   try {
-    ticketRes = await fetch(`/api/mc/${mcId}/files/upload-ticket`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        file_type: fileType,
-        replace_file_id: replaceFileId,
-        is_folder_upload: mode === "folder",
-      }),
-    });
-  } catch (e: any) {
-    console.error("[AGENT_UPLOAD] チケット発行通信エラー:", e);
-    return { ok: false, message: "チケット発行に失敗しました（通信エラー）" };
-  }
-  if (!ticketRes.ok) {
-    console.error("[AGENT_UPLOAD] チケット発行失敗:", ticketRes.status);
-    return { ok: false, message: `チケット発行に失敗しました（HTTP ${ticketRes.status}）` };
-  }
-  const ticketJson = await ticketRes.json();
-  const ticket = ticketJson.ticket as string;
-  console.log("[AGENT_UPLOAD] チケット発行成功:", ticket, "有効期限:", ticketJson.expires_in_sec, "秒");
-
-  // ② Agentへチケットのみを渡してダイアログ表示〜アップロードを依頼
-  const agentToken = await getAgentToken();
-  if (!agentToken) {
-    return { ok: false, message: "UploadAgentが起動していません" };
-  }
-
-  const endpoint = mode === "folder" ? "/pick-folder-and-upload" : "/pick-and-upload";
-  console.log("[AGENT_UPLOAD] Agentへ依頼:", endpoint);
-  try {
-    const res = await fetch(`${AGENT_BASE}${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Agent-Token": agentToken },
-      body: JSON.stringify({ ticket, file_type: fileType }),
-      // ダイアログ表示〜ユーザー操作待ちのため長めのタイムアウト（5分）
-      signal: AbortSignal.timeout(5 * 60 * 1000),
+    console.log("[Agent] /pick-and-upload 依頼開始 ticket=", ticket);
+    const res = await fetch(`${AGENT_BASE}/pick-and-upload`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", "X-Agent-Token": token },
+      body:    JSON.stringify({ ticket }),
+      signal:  AbortSignal.timeout(DIALOG_TIMEOUT_MS),
     });
     const json = await res.json();
-    console.log("[AGENT_UPLOAD] Agentレスポンス:", res.status, json);
+    console.log("[Agent] /pick-and-upload 結果:", json);
+    if (!res.ok) return { agentAvailable: true, cancelled: false, success: false, files: [], error: json.error ?? `HTTP ${res.status}` };
+    return { agentAvailable: true, cancelled: json.cancelled ?? false, success: json.success ?? false, files: json.files ?? [], error: json.error };
+  } catch(e: any) {
+    console.error("[Agent] /pick-and-upload エラー:", e);
+    return { agentAvailable: true, cancelled: false, success: false, files: [], error: e.message };
+  }
+}
 
-    if (!res.ok) {
-      return { ok: false, message: json.message ?? json.error ?? `Agentエラー（HTTP ${res.status}）` };
-    }
-    if (json.cancelled) {
-      console.log("[AGENT_UPLOAD] ユーザーがダイアログをキャンセル");
-      return { ok: false, message: "ファイル選択がキャンセルされました" };
-    }
-    return {
-      ok: true,
-      uploaded: (json.uploaded ?? []) as AgentUploadedFile[],
-    };
-  } catch (e: any) {
-    console.error("[AGENT_UPLOAD] Agent通信エラー:", e);
-    return { ok: false, message: "UploadAgentとの通信に失敗しました: " + (e.message ?? "不明なエラー") };
+/**
+ * Agentへ「フォルダ選択→フォルダ内全ファイルアップロード→ローカル削除」を一括依頼する。
+ */
+export async function agentPickFolderAndUpload(ticket: string): Promise<PickAndUploadResult> {
+  const token = await getAgentToken();
+  if (!token) return { agentAvailable: false, cancelled: false, success: false, files: [], error: "Agent未起動" };
+
+  try {
+    console.log("[Agent] /pick-folder-and-upload 依頼開始 ticket=", ticket);
+    const res = await fetch(`${AGENT_BASE}/pick-folder-and-upload`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", "X-Agent-Token": token },
+      body:    JSON.stringify({ ticket }),
+      signal:  AbortSignal.timeout(DIALOG_TIMEOUT_MS),
+    });
+    const json = await res.json();
+    console.log("[Agent] /pick-folder-and-upload 結果:", json);
+    if (!res.ok) return { agentAvailable: true, cancelled: false, success: false, files: [], error: json.error ?? `HTTP ${res.status}` };
+    return { agentAvailable: true, cancelled: json.cancelled ?? false, success: json.success ?? false, files: json.files ?? [], error: json.error };
+  } catch(e: any) {
+    console.error("[Agent] /pick-folder-and-upload エラー:", e);
+    return { agentAvailable: true, cancelled: false, success: false, files: [], error: e.message };
   }
 }

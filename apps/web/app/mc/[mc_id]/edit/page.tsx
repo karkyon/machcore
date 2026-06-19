@@ -322,6 +322,25 @@ export default function McEditPage() {
   // ── ファイルサイズ上限 ──
   const MAX_PHOTO_DRAWING_BYTES = 100 * 1024 * 1024; // 100MB
 
+
+  // ── UploadAgent連携: ワンタイムチケット発行 ──
+  const issueUploadTicket = async (params: { fileType?: 'PHOTO' | 'DRAWING' | 'PROGRAM'; replaceFileId?: number; isFolderUpload?: boolean }) => {
+    if (!token) throw new Error("認証が必要です");
+    const res = await fetch(`/api/mc/${mcId}/files/upload-ticket`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        file_type: params.fileType,
+        replace_file_id: params.replaceFileId,
+        is_folder_upload: params.isFolderUpload,
+      }),
+    });
+    if (!res.ok) throw new Error(`チケット発行失敗: HTTP ${res.status}`);
+    const json = await res.json();
+    console.log("[TICKET] 発行完了:", json);
+    return json.ticket as string;
+  };
+
   // ── 新規アップロード（Agent側でダイアログ表示〜アップロード〜削除まで完結） ──
   const requestNewUpload = async (fileType: 'PHOTO' | 'DRAWING', mode: 'file' | 'folder') => {
     console.log("[AGENT_UPLOAD] 開始", { fileType, mode });
@@ -338,32 +357,43 @@ export default function McEditPage() {
 
     const ok = window.confirm(
       `【アップロード元ファイルの削除確認】\n` +
-      `選択したファイルはアップロード完了後、UploadAgent によって自動的にゴミ箱(.machcore_trash)へ移動されます。\n続行しますか？`
+      `選択したファイルをアップロードします。アップロード完了後、元ファイルはゴミ箱フォルダ(.machcore_trash)へ自動移動されます。\n続行しますか？`
     );
     if (!ok) { console.log("[AGENT_UPLOAD] ユーザキャンセル"); return; }
 
     setFileUploading(true);
     setFileUploadMsg(null);
     try {
-      console.log("[AGENT_UPLOAD] Agentへ依頼:", { mcId, fileType, mode });
-      const result = await requestAgentPickAndUpload({ mcId, token, fileType, mode });
+      console.log("[AGENT_UPLOAD] チケット発行中...");
+      const ticket = await issueUploadTicket({ fileType, isFolderUpload: mode === "folder" });
+      console.log("[AGENT_UPLOAD] チケット取得:", ticket);
+
+      console.log("[AGENT_UPLOAD] Agentへ依頼:", mode);
+      const result = mode === "folder"
+        ? await agentPickFolderAndUpload(ticket)
+        : await agentPickAndUpload(ticket);
       console.log("[AGENT_UPLOAD] Agentからの結果:", result);
 
-      if (!result.ok) {
-        setFileUploadMsg(`❌ ${result.message ?? "アップロードに失敗しました"}`);
+      if (result.cancelled) {
+        console.log("[AGENT_UPLOAD] ユーザがAgent側ダイアログでキャンセル");
+        setFileUploadMsg(null);
+        return;
+      }
+      if (!result.success) {
+        setFileUploadMsg(`❌ ${result.error ?? "アップロードに失敗しました"}`);
         return;
       }
 
       const r = await mcApi.listFiles(mcId);
       setFiles((r as any).data ?? []);
 
-      const n = result.uploaded?.length ?? 0;
-      const dupCount = result.uploaded?.filter(u => u.duplicate).length ?? 0;
-      const delFailCount = result.uploaded?.filter(u => !u.sourceDeleted).length ?? 0;
+      const n = result.files.length;
+      const dupCount = result.files.filter(f => f.duplicateHandled).length;
+      const delFailCount = result.files.filter(f => !f.localDeleted).length;
       let msg = `✅ ${n}件アップロード完了`;
       if (dupCount > 0) msg += `（重複${dupCount}件は既存ファイルをゴミ箱へ退避）`;
       if (delFailCount > 0) msg += ` ⚠️ ${delFailCount}件は元ファイルの削除に失敗 - 手動削除してください`;
-      console.log("[AGENT_UPLOAD] 完了:", msg, result.uploaded);
+      console.log("[AGENT_UPLOAD] 完了:", msg, result.files);
       setFileUploadMsg(msg);
     } catch (err: any) {
       console.error("[AGENT_UPLOAD] エラー:", err);
@@ -396,26 +426,33 @@ export default function McEditPage() {
 
     setReplacingId(fileId);
     try {
-      console.log("[AGENT_REPLACE] Agentへ依頼:", { mcId, fileId, fileType });
-      const result = await requestAgentPickAndUpload({ mcId, token, fileType, mode: 'file', replaceFileId: fileId });
+      console.log("[AGENT_REPLACE] チケット発行中...");
+      const ticket = await issueUploadTicket({ fileType, replaceFileId: fileId });
+      console.log("[AGENT_REPLACE] チケット取得:", ticket);
+
+      const result = await agentPickAndUpload(ticket);
       console.log("[AGENT_REPLACE] Agentからの結果:", result);
 
-      if (!result.ok) {
-        showToast(`❌ ${result.message ?? "差し替えに失敗しました"}`);
+      if (result.cancelled) {
+        console.log("[AGENT_REPLACE] ユーザがAgent側ダイアログでキャンセル");
+        return;
+      }
+      if (!result.success) {
+        showToast(`❌ ${result.error ?? "差し替えに失敗しました"}`);
         return;
       }
 
       const r = await mcApi.listFiles(mcId);
       setFiles((r as any).data ?? []);
 
-      const u = result.uploaded?.[0];
-      const msg = u?.sourceDeleted
-        ? `✅ 差し替え完了（${u.fileName}）元ファイルをゴミ箱に移動しました`
-        : `✅ 差し替え完了（${u?.fileName ?? ""}）⚠️ 元ファイルの削除に失敗 - 手動削除してください`;
+      const u = result.files[0];
+      const msg = u?.localDeleted
+        ? `✅ 差し替え完了（${u.originalName}）元ファイルをゴミ箱に移動しました`
+        : `✅ 差し替え完了（${u?.originalName ?? ""}）⚠️ 元ファイルの削除に失敗 - 手動削除してください`;
       showToast(msg);
     } catch (e: any) {
       console.error("[AGENT_REPLACE] エラー:", e);
-      showToast("❌ 差し替え失敗: " + (e.message ?? "エラー"));
+      showToast("❌ 差し替え失敗: " + (e.message ?? "不明なエラー"));
     } finally {
       setReplacingId(null);
     }
