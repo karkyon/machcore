@@ -10,6 +10,8 @@ import { ProgramSessionGuard } from '../common/guards/program-session.guard';
 import { OperationLogService } from '../common/operation-log.service';
 import { McService } from './mc.service';
 import { McFilesService } from './mc-files.service';
+import { UploadTicketService } from './upload-ticket.service';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { CreateMcDto } from './dto/create-mc.dto';
 import { UpdateMcDto } from './dto/update-mc.dto';
 import { FinalizeMcDto } from './dto/finalize-mc.dto';
@@ -26,6 +28,7 @@ export class McController {
     private readonly mc:      McService,
     private readonly mcFiles: McFilesService,
     private readonly opLog:   OperationLogService,
+    private readonly tickets: UploadTicketService,
   ) {}
 
   // ── 検索・一覧 ──────────────────────────────
