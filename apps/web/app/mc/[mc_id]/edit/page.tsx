@@ -1,5 +1,5 @@
 "use client";
-import { isAgentOnline, notifyAgentMove, getFullPath } from "@/lib/upload-agent";
+import { isAgentOnline, requestAgentPickAndUpload } from "@/lib/upload-agent";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, mcFilesApi, machinesApi, usersApi, clampMasterApi, McDetail, Machine, UserInfo } from "@/lib/api";
@@ -322,90 +322,102 @@ export default function McEditPage() {
   // ── ファイルサイズ上限 ──
   const MAX_PHOTO_DRAWING_BYTES = 100 * 1024 * 1024; // 100MB
 
-  const handleFileUpload = async (file: File, fileType?: 'PHOTO' | 'DRAWING', filePath?: string) => {
-    console.log("[UPLOAD] handleFileUpload開始", { name: file.name, size: file.size, fileType });
-    if (!token) { console.log("[UPLOAD] tokenなし - 中断"); return; }
+  // ── 新規アップロード（Agent側でダイアログ表示〜アップロード〜削除まで完結） ──
+  const requestNewUpload = async (fileType: 'PHOTO' | 'DRAWING', mode: 'file' | 'folder') => {
+    console.log("[AGENT_UPLOAD] 開始", { fileType, mode });
+    if (!token) { console.log("[AGENT_UPLOAD] tokenなし"); return; }
 
-    // ① サイズチェック
-    if (file.size > MAX_PHOTO_DRAWING_BYTES) {
-      const msg = `❌ ファイルサイズ上限(100MB)超過: ${(file.size/1024/1024).toFixed(1)}MB`;
-      console.log("[UPLOAD] サイズNG:", msg);
-      setFileUploadMsg(msg);
-      return;
-    }
-    console.log("[UPLOAD] サイズOK:", (file.size/1024/1024).toFixed(2), "MB");
-
-    // ② Agent health確認（OFFLINEならアップロードブロック）
     const agentOnline = await isAgentOnline();
-    console.log("[UPLOAD] Agent状態:", agentOnline ? "ONLINE" : "OFFLINE");
+    console.log("[AGENT_UPLOAD] Agent状態:", agentOnline ? "ONLINE" : "OFFLINE");
     if (!agentOnline) {
       const msg = "❌ UploadAgentが起動していません。アップロードには UploadAgent の起動が必要です。\nタスクトレイを確認し、UploadAgent を起動してください。";
-      console.log("[UPLOAD] Agentオフライン - アップロードブロック");
       setFileUploadMsg(msg);
       window.alert(msg);
       return;
     }
 
-    // ③ 元ファイル削除確認
-    console.log("[UPLOAD] 元ファイル削除確認ダイアログ表示");
     const ok = window.confirm(
       `【アップロード元ファイルの削除確認】\n` +
-      `ファイル名: ${file.name}\n` +
-      `サイズ: ${(file.size/1024/1024).toFixed(2)} MB\n\n` +
-      `アップロード完了後、元ファイルはゴミ箱フォルダ(.machcore_trash)へ自動移動されます。\n続行しますか？`
+      `選択したファイルはアップロード完了後、UploadAgent によって自動的にゴミ箱(.machcore_trash)へ移動されます。\n続行しますか？`
     );
-    if (!ok) { console.log("[UPLOAD] ユーザキャンセル"); return; }
-
-    // ④ アップロード先ディレクトリ確認（fileType表示）
-    console.log("[UPLOAD] アップロード先:", fileType === "PHOTO" ? "Pictures/" : fileType === "DRAWING" ? "Drawings/" : "不明");
+    if (!ok) { console.log("[AGENT_UPLOAD] ユーザキャンセル"); return; }
 
     setFileUploading(true);
     setFileUploadMsg(null);
     try {
-      // ⑤ サーバへアップロード
-      console.log("[UPLOAD] サーバアップロード開始:", `/api/mc/${mcId}/files/upload`);
-      const res = await mcFilesApi.upload(mcId, file, token, fileType);
-      const uploaded = (res as any).data ?? res;
-      console.log("[UPLOAD] サーバアップロード完了:", uploaded);
+      console.log("[AGENT_UPLOAD] Agentへ依頼:", { mcId, fileType, mode });
+      const result = await requestAgentPickAndUpload({ mcId, token, fileType, mode });
+      console.log("[AGENT_UPLOAD] Agentからの結果:", result);
 
-      // ⑥ アップロード確認（ファイル一覧再取得）
-      const r = await mcApi.listFiles(mcId);
-      const newFiles = (r as any).data ?? [];
-      setFiles(newFiles);
-      const uploadedId = uploaded?.id;
-      const confirmed = uploadedId ? newFiles.some((f: any) => f.id === uploadedId) : newFiles.length > 0;
-      console.log("[UPLOAD] アップロード確認:", confirmed ? "OK" : "NG", "id:", uploadedId);
-      if (!confirmed) {
-        setFileUploadMsg("⚠️ アップロードを確認できませんでした");
+      if (!result.ok) {
+        setFileUploadMsg(`❌ ${result.message ?? "アップロードに失敗しました"}`);
         return;
       }
 
-      // ⑦ Agent経由でローカルファイルをtrash移動（絶対パスがあれば使用）
-      const movePaths = filePath ? [filePath] : [];
-      console.log("[UPLOAD] Agent移動通知:", movePaths.length ? movePaths : "(パス不明のためスキップ)");
-      let moveOk = false;
-      if (movePaths.length > 0) {
-        const moveResult = await notifyAgentMove(movePaths);
-        console.log("[UPLOAD] Agent移動結果:", moveResult);
-        moveOk = moveResult.success && moveResult.moved.length > 0;
-        if (!moveOk) {
-          console.warn("[UPLOAD] ❌ 元ファイル移動失敗:", moveResult.failed);
-        }
-      }
+      const r = await mcApi.listFiles(mcId);
+      setFiles((r as any).data ?? []);
 
-      const msg = movePaths.length > 0
-        ? (moveOk
-          ? `✅ アップロード完了（${file.name}）元ファイルをゴミ箱に移動しました`
-          : `✅ アップロード完了（${file.name}）⚠️ 元ファイルの移動に失敗しました - 手動で削除してください`)
-        : `✅ アップロード完了（${file.name}）※D&D/フォルダ選択は元パス取得不可 - 手動削除してください`;
-      console.log("[UPLOAD] 完了メッセージ:", msg);
+      const n = result.uploaded?.length ?? 0;
+      const dupCount = result.uploaded?.filter(u => u.duplicate).length ?? 0;
+      const delFailCount = result.uploaded?.filter(u => !u.sourceDeleted).length ?? 0;
+      let msg = `✅ ${n}件アップロード完了`;
+      if (dupCount > 0) msg += `（重複${dupCount}件は既存ファイルをゴミ箱へ退避）`;
+      if (delFailCount > 0) msg += ` ⚠️ ${delFailCount}件は元ファイルの削除に失敗 - 手動削除してください`;
+      console.log("[AGENT_UPLOAD] 完了:", msg, result.uploaded);
       setFileUploadMsg(msg);
     } catch (err: any) {
-      console.error("[UPLOAD] エラー:", err);
+      console.error("[AGENT_UPLOAD] エラー:", err);
       setFileUploadMsg("❌ アップロード失敗: " + (err.message ?? "不明なエラー"));
     } finally {
       setFileUploading(false);
       setTimeout(() => setFileUploadMsg(null), 6000);
+    }
+  };
+
+  // ── 差し替え（Agent側でダイアログ表示〜アップロード〜削除まで完結） ──
+  const requestReplaceUpload = async (fileId: number, fileType: 'PHOTO' | 'DRAWING') => {
+    console.log("[AGENT_REPLACE] 開始", { fileId, fileType });
+    if (!token) { showToast("認証が必要です"); return; }
+
+    const agentOnline = await isAgentOnline();
+    console.log("[AGENT_REPLACE] Agent状態:", agentOnline ? "ONLINE" : "OFFLINE");
+    if (!agentOnline) {
+      const msg = "❌ UploadAgentが起動していません。差し替えには UploadAgent の起動が必要です。";
+      showToast(msg);
+      window.alert(msg);
+      return;
+    }
+
+    const ok = window.confirm(
+      `【差し替え確認】\n選択したファイルで既存ファイルを差し替えます。\n` +
+      `既存ファイルはサーバの /trash フォルダへ、選択した元ファイルはゴミ箱(.machcore_trash)へ、それぞれ移動されます。\n続行しますか？`
+    );
+    if (!ok) { console.log("[AGENT_REPLACE] ユーザキャンセル"); return; }
+
+    setReplacingId(fileId);
+    try {
+      console.log("[AGENT_REPLACE] Agentへ依頼:", { mcId, fileId, fileType });
+      const result = await requestAgentPickAndUpload({ mcId, token, fileType, mode: 'file', replaceFileId: fileId });
+      console.log("[AGENT_REPLACE] Agentからの結果:", result);
+
+      if (!result.ok) {
+        showToast(`❌ ${result.message ?? "差し替えに失敗しました"}`);
+        return;
+      }
+
+      const r = await mcApi.listFiles(mcId);
+      setFiles((r as any).data ?? []);
+
+      const u = result.uploaded?.[0];
+      const msg = u?.sourceDeleted
+        ? `✅ 差し替え完了（${u.fileName}）元ファイルをゴミ箱に移動しました`
+        : `✅ 差し替え完了（${u?.fileName ?? ""}）⚠️ 元ファイルの削除に失敗 - 手動削除してください`;
+      showToast(msg);
+    } catch (e: any) {
+      console.error("[AGENT_REPLACE] エラー:", e);
+      showToast("❌ 差し替え失敗: " + (e.message ?? "エラー"));
+    } finally {
+      setReplacingId(null);
     }
   };
 
@@ -693,70 +705,6 @@ export default function McEditPage() {
     }
   };
 
-  const handleReplace = async (fileId: number, file: File, filePath?: string) => {
-    console.log("[REPLACE] 差し替え開始", { fileId, name: file.name, size: file.size });
-    if (!token) { showToast("認証が必要です"); return; }
-
-    // ① サイズチェック
-    if (file.size > MAX_PHOTO_DRAWING_BYTES) {
-      const msg = `❌ ファイルサイズ上限(100MB)超過: ${(file.size/1024/1024).toFixed(1)}MB`;
-      console.log("[REPLACE] サイズNG:", msg);
-      showToast(msg);
-      return;
-    }
-    console.log("[REPLACE] サイズOK:", (file.size/1024/1024).toFixed(2), "MB");
-
-    // ② Agent health確認（OFFLINEならブロック）
-    const repAgentOnline = await isAgentOnline();
-    console.log("[REPLACE] Agent状態:", repAgentOnline ? "ONLINE" : "OFFLINE");
-    if (!repAgentOnline) {
-      const msg = "❌ UploadAgentが起動していません。差し替えには UploadAgent の起動が必要です。";
-      console.log("[REPLACE] Agentオフライン - ブロック");
-      showToast(msg);
-      window.alert(msg);
-      return;
-    }
-
-    // ③ 差し替え確認（既存ファイルはサーバ側trash退避）
-    console.log("[REPLACE] 差し替え確認ダイアログ表示");
-    const ok = window.confirm(
-      `【差し替え確認】\nファイル名: ${file.name}\nサイズ: ${(file.size/1024/1024).toFixed(2)} MB\n\n` +
-      `既存ファイルはサーバの /trash フォルダへ移動されます。\n続行しますか？`
-    );
-    if (!ok) { console.log("[REPLACE] ユーザキャンセル"); return; }
-
-    setReplacingId(fileId);
-    try {
-      // ④ サーバへ差し替えアップロード
-      console.log("[REPLACE] サーバ差し替えアップロード開始:", fileId);
-      await mcFilesApi.replace(mcId, fileId, file, token);
-      console.log("[REPLACE] サーバ差し替え完了");
-
-      // ⑤ ファイル一覧再取得（確認）
-      const r = await mcApi.listFiles(mcId);
-      setFiles((r as any).data ?? []);
-      console.log("[REPLACE] ファイル一覧更新完了");
-
-      // ⑥ filePath があれば使用、なければファイル名のみ
-      const replacePaths = filePath ? [filePath] : [];
-      console.log("[REPLACE] Agent移動通知:", replacePaths.length ? replacePaths : "(パス不明)");
-      let replaceOk = false;
-      if (replacePaths.length > 0) {
-        const moveResult = await notifyAgentMove(replacePaths);
-        console.log("[REPLACE] Agent移動結果:", moveResult);
-        replaceOk = moveResult.success && moveResult.moved.length > 0;
-      }
-      showToast(replacePaths.length > 0 && replaceOk
-        ? `✅ 差し替え完了（${file.name}）元ファイルをゴミ箱に移動しました`
-        : `✅ 差し替え完了（${file.name}）⚠️ 元ファイル移動失敗 - 手動削除してください`);
-    } catch (e: any) {
-      console.error("[REPLACE] エラー:", e);
-      showToast("❌ 差し替え失敗: " + (e.message ?? "エラー"));
-    } finally {
-      setReplacingId(null);
-      setReplaceDragOver(null);
-    }
-  };
 
   const handleSave = async () => {
     console.log("[EDIT] handleSave開始", { sbMode, sbRepeatMode, token: token ? "あり" : "なし", mcId,
@@ -1719,57 +1667,15 @@ export default function McEditPage() {
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xs font-bold text-slate-600">📷 写真のアップロード</p>
                     <div className="flex gap-2">
-                      <button
-                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition-colors"
-                        onClick={async () => {
-                          try {
-                            const dh = await (window as any).showDirectoryPicker({ mode: "read" });
-                            const PHOTO_EXTS = new Set([".jpg",".jpeg",".png",".gif",".bmp",".webp",".heic",".heif"]);
-                            const entries: {file: File; url: string; selected: boolean}[] = [];
-                            for await (const [name, fh] of dh.entries()) {
-                              if (fh.kind !== "file") continue;
-                              const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
-                              if (!PHOTO_EXTS.has(ext)) continue;
-                              const f: File = await (fh as FileSystemFileHandle).getFile();
-                              entries.push({ file: f, url: URL.createObjectURL(f), selected: true });
-                            }
-                            if (entries.length === 0) { showToast("⚠️ 対応する画像ファイルがありません"); return; }
-                            setPhotoPreviewFiles(entries);
-                            setPhotoPreviewOpen(true);
-                          } catch (e: any) {
-                            if (e.name !== "AbortError") showToast("❌ フォルダ取得失敗: " + e.message);
-                          }
-                        }}
-                      >複数選拡・フォルダ</button>
-                      <button className="px-3 py-1.5 bg-teal-100 hover:bg-teal-200 text-teal-700 text-xs font-bold rounded-lg border border-teal-300 transition-colors"
-                        onClick={async () => {
-                          try {
-                            const [fh] = await (window as any).showOpenFilePicker({ multiple: false, types: [{ description: "画像", accept: { "image/*": [] } }] });
-                            const file: File = await fh.getFile();
-                            const fp1 = await getFullPath(fh) ?? file.name;
-                            console.log("[PHOTO_1ADD] 選択:", file.name, "フルパス:", fp1);
-                            await handleFileUpload(file, "PHOTO", fp1);
-                          } catch(e: any) { if (e.name !== "AbortError") showToast("❌ " + e.message); }
-                        }}>
-                        1枚追加
-                      </button>
+                      <button className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-40"
+                        disabled={fileUploading}
+                        onClick={() => requestNewUpload("PHOTO", "folder")}>複数選拡・フォルダ</button>
+                      <button className="px-3 py-1.5 bg-teal-100 hover:bg-teal-200 text-teal-700 text-xs font-bold rounded-lg border border-teal-300 transition-colors disabled:opacity-40"
+                        disabled={fileUploading}
+                        onClick={() => requestNewUpload("PHOTO", "file")}>1枚追加</button>
                     </div>
                   </div>
-                  <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center text-xs text-slate-400"
-                    onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("border-teal-400","bg-teal-50"); }}
-                    onDragLeave={e => e.currentTarget.classList.remove("border-teal-400","bg-teal-50")}
-                    onDrop={e => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove("border-teal-400","bg-teal-50");
-                      const droppedFiles = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
-                      if (droppedFiles.length === 1) { handleFileUpload(droppedFiles[0], "PHOTO"); return; }
-                      if (droppedFiles.length > 1) {
-                        setPhotoPreviewFiles(droppedFiles.map(f => ({ file: f, url: URL.createObjectURL(f), selected: true })));
-                        setPhotoPreviewOpen(true);
-                      }
-                    }}>
-                    D&Dでも追加できます（複数対応）
-                  </div>
+                  <p className="text-[11px] text-slate-400 text-center py-2">UploadAgentでファイル選択ダイアログが開きます</p>
                   {fileUploading && <p className="text-xs text-teal-600 mt-2 animate-pulse">アップロード中...</p>}
                   {fileUploadMsg && <p className="text-xs mt-2 font-bold text-slate-600">{fileUploadMsg}</p>}
                 </div>
@@ -1779,63 +1685,17 @@ export default function McEditPage() {
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xs font-bold text-slate-600">📐 図のアップロード</p>
                     <div className="flex gap-2">
-                      <button
-                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-colors"
-                        onClick={async () => {
-                          try {
-                            const dh = await (window as any).showDirectoryPicker({ mode: "read" });
-                            const DRAW_EXTS = new Set([".jpg",".jpeg",".png",".tif",".tiff",".bmp",".pdf",".webp"]);
-                            const entries: {file: File; url: string; selected: boolean}[] = [];
-                            for await (const [name, fh] of dh.entries()) {
-                              if (fh.kind !== "file") continue;
-                              const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
-                              if (!DRAW_EXTS.has(ext)) continue;
-                              const f: File = await (fh as FileSystemFileHandle).getFile();
-                              const url = f.type.startsWith("image/") ? URL.createObjectURL(f) : "";
-                              entries.push({ file: f, url, selected: true });
-                            }
-                            if (entries.length === 0) { showToast("⚠️ 対応するファイルがありません"); return; }
-                            setDrawingPreviewFiles(entries);
-                            setDrawingPreviewOpen(true);
-                          } catch (e: any) {
-                            if (e.name !== "AbortError") showToast("❌ フォルダ取得失敗: " + e.message);
-                          }
-                        }}
-                      >複数選拡・フォルダ</button>
-                      <button className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-bold rounded-lg border border-purple-300 transition-colors"
-                        onClick={async () => {
-                          try {
-                            const [fh] = await (window as any).showOpenFilePicker({ multiple: false, types: [{ description: "図面・PDF", accept: { "image/*": [], "application/pdf": [".pdf"] } }] });
-                            const file: File = await fh.getFile();
-                            const fp2 = await getFullPath(fh) ?? file.name;
-                            console.log("[DRAW_1ADD] 選択:", file.name, "フルパス:", fp2);
-                            await handleFileUpload(file, "DRAWING", fp2);
-                          } catch(e: any) { if (e.name !== "AbortError") showToast("❌ " + e.message); }
-                        }}>
-                        1枚追加
-                      </button>
+                      <button className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-40"
+                        disabled={fileUploading}
+                        onClick={() => requestNewUpload("DRAWING", "folder")}>複数選拡・フォルダ</button>
+                      <button className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-bold rounded-lg border border-purple-300 transition-colors disabled:opacity-40"
+                        disabled={fileUploading}
+                        onClick={() => requestNewUpload("DRAWING", "file")}>1枚追加</button>
                     </div>
                   </div>
-                  <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center text-xs text-slate-400"
-                    onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("border-purple-400","bg-purple-50"); }}
-                    onDragLeave={e => e.currentTarget.classList.remove("border-purple-400","bg-purple-50")}
-                    onDrop={e => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove("border-purple-400","bg-purple-50");
-                      const droppedFiles = Array.from(e.dataTransfer.files);
-                      if (droppedFiles.length === 1) { handleFileUpload(droppedFiles[0], "DRAWING"); return; }
-                      if (droppedFiles.length > 1) {
-                        setDrawingPreviewFiles(droppedFiles.map(f => ({
-                          file: f,
-                          url: f.type.startsWith("image/") ? URL.createObjectURL(f) : "",
-                          selected: true,
-                        })));
-                        setDrawingPreviewOpen(true);
-                      }
-                    }}>
-                    D&Dでも追加できます（複数対応）
-                  </div>
+                  <p className="text-[11px] text-slate-400 text-center py-2">UploadAgentでファイル選択ダイアログが開きます</p>
                 </div>
+
                 {/* 📷 写真セクション */}
                   {files.filter((f: any) => f.file_type === "PHOTO").length > 0 && (
                     <div className="mb-5">
@@ -1846,10 +1706,7 @@ export default function McEditPage() {
                       <div className="grid grid-cols-3 gap-3">
                         {files.filter((f: any) => f.file_type === "PHOTO").map((f: any) => (
                           <div key={f.id}
-                            className={`bg-white rounded-xl border-2 overflow-hidden shadow-sm transition-all ${replaceDragOver === f.id ? "border-yellow-400 bg-yellow-50 scale-105" : "border-teal-300"}`}
-                            onDragOver={e => { e.preventDefault(); setReplaceDragOver(f.id); }}
-                            onDragLeave={() => setReplaceDragOver(null)}
-                            onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleReplace(f.id, file); }}>
+                            className="bg-white rounded-xl border-2 overflow-hidden shadow-sm transition-all border-teal-300">
                             <div className="aspect-square bg-teal-50 flex items-center justify-center overflow-hidden relative">
                               {replacingId === f.id && (
                                 <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
@@ -1868,19 +1725,11 @@ export default function McEditPage() {
                             <div className="px-2 py-1.5 bg-teal-50 border-t border-teal-200">
                               <p className="text-[11px] text-teal-800 font-bold truncate mb-1">{f.stored_name ?? f.original_name}</p>
                               <div className="flex items-center gap-1.5 mt-1">
-                                <label className="flex-1 flex items-center justify-center gap-1 text-[11px] border-2 border-yellow-400 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 font-bold rounded-lg cursor-pointer px-2 py-1 transition-colors">
+                                <button className="flex-1 flex items-center justify-center gap-1 text-[11px] border-2 border-yellow-400 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 font-bold rounded-lg px-2 py-1 transition-colors disabled:opacity-40"
+                                  disabled={replacingId !== null}
+                                  onClick={() => requestReplaceUpload(f.id, "PHOTO")}>
                                   🔄 差し替え
-                                  <input type="file" className="hidden" disabled={replacingId !== null}
-                                    onClick={async () => {
-                                        try {
-                                          const [fh] = await (window as any).showOpenFilePicker({ multiple: false });
-                                          const file: File = await fh.getFile();
-                                          const fp = await getFullPath(fh) ?? file.name;
-                                          console.log("[REPLACE_PICK] 差し替えファイル:", file.name, "フルパス:", fp);
-                                          await handleReplace(f.id, file, fp);
-                                        } catch(e2: any) { if (e2.name !== "AbortError") showToast("❌ " + e2.message); }
-                                      }} />
-                                </label>
+                                </button>
                                 <button onClick={async () => {
                                     if (!token || !window.confirm("削除しますか？")) return;
                                     await mcFilesApi.delete(mcId, f.id, token);
@@ -1927,11 +1776,11 @@ export default function McEditPage() {
                             <div className="px-2 py-1.5 bg-purple-50 border-t border-purple-200">
                               <p className="text-[11px] text-purple-800 font-bold truncate mb-1">{f.stored_name ?? f.original_name}</p>
                               <div className="flex items-center gap-1.5 mt-1">
-                                <label className="flex-1 flex items-center justify-center gap-1 text-[11px] border-2 border-yellow-400 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 font-bold rounded-lg cursor-pointer px-2 py-1 transition-colors">
+                                <button className="flex-1 flex items-center justify-center gap-1 text-[11px] border-2 border-yellow-400 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 font-bold rounded-lg px-2 py-1 transition-colors disabled:opacity-40"
+                                  disabled={replacingId !== null}
+                                  onClick={() => requestReplaceUpload(f.id, "DRAWING")}>
                                   🔄 差し替え
-                                  <input type="file" className="hidden" disabled={replacingId !== null}
-                                    onChange={e => { const file = e.target.files?.[0]; if (file) handleReplace(f.id, file); e.target.value = ""; }} />
-                                </label>
+                                </button>
                                 <button onClick={async () => {
                                     if (!token || !window.confirm("削除しますか？")) return;
                                     await mcFilesApi.delete(mcId, f.id, token);

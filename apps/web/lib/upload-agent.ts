@@ -1,16 +1,19 @@
 /**
  * upload-agent.ts — MachCore UploadAgent (localhost:57300) 連携ライブラリ
+ *
+ * 新アーキテクチャ（Agent側ダイアログ方式）:
+ * Web はファイル選択を一切行わず、Agentへ「ダイアログを開いてアップロードしろ」と
+ * 依頼するだけ。ダイアログ表示・重複確認・アップロード・削除はすべてAgent内で完結する。
+ *
+ * セキュリティは3層防御:
+ *  1. Origin検証 (Agent側): MachCore正規オリジン以外のリクエストを拒否
+ *  2. ワンタイムチケット: BearerトークンはAgentに渡さず、60秒・1回限りのチケットを発行して渡す
+ *  3. 接続先固定: AgentはMachCore APIのURLを自身のappsettings.jsonから読む（Webから指定させない）
  */
 const AGENT_BASE = "http://localhost:57300";
 const TIMEOUT_MS = 3000;
 
 export type AgentHealth = { status: string; version: string; token: string };
-export type AgentMoveResult = {
-  agentAvailable: boolean;
-  success: boolean;
-  moved:   string[];
-  failed:  { path: string; error: string }[];
-};
 
 export async function getAgentToken(): Promise<string | null> {
   try {
@@ -27,102 +30,95 @@ export async function isAgentOnline(): Promise<boolean> {
   return token !== null;
 }
 
-export async function notifyAgentMove(
-  absolutePaths: string[],
-  operatorId?: number,
-): Promise<AgentMoveResult> {
-  const token = await getAgentToken();
-  if (!token) return { agentAvailable: false, success: false, moved: [], failed: [] };
-  try {
-    const res = await fetch(`${AGENT_BASE}/move`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json", "X-Agent-Token": token },
-      body:    JSON.stringify({ paths: absolutePaths, reason: "upload_complete", operator_id: operatorId ?? null }),
-      signal:  AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return { agentAvailable: true, success: false, moved: [], failed: absolutePaths.map(p => ({ path: p, error: `HTTP ${res.status}` })) };
-    const json = await res.json();
-    return {
-      agentAvailable: true,
-      success:        json.success ?? false,
-      moved:          (json.moved ?? []).map((m: any) => m.original as string),
-      failed:         json.failed  ?? [],
-    };
-  } catch { return { agentAvailable: false, success: false, moved: [], failed: [] }; }
-}
+export type AgentUploadedFile = {
+  fileName:      string;
+  storedName?:   string;
+  duplicate:     boolean;   // 既存ファイルとの重複があり trash へ退避したか
+  sourceDeleted: boolean;   // 元ファイル（USB/ローカル）の削除に成功したか
+};
 
-export async function getRemovableDrives(): Promise<{ letter: string; label: string; totalBytes: number; freeBytes: number }[]> {
-  const token = await getAgentToken();
-  if (!token) return [];
-  try {
-    const res = await fetch(`${AGENT_BASE}/drives`, { headers: { "X-Agent-Token": token }, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    if (!res.ok) return [];
-    return (await res.json()).drives ?? [];
-  } catch { return []; }
-}
+export type AgentPickAndUploadResult = {
+  ok:        boolean;
+  message?:  string;
+  uploaded?: AgentUploadedFile[];
+};
 
 /**
- * FileSystemFileHandle からフルパスを取得する。
- * File System Access API の storageRoot.resolve() でブラウザのOrigin Private File System
- * からの相対パス配列を取得し、ドライブ一覧と組み合わせてWindowsフルパスを構築する。
- * 取得できない場合は null を返す。
+ * Agentへ「ファイル選択ダイアログを開いてアップロードしろ」と依頼する。
+ * Bearerトークンそのものは渡さず、MachCore APIで発行したワンタイムチケットのみを渡す。
+ *
+ * 処理フロー（Agent側で完結）:
+ *  1. ネイティブファイル/フォルダ選択ダイアログを表示
+ *  2. 選択されたファイルを MachCore API (upload-by-ticket) へ直接アップロード
+ *  3. アップロード成功を確認後、ローカル元ファイルを .machcore_trash へ移動
+ *  4. 結果をWebへ返す
  */
-export async function getFullPath(fileHandle: FileSystemFileHandle): Promise<string | null> {
-  try {
-    // まず OPFS (Origin Private File System) root から resolve を試みる
-    const root = await (navigator.storage as any).getDirectory();
-    const parts: string[] | null = await root.resolve(fileHandle);
-    if (parts && parts.length > 0) {
-      // OPFS内のパス → 通常は null になる（ローカルファイルはOPFS外）
-      console.log("[getFullPath] OPFS resolve:", parts);
-    }
-  } catch { /* OPFS resolve 失敗は無視 */ }
+export async function requestAgentPickAndUpload(params: {
+  mcId: number;
+  token: string;
+  fileType: 'PHOTO' | 'DRAWING' | 'PROGRAM';
+  mode: 'file' | 'folder';
+  replaceFileId?: number;
+}): Promise<AgentPickAndUploadResult> {
+  const { mcId, token, fileType, mode, replaceFileId } = params;
 
-  // Agent のドライブ一覧を取得してファイル名とサイズでマッチング
-  const token = await getAgentToken();
-  if (!token) return null;
-
+  // ① MachCore API でワンタイムチケットを発行（通常のBearer認証）
+  console.log("[AGENT_UPLOAD] チケット発行リクエスト:", { mcId, fileType, mode, replaceFileId });
+  let ticketRes: Response;
   try {
-    const file = await fileHandle.getFile();
-    // GET /drives でリムーバブルドライブ一覧取得
-    const drivesRes = await fetch(`${AGENT_BASE}/drives`, {
-      headers: { "X-Agent-Token": token },
-      signal: AbortSignal.timeout(3000),
+    ticketRes = await fetch(`/api/mc/${mcId}/files/upload-ticket`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        file_type: fileType,
+        replace_file_id: replaceFileId,
+        is_folder_upload: mode === "folder",
+      }),
     });
-    if (!drivesRes.ok) return null;
-    const { drives } = await drivesRes.json() as { drives: { letter: string }[] };
+  } catch (e: any) {
+    console.error("[AGENT_UPLOAD] チケット発行通信エラー:", e);
+    return { ok: false, message: "チケット発行に失敗しました（通信エラー）" };
+  }
+  if (!ticketRes.ok) {
+    console.error("[AGENT_UPLOAD] チケット発行失敗:", ticketRes.status);
+    return { ok: false, message: `チケット発行に失敗しました（HTTP ${ticketRes.status}）` };
+  }
+  const ticketJson = await ticketRes.json();
+  const ticket = ticketJson.ticket as string;
+  console.log("[AGENT_UPLOAD] チケット発行成功:", ticket, "有効期限:", ticketJson.expires_in_sec, "秒");
 
-    // 各ドライブ下のファイルを Agent の /scan エンドポイントで探索
-    // → /scan が未実装のため、フォールバックとして DataTransfer path を試みる
-    // Chrome では File オブジェクトの非標準プロパティ path が存在することがある
-    const anyFile = file as any;
-    if (anyFile.path && typeof anyFile.path === "string" && anyFile.path.length > 3) {
-      console.log("[getFullPath] file.path:", anyFile.path);
-      return anyFile.path;
+  // ② Agentへチケットのみを渡してダイアログ表示〜アップロードを依頼
+  const agentToken = await getAgentToken();
+  if (!agentToken) {
+    return { ok: false, message: "UploadAgentが起動していません" };
+  }
+
+  const endpoint = mode === "folder" ? "/pick-folder-and-upload" : "/pick-and-upload";
+  console.log("[AGENT_UPLOAD] Agentへ依頼:", endpoint);
+  try {
+    const res = await fetch(`${AGENT_BASE}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Agent-Token": agentToken },
+      body: JSON.stringify({ ticket, file_type: fileType }),
+      // ダイアログ表示〜ユーザー操作待ちのため長めのタイムアウト（5分）
+      signal: AbortSignal.timeout(5 * 60 * 1000),
+    });
+    const json = await res.json();
+    console.log("[AGENT_UPLOAD] Agentレスポンス:", res.status, json);
+
+    if (!res.ok) {
+      return { ok: false, message: json.message ?? json.error ?? `Agentエラー（HTTP ${res.status}）` };
     }
-
-    // webkitRelativePath があれば使う（フォルダ選択時のみ設定される）
-    if (file.webkitRelativePath && file.webkitRelativePath.length > 0) {
-      for (const d of drives) {
-        const candidate = `${d.letter}\\${file.webkitRelativePath.replace(/\//g, "\\")}`;
-        console.log("[getFullPath] webkitRelativePath candidate:", candidate);
-        return candidate;
-      }
+    if (json.cancelled) {
+      console.log("[AGENT_UPLOAD] ユーザーがダイアログをキャンセル");
+      return { ok: false, message: "ファイル選択がキャンセルされました" };
     }
-
-    // 最終手段: ドライブ一覧の各ルートにファイル名を付けて返す
-    // Agent 側の IsAllowedPath でリムーバブルドライブかチェックされるため
-    // ドライブが1台なら確定パスとして使える
-    if (drives.length === 1) {
-      const fullPath = `${drives[0].letter}\\${file.name}`;
-      console.log("[getFullPath] single drive fallback:", fullPath);
-      return fullPath;
-    }
-
-    console.log("[getFullPath] パス特定不可 drives:", drives.length);
-    return null;
-  } catch(e) {
-    console.warn("[getFullPath] エラー:", e);
-    return null;
+    return {
+      ok: true,
+      uploaded: (json.uploaded ?? []) as AgentUploadedFile[],
+    };
+  } catch (e: any) {
+    console.error("[AGENT_UPLOAD] Agent通信エラー:", e);
+    return { ok: false, message: "UploadAgentとの通信に失敗しました: " + (e.message ?? "不明なエラー") };
   }
 }
