@@ -1,4 +1,5 @@
 "use client";
+import { AdminLayout } from "@/components/admin/AdminLayout";
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
