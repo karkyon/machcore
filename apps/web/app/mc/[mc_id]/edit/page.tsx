@@ -1,5 +1,5 @@
 "use client";
-import { isAgentOnline, notifyAgentMove } from "@/lib/upload-agent";
+import { isAgentOnline, notifyAgentMove, getFullPath } from "@/lib/upload-agent";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, mcFilesApi, machinesApi, usersApi, clampMasterApi, McDetail, Machine, UserInfo } from "@/lib/api";
@@ -647,7 +647,9 @@ export default function McEditPage() {
         setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
         const refreshed = await mcApi.findOne(mcId);
         setDetail((refreshed as any).data ?? refreshed);
-        const sMR = await notifyAgentMove([file.name]);
+        const pgFilePath = await getFullPath(fileHandle) ?? file.name;
+        console.log("[PG_UPLOAD] PGフルパス:", pgFilePath);
+        const sMR = await notifyAgentMove([pgFilePath]);
         console.log("[PG_UPLOAD] Agent移動結果(単体):", sMR);
         showToast(sMR.agentAvailable ? `✅ ${newName} 登録完了。元ファイルをゴミ箱に移動しました` : `✅ ${newName} 登録完了（UploadAgent未起動 - 元ファイルは手動削除）`);
       } else {
@@ -658,7 +660,8 @@ export default function McEditPage() {
           if (fh.kind !== "file") continue;
           const f: File = await (fh as FileSystemFileHandle).getFile();
           if (f.size > MAX_PG_BYTES) { showToast(`❌ ${name} はサイズ上限超過のためスキップ`); continue; }
-          fileEntries.push({ name, file: f });
+          const entryPath = await getFullPath(fh as FileSystemFileHandle) ?? name;
+          fileEntries.push({ name, file: f, fullPath: entryPath });
         }
         if (fileEntries.length === 0) { showToast("⚠️ フォルダ内にファイルがありません"); return; }
         let count = 0;
@@ -678,7 +681,7 @@ export default function McEditPage() {
         setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
         const refreshed = await mcApi.findOne(mcId);
         setDetail((refreshed as any).data ?? refreshed);
-        const fMR = await notifyAgentMove(fileEntries.map(e => e.name));
+        const fMR = await notifyAgentMove(fileEntries.map(e => (e as any).fullPath ?? e.name));
         console.log("[PG_UPLOAD] Agent移動結果(フォルダ):", fMR);
         showToast(fMR.agentAvailable ? `✅ ${count}件登録完了。元ファイルをゴミ箱に移動しました` : `✅ ${count}件登録完了（UploadAgent未起動 - 元ファイルは手動削除）`);
       }
@@ -690,7 +693,7 @@ export default function McEditPage() {
     }
   };
 
-  const handleReplace = async (fileId: number, file: File) => {
+  const handleReplace = async (fileId: number, file: File, filePath?: string) => {
     console.log("[REPLACE] 差し替え開始", { fileId, name: file.name, size: file.size });
     if (!token) { showToast("認証が必要です"); return; }
 
@@ -734,12 +737,18 @@ export default function McEditPage() {
       setFiles((r as any).data ?? []);
       console.log("[REPLACE] ファイル一覧更新完了");
 
-      // ⑥ input経由のためローカル元パス不明 - Agent通知のみ
-      console.log("[REPLACE] Agent移動通知 (input経由のためパス不明):", file.name);
-      const moveResult = await notifyAgentMove([file.name]);
-      console.log("[REPLACE] Agent移動結果:", moveResult);
-
-      showToast(`✅ 差し替え完了（${file.name}）元ファイルはゴミ箱に移動しました`);
+      // ⑥ filePath があれば使用、なければファイル名のみ
+      const replacePaths = filePath ? [filePath] : [];
+      console.log("[REPLACE] Agent移動通知:", replacePaths.length ? replacePaths : "(パス不明)");
+      let replaceOk = false;
+      if (replacePaths.length > 0) {
+        const moveResult = await notifyAgentMove(replacePaths);
+        console.log("[REPLACE] Agent移動結果:", moveResult);
+        replaceOk = moveResult.success && moveResult.moved.length > 0;
+      }
+      showToast(replacePaths.length > 0 && replaceOk
+        ? `✅ 差し替え完了（${file.name}）元ファイルをゴミ箱に移動しました`
+        : `✅ 差し替え完了（${file.name}）⚠️ 元ファイル移動失敗 - 手動削除してください`);
     } catch (e: any) {
       console.error("[REPLACE] エラー:", e);
       showToast("❌ 差し替え失敗: " + (e.message ?? "エラー"));
@@ -1737,8 +1746,9 @@ export default function McEditPage() {
                           try {
                             const [fh] = await (window as any).showOpenFilePicker({ multiple: false, types: [{ description: "画像", accept: { "image/*": [] } }] });
                             const file: File = await fh.getFile();
-                            console.log("[PHOTO_1ADD] 選択:", file.name);
-                            await handleFileUpload(file, "PHOTO", fh.name ?? file.name);
+                            const fp1 = await getFullPath(fh) ?? file.name;
+                            console.log("[PHOTO_1ADD] 選択:", file.name, "フルパス:", fp1);
+                            await handleFileUpload(file, "PHOTO", fp1);
                           } catch(e: any) { if (e.name !== "AbortError") showToast("❌ " + e.message); }
                         }}>
                         1枚追加
@@ -1797,8 +1807,9 @@ export default function McEditPage() {
                           try {
                             const [fh] = await (window as any).showOpenFilePicker({ multiple: false, types: [{ description: "図面・PDF", accept: { "image/*": [], "application/pdf": [".pdf"] } }] });
                             const file: File = await fh.getFile();
-                            console.log("[DRAW_1ADD] 選択:", file.name);
-                            await handleFileUpload(file, "DRAWING", fh.name ?? file.name);
+                            const fp2 = await getFullPath(fh) ?? file.name;
+                            console.log("[DRAW_1ADD] 選択:", file.name, "フルパス:", fp2);
+                            await handleFileUpload(file, "DRAWING", fp2);
                           } catch(e: any) { if (e.name !== "AbortError") showToast("❌ " + e.message); }
                         }}>
                         1枚追加
@@ -1860,7 +1871,15 @@ export default function McEditPage() {
                                 <label className="flex-1 flex items-center justify-center gap-1 text-[11px] border-2 border-yellow-400 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 font-bold rounded-lg cursor-pointer px-2 py-1 transition-colors">
                                   🔄 差し替え
                                   <input type="file" className="hidden" disabled={replacingId !== null}
-                                    onChange={e => { const file = e.target.files?.[0]; if (file) handleReplace(f.id, file); e.target.value = ""; }} />
+                                    onClick={async () => {
+                                        try {
+                                          const [fh] = await (window as any).showOpenFilePicker({ multiple: false });
+                                          const file: File = await fh.getFile();
+                                          const fp = await getFullPath(fh) ?? file.name;
+                                          console.log("[REPLACE_PICK] 差し替えファイル:", file.name, "フルパス:", fp);
+                                          await handleReplace(f.id, file, fp);
+                                        } catch(e2: any) { if (e2.name !== "AbortError") showToast("❌ " + e2.message); }
+                                      }} />
                                 </label>
                                 <button onClick={async () => {
                                     if (!token || !window.confirm("削除しますか？")) return;
