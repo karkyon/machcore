@@ -78,9 +78,7 @@ export default function UploadAgentPage() {
   const fmtBytes = (b: number) => b < 1024 * 1024 ? `${(b/1024).toFixed(1)} KB` : `${(b/1024/1024).toFixed(1)} MB`;
 
   return (
-    <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
-
-
+    <AdminLayout pathname={pathname}>
 
         <main className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
           <div className="flex items-center justify-between">

@@ -116,7 +116,6 @@ export default function AdminSettingsPage() {
     finally { setSaving(false); }
   };
 
-
   const saveCronSettings = async () => {
     const token = getToken();
     setCronSaving(true);
@@ -179,15 +178,13 @@ export default function AdminSettingsPage() {
     } catch (e: any) { showToast("失敗: " + e.message, false); }
   };
   return (
-    <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
-
+    <AdminLayout pathname={pathname}>
 
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-white text-sm font-bold ${toast.ok ? "bg-green-600" : "bg-red-600"}`}>
           {toast.msg}
         </div>
       )}
-
 
         <main className="flex-1 overflow-y-auto flex flex-col p-5 gap-3">
           <div className="flex items-center justify-between shrink-0">

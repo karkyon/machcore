@@ -80,11 +80,9 @@ export default function CalendarPage() {
   const nextMonth = () => { if (month === 12) { setYear(y => y+1); setMonth(1); } else setMonth(m => m+1); };
 
   return (
-    <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
-
+    <AdminLayout pathname={pathname}>
 
       {toast && <div className={"fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow text-white text-sm font-bold " + (toast.ok ? "bg-green-600" : "bg-red-600")}>{toast.msg}</div>}
-
 
         <main className="flex-1 overflow-hidden flex flex-col p-4 gap-2">
           <div className="flex flex-col gap-2 min-h-0 flex-1">

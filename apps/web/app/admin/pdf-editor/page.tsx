@@ -362,8 +362,6 @@ export default function PdfEditorPage() {
 
       {/* ── ヘッダー ── */}
 
-
-
         {/* ── サイドバー ── */}
 
         <div className="flex flex-1 min-w-0 overflow-hidden">

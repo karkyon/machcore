@@ -155,15 +155,13 @@ export default function TimecardPage() {
   const dirtyCount = filteredRows.filter(r => r.dirty).length;
 
   return (
-    <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
-
+    <AdminLayout pathname={pathname}>
 
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-white text-sm font-bold ${toastOk ? "bg-green-600" : "bg-red-600"}`}>
           {toast}
         </div>
       )}
-
 
         <main className="flex-1 overflow-hidden flex flex-col p-5 gap-3">
           <div className="flex items-center justify-between shrink-0">

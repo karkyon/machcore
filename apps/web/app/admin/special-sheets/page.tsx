@@ -160,15 +160,13 @@ export default function SpecialSheetsPage() {
   });
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50">
-
+    <AdminLayout pathname={pathname}>
 
       {toast && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl text-white text-sm font-bold shadow-lg ${toast.ok ? "bg-green-600" : "bg-red-600"}`}>
           {toast.msg}
         </div>
       )}
-
 
         <main className="flex-1 overflow-y-auto flex flex-col p-5 gap-3">
           <div className="flex items-center justify-between shrink-0">

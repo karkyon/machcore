@@ -72,22 +72,7 @@ export default function AdminRawPage() {
   const totalPages = Math.ceil(total / limit);
 
     return (
-    <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
-      <header className="bg-white border-b border-slate-200 px-5 py-2.5 flex items-center gap-3 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded bg-sky-600 flex items-center justify-center">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
-          </div>
-          <span className="text-sm font-bold text-slate-800 tracking-wide">MachCore 管理パネル</span>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          <a href="/" className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded transition-colors">← ダッシュボード</a>
-          <button onClick={() => { sessionStorage.removeItem("admin_token"); router.push("/admin/login"); }}
-            className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded transition-colors">
-            ログアウト
-          </button>
-        </div>
-      </header>
+    <AdminLayout pathname={pathname}>
         <main className="flex-1 overflow-hidden flex flex-col p-5 gap-3">
         <div className="flex items-center justify-between shrink-0">
           <h1 className="text-xl font-bold text-slate-800">RAWデータ</h1>
