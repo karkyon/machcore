@@ -360,10 +360,6 @@ export default function PdfEditorPage() {
         </div>
       )}
 
-      {/* ── ヘッダー ── */}
-
-        {/* ── サイドバー ── */}
-
         <div className="flex flex-1 min-w-0 overflow-hidden">
 
           {/* ① 左コントロールペイン: w-72 → w-96 に拡大 */}
