@@ -1,4 +1,5 @@
 "use client";
+import { isAgentOnline, notifyAgentMove } from "@/lib/upload-agent";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, mcFilesApi, machinesApi, usersApi, clampMasterApi, McDetail, Machine, UserInfo } from "@/lib/api";
@@ -318,20 +319,45 @@ export default function McEditPage() {
     mcApi.listFiles(mcId).then(r => setFiles((r as any).data ?? [])).catch(() => {});
   }, [mcId]);
 
+  // ── ファイルサイズ上限 ──
+  const MAX_PHOTO_DRAWING_BYTES = 100 * 1024 * 1024; // 100MB
+
   const handleFileUpload = async (file: File, fileType?: 'PHOTO' | 'DRAWING') => {
     if (!token) return;
+    if (file.size > MAX_PHOTO_DRAWING_BYTES) {
+      setFileUploadMsg(`❌ ファイルサイズ上限(100MB)超過: ${(file.size/1024/1024).toFixed(1)}MB`);
+      return;
+    }
+    const agentOnline = await isAgentOnline();
+    if (agentOnline) {
+      const ok = window.confirm(
+        `【アップロード元ファイルの削除確認】\n` +
+        `ファイル名: ${file.name}\n` +
+        `サイズ: ${(file.size/1024/1024).toFixed(2)} MB\n\n` +
+        `アップロード完了後、元ファイルはゴミ箱フォルダ(.machcore_trash)へ自動移動されます。\n続行しますか？`
+      );
+      if (!ok) return;
+    }
     setFileUploading(true);
     setFileUploadMsg(null);
     try {
-      await mcFilesApi.upload(mcId, file, token, fileType);
+      const res = await mcFilesApi.upload(mcId, file, token, fileType);
+      const uploaded = (res as any).data ?? res;
       const r = await mcApi.listFiles(mcId);
-      setFiles((r as any).data ?? []);
-      setFileUploadMsg("✅ アップロード完了");
-    } catch {
-      setFileUploadMsg("❌ アップロード失敗");
+      const newFiles = (r as any).data ?? [];
+      setFiles(newFiles);
+      const uploadedId = uploaded?.id;
+      const confirmed = uploadedId ? newFiles.some((f: any) => f.id === uploadedId) : newFiles.length > 0;
+      if (!confirmed) { setFileUploadMsg("⚠️ アップロードを確認できませんでした"); return; }
+      // input[type=file]経由は絶対パス取得不可のためAgent trash移動はスキップ
+      setFileUploadMsg(agentOnline
+        ? `✅ アップロード完了（${file.name}）`
+        : `✅ アップロード完了（${file.name}）※UploadAgent未起動 - 元ファイルは手動削除`);
+    } catch (err: any) {
+      setFileUploadMsg("❌ アップロード失敗: " + (err.message ?? "不明なエラー"));
     } finally {
       setFileUploading(false);
-      setTimeout(() => setFileUploadMsg(null), 3000);
+      setTimeout(() => setFileUploadMsg(null), 5000);
     }
   };
 
@@ -527,24 +553,21 @@ export default function McEditPage() {
 
   // PGファイルをUSBから登録（単体 or フォルダ）
   // アップロード完了後、将来の UploadAgent.exe へ削除依頼を送信（現時点はメッセージのみ）
-  const notifyUploadAgent = async (filePaths: string[]) => {
-    try {
-      await fetch("http://localhost:57300/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paths: filePaths }),
-        signal: AbortSignal.timeout(2000),
-      });
-      console.log("[UploadAgent] 削除依頼送信:", filePaths);
-    } catch {
-      console.log("[UploadAgent] 未接続(未インストール or 起動待ち)");
-    }
-  };
 
   // PGファイルをUSBから登録（単体 or フォルダ）
+  const MAX_PG_BYTES = 10 * 1024 * 1024; // PG上限10MB
+
   const handlePgUploadFromUSB = async (mode: "file" | "folder") => {
     if (!token) { showToast("❌ 認証が必要です"); return; }
     setPgUploadModalOpen(false);
+    const pgAgentOnline = await isAgentOnline();
+    if (pgAgentOnline) {
+      const ok = window.confirm(
+        `【PGファイルアップロード - 元ファイル削除確認】\n` +
+        `アップロード完了後、元ファイルはゴミ箱(.machcore_trash)へ自動移動されます。\n続行しますか？`
+      );
+      if (!ok) return;
+    }
     setPgUploading(true);
     const machId = String(detail?.machiningId ?? "");
     try {
@@ -552,6 +575,7 @@ export default function McEditPage() {
         // 単体ファイル: showOpenFilePicker
         const [fileHandle] = await (window as any).showOpenFilePicker({ multiple: false });
         const file: File = await fileHandle.getFile();
+        if (file.size > MAX_PG_BYTES) { showToast(`❌ PGサイズ上限(10MB)超過: ${(file.size/1024/1024).toFixed(2)}MB`); setPgUploading(false); return; }
         const ext = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : "";
         const newName = machId + ext;
         const renamedFile = new File([file], newName, { type: file.type });
@@ -568,8 +592,9 @@ export default function McEditPage() {
         const refreshed = await mcApi.findOne(mcId);
         setDetail((refreshed as any).data ?? refreshed);
         // UploadAgentへ削除依頼（将来実装備え）
-        await notifyUploadAgent([file.name]);
-        showToast(`✅ ${newName} 登録完了。USB元ファイルの削除は UploadAgent に依頼済み（未インストールの場合は手動で削除してください）`);
+        await notifyAgentMove([file.name]);
+        const sMR = await notifyAgentMove([file.name]);
+        showToast(sMR.agentAvailable ? `✅ ${newName} 登録完了。元ファイルをゴミ箱に移動しました` : `✅ ${newName} 登録完了（UploadAgent未起動 - 元ファイルは手動削除）`);
       } else {
         // フォルダ: showDirectoryPicker → 全ファイルを先に収集してからアップロード
         const dirHandle = await (window as any).showDirectoryPicker({ mode: "read" });
@@ -577,6 +602,7 @@ export default function McEditPage() {
         for await (const [name, fh] of dirHandle.entries()) {
           if (fh.kind !== "file") continue;
           const f: File = await (fh as FileSystemFileHandle).getFile();
+          if (f.size > MAX_PG_BYTES) { showToast(`❌ ${name} はサイズ上限超過のためスキップ`); continue; }
           fileEntries.push({ name, file: f });
         }
         if (fileEntries.length === 0) { showToast("⚠️ フォルダ内にファイルがありません"); return; }
@@ -596,10 +622,8 @@ export default function McEditPage() {
         setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
         const refreshed = await mcApi.findOne(mcId);
         setDetail((refreshed as any).data ?? refreshed);
-        // UploadAgentへ削除依頼（将来実装備え）
-        const agentPaths = fileEntries.map(e => e.name);
-        await notifyUploadAgent(agentPaths);
-        showToast(`✅ ${count}件登録完了。USB元ファイルの削除は UploadAgent に依頼済み（未インストールの場合は手動で削除してください）`);
+        const fMR = await notifyAgentMove(fileEntries.map(e => e.name));
+        showToast(fMR.agentAvailable ? `✅ ${count}件登録完了。元ファイルをゴミ箱に移動しました` : `✅ ${count}件登録完了（UploadAgent未起動 - 元ファイルは手動削除）`);
       }
     } catch (e: any) {
       if (e.name === "AbortError") { setPgUploading(false); return; }
@@ -611,12 +635,22 @@ export default function McEditPage() {
 
   const handleReplace = async (fileId: number, file: File) => {
     if (!token) { showToast("認証が必要です"); return; }
+    if (file.size > MAX_PHOTO_DRAWING_BYTES) {
+      showToast(`❌ ファイルサイズ上限(100MB)超過: ${(file.size/1024/1024).toFixed(1)}MB`);
+      return;
+    }
+    const ok = window.confirm(
+      `【差し替え確認】\nファイル名: ${file.name}\nサイズ: ${(file.size/1024/1024).toFixed(2)} MB\n\n` +
+      `既存ファイルはサーバの /trash フォルダへ移動されます。\n続行しますか？`
+    );
+    if (!ok) return;
     setReplacingId(fileId);
     try {
       await mcFilesApi.replace(mcId, fileId, file, token);
       const r = await mcApi.listFiles(mcId);
       setFiles((r as any).data ?? []);
-      showToast("✅ 差し替え完了");
+      const repAgentOnline = await isAgentOnline();
+      showToast(`✅ 差し替え完了（${file.name}）${repAgentOnline ? "" : " ※UploadAgent未起動"}`);
     } catch (e: any) {
       showToast("❌ 差し替え失敗: " + (e.message ?? "エラー"));
     } finally {
