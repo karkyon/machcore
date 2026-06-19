@@ -1306,29 +1306,37 @@ export class AdminController {
   async deployUploadAgent(@Req() req: any, @Res() reply: FastifyReply) {
     const fs   = await import('fs');
     const path = await import('path');
-    const data = await req.file();
-    if (!data) { reply.code(400).send({ message: 'ファイルがありません' }); return; }
-    const buf  = await data.toBuffer();
+
+    let fileBuffer: Buffer | null = null;
+    let version = '1.1.1';
+
+    for await (const part of req.parts()) {
+      if ('file' in part) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of (part as any).file) chunks.push(chunk as Buffer);
+        fileBuffer = Buffer.concat(chunks);
+      } else if ((part as any).fieldname === 'version') {
+        version = ((part as any).value ?? '').trim() || '1.1.1';
+      }
+    }
+
+    if (!fileBuffer) { reply.code(400).send({ message: 'ファイルがありません' }); return; }
+
     const certDir = '/var/www/machcore-cert';
     if (!fs.existsSync(certDir)) fs.mkdirSync(certDir, { recursive: true });
 
-    // バージョン番号をフィールドから取得
-    const version = (data.fields?.version?.value ?? '').trim() || '1.1.1';
-
-    // バージョン付きファイル名でも保存
     const versionedPath = path.join(certDir, `UploadAgent_Setup_v${version}.exe`);
     const latestPath    = path.join(certDir, 'UploadAgent_Setup_latest.exe');
-    fs.writeFileSync(versionedPath, buf);
+    fs.writeFileSync(versionedPath, fileBuffer);
     fs.copyFileSync(versionedPath, latestPath);
 
-    // system_settings にバージョン保存
     await this.prisma.systemSetting.upsert({
       where:  { key: 'upload_agent_version' },
       update: { value: version },
       create: { key: 'upload_agent_version', value: version, description: 'UploadAgent配布バージョン' },
     });
 
-    reply.send({ message: `v${version} を配置しました`, version, size_bytes: buf.length });
+    reply.send({ message: `v${version} を配置しました`, version, size_bytes: fileBuffer.length });
   }
 
 }
