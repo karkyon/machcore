@@ -655,7 +655,7 @@ export default function McEditPage() {
       } else {
         // フォルダ: showDirectoryPicker → 全ファイルを先に収集してからアップロード
         const dirHandle = await (window as any).showDirectoryPicker({ mode: "read" });
-        const fileEntries: Array<{ name: string; file: File }> = [];
+        const fileEntries: Array<{ name: string; file: File; fullPath: string }> = [];
         for await (const [name, fh] of dirHandle.entries()) {
           if (fh.kind !== "file") continue;
           const f: File = await (fh as FileSystemFileHandle).getFile();
