@@ -397,7 +397,7 @@ export default function PdfEditorPage() {
         {/* ── サイドバー ── */}
         <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5 overflow-y-auto">
           <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">メニュー</div>
-          {SIDEBAR_ITEMS.filter(i => i.href !== "/admin/pdf-editor" && i.href !== "/admin/special-sheets").map(item => (
+          {SIDEBAR_ITEMS.filter(i => i.href !== "/admin/pdf-editor" && i.href !== "/admin/special-sheets" && i.href !== "/admin/upload-agent").map(item => (
             <a key={item.href} href={item.href}
               className={`mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors ${
                 pathname === item.href
@@ -411,7 +411,7 @@ export default function PdfEditorPage() {
             </a>
           ))}
           <div className="mx-3 my-1 border-t border-slate-200" />
-          {["/admin/pdf-editor", "/admin/special-sheets"].map(href => {
+          {["/admin/pdf-editor", "/admin/special-sheets", "/admin/upload-agent"].map(href => {
             const item = SIDEBAR_ITEMS.find(i => i.href === href)!;
             return (
               <a key={item.href} href={item.href}
