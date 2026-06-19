@@ -199,7 +199,15 @@ export default function UploadAgentPage() {
                 <label className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold cursor-pointer transition-colors">
                   📁 {deployFile ? deployFile.name : "ファイルを選択..."}
                   <input ref={fileRef} type="file" accept=".exe" className="hidden"
-                    onChange={e => setDeployFile(e.target.files?.[0] ?? null)} />
+                    onChange={e => {
+                    const f = e.target.files?.[0] ?? null;
+                    setDeployFile(f);
+                    if (f) {
+                      // ファイル名からバージョン自動検出: UploadAgent_Setup_vX.X.X.exe
+                      const m = f.name.match(/[Vv](\d+\.\d+\.\d+)/);
+                      if (m) setNewVersion(m[1]);
+                    }
+                  }} />
                 </label>
                 {deployFile && <span className="text-xs text-slate-400">{fmtBytes(deployFile.size)}</span>}
               </div>
