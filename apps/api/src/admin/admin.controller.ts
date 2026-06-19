@@ -1262,4 +1262,73 @@ export class AdminController {
     return { message: `${y}年の土日 ${count}日を休日登録しました`, count };
   }
 
+  // ══ UploadAgent 配布管理 ══
+
+  /** UA-01: 現在のバージョン情報取得 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('upload-agent/version')
+  async getUploadAgentVersion() {
+    const fs = await import('fs');
+    const certDir = '/var/www/machcore-cert';
+    const latestPath = `${certDir}/UploadAgent_Setup_latest.exe`;
+    const exists = fs.existsSync(latestPath);
+    const stat = exists ? fs.statSync(latestPath) : null;
+    const row = await this.prisma.systemSetting.findUnique({ where: { key: 'upload_agent_version' } });
+    return {
+      version:      row?.value ?? '1.1.1',
+      exists,
+      size_bytes:   stat?.size ?? 0,
+      updated_at:   stat?.mtime ?? null,
+      download_url: '/api/admin/upload-agent/download',
+    };
+  }
+
+  /** UA-02: exeダウンロード（HTTPS経由プロキシ） */
+  @Get('upload-agent/download')
+  async downloadUploadAgent(@Res() reply: FastifyReply) {
+    const fs = await import('fs');
+    const path = '/var/www/machcore-cert/UploadAgent_Setup_latest.exe';
+    if (!fs.existsSync(path)) {
+      reply.code(404).send({ message: 'ファイルが存在しません' });
+      return;
+    }
+    const stream = fs.createReadStream(path);
+    reply.header('Content-Type', 'application/octet-stream');
+    reply.header('Content-Disposition', 'attachment; filename="UploadAgent_Setup_latest.exe"');
+    return reply.send(stream);
+  }
+
+  /** UA-03: 新バージョンのexeをアップロードして配置 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('upload-agent/deploy')
+  async deployUploadAgent(@Req() req: any, @Res() reply: FastifyReply) {
+    const fs   = await import('fs');
+    const path = await import('path');
+    const data = await req.file();
+    if (!data) { reply.code(400).send({ message: 'ファイルがありません' }); return; }
+    const buf  = await data.toBuffer();
+    const certDir = '/var/www/machcore-cert';
+    if (!fs.existsSync(certDir)) fs.mkdirSync(certDir, { recursive: true });
+
+    // バージョン番号をフィールドから取得
+    const version = (data.fields?.version?.value ?? '').trim() || '1.1.1';
+
+    // バージョン付きファイル名でも保存
+    const versionedPath = path.join(certDir, `UploadAgent_Setup_v${version}.exe`);
+    const latestPath    = path.join(certDir, 'UploadAgent_Setup_latest.exe');
+    fs.writeFileSync(versionedPath, buf);
+    fs.copyFileSync(versionedPath, latestPath);
+
+    // system_settings にバージョン保存
+    await this.prisma.systemSetting.upsert({
+      where:  { key: 'upload_agent_version' },
+      update: { value: version },
+      create: { key: 'upload_agent_version', value: version, description: 'UploadAgent配布バージョン' },
+    });
+
+    reply.send({ message: `v${version} を配置しました`, version, size_bytes: buf.length });
+  }
+
 }
