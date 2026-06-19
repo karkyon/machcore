@@ -230,6 +230,6 @@ export default function AdminMachinesPage() {
           </div>
         </div>
       )}
-    </div>
+    </AdminLayout>
   );
 }
