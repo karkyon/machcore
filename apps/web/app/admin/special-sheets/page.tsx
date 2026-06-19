@@ -259,7 +259,6 @@ export default function SpecialSheetsPage() {
             </div>
           )}
         </main>
-      </div>
 
       {/* 編集/作成ダイアログ */}
       {dialogOpen && (
