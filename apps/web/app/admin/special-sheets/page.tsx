@@ -359,6 +359,6 @@ export default function SpecialSheetsPage() {
           </div>
         </div>
       )}
-    </div>
+    </AdminLayout>
   );
 }
