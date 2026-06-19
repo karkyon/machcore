@@ -119,7 +119,7 @@ export default function UploadAgentPage() {
             </h2>
             <p className="text-xs text-slate-500 mb-4">各クライアントPCにインストールしてください。インストール後は自動でスタートアップ登録されます。</p>
             <div className="flex flex-col gap-3">
-              <a href={`${DL_BASE}/UploadAgent_Setup_v${VERSION}.exe`}
+              <a href={`${DL_BASE}/UploadAgent_Setup_latest.exe`}
                 className="flex items-center gap-3 px-4 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold text-sm transition-colors w-fit">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 17l4 4 4-4M12 12v9"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
                 ⬇ UploadAgent_Setup_v{VERSION}.exe をダウンロード
