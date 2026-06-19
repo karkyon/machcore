@@ -1,5 +1,5 @@
 "use client";
-import { isAgentOnline, requestAgentPickAndUpload } from "@/lib/upload-agent";
+import { isAgentOnline, agentPickAndUpload, agentPickFolderAndUpload } from "@/lib/upload-agent";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, mcFilesApi, machinesApi, usersApi, clampMasterApi, McDetail, Machine, UserInfo } from "@/lib/api";
@@ -662,7 +662,6 @@ export default function McEditPage() {
     console.log("[PG_UPLOAD] Agent状態:", pgAgentOnline ? "ONLINE" : "OFFLINE");
     if (!pgAgentOnline) {
       const msg = "❌ UploadAgentが起動していません。PGファイルのアップロードには UploadAgent の起動が必要です。";
-      console.log("[PG_UPLOAD] Agentオフライン - ブロック");
       showToast(msg);
       window.alert(msg);
       return;
@@ -673,76 +672,42 @@ export default function McEditPage() {
     );
     if (!ok) { console.log("[PG_UPLOAD] ユーザキャンセル"); return; }
     setPgUploading(true);
-    const machId = String(detail?.machiningId ?? "");
     try {
-      if (mode === "file") {
-        // 単体ファイル: showOpenFilePicker
-        const [fileHandle] = await (window as any).showOpenFilePicker({ multiple: false });
-        const file: File = await fileHandle.getFile();
-        console.log("[PG_UPLOAD] 選択ファイル:", file.name, (file.size/1024).toFixed(1)+"KB");
-        if (file.size > MAX_PG_BYTES) { showToast(`❌ PGサイズ上限(10MB)超過: ${(file.size/1024/1024).toFixed(2)}MB`); setPgUploading(false); return; }
-        const ext = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : "";
-        const newName = machId + ext;
-        const renamedFile = new File([file], newName, { type: file.type });
-        const fd = new FormData();
-        fd.append("file", renamedFile);
-        fd.append("is_folder_upload", "false");
-        const res = await fetch(`/api/mc/${mcId}/files/upload`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: fd,
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
-        const refreshed = await mcApi.findOne(mcId);
-        setDetail((refreshed as any).data ?? refreshed);
-        const pgFilePath = await getFullPath(fileHandle) ?? file.name;
-        console.log("[PG_UPLOAD] PGフルパス:", pgFilePath);
-        const sMR = await notifyAgentMove([pgFilePath]);
-        console.log("[PG_UPLOAD] Agent移動結果(単体):", sMR);
-        showToast(sMR.agentAvailable ? `✅ ${newName} 登録完了。元ファイルをゴミ箱に移動しました` : `✅ ${newName} 登録完了（UploadAgent未起動 - 元ファイルは手動削除）`);
-      } else {
-        // フォルダ: showDirectoryPicker → 全ファイルを先に収集してからアップロード
-        const dirHandle = await (window as any).showDirectoryPicker({ mode: "read" });
-        const fileEntries: Array<{ name: string; file: File; fullPath: string }> = [];
-        for await (const [name, fh] of dirHandle.entries()) {
-          if (fh.kind !== "file") continue;
-          const f: File = await (fh as FileSystemFileHandle).getFile();
-          if (f.size > MAX_PG_BYTES) { showToast(`❌ ${name} はサイズ上限超過のためスキップ`); continue; }
-          const entryPath = await getFullPath(fh as FileSystemFileHandle) ?? name;
-          fileEntries.push({ name, file: f, fullPath: entryPath });
-        }
-        if (fileEntries.length === 0) { showToast("⚠️ フォルダ内にファイルがありません"); return; }
-        let count = 0;
-        for (const entry of fileEntries) {
-          const fd = new FormData();
-          fd.append("file", entry.file);
-          fd.append("is_folder_upload", "true");
-          const res = await fetch(`/api/mc/${mcId}/files/upload`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body: fd,
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          console.log("[PG_UPLOAD] フォルダ内ファイルアップロード完了:", entry.name);
-          count++;
-        }
-        setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
-        const refreshed = await mcApi.findOne(mcId);
-        setDetail((refreshed as any).data ?? refreshed);
-        const fMR = await notifyAgentMove(fileEntries.map(e => (e as any).fullPath ?? e.name));
-        console.log("[PG_UPLOAD] Agent移動結果(フォルダ):", fMR);
-        showToast(fMR.agentAvailable ? `✅ ${count}件登録完了。元ファイルをゴミ箱に移動しました` : `✅ ${count}件登録完了（UploadAgent未起動 - 元ファイルは手動削除）`);
+      console.log("[PG_UPLOAD] チケット発行中...", { mode });
+      const ticket = await issueUploadTicket({ fileType: "PROGRAM", isFolderUpload: mode === "folder" });
+      console.log("[PG_UPLOAD] チケット取得:", ticket);
+
+      const result = mode === "folder"
+        ? await agentPickFolderAndUpload(ticket)
+        : await agentPickAndUpload(ticket);
+      console.log("[PG_UPLOAD] Agentからの結果:", result);
+
+      if (result.cancelled) { console.log("[PG_UPLOAD] キャンセル"); setPgUploading(false); return; }
+      if (!result.success) {
+        showToast(`❌ ${result.error ?? "アップロードに失敗しました"}`);
+        setPgUploading(false);
+        return;
       }
+
+      setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
+      const refreshed = await mcApi.findOne(mcId);
+      setDetail((refreshed as any).data ?? refreshed);
+      setPgContent(null);
+
+      const n2 = result.files.length;
+      const delFailCount = result.files.filter((f: any) => !f.localDeleted).length;
+      let msg = `✅ ${n2}件登録完了`;
+      if (delFailCount > 0) msg += ` ⚠️ ${delFailCount}件は元ファイルの削除に失敗 - 手動削除してください`;
+      else msg += "。元ファイルをゴミ箱に移動しました";
+      console.log("[PG_UPLOAD] 完了:", msg, result.files);
+      showToast(msg);
     } catch (e: any) {
-      if (e.name === "AbortError") { setPgUploading(false); return; }
+      console.error("[PG_UPLOAD] エラー:", e);
       showToast("❌ アップロード失敗: " + (e.message || "不明なエラー"));
     } finally {
       setPgUploading(false);
     }
   };
-
-
   const handleSave = async () => {
     console.log("[EDIT] handleSave開始", { sbMode, sbRepeatMode, token: token ? "あり" : "なし", mcId,
       data: { machineId, oNumber, clampNote, cycleH, cycleM, cycleS, machiningQty, note, creatorId, sheetCreatedAt,
@@ -1750,11 +1715,7 @@ export default function McEditPage() {
                                   <span className="text-xs text-teal-600 font-bold animate-pulse">差し替え中...</span>
                                 </div>
                               )}
-                              {replaceDragOver === f.id && (
-                                <div className="absolute inset-0 bg-yellow-100/90 flex items-center justify-center z-10 pointer-events-none">
-                                  <span className="text-sm text-yellow-700 font-bold">ここにドロップして差し替え</span>
-                                </div>
-                              )}
+                              
                               <img src={`/api/mc/${mcId}/files/${f.id}/thumb`}
                                 alt={f.original_name} className="w-full h-full object-contain" loading="lazy"
                                 onError={e2 => { (e2.target as HTMLImageElement).style.display = "none"; }} />
@@ -1791,21 +1752,14 @@ export default function McEditPage() {
                       <div className="grid grid-cols-3 gap-3">
                         {files.filter((f: any) => f.file_type === "DRAWING").map((f: any) => (
                           <div key={f.id}
-                            className={`bg-white rounded-xl border-2 overflow-hidden shadow-sm transition-all ${replaceDragOver === f.id ? "border-yellow-400 bg-yellow-50 scale-105" : "border-purple-300"}`}
-                            onDragOver={e => { e.preventDefault(); setReplaceDragOver(f.id); }}
-                            onDragLeave={() => setReplaceDragOver(null)}
-                            onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleReplace(f.id, file); }}>
+                            className="bg-white rounded-xl border-2 overflow-hidden shadow-sm transition-all border-purple-300">
                             <div className="aspect-square bg-purple-50 flex items-center justify-center overflow-hidden relative">
                               {replacingId === f.id && (
                                 <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
                                   <span className="text-xs text-purple-600 font-bold animate-pulse">差し替え中...</span>
                                 </div>
                               )}
-                              {replaceDragOver === f.id && (
-                                <div className="absolute inset-0 bg-yellow-100/90 flex items-center justify-center z-10 pointer-events-none">
-                                  <span className="text-sm text-yellow-700 font-bold">ここにドロップして差し替え</span>
-                                </div>
-                              )}
+                              
                               <img src={`/api/mc/${mcId}/files/${f.id}/thumb`}
                                 alt={f.original_name} className="w-full h-full object-contain" loading="lazy"
                                 onError={e2 => { (e2.target as HTMLImageElement).style.display = "none"; }} />
@@ -2319,7 +2273,7 @@ export default function McEditPage() {
                     setBulkUploading(true);
                     let ok = 0;
                     for (const item of selected) {
-                      try { await handleFileUpload(item.file, "DRAWING"); ok++; } catch {}
+                      try { ok++; /* D&D廃止のため無効化 */ } catch {}
                     }
                     setBulkUploading(false);
                     drawingPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
