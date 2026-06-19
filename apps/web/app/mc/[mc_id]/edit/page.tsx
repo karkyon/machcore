@@ -692,7 +692,7 @@ export default function McEditPage() {
       setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
       const refreshed = await mcApi.findOne(mcId);
       setDetail((refreshed as any).data ?? refreshed);
-      setPgContent(null);
+      setPgContent("");
 
       const n2 = result.files.length;
       const delFailCount = result.files.filter((f: any) => !f.localDeleted).length;
@@ -2175,25 +2175,12 @@ export default function McEditPage() {
                     className="text-xs text-teal-600 font-bold px-3 py-1.5 rounded-lg hover:bg-teal-50 border border-teal-300">全選択</button>
                   <button onClick={() => setPhotoPreviewFiles(f => f.map(x => ({ ...x, selected: false })))}
                     className="text-xs text-slate-500 font-bold px-3 py-1.5 rounded-lg hover:bg-slate-100 border border-slate-300">全解除</button>
-                  <button onClick={async () => {
-                    const selected = photoPreviewFiles.filter(f => f.selected);
-                    if (!selected.length) { showToast("1枚以上選択してください"); return; }
-                    setBulkUploading(true);
-                    let ok = 0;
-                    for (const item of selected) {
-                      try {
-                        console.log("[BULK_PHOTO] アップロード:", item.file.name);
-                        await handleFileUpload(item.file, "PHOTO", (item as any).filePath);
-                        ok++;
-                      } catch(e) { console.error("[BULK_PHOTO] 失敗:", e); }
-                    }
-                    setBulkUploading(false);
+                  <button onClick={() => {
                     photoPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
                     setPhotoPreviewOpen(false); setPhotoPreviewFiles([]); setExpandedIdx(null);
-                    showToast(`✅ ${ok}枚の写真を保存しました（加工ID連番で命名）`);
-                  }} disabled={bulkUploading || !selectedCount}
-                    className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold rounded-xl disabled:opacity-50 transition-colors">
-                    {bulkUploading ? "⏳ 保存中..." : `📥 選択した${selectedCount}枚を取り込む`}
+                    showToast("📥 ファイル取り込みは「複数選拡・フォルダ」「1枚追加」ボタンからUploadAgent経由で行ってください");
+                  }} className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold rounded-xl transition-colors">
+                    閉じる（UploadAgent経由で取り込んでください）
                   </button>
                   <button onClick={() => {
                     photoPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
