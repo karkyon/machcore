@@ -322,7 +322,7 @@ export default function McEditPage() {
   // ── ファイルサイズ上限 ──
   const MAX_PHOTO_DRAWING_BYTES = 100 * 1024 * 1024; // 100MB
 
-  const handleFileUpload = async (file: File, fileType?: 'PHOTO' | 'DRAWING') => {
+  const handleFileUpload = async (file: File, fileType?: 'PHOTO' | 'DRAWING', filePath?: string) => {
     console.log("[UPLOAD] handleFileUpload開始", { name: file.name, size: file.size, fileType });
     if (!token) { console.log("[UPLOAD] tokenなし - 中断"); return; }
 
@@ -380,14 +380,25 @@ export default function McEditPage() {
         return;
       }
 
-      // ⑦ Agent経由でローカルファイルをtrash移動
-      // input[type=file]経由は絶対パス取得不可のためファイル名のみ通知
-      console.log("[UPLOAD] Agent移動通知 (input経由のためパス不明 - 名前のみ):", file.name);
-      const moveResult = await notifyAgentMove([file.name]);
-      console.log("[UPLOAD] Agent移動結果:", moveResult);
+      // ⑦ Agent経由でローカルファイルをtrash移動（絶対パスがあれば使用）
+      const movePaths = filePath ? [filePath] : [];
+      console.log("[UPLOAD] Agent移動通知:", movePaths.length ? movePaths : "(パス不明のためスキップ)");
+      let moveOk = false;
+      if (movePaths.length > 0) {
+        const moveResult = await notifyAgentMove(movePaths);
+        console.log("[UPLOAD] Agent移動結果:", moveResult);
+        moveOk = moveResult.success && moveResult.moved.length > 0;
+        if (!moveOk) {
+          console.warn("[UPLOAD] ❌ 元ファイル移動失敗:", moveResult.failed);
+        }
+      }
 
-      const msg = `✅ アップロード完了（${file.name}）※元ファイルはゴミ箱に移動しました`;
-      console.log("[UPLOAD] 完了:", msg);
+      const msg = movePaths.length > 0
+        ? (moveOk
+          ? `✅ アップロード完了（${file.name}）元ファイルをゴミ箱に移動しました`
+          : `✅ アップロード完了（${file.name}）⚠️ 元ファイルの移動に失敗しました - 手動で削除してください`)
+        : `✅ アップロード完了（${file.name}）※D&D/フォルダ選択は元パス取得不可 - 手動削除してください`;
+      console.log("[UPLOAD] 完了メッセージ:", msg);
       setFileUploadMsg(msg);
     } catch (err: any) {
       console.error("[UPLOAD] エラー:", err);
@@ -1721,11 +1732,17 @@ export default function McEditPage() {
                           }
                         }}
                       >複数選拡・フォルダ</button>
-                      <label className="px-3 py-1.5 bg-teal-100 hover:bg-teal-200 text-teal-700 text-xs font-bold rounded-lg cursor-pointer border border-teal-300 transition-colors">
+                      <button className="px-3 py-1.5 bg-teal-100 hover:bg-teal-200 text-teal-700 text-xs font-bold rounded-lg border border-teal-300 transition-colors"
+                        onClick={async () => {
+                          try {
+                            const [fh] = await (window as any).showOpenFilePicker({ multiple: false, types: [{ description: "画像", accept: { "image/*": [] } }] });
+                            const file: File = await fh.getFile();
+                            console.log("[PHOTO_1ADD] 選択:", file.name);
+                            await handleFileUpload(file, "PHOTO", fh.name ?? file.name);
+                          } catch(e: any) { if (e.name !== "AbortError") showToast("❌ " + e.message); }
+                        }}>
                         1枚追加
-                        <input type="file" accept="image/*" className="hidden"
-                          onChange={e => { const f = e.target.files?.[0]; if (f) { handleFileUpload(f, "PHOTO"); e.target.value = ""; } }} />
-                      </label>
+                      </button>
                     </div>
                   </div>
                   <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center text-xs text-slate-400"
@@ -1775,11 +1792,17 @@ export default function McEditPage() {
                           }
                         }}
                       >複数選拡・フォルダ</button>
-                      <label className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-bold rounded-lg cursor-pointer border border-purple-300 transition-colors">
+                      <button className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-bold rounded-lg border border-purple-300 transition-colors"
+                        onClick={async () => {
+                          try {
+                            const [fh] = await (window as any).showOpenFilePicker({ multiple: false, types: [{ description: "図面・PDF", accept: { "image/*": [], "application/pdf": [".pdf"] } }] });
+                            const file: File = await fh.getFile();
+                            console.log("[DRAW_1ADD] 選択:", file.name);
+                            await handleFileUpload(file, "DRAWING", fh.name ?? file.name);
+                          } catch(e: any) { if (e.name !== "AbortError") showToast("❌ " + e.message); }
+                        }}>
                         1枚追加
-                        <input type="file" className="hidden"
-                          onChange={e => { const f = e.target.files?.[0]; if (f) { handleFileUpload(f, "DRAWING"); e.target.value = ""; } }} />
-                      </label>
+                      </button>
                     </div>
                   </div>
                   <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center text-xs text-slate-400"
@@ -2299,7 +2322,11 @@ export default function McEditPage() {
                     setBulkUploading(true);
                     let ok = 0;
                     for (const item of selected) {
-                      try { await handleFileUpload(item.file, "PHOTO"); ok++; } catch {}
+                      try {
+                        console.log("[BULK_PHOTO] アップロード:", item.file.name);
+                        await handleFileUpload(item.file, "PHOTO", (item as any).filePath);
+                        ok++;
+                      } catch(e) { console.error("[BULK_PHOTO] 失敗:", e); }
                     }
                     setBulkUploading(false);
                     photoPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
