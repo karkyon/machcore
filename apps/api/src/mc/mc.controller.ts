@@ -409,6 +409,66 @@ export class McController {
     return this.mcFiles.listFiles(id);
   }
 
+  // ── UploadAgent連携: ワンタイムアップロードチケット発行 ──
+  // 正規Bearer認証を経た上でのみチケットを発行。Bearerトークン自体はAgentに渡さない。
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Post(':mc_id/files/upload-ticket')
+  async issueUploadTicket(
+    @Param('mc_id', ParseIntPipe) mcId: number,
+    @Body() body: { file_type?: 'PHOTO' | 'DRAWING' | 'PROGRAM'; replace_file_id?: number; is_folder_upload?: boolean },
+    @Req() req: any,
+  ) {
+    const detail = await this.mc.findOne(mcId);
+    const machiningId = (detail as any)?.machiningId;
+    if (!machiningId) throw new BadRequestException('machiningId が取得できません');
+
+    const ticket = this.tickets.issue({
+      mcId,
+      machiningId,
+      userId: req.user.id,
+      fileType: body.file_type,
+      replaceFileId: body.replace_file_id,
+      isFolderUpload: body.is_folder_upload,
+    });
+    return { ticket: ticket.ticket, expires_in_sec: 60, mc_id: mcId, machining_id: machiningId };
+  }
+
+  // ── UploadAgent連携: チケット式アップロード受理 ──
+  // 認証はBearerトークンではなくワンタイムチケットで行う。
+  @Post('files/upload-by-ticket')
+  async uploadByTicket(@Req() req: any) {
+    const data = await req.file();
+    if (!data) throw new BadRequestException('ファイルがありません');
+
+    const fields = data.fields as any;
+    const ticketId = fields?.ticket?.value;
+    if (!ticketId) throw new BadRequestException('ticket が必要です');
+
+    const payload = this.tickets.consume(ticketId);
+    if (!payload) throw new UnauthorizedException('チケットが無効、または期限切れです');
+
+    const buf = await data.toBuffer();
+    const isFolderUpload = payload.isFolderUpload === true;
+
+    if (payload.replaceFileId) {
+      const result = await this.mcFiles.replace(payload.mcId, payload.replaceFileId, payload.userId,
+        { filename: data.filename, mimetype: data.mimetype, data: buf });
+      return { ...result, mc_id: payload.mcId, machining_id: payload.machiningId, mode: 'replace' };
+    } else {
+      const result = await this.mcFiles.upload(payload.mcId, payload.userId,
+        { filename: data.filename, mimetype: data.mimetype, data: buf },
+        undefined, isFolderUpload, payload.fileType as any);
+
+      const PROGRAM_EXTS = new Set(['.min','.spf','.mpf','.nc','.cnc','.tap','.prg','.gcode','.g','.txt']);
+      const fileExt = ('.' + (data.filename.split('.').pop()?.toLowerCase() ?? ''));
+      if (PROGRAM_EXTS.has(fileExt)) {
+        await this.mc.updatePgMeta(payload.mcId, payload.userId);
+      }
+      return { ...result, mc_id: payload.mcId, machining_id: payload.machiningId, mode: 'create' };
+    }
+  }
+
   // ── オリジナルファイル配信 ──
   @Get(':mc_id/files/:file_id/serve')
   async serveFile(
