@@ -200,7 +200,6 @@ export default function AdminMachinesPage() {
             </div>
           )}
         </main>
-      </div>
 
       {dialogMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
