@@ -1059,16 +1059,19 @@ export class McService {
       await tx.mcWorkOffset.deleteMany({ where: { machiningId: mc.machiningId } });
       if (dto.items.length > 0) {
         await tx.mcWorkOffset.createMany({
-          data: dto.items.map(item => ({
+          data: dto.items.map(item => {
+            const n = (v: any) => (v === '' || v === null || v === undefined) ? null : Number(v);
+            return {
             machiningId: mc.machiningId,
-            gCode:       item.g_code,
-            xOffset:     item.x_offset ?? null,
-            yOffset:     item.y_offset ?? null,
-            zOffset:     item.z_offset ?? null,
-            aOffset:     item.a_offset ?? null,
-            rOffset:     item.r_offset ?? null,
+            gCode:       item.g_code ?? '',
+            xOffset:     n(item.x_offset),
+            yOffset:     n(item.y_offset),
+            zOffset:     n(item.z_offset),
+            aOffset:     n(item.a_offset),
+            rOffset:     n(item.r_offset),
             note:        item.note ?? null,
-          })),
+            };
+          }),
         });
       }
       await tx.operationLog.create({

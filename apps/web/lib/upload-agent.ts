@@ -22,7 +22,9 @@ export async function getAgentToken(): Promise<string | null> {
 }
 
 export async function isAgentOnline(): Promise<boolean> {
-  return (await getAgentToken()) !== null;
+  const token = await getAgentToken();
+  console.log("[UploadAgent] health check:", token ? "ONLINE ✅" : "OFFLINE ❌");
+  return token !== null;
 }
 
 export async function notifyAgentMove(
