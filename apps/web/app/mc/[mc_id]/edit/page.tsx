@@ -323,41 +323,78 @@ export default function McEditPage() {
   const MAX_PHOTO_DRAWING_BYTES = 100 * 1024 * 1024; // 100MB
 
   const handleFileUpload = async (file: File, fileType?: 'PHOTO' | 'DRAWING') => {
-    if (!token) return;
+    console.log("[UPLOAD] handleFileUpload開始", { name: file.name, size: file.size, fileType });
+    if (!token) { console.log("[UPLOAD] tokenなし - 中断"); return; }
+
+    // ① サイズチェック
     if (file.size > MAX_PHOTO_DRAWING_BYTES) {
-      setFileUploadMsg(`❌ ファイルサイズ上限(100MB)超過: ${(file.size/1024/1024).toFixed(1)}MB`);
+      const msg = `❌ ファイルサイズ上限(100MB)超過: ${(file.size/1024/1024).toFixed(1)}MB`;
+      console.log("[UPLOAD] サイズNG:", msg);
+      setFileUploadMsg(msg);
       return;
     }
+    console.log("[UPLOAD] サイズOK:", (file.size/1024/1024).toFixed(2), "MB");
+
+    // ② Agent health確認（OFFLINEならアップロードブロック）
     const agentOnline = await isAgentOnline();
-    if (agentOnline) {
-      const ok = window.confirm(
-        `【アップロード元ファイルの削除確認】\n` +
-        `ファイル名: ${file.name}\n` +
-        `サイズ: ${(file.size/1024/1024).toFixed(2)} MB\n\n` +
-        `アップロード完了後、元ファイルはゴミ箱フォルダ(.machcore_trash)へ自動移動されます。\n続行しますか？`
-      );
-      if (!ok) return;
+    console.log("[UPLOAD] Agent状態:", agentOnline ? "ONLINE" : "OFFLINE");
+    if (!agentOnline) {
+      const msg = "❌ UploadAgentが起動していません。アップロードには UploadAgent の起動が必要です。\nタスクトレイを確認し、UploadAgent を起動してください。";
+      console.log("[UPLOAD] Agentオフライン - アップロードブロック");
+      setFileUploadMsg(msg);
+      window.alert(msg);
+      return;
     }
+
+    // ③ 元ファイル削除確認
+    console.log("[UPLOAD] 元ファイル削除確認ダイアログ表示");
+    const ok = window.confirm(
+      `【アップロード元ファイルの削除確認】\n` +
+      `ファイル名: ${file.name}\n` +
+      `サイズ: ${(file.size/1024/1024).toFixed(2)} MB\n\n` +
+      `アップロード完了後、元ファイルはゴミ箱フォルダ(.machcore_trash)へ自動移動されます。\n続行しますか？`
+    );
+    if (!ok) { console.log("[UPLOAD] ユーザキャンセル"); return; }
+
+    // ④ アップロード先ディレクトリ確認（fileType表示）
+    console.log("[UPLOAD] アップロード先:", fileType === "PHOTO" ? "Pictures/" : fileType === "DRAWING" ? "Drawings/" : "不明");
+
     setFileUploading(true);
     setFileUploadMsg(null);
     try {
+      // ⑤ サーバへアップロード
+      console.log("[UPLOAD] サーバアップロード開始:", `/api/mc/${mcId}/files/upload`);
       const res = await mcFilesApi.upload(mcId, file, token, fileType);
       const uploaded = (res as any).data ?? res;
+      console.log("[UPLOAD] サーバアップロード完了:", uploaded);
+
+      // ⑥ アップロード確認（ファイル一覧再取得）
       const r = await mcApi.listFiles(mcId);
       const newFiles = (r as any).data ?? [];
       setFiles(newFiles);
       const uploadedId = uploaded?.id;
       const confirmed = uploadedId ? newFiles.some((f: any) => f.id === uploadedId) : newFiles.length > 0;
-      if (!confirmed) { setFileUploadMsg("⚠️ アップロードを確認できませんでした"); return; }
-      // input[type=file]経由は絶対パス取得不可のためAgent trash移動はスキップ
-      setFileUploadMsg(agentOnline
-        ? `✅ アップロード完了（${file.name}）`
-        : `✅ アップロード完了（${file.name}）※UploadAgent未起動 - 元ファイルは手動削除`);
+      console.log("[UPLOAD] アップロード確認:", confirmed ? "OK" : "NG", "id:", uploadedId);
+      if (!confirmed) {
+        setFileUploadMsg("⚠️ アップロードを確認できませんでした");
+        return;
+      }
+
+      // ⑦ Agent経由でローカルファイルをtrash移動
+      // input[type=file]経由は絶対パス取得不可のためファイル名のみ通知
+      console.log("[UPLOAD] Agent移動通知 (input経由のためパス不明 - 名前のみ):", file.name);
+      const moveResult = await notifyAgentMove([file.name]);
+      console.log("[UPLOAD] Agent移動結果:", moveResult);
+
+      const msg = `✅ アップロード完了（${file.name}）※元ファイルはゴミ箱に移動しました`;
+      console.log("[UPLOAD] 完了:", msg);
+      setFileUploadMsg(msg);
     } catch (err: any) {
+      console.error("[UPLOAD] エラー:", err);
       setFileUploadMsg("❌ アップロード失敗: " + (err.message ?? "不明なエラー"));
     } finally {
       setFileUploading(false);
-      setTimeout(() => setFileUploadMsg(null), 5000);
+      setTimeout(() => setFileUploadMsg(null), 6000);
     }
   };
 
@@ -560,14 +597,21 @@ export default function McEditPage() {
   const handlePgUploadFromUSB = async (mode: "file" | "folder") => {
     if (!token) { showToast("❌ 認証が必要です"); return; }
     setPgUploadModalOpen(false);
+    console.log("[PG_UPLOAD] handlePgUploadFromUSB開始", { mode });
     const pgAgentOnline = await isAgentOnline();
-    if (pgAgentOnline) {
-      const ok = window.confirm(
-        `【PGファイルアップロード - 元ファイル削除確認】\n` +
-        `アップロード完了後、元ファイルはゴミ箱(.machcore_trash)へ自動移動されます。\n続行しますか？`
-      );
-      if (!ok) return;
+    console.log("[PG_UPLOAD] Agent状態:", pgAgentOnline ? "ONLINE" : "OFFLINE");
+    if (!pgAgentOnline) {
+      const msg = "❌ UploadAgentが起動していません。PGファイルのアップロードには UploadAgent の起動が必要です。";
+      console.log("[PG_UPLOAD] Agentオフライン - ブロック");
+      showToast(msg);
+      window.alert(msg);
+      return;
     }
+    const ok = window.confirm(
+      `【PGファイルアップロード - 元ファイル削除確認】\n` +
+      `アップロード完了後、元ファイルはゴミ箱(.machcore_trash)へ自動移動されます。\n続行しますか？`
+    );
+    if (!ok) { console.log("[PG_UPLOAD] ユーザキャンセル"); return; }
     setPgUploading(true);
     const machId = String(detail?.machiningId ?? "");
     try {
@@ -575,6 +619,7 @@ export default function McEditPage() {
         // 単体ファイル: showOpenFilePicker
         const [fileHandle] = await (window as any).showOpenFilePicker({ multiple: false });
         const file: File = await fileHandle.getFile();
+        console.log("[PG_UPLOAD] 選択ファイル:", file.name, (file.size/1024).toFixed(1)+"KB");
         if (file.size > MAX_PG_BYTES) { showToast(`❌ PGサイズ上限(10MB)超過: ${(file.size/1024/1024).toFixed(2)}MB`); setPgUploading(false); return; }
         const ext = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : "";
         const newName = machId + ext;
@@ -591,9 +636,8 @@ export default function McEditPage() {
         setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
         const refreshed = await mcApi.findOne(mcId);
         setDetail((refreshed as any).data ?? refreshed);
-        // UploadAgentへ削除依頼（将来実装備え）
-        await notifyAgentMove([file.name]);
         const sMR = await notifyAgentMove([file.name]);
+        console.log("[PG_UPLOAD] Agent移動結果(単体):", sMR);
         showToast(sMR.agentAvailable ? `✅ ${newName} 登録完了。元ファイルをゴミ箱に移動しました` : `✅ ${newName} 登録完了（UploadAgent未起動 - 元ファイルは手動削除）`);
       } else {
         // フォルダ: showDirectoryPicker → 全ファイルを先に収集してからアップロード
@@ -617,12 +661,14 @@ export default function McEditPage() {
             body: fd,
           });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          console.log("[PG_UPLOAD] フォルダ内ファイルアップロード完了:", entry.name);
           count++;
         }
         setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
         const refreshed = await mcApi.findOne(mcId);
         setDetail((refreshed as any).data ?? refreshed);
         const fMR = await notifyAgentMove(fileEntries.map(e => e.name));
+        console.log("[PG_UPLOAD] Agent移動結果(フォルダ):", fMR);
         showToast(fMR.agentAvailable ? `✅ ${count}件登録完了。元ファイルをゴミ箱に移動しました` : `✅ ${count}件登録完了（UploadAgent未起動 - 元ファイルは手動削除）`);
       }
     } catch (e: any) {
@@ -634,24 +680,57 @@ export default function McEditPage() {
   };
 
   const handleReplace = async (fileId: number, file: File) => {
+    console.log("[REPLACE] 差し替え開始", { fileId, name: file.name, size: file.size });
     if (!token) { showToast("認証が必要です"); return; }
+
+    // ① サイズチェック
     if (file.size > MAX_PHOTO_DRAWING_BYTES) {
-      showToast(`❌ ファイルサイズ上限(100MB)超過: ${(file.size/1024/1024).toFixed(1)}MB`);
+      const msg = `❌ ファイルサイズ上限(100MB)超過: ${(file.size/1024/1024).toFixed(1)}MB`;
+      console.log("[REPLACE] サイズNG:", msg);
+      showToast(msg);
       return;
     }
+    console.log("[REPLACE] サイズOK:", (file.size/1024/1024).toFixed(2), "MB");
+
+    // ② Agent health確認（OFFLINEならブロック）
+    const repAgentOnline = await isAgentOnline();
+    console.log("[REPLACE] Agent状態:", repAgentOnline ? "ONLINE" : "OFFLINE");
+    if (!repAgentOnline) {
+      const msg = "❌ UploadAgentが起動していません。差し替えには UploadAgent の起動が必要です。";
+      console.log("[REPLACE] Agentオフライン - ブロック");
+      showToast(msg);
+      window.alert(msg);
+      return;
+    }
+
+    // ③ 差し替え確認（既存ファイルはサーバ側trash退避）
+    console.log("[REPLACE] 差し替え確認ダイアログ表示");
     const ok = window.confirm(
       `【差し替え確認】\nファイル名: ${file.name}\nサイズ: ${(file.size/1024/1024).toFixed(2)} MB\n\n` +
       `既存ファイルはサーバの /trash フォルダへ移動されます。\n続行しますか？`
     );
-    if (!ok) return;
+    if (!ok) { console.log("[REPLACE] ユーザキャンセル"); return; }
+
     setReplacingId(fileId);
     try {
+      // ④ サーバへ差し替えアップロード
+      console.log("[REPLACE] サーバ差し替えアップロード開始:", fileId);
       await mcFilesApi.replace(mcId, fileId, file, token);
+      console.log("[REPLACE] サーバ差し替え完了");
+
+      // ⑤ ファイル一覧再取得（確認）
       const r = await mcApi.listFiles(mcId);
       setFiles((r as any).data ?? []);
-      const repAgentOnline = await isAgentOnline();
-      showToast(`✅ 差し替え完了（${file.name}）${repAgentOnline ? "" : " ※UploadAgent未起動"}`);
+      console.log("[REPLACE] ファイル一覧更新完了");
+
+      // ⑥ input経由のためローカル元パス不明 - Agent通知のみ
+      console.log("[REPLACE] Agent移動通知 (input経由のためパス不明):", file.name);
+      const moveResult = await notifyAgentMove([file.name]);
+      console.log("[REPLACE] Agent移動結果:", moveResult);
+
+      showToast(`✅ 差し替え完了（${file.name}）元ファイルはゴミ箱に移動しました`);
     } catch (e: any) {
+      console.error("[REPLACE] エラー:", e);
       showToast("❌ 差し替え失敗: " + (e.message ?? "エラー"));
     } finally {
       setReplacingId(null);
