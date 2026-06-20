@@ -13,7 +13,8 @@ export interface UploadTicketPayload {
   used:           boolean;
 }
 
-const TICKET_TTL_MS = 60_000; // 60秒・1回限り
+const TICKET_TTL_MS_SINGLE = 60_000;       // 単体アップロード: 60秒・1回限り
+const TICKET_TTL_MS_FOLDER = 10 * 60_000;  // フォルダアップロード: 10分（グリッド選択のユーザー操作時間を考慮）
 
 @Injectable()
 export class UploadTicketService {
@@ -28,6 +29,7 @@ export class UploadTicketService {
     fileType?: 'PHOTO' | 'DRAWING' | 'PROGRAM';
     replaceFileId?: number; isFolderUpload?: boolean;
   }): UploadTicketPayload {
+    const ttl = params.isFolderUpload ? TICKET_TTL_MS_FOLDER : TICKET_TTL_MS_SINGLE;
     const ticket: UploadTicketPayload = {
       ticket: randomUUID(),
       mcId: params.mcId,
@@ -36,7 +38,7 @@ export class UploadTicketService {
       replaceFileId: params.replaceFileId,
       isFolderUpload: params.isFolderUpload,
       userId: params.userId,
-      expiresAt: Date.now() + TICKET_TTL_MS,
+      expiresAt: Date.now() + ttl,
       used: false,
     };
     this.tickets.set(ticket.ticket, ticket);
