@@ -345,24 +345,30 @@ export default function McEditPage() {
   const requestNewUpload = async (fileType: 'PHOTO' | 'DRAWING', mode: 'file' | 'folder') => {
     console.log("[AGENT_UPLOAD] 開始", { fileType, mode });
     if (!token) { console.log("[AGENT_UPLOAD] tokenなし"); return; }
+    if (fileUploading) { console.log("[AGENT_UPLOAD] 多重クリック防止 - 既に処理中"); return; }
+
+    // ボタン多重クリック防止: 即座に処理中状態にする（Agent疎通確認より前）
+    setFileUploading(true);
+    setFileUploadMsg("⏳ UploadAgentに接続中...");
 
     const agentOnline = await isAgentOnline();
     console.log("[AGENT_UPLOAD] Agent状態:", agentOnline ? "ONLINE" : "OFFLINE");
     if (!agentOnline) {
       const msg = "❌ UploadAgentが起動していません。アップロードには UploadAgent の起動が必要です。\nタスクトレイを確認し、UploadAgent を起動してください。";
       setFileUploadMsg(msg);
+      setFileUploading(false);
       window.alert(msg);
       return;
     }
 
+    setFileUploadMsg(null);
     const ok = window.confirm(
       `【アップロード元ファイルの削除確認】\n` +
       `選択したファイルをアップロードします。アップロード完了後、元ファイルはゴミ箱フォルダ(.machcore_trash)へ自動移動されます。\n続行しますか？`
     );
-    if (!ok) { console.log("[AGENT_UPLOAD] ユーザキャンセル"); return; }
+    if (!ok) { console.log("[AGENT_UPLOAD] ユーザキャンセル"); setFileUploading(false); return; }
 
-    setFileUploading(true);
-    setFileUploadMsg(null);
+    setFileUploadMsg("⏳ UploadAgentでファイル選択ダイアログを開いています...");
     try {
       console.log("[AGENT_UPLOAD] チケット発行中...");
       const ticket = await issueUploadTicket({ fileType, isFolderUpload: mode === "folder" });
@@ -408,12 +414,18 @@ export default function McEditPage() {
   const requestReplaceUpload = async (fileId: number, fileType: 'PHOTO' | 'DRAWING') => {
     console.log("[AGENT_REPLACE] 開始", { fileId, fileType });
     if (!token) { showToast("認証が必要です"); return; }
+    if (replacingId !== null) { console.log("[AGENT_REPLACE] 多重クリック防止 - 既に処理中"); return; }
+
+    // ボタン多重クリック防止: 即座に処理中状態にする
+    setReplacingId(fileId);
+    showToast("⏳ UploadAgentに接続中...");
 
     const agentOnline = await isAgentOnline();
     console.log("[AGENT_REPLACE] Agent状態:", agentOnline ? "ONLINE" : "OFFLINE");
     if (!agentOnline) {
       const msg = "❌ UploadAgentが起動していません。差し替えには UploadAgent の起動が必要です。";
       showToast(msg);
+      setReplacingId(null);
       window.alert(msg);
       return;
     }
@@ -422,9 +434,9 @@ export default function McEditPage() {
       `【差し替え確認】\n選択したファイルで既存ファイルを差し替えます。\n` +
       `既存ファイルはサーバの /trash フォルダへ、選択した元ファイルはゴミ箱(.machcore_trash)へ、それぞれ移動されます。\n続行しますか？`
     );
-    if (!ok) { console.log("[AGENT_REPLACE] ユーザキャンセル"); return; }
+    if (!ok) { console.log("[AGENT_REPLACE] ユーザキャンセル"); setReplacingId(null); return; }
 
-    setReplacingId(fileId);
+    showToast("⏳ UploadAgentでファイル選択ダイアログを開いています...");
     try {
       console.log("[AGENT_REPLACE] チケット発行中...");
       const ticket = await issueUploadTicket({ fileType, replaceFileId: fileId });
@@ -1669,17 +1681,26 @@ export default function McEditPage() {
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xs font-bold text-slate-600">📷 写真のアップロード</p>
                     <div className="flex gap-2">
-                      <button className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-40"
+                      <button className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                         disabled={fileUploading}
-                        onClick={() => requestNewUpload("PHOTO", "folder")}>複数選拡・フォルダ</button>
-                      <button className="px-3 py-1.5 bg-teal-100 hover:bg-teal-200 text-teal-700 text-xs font-bold rounded-lg border border-teal-300 transition-colors disabled:opacity-40"
+                        onClick={() => requestNewUpload("PHOTO", "folder")}>
+                        {fileUploading && <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                        複数選拡・フォルダ
+                      </button>
+                      <button className="px-3 py-1.5 bg-teal-100 hover:bg-teal-200 text-teal-700 text-xs font-bold rounded-lg border border-teal-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                         disabled={fileUploading}
-                        onClick={() => requestNewUpload("PHOTO", "file")}>1枚追加</button>
+                        onClick={() => requestNewUpload("PHOTO", "file")}>
+                        {fileUploading && <span className="inline-block w-3 h-3 border-2 border-teal-700 border-t-transparent rounded-full animate-spin" />}
+                        1枚追加
+                      </button>
                     </div>
                   </div>
                   <p className="text-[11px] text-slate-400 text-center py-2">UploadAgentでファイル選択ダイアログが開きます</p>
-                  {fileUploading && <p className="text-xs text-teal-600 mt-2 animate-pulse">アップロード中...</p>}
-                  {fileUploadMsg && <p className="text-xs mt-2 font-bold text-slate-600">{fileUploadMsg}</p>}
+                  {fileUploadMsg && (
+                    <p className={`text-xs mt-2 font-bold ${fileUploadMsg.startsWith("⏳") ? "text-amber-600 animate-pulse" : fileUploadMsg.startsWith("❌") ? "text-red-600" : "text-slate-600"}`}>
+                      {fileUploadMsg}
+                    </p>
+                  )}
                 </div>
 
                 {/* 図アップロード */}
@@ -1687,12 +1708,18 @@ export default function McEditPage() {
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xs font-bold text-slate-600">📐 図のアップロード</p>
                     <div className="flex gap-2">
-                      <button className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-40"
+                      <button className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                         disabled={fileUploading}
-                        onClick={() => requestNewUpload("DRAWING", "folder")}>複数選拡・フォルダ</button>
-                      <button className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-bold rounded-lg border border-purple-300 transition-colors disabled:opacity-40"
+                        onClick={() => requestNewUpload("DRAWING", "folder")}>
+                        {fileUploading && <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                        複数選拡・フォルダ
+                      </button>
+                      <button className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-bold rounded-lg border border-purple-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                         disabled={fileUploading}
-                        onClick={() => requestNewUpload("DRAWING", "file")}>1枚追加</button>
+                        onClick={() => requestNewUpload("DRAWING", "file")}>
+                        {fileUploading && <span className="inline-block w-3 h-3 border-2 border-purple-700 border-t-transparent rounded-full animate-spin" />}
+                        1枚追加
+                      </button>
                     </div>
                   </div>
                   <p className="text-[11px] text-slate-400 text-center py-2">UploadAgentでファイル選択ダイアログが開きます</p>
