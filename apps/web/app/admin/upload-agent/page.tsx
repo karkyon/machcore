@@ -3,7 +3,7 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
-const AGENT_URL = "http://localhost:57300";
+const AGENT_URL = "http://localhost:57301";
 const getToken = () => sessionStorage.getItem("admin_token") ?? "";
 
 export default function UploadAgentPage() {
@@ -207,7 +207,7 @@ export default function UploadAgentPage() {
             <h2 className="font-bold text-slate-700 mb-3">機能概要</h2>
             <div className="grid grid-cols-2 gap-3 text-sm">
               {[
-                ["待受ポート", "localhost:57300（外部アクセス不可）"],
+                ["待受ポート", "localhost:57301（外部アクセス不可）"],
                 ["ファイル操作", "USB元ファイルを .machcore_trash/ に移動"],
                 ["アイコン", "正常=🟢緑 / エラー=🔴赤 でトレイ表示"],
                 ["設定画面", "トレイ右クリック → 設定... で開く"],
