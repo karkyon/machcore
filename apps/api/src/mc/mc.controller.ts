@@ -436,32 +436,47 @@ export class McController {
 
   // ── UploadAgent連携: チケット式アップロード受理 ──
   // 認証はBearerトークンではなくワンタイムチケットで行う。
+  // req.parts() でストリーム順に走査し、ticketフィールドがfileパートの前後どちらに
+  // 来てもよいようにする（multipartのフィールド順序に依存しない実装）。
   @Post('files/upload-by-ticket')
   async uploadByTicket(@Req() req: any) {
-    const data = await req.file();
-    if (!data) throw new BadRequestException('ファイルがありません');
+    let fileBuffer:   Buffer | null = null;
+    let fileFilename  = '';
+    let fileMimetype  = 'application/octet-stream';
+    let ticketId      = '';
 
-    const fields = data.fields as any;
-    const ticketId = fields?.ticket?.value;
-    if (!ticketId) throw new BadRequestException('ticket が必要です');
+    for await (const part of req.parts()) {
+      if ('file' in part && (part as any).file) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of (part as any).file) chunks.push(chunk as Buffer);
+        fileBuffer  = Buffer.concat(chunks);
+        fileFilename = (part as any).filename ?? '';
+        fileMimetype = (part as any).mimetype ?? 'application/octet-stream';
+      } else if ((part as any).fieldname === 'ticket') {
+        ticketId = (part as any).value ?? '';
+      }
+    }
+
+    if (!fileBuffer) throw new BadRequestException('ファイルがありません');
+    if (!ticketId)   throw new BadRequestException('ticket が必要です');
 
     const payload = this.tickets.consume(ticketId);
     if (!payload) throw new UnauthorizedException('チケットが無効、または期限切れです');
 
-    const buf = await data.toBuffer();
+    const buf = fileBuffer;
     const isFolderUpload = payload.isFolderUpload === true;
 
     if (payload.replaceFileId) {
       const result = await this.mcFiles.replace(payload.mcId, payload.replaceFileId, payload.userId,
-        { filename: data.filename, mimetype: data.mimetype, data: buf });
+        { filename: fileFilename, mimetype: fileMimetype, data: buf });
       return { ...result, mc_id: payload.mcId, machining_id: payload.machiningId, mode: 'replace' };
     } else {
       const result = await this.mcFiles.upload(payload.mcId, payload.userId,
-        { filename: data.filename, mimetype: data.mimetype, data: buf },
+        { filename: fileFilename, mimetype: fileMimetype, data: buf },
         undefined, isFolderUpload, payload.fileType as any);
 
       const PROGRAM_EXTS = new Set(['.min','.spf','.mpf','.nc','.cnc','.tap','.prg','.gcode','.g','.txt']);
-      const fileExt = ('.' + (data.filename.split('.').pop()?.toLowerCase() ?? ''));
+      const fileExt = ('.' + (fileFilename.split('.').pop()?.toLowerCase() ?? ''));
       if (PROGRAM_EXTS.has(fileExt)) {
         await this.mc.updatePgMeta(payload.mcId, payload.userId);
       }
