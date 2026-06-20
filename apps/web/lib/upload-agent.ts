@@ -1,5 +1,5 @@
 /**
- * upload-agent.ts — MachCore UploadAgent (localhost:57300) 連携ライブラリ
+ * upload-agent.ts — MachCore UploadAgent (localhost:57301) 連携ライブラリ
  *
  * 新アーキテクチャ（Agent側ダイアログ方式）:
  * Web はファイル選択を一切行わず、Agentへ「ダイアログを開いてアップロードしろ」と
@@ -10,7 +10,7 @@
  *  2. ワンタイムチケット: BearerトークンはAgentに渡さず、60秒・1回限りのチケットを発行して渡す
  *  3. 接続先固定: AgentはMachCore APIのURLを自身のappsettings.jsonから読む（Webから指定させない）
  */
-const AGENT_BASE = "http://localhost:57300";
+const AGENT_BASE = "http://localhost:57301";
 const TIMEOUT_MS = 3000;
 const DIALOG_TIMEOUT_MS = 5 * 60 * 1000; // ダイアログ操作待ちのため長め
 
