@@ -43,12 +43,25 @@ export class UploadTicketService {
     return ticket;
   }
 
-  /** チケットを検証し、有効なら即座に破棄して payload を返す（1回限り） */
+  /**
+   * チケットを検証し payload を返す。
+   * 単体アップロード用チケットは1回限り（取得と同時に破棄）。
+   * フォルダアップロード用チケット（isFolderUpload=true）は有効期限内であれば
+   * 複数回 consume 可能（フォルダ内の複数ファイルを同一チケットで順次アップロードするため）。
+   */
   consume(ticketId: string): UploadTicketPayload | null {
     const t = this.tickets.get(ticketId);
     if (!t) return null;
-    if (t.used) return null;
     if (Date.now() > t.expiresAt) { this.tickets.delete(ticketId); return null; }
+
+    if (t.isFolderUpload) {
+      // フォルダ用チケットは使い回し可。延命はしない（元の60秒のまま）。
+      return t;
+    }
+
+    // 単体アップロード用チケットは1回限り
+    if (t.used) return null;
+    t.used = true;
     this.tickets.delete(ticketId);
     return t;
   }
