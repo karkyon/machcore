@@ -170,6 +170,7 @@ export default function McEditPage() {
   const [files,          setFiles]          = useState<any[]>([]);
   const [fileUploading,  setFileUploading]  = useState(false);
   const [fileUploadMsg,  setFileUploadMsg]  = useState<string | null>(null);
+  const [activeUploadFileType, setActiveUploadFileType] = useState<'PHOTO' | 'DRAWING' | null>(null); // メッセージ表示先ブロック判定用
   const [replacingId,    setReplacingId]    = useState<number | null>(null);
   const [replaceDragOver, setReplaceDragOver] = useState<number | null>(null);
   const photoInputRef = React.useRef<HTMLInputElement>(null);
@@ -348,6 +349,7 @@ export default function McEditPage() {
     if (fileUploading) { console.log("[AGENT_UPLOAD] 多重クリック防止 - 既に処理中"); return; }
 
     // ボタン多重クリック防止: 即座に処理中状態にする（Agent疎通確認より前）
+    setActiveUploadFileType(fileType);
     setFileUploading(true);
     setFileUploadMsg("⏳ UploadAgentに接続中...");
 
@@ -364,7 +366,7 @@ export default function McEditPage() {
     setFileUploadMsg(null);
     const ok = window.confirm(
       `【アップロード元ファイルの削除確認】\n` +
-      `選択したファイルをアップロードします。アップロード完了後、元ファイルはゴミ箱フォルダ(.machcore_trash)へ自動移動されます。\n続行しますか？`
+      `選択したファイルをアップロードします。アップロード完了後、元ファイルはゴミ箱フォルダへ自動移動されます（格納先はUploadAgentの設定で確認・変更できます）。\n続行しますか？`
     );
     if (!ok) { console.log("[AGENT_UPLOAD] ユーザキャンセル"); setFileUploading(false); return; }
 
@@ -432,7 +434,7 @@ export default function McEditPage() {
 
     const ok = window.confirm(
       `【差し替え確認】\n選択したファイルで既存ファイルを差し替えます。\n` +
-      `既存ファイルはサーバの /trash フォルダへ、選択した元ファイルはゴミ箱(.machcore_trash)へ、それぞれ移動されます。\n続行しますか？`
+      `既存ファイルはサーバの /trash フォルダへ、選択した元ファイルはゴミ箱フォルダへ、それぞれ移動されます（格納先はUploadAgentの設定で確認・変更できます）。\n続行しますか？`
     );
     if (!ok) { console.log("[AGENT_REPLACE] ユーザキャンセル"); setReplacingId(null); return; }
 
@@ -1696,7 +1698,7 @@ export default function McEditPage() {
                     </div>
                   </div>
                   <p className="text-[11px] text-slate-400 text-center py-2">UploadAgentでファイル選択ダイアログが開きます</p>
-                  {fileUploadMsg && (
+                  {fileUploadMsg && activeUploadFileType === "PHOTO" && (
                     <p className={`text-xs mt-2 font-bold ${fileUploadMsg.startsWith("⏳") ? "text-amber-600 animate-pulse" : fileUploadMsg.startsWith("❌") ? "text-red-600" : "text-slate-600"}`}>
                       {fileUploadMsg}
                     </p>
@@ -1723,6 +1725,11 @@ export default function McEditPage() {
                     </div>
                   </div>
                   <p className="text-[11px] text-slate-400 text-center py-2">UploadAgentでファイル選択ダイアログが開きます</p>
+                  {fileUploadMsg && activeUploadFileType === "DRAWING" && (
+                    <p className={`text-xs mt-2 font-bold ${fileUploadMsg.startsWith("⏳") ? "text-amber-600 animate-pulse" : fileUploadMsg.startsWith("❌") ? "text-red-600" : "text-slate-600"}`}>
+                      {fileUploadMsg}
+                    </p>
+                  )}
                 </div>
 
                 {/* 📷 写真セクション */}
