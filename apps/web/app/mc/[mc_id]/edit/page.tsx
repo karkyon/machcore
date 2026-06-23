@@ -378,8 +378,8 @@ export default function McEditPage() {
 
       console.log("[AGENT_UPLOAD] Agentへ依頼:", mode);
       const result = mode === "folder"
-        ? await agentPickFolderAndUpload(ticket)
-        : await agentPickAndUpload(ticket);
+        ? await agentPickFolderAndUpload(ticket, fileType)
+        : await agentPickAndUpload(ticket, fileType);
       console.log("[AGENT_UPLOAD] Agentからの結果:", result);
 
       if (result.cancelled) {
@@ -444,7 +444,7 @@ export default function McEditPage() {
       const ticket = await issueUploadTicket({ fileType, replaceFileId: fileId });
       console.log("[AGENT_REPLACE] チケット取得:", ticket);
 
-      const result = await agentPickAndUpload(ticket);
+      const result = await agentPickAndUpload(ticket, fileType);
       console.log("[AGENT_REPLACE] Agentからの結果:", result);
 
       if (result.cancelled) {
@@ -692,8 +692,8 @@ export default function McEditPage() {
       console.log("[PG_UPLOAD] チケット取得:", ticket);
 
       const result = mode === "folder"
-        ? await agentPickFolderAndUpload(ticket)
-        : await agentPickAndUpload(ticket);
+        ? await agentPickFolderAndUpload(ticket, "PROGRAM")
+        : await agentPickAndUpload(ticket, "PROGRAM");
       console.log("[PG_UPLOAD] Agentからの結果:", result);
 
       if (result.cancelled) { console.log("[PG_UPLOAD] キャンセル"); setPgUploading(false); return; }
