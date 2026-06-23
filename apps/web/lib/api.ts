@@ -5,7 +5,7 @@ const api = axios.create({ baseURL: "/api" });
 // ── APIリクエスト/レスポンス完全ログ ─────────────────────────
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
-    const token = localStorage.getItem("work_token");
+    const token = sessionStorage.getItem("work_token");
     if (token && !config.headers["Authorization"]) {
       config.headers["Authorization"] = `Bearer ${token}`;
     }

@@ -37,7 +37,7 @@ const AuthContext = createContext<AuthContextType>({
   isSessionForNc: () => true,
 });
 
-/** localStorage から token + operator + sessionType を一括復元する。
+/** sessionStorage から token + operator + sessionType を一括復元する。
  *  token があっても operator が復元できない場合は全クリアして null を返す。
  *  これにより isAuthenticated=true && operator=null の状態を完全に排除する。
  */
@@ -54,13 +54,13 @@ function restoreAuthState(): { token: string | null; operator: Operator | null; 
   if (typeof window === "undefined") return { token: null, operator: null, sessionType: null };
 
   const clearAll = () => {
-    localStorage.removeItem("work_token");
-    localStorage.removeItem("work_operator");
-    localStorage.removeItem("work_session_type");
+    sessionStorage.removeItem("work_token");
+    sessionStorage.removeItem("work_operator");
+    sessionStorage.removeItem("work_session_type");
   };
 
   // トークン取得・有効期限チェック
-  const t = localStorage.getItem("work_token");
+  const t = sessionStorage.getItem("work_token");
   if (!t) return { token: null, operator: null, sessionType: null };
   try {
     const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
@@ -74,7 +74,7 @@ function restoreAuthState(): { token: string | null; operator: Operator | null; 
   }
 
   // operator 復元 — 存在しない場合は全クリア（isAuthenticated=true && operator=null を防ぐ）
-  const opStr = localStorage.getItem("work_operator");
+  const opStr = sessionStorage.getItem("work_operator");
   if (!opStr) {
     // work_operator が未保存（fix_auth_restore_v1 適用前のセッション）→ 全クリアして再認証を促す
     clearAll();
@@ -92,7 +92,7 @@ function restoreAuthState(): { token: string | null; operator: Operator | null; 
     return { token: null, operator: null, sessionType: null };
   }
 
-  const sessionType = localStorage.getItem("work_session_type") ?? null;
+  const sessionType = sessionStorage.getItem("work_session_type") ?? null;
   return { token: t, operator, sessionType };
 }
 
@@ -118,9 +118,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMcProgramId(payload?.mc_program_id ?? null);
     setNcProgramId(payload?.nc_program_id ?? null);
     if (typeof window !== "undefined") {
-      localStorage.setItem("work_token",        res.access_token);
-      localStorage.setItem("work_operator",     JSON.stringify(res.operator));
-      localStorage.setItem("work_session_type", res.session_type);
+      sessionStorage.setItem("work_token",        res.access_token);
+      sessionStorage.setItem("work_operator",     JSON.stringify(res.operator));
+      sessionStorage.setItem("work_session_type", res.session_type);
     }
   }, []);
 
@@ -136,9 +136,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setNcProgramId(null);
     tokenRef.current = null;
     if (typeof window !== "undefined") {
-      localStorage.removeItem("work_token");
-      localStorage.removeItem("work_operator");
-      localStorage.removeItem("work_session_type");
+      sessionStorage.removeItem("work_token");
+      sessionStorage.removeItem("work_operator");
+      sessionStorage.removeItem("work_session_type");
     }
   }, []);
 
