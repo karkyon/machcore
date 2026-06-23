@@ -156,6 +156,8 @@ export default function McEditPage() {
   const [pgUpdatedAtDisp, setPgUpdatedAtDisp] = useState<string>("");
   const [pgUploadModalOpen, setPgUploadModalOpen] = useState(false);
   const [pgUploading, setPgUploading] = useState(false);
+  const [pgFileInfo, setPgFileInfo] = useState<{ originalName: string; fileCount: number; content: string } | null>(null);
+  const [toolingPgLoaded, setToolingPgLoaded] = useState(false);
 
   // 写真/図 複数プレビュー選択
   const [photoPreviewFiles,   setPhotoPreviewFiles]   = useState<{file: File; url: string; selected: boolean}[]>([]);
@@ -318,6 +320,10 @@ export default function McEditPage() {
     }).catch(() => {});
     usersApi.list().then(r => setUsers((r as any).data ?? [])).catch(() => {});
     mcApi.listFiles(mcId).then(r => setFiles((r as any).data ?? [])).catch(() => {});
+    mcApi.getPgFile(mcId).then(r => {
+      const d2 = (r as any).data ?? r;
+      setPgFileInfo({ originalName: d2.originalName ?? "", fileCount: d2.fileCount ?? 1, content: d2.content ?? "" });
+    }).catch(() => setPgFileInfo(null));
   }, [mcId]);
 
   // ── ファイルサイズ上限 ──
@@ -707,6 +713,12 @@ export default function McEditPage() {
       const refreshed = await mcApi.findOne(mcId);
       setDetail((refreshed as any).data ?? refreshed);
       setPgContent("");
+      try {
+        const pgR = await mcApi.getPgFile(mcId);
+        const pgD = (pgR as any).data ?? pgR;
+        setPgFileInfo({ originalName: pgD.originalName ?? "", fileCount: pgD.fileCount ?? 1, content: pgD.content ?? "" });
+      } catch { setPgFileInfo(null); }
+      setToolingPgLoaded(false);
 
       const n2 = result.files.length;
       const delFailCount = result.files.filter((f: any) => !f.localDeleted).length;
@@ -1162,6 +1174,13 @@ export default function McEditPage() {
                       {pgUploading ? "⏳ 登録中..." : "📥 USBから登録"}
                     </button>
                   </div>
+                  <div className="px-4 py-2 border-b border-slate-100 bg-white">
+                    <span className="text-[11px] text-slate-500">
+                      登録状態：{pgFileInfo
+                        ? <span className="font-mono font-bold text-slate-700">{pgFileInfo.originalName}{pgFileInfo.fileCount > 1 ? `（他${pgFileInfo.fileCount - 1}件）` : ""}</span>
+                        : <span className="text-slate-400">未登録</span>}
+                    </span>
+                  </div>
                   <div className="px-4 py-3 grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-xs font-bold text-slate-500 block mb-1">PG作成者</label>
@@ -1343,32 +1362,26 @@ export default function McEditPage() {
                 {/* プログラム読取り（リストの下） */}
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                   <p className="text-xs font-bold text-amber-700 mb-3">ツーリングプログラム読取り（MC専用機能）</p>
-                  <textarea value={toolingText} onChange={e => setToolingText(e.target.value)}
-                    onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("border-amber-500","bg-amber-100"); }}
-                    onDragLeave={e => { e.currentTarget.classList.remove("border-amber-500","bg-amber-100"); }}
-                    onDrop={e => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove("border-amber-500","bg-amber-100");
-                      const f = e.dataTransfer.files[0];
-                      if (f) { const reader = new FileReader(); reader.onload = ev => setToolingText(ev.target?.result as string ?? ""); reader.readAsText(f); }
-                    }}
-                    placeholder="ツーリングプログラムをここに貼り付け、またはファイルをドラッグ＆ドロップ..."
-                    rows={6}
-                    className="w-full border border-amber-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none resize-none" />
-                  <div className="flex items-center gap-2 mt-2 mb-2">
-                    <label className="px-3 py-1.5 bg-white border border-amber-400 text-amber-700 text-xs font-bold rounded cursor-pointer hover:bg-amber-50 transition-colors">
-                      ファイルを選択
-                      <input type="file" className="hidden"
-                        onChange={e => {
-                          const f2 = e.target.files?.[0];
-                          if (f2) { const reader = new FileReader(); reader.onload = ev => setToolingText(ev.target?.result as string ?? ""); reader.readAsText(f2); e.target.value = ""; }
-                        }} />
-                    </label>
-                    <span className="text-[10px] text-amber-600">またはテキストを貼り付け / D&D</span>
+                  <div className="flex items-center gap-3 mb-3 flex-wrap">
+                    <button
+                      onClick={() => {
+                        if (!pgFileInfo) return;
+                        setToolingText(pgFileInfo.content);
+                        setToolingPgLoaded(true);
+                      }}
+                      disabled={!pgFileInfo}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap">
+                      📄 プログラムファイルを読み込み
+                    </button>
+                    <span className="text-xs text-amber-700">
+                      プログラムファイル：{pgFileInfo
+                        ? <span className="font-mono font-bold">{pgFileInfo.originalName}</span>
+                        : <span className="text-amber-400">未登録（基本情報タブで登録してください）</span>}
+                    </span>
                   </div>
                   <div className="flex gap-2">
-                  <button onClick={handleParseTooling}
-                      className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-4 py-2 rounded-lg font-bold">解析・プレビュー</button>
+                  <button onClick={handleParseTooling} disabled={!toolingPgLoaded}
+                      className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-4 py-2 rounded-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed">解析・プレビュー</button>
                     {parseResult && (
                       <button onClick={applyParseResult}
                         className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-4 py-2 rounded-lg font-bold">
