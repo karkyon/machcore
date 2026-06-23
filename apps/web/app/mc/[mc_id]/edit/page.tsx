@@ -1379,6 +1379,10 @@ export default function McEditPage() {
                         : <span className="text-amber-400">未登録（基本情報タブで登録してください）</span>}
                     </span>
                   </div>
+                  {toolingPgLoaded && (
+                    <textarea value={toolingText} readOnly rows={6}
+                      className="w-full border border-amber-300 rounded-lg px-3 py-2 text-xs font-mono bg-white resize-none mb-3" />
+                  )}
                   <div className="flex gap-2">
                   <button onClick={handleParseTooling} disabled={!toolingPgLoaded}
                       className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-4 py-2 rounded-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed">解析・プレビュー</button>
