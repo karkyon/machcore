@@ -1750,7 +1750,7 @@ export default function McEditPage() {
                                 </div>
                               )}
                               
-                              <img src={`/api/mc/${mcId}/files/${f.id}/thumb`}
+                              <img src={`/api/mc/${mcId}/files/${f.id}/thumb?v=${encodeURIComponent(String(f.uploaded_at || ''))}`}
                                 alt={f.original_name} className="w-full h-full object-contain" loading="lazy"
                                 onError={e2 => { (e2.target as HTMLImageElement).style.display = "none"; }} />
                             </div>
@@ -1794,7 +1794,7 @@ export default function McEditPage() {
                                 </div>
                               )}
                               
-                              <img src={`/api/mc/${mcId}/files/${f.id}/thumb`}
+                              <img src={`/api/mc/${mcId}/files/${f.id}/thumb?v=${encodeURIComponent(String(f.uploaded_at || ''))}`}
                                 alt={f.original_name} className="w-full h-full object-contain" loading="lazy"
                                 onError={e2 => { (e2.target as HTMLImageElement).style.display = "none"; }} />
                             </div>

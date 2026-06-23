@@ -1283,7 +1283,7 @@ export default function McDetailPage() {
                         <div key={f.id} className="bg-white rounded-xl border-2 border-teal-300 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                           onClick={() => setPreviewFile(f)}>
                           <div className="aspect-square bg-teal-50 flex items-center justify-center overflow-hidden">
-                            <img src={`/api/mc/${mcId}/files/${f.id}/thumb`} alt={f.original_name}
+                            <img src={`/api/mc/${mcId}/files/${f.id}/thumb?v=${encodeURIComponent(String(f.uploaded_at || ''))}`} alt={f.original_name}
                               className="w-full h-full object-contain" loading="lazy"
                               onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
                           </div>
@@ -1308,7 +1308,7 @@ export default function McDetailPage() {
                         <div key={f.id} className="bg-white rounded-xl border-2 border-purple-300 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                           onClick={() => setPreviewFile(f)}>
                           <div className="aspect-square bg-purple-50 flex items-center justify-center overflow-hidden">
-                            <img src={`/api/mc/${mcId}/files/${f.id}/thumb`} alt={f.original_name}
+                            <img src={`/api/mc/${mcId}/files/${f.id}/thumb?v=${encodeURIComponent(String(f.uploaded_at || ''))}`} alt={f.original_name}
                               className="w-full h-full object-contain" loading="lazy"
                               onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
                           </div>
