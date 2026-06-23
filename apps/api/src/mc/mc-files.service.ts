@@ -214,8 +214,9 @@ export class McFilesService {
     const ext      = path.extname(file.filename).toLowerCase();
 
     const isProgram = this.isProgramFile(file.filename, file.data);
-    const isImage   = ['image/jpeg','image/jpg','image/png','image/tiff','image/tif'].includes(file.mimetype);
-    const isPdf     = file.mimetype === 'application/pdf';
+    const isImage   = ['image/jpeg','image/jpg','image/png','image/tiff','image/tif'].includes(file.mimetype)
+                     || ['.jpg','.jpeg','.png','.tif','.tiff'].includes(ext);
+    const isPdf     = file.mimetype === 'application/pdf' || ext === '.pdf';
 
     let fileTypeEnum: string;
     if (isProgram)                      fileTypeEnum = 'PROGRAM';
@@ -341,7 +342,9 @@ export class McFilesService {
     fs.writeFileSync(filePath, file.data);
 
     // サムネイルも上書き再生成
-    const isImage = /^image\//i.test(file.mimetype);
+    // ★修正: UploadAgent経由のアップロードはmimetypeが常にapplication/octet-streamになるため、拡張子もフォールバックで判定する
+    const replaceExt = path.extname(file.filename).toLowerCase();
+    const isImage = /^image\//i.test(file.mimetype) || ['.jpg','.jpeg','.png','.tif','.tiff'].includes(replaceExt);
     if (isImage && old.thumbnailPath) {
       try {
         this.ensureDir(path.dirname(old.thumbnailPath));

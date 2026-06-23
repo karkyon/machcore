@@ -583,7 +583,17 @@ function McRecordPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const { operator, isAuthenticated, token, logout } = useAuth();
+  const { operator, isAuthenticated, token, logout, isSessionForMc } = useAuth();
+
+  // -- 別mc_id向けセッションが残っていれば強制ログアウト --
+  React.useEffect(() => {
+    if (isAuthenticated && !isSessionForMc(mcId)) {
+      console.warn("[MC-RECORD] 認証セッションが別のmc_id向けのため強制ログアウト", { mcId });
+      logout();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mcId, isAuthenticated]);
+
   // ── 離脱警告（sbMode=STEP2作業中） ─────────────────────────
   React.useEffect(() => {
     if (!sbMode && !isAuthenticated) return;
