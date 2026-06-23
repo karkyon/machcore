@@ -8,6 +8,7 @@ export interface UploadTicketPayload {
   fileType?:      'PHOTO' | 'DRAWING' | 'PROGRAM';
   replaceFileId?: number;
   isFolderUpload?: boolean;
+  isPgToUsb?:     boolean; // PG→USB機能用チケット（UAが直接ファイル情報を取得する）
   userId:         number;
   expiresAt:      number;
   used:           boolean;
@@ -27,7 +28,7 @@ export class UploadTicketService {
   issue(params: {
     mcId: number; machiningId: number; userId: number;
     fileType?: 'PHOTO' | 'DRAWING' | 'PROGRAM';
-    replaceFileId?: number; isFolderUpload?: boolean;
+    replaceFileId?: number; isFolderUpload?: boolean; isPgToUsb?: boolean;
   }): UploadTicketPayload {
     const ttl = params.isFolderUpload ? TICKET_TTL_MS_FOLDER : TICKET_TTL_MS_SINGLE;
     const ticket: UploadTicketPayload = {
@@ -37,6 +38,7 @@ export class UploadTicketService {
       fileType: params.fileType,
       replaceFileId: params.replaceFileId,
       isFolderUpload: params.isFolderUpload,
+      isPgToUsb: params.isPgToUsb,
       userId: params.userId,
       expiresAt: Date.now() + ttl,
       used: false,
@@ -66,6 +68,23 @@ export class UploadTicketService {
     t.used = true;
     this.tickets.delete(ticketId);
     return t;
+  }
+
+  /**
+   * PG→USB専用: チケットを消費せずに参照する（1回限りの破棄はしない）。
+   * UA側が「情報取得→コピー実行」の2段階でこのチケットを使うため。
+   * 呼び出し元が完了後に明示的に invalidate() で破棄する。
+   */
+  peek(ticketId: string): UploadTicketPayload | null {
+    const t = this.tickets.get(ticketId);
+    if (!t) return null;
+    if (Date.now() > t.expiresAt) { this.tickets.delete(ticketId); return null; }
+    return t;
+  }
+
+  /** チケットを即時破棄する（PG→USB完了時に呼ぶ） */
+  invalidate(ticketId: string): void {
+    this.tickets.delete(ticketId);
   }
 
   private cleanup() {

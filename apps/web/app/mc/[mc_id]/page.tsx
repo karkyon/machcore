@@ -6,6 +6,7 @@ import { mcApi, mcFilesApi, McDetail, McTooling, McWorkOffset, McIndexProgram,
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
+import { isAgentOnline, agentPgToUsb } from "@/lib/upload-agent";
 
 const STATUS_LABEL: Record<string, string> = {
   NEW: "新規", PENDING_APPROVAL: "未承認", APPROVED: "承認済", CHANGING: "変更中",
@@ -54,10 +55,11 @@ export default function McDetailPage() {
   const [previewZoom, setPreviewZoom] = useState<"fit" | "real" | number>("fit");
 
   // 認証
-  const { operator, isAuthenticated, logout, token } = useAuth();
+  const { operator, isAuthenticated, logout, token, isSessionForMc } = useAuth();
   const [authOpen, setAuthOpen]       = useState(false);
   const [authType, setAuthType]       = useState("edit");
   const [pendingUsb, setPendingUsb]   = useState(false);
+  const [pgToUsbBusy, setPgToUsbBusy] = useState(false);
 
   // タイマー
   const [elapsed, setElapsed] = useState(0);
@@ -117,6 +119,28 @@ export default function McDetailPage() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isAuthenticated]);
 
+  // ── 別mc_id向けセッションが残っていれば強制ログアウト（edit/record/printと統一）──
+  useEffect(() => {
+    if (!mcId) return;
+    if (isAuthenticated && !isSessionForMc(mcId)) {
+      console.warn("[MC-DETAIL] 認証セッションが別のmc_id向けのため強制ログアウト", { mcId });
+      logout();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mcId, isAuthenticated]);
+
+  // ── このページ自体がアンマウントされる(=他画面へ遷移する)際に、
+  //    認証セッション（PG→USB等の参照モード認証）が残っていれば必ず終了させる。
+  useEffect(() => {
+    return () => {
+      if (isAuthenticated) {
+        console.warn("[MC-DETAIL] ページ離脱を検知 — 認証セッションを終了します");
+        logout();
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (mainTab !== "history") return;
     if (histTab === "change" && changes === null) {
@@ -133,7 +157,7 @@ export default function McDetailPage() {
     }
   }, [mainTab, histTab, mcId]);
 
-  // USB pending -> FSA API で USB直接書き込み
+  // USB pending -> UA経由でPG→USB実行（ダイアログ表示なし、設定済みUSBドライブへ直接コピー）
   useEffect(() => {
     if (isAuthenticated && pendingUsb && token) {
       setPendingUsb(false);
@@ -143,52 +167,53 @@ export default function McDetailPage() {
   }, [isAuthenticated, pendingUsb, token]);
 
   const handleUsbCopy = async () => {
-    if (!('showDirectoryPicker' in window)) {
-      const a = document.createElement('a');
-      a.href = `/api/mc/${mcId}/pg-download`;
-      a.download = '';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      showToast("PGファイルをダウンロードしました（FSA非対応）");
-      return;
-    }
+    if (!token) { showToast("❌ 認証が必要です"); return; }
+    setPgToUsbBusy(true);
     try {
-      const res = await fetch(`/api/mc/${mcId}/pg-file-info`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) { showToast('PGファイルが見つかりません'); return; }
-      const info: { files: Array<{ name: string; folderName?: string; content: string }> } = await res.json();
-
-      let dirHandle: FileSystemDirectoryHandle;
-      try {
-        dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
-      } catch {
+      const online = await isAgentOnline();
+      if (!online) {
+        showToast("❌ UploadAgentが起動していません。タスクトレイを確認してください");
         return;
       }
 
-      if (info.files.length === 1 && !info.files[0].folderName) {
-        const f = info.files[0];
-        const fh = await dirHandle.getFileHandle(f.name, { create: true });
-        const writable = await fh.createWritable();
-        const bytes = Uint8Array.from(atob(f.content), c => c.charCodeAt(0));
-        await writable.write(bytes);
-        await writable.close();
-        showToast(`✅ ${f.name} をコピーしました`);
-      } else {
-        const folderName = info.files[0]?.folderName ?? `PG_${mcId}`;
-        const subDir = await dirHandle.getDirectoryHandle(folderName, { create: true });
-        for (const f of info.files) {
-          const fh = await subDir.getFileHandle(f.name, { create: true });
-          const writable = await fh.createWritable();
-          const bytes = Uint8Array.from(atob(f.content), c => c.charCodeAt(0));
-          await writable.write(bytes);
-          await writable.close();
-        }
-        showToast(`✅ フォルダ「${folderName}」に ${info.files.length}件コピーしました`);
+      const ticketRes = await fetch(`/api/mc/${mcId}/pg-to-usb-ticket`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!ticketRes.ok) {
+        const errJson = await ticketRes.json().catch(() => ({}));
+        showToast(`❌ ${errJson.message ?? 'チケット発行に失敗しました'}`);
+        return;
       }
-    } catch (e: any) {
-      showToast(`コピー失敗: ${e?.message ?? String(e)}`);
+      const { ticket } = await ticketRes.json();
+
+      if (!window.confirm(`プログラムファイル（MCID:${d?.machiningId ?? mcId}）をUSBへ転送します。\n続行しますか？`)) {
+        fetch(`/api/mc/files/pg-to-usb-complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticket }),
+        }).catch(() => {});
+        return;
+      }
+
+      const apiBaseUrl = window.location.origin + '/api';
+      const result = await agentPgToUsb(ticket, apiBaseUrl);
+
+      fetch(`/api/mc/files/pg-to-usb-complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticket }),
+      }).catch(() => {});
+
+      if (result.success) {
+        showToast(`✅ USBへ転送しました（${result.copiedFiles.length}件）`);
+      } else {
+        showToast(`❌ 転送に失敗しました: ${result.error ?? '不明なエラー'}`);
+      }
+    } finally {
+      setPgToUsbBusy(false);
+      // ── 重要: PG→USB完了後はユーザセッション情報を必ず破棄する ──
+      logout();
     }
   };
 
@@ -297,10 +322,18 @@ export default function McDetailPage() {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
             部品検索へ戻る
           </button>
-          <button onClick={() => { if (!isAuthenticated) { setPendingUsb(true); openAuth("usb_download"); } else { handleUsbCopy(); } }}
-            className="text-[11px] bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded font-bold">
-            PG→USB
-          </button>
+          {!!d?.files?.some(f => f.file_type === "PROGRAM") && (
+            <button
+              onClick={() => {
+                if (pgToUsbBusy) return;
+                if (!isAuthenticated) { setPendingUsb(true); openAuth("usb_download"); }
+                else { handleUsbCopy(); }
+              }}
+              disabled={pgToUsbBusy}
+              className="text-[11px] bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-3 py-1 rounded font-bold">
+              {pgToUsbBusy ? "⏳ 転送中..." : "PG→USB"}
+            </button>
+          )}
         </span>
       </header>
         {/* ── フローティング工程切り替えパネル ── */}

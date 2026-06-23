@@ -49,6 +49,40 @@ export type PickAndUploadResult = {
   error?: string;
 };
 
+export type PgToUsbResult = {
+  agentAvailable: boolean;
+  success:        boolean;
+  copiedFiles: string[];
+  destPath?:   string;
+  error?:      string;
+};
+
+/**
+ * Agentへ「PGファイルをチケットで取得し、設定済みUSBドライブへ直接コピー」を依頼する。
+ * ダイアログは一切表示しない（USB保存先はAgent設定で事前固定済み）。
+ */
+export async function agentPgToUsb(ticket: string, apiBaseUrl: string): Promise<PgToUsbResult> {
+  const token = await getAgentToken();
+  if (!token) return { agentAvailable: false, success: false, copiedFiles: [], error: "Agent未起動" };
+
+  try {
+    console.log("[Agent] /pg-to-usb 依頼開始 ticket=", ticket);
+    const res = await fetch(`${AGENT_BASE}/pg-to-usb`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", "X-Agent-Token": token },
+      body:    JSON.stringify({ ticket, apiBaseUrl }),
+      signal:  AbortSignal.timeout(TIMEOUT_MS * 4),
+    });
+    const json = await res.json();
+    console.log("[Agent] /pg-to-usb 結果:", json);
+    if (!res.ok) return { agentAvailable: true, success: false, copiedFiles: [], error: json.error ?? `HTTP ${res.status}` };
+    return { agentAvailable: true, success: json.success ?? false, copiedFiles: json.copiedFiles ?? [], destPath: json.destPath, error: json.error };
+  } catch (e: any) {
+    console.error("[Agent] /pg-to-usb エラー:", e);
+    return { agentAvailable: true, success: false, copiedFiles: [], error: e.message };
+  }
+}
+
 /**
  * Agentへ「単体ファイル選択→アップロード→ローカル削除」を一括依頼する。
  * Agent内でネイティブファイルダイアログが表示される。

@@ -409,6 +409,55 @@ export class McController {
     return this.mcFiles.listFiles(id);
   }
 
+  // ── UploadAgent連携: PG→USB専用チケット発行 ──
+  // 参照モード画面から「PG→USB」を行う際に使用。
+  // Bearerトークン自体はAgentに渡さず、ワンタイムチケットのみを渡す。
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Post(':mc_id/pg-to-usb-ticket')
+  async issuePgToUsbTicket(
+    @Param('mc_id', ParseIntPipe) mcId: number,
+    @Req() req: any,
+  ) {
+    const info = await this.mcFiles.getPgFileInfo(mcId);
+    if (!info || !info.files || info.files.length === 0) {
+      throw new BadRequestException('プログラムファイルが登録されていません');
+    }
+    const detail = await this.mc.findOne(mcId);
+    const machiningId = (detail as any)?.machiningId;
+    if (!machiningId) throw new BadRequestException('machiningId が取得できません');
+
+    const ticket = this.tickets.issue({
+      mcId,
+      machiningId,
+      userId: req.user.id,
+      isPgToUsb: true,
+    });
+    return { ticket: ticket.ticket, expires_in_sec: 60, mc_id: mcId, machining_id: machiningId };
+  }
+
+  // ── UploadAgent連携: PG→USB専用 ファイル情報取得（チケット認証） ──
+  // Bearerトークンではなくticketで認証する。UAがこのエンドポイントを直接呼び、
+  // 転送元ファイルのBase64データを取得してUSBへコピーする。
+  @Get('files/pg-info-by-ticket')
+  async getPgInfoByTicket(@Query('ticket') ticketId: string) {
+    if (!ticketId) throw new BadRequestException('ticket が必要です');
+    const payload = this.tickets.peek(ticketId);
+    if (!payload || !payload.isPgToUsb) {
+      throw new UnauthorizedException('チケットが無効、または期限切れです');
+    }
+    const info = await this.mcFiles.getPgFileInfo(payload.mcId);
+    return { ...info, mc_id: payload.mcId, machining_id: payload.machiningId };
+  }
+
+  // ── UploadAgent連携: PG→USB完了通知（チケット破棄） ──
+  @Post('files/pg-to-usb-complete')
+  async completePgToUsb(@Body() body: { ticket: string }) {
+    if (!body?.ticket) throw new BadRequestException('ticket が必要です');
+    this.tickets.invalidate(body.ticket);
+    return { ok: true };
+  }
+
   // ── UploadAgent連携: ワンタイムアップロードチケット発行 ──
   // 正規Bearer認証を経た上でのみチケットを発行。Bearerトークン自体はAgentに渡さない。
   @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
