@@ -519,23 +519,34 @@ export default function McDetailPage() {
                     <div className="font-semibold text-slate-800">{d.machiningQty ?? 1} 個</div>
                   </div>
                 </div>
-                {/* ── 行2.5: プログラムファイル登録状態（旧Accessﾏｼﾆﾝｸﾞ画面のﾌｫﾙﾀﾞ1/ﾌｫﾙﾀﾞ2/ﾌｧｲﾙ名に相当）── */}
-                {/* PG作成者/PG更新日時は編集モードの「プログラム情報」欄(PG作成者/PG更新日時)と重複するため、ここでは表示しない */}
+                {/* ── 行2.5: プログラムファイル / PG作成者 / SAVE DATE（3列統合。旧Accessﾏｼﾆﾝｸﾞ画面相当）── */}
                 {(() => {
                   const pgFile = d.files?.find(f => f.file_type === "PROGRAM");
                   return (
-                    <div className="px-4 py-3 bg-amber-50/40">
-                      <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">プログラムファイル</div>
-                      {pgFile ? (
-                        <>
-                          <div className="font-mono font-semibold text-slate-800 text-sm">{pgFile.original_name}</div>
-                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                            📁 mc_files/pg/{d.machiningId}/{pgFile.original_name}
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-slate-400 text-sm">未登録</div>
-                      )}
+                    <div className="grid grid-cols-3 divide-x divide-slate-100 bg-amber-50/40">
+                      <div className="px-4 py-3">
+                        <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">プログラムファイル</div>
+                        {pgFile ? (
+                          <>
+                            <div className="font-mono font-semibold text-slate-800 text-sm">{pgFile.original_name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                              📁 mc_files/pg/{d.machiningId}/{pgFile.original_name}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-slate-400 text-sm">未登録</div>
+                        )}
+                      </div>
+                      <div className="px-4 py-3">
+                        <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">PG作成者</div>
+                        <div className="text-slate-800 text-sm">{d.pgCreator?.name ?? "—"}</div>
+                      </div>
+                      <div className="px-4 py-3">
+                        <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">SAVE DATE</div>
+                        <div className="font-mono text-slate-800 text-sm">
+                          {d.pgUpdatedAt ? new Date(d.pgUpdatedAt).toLocaleString("ja-JP", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" }) : "—"}
+                        </div>
+                      </div>
                     </div>
                   );
                 })()}
@@ -595,21 +606,7 @@ export default function McDetailPage() {
                   </div>
                 </div>
                 {/* ── クランプ・備考 ── */}
-                {/* ── PG作成者・Save Date ── */}
-                {(d.pgCreator || d.pgUpdatedAt) && (
-                  <div className="grid grid-cols-2 divide-x divide-slate-100">
-                    <div className="px-4 py-3">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">PG作成者</div>
-                      <div className="text-slate-800">{d.pgCreator?.name ?? "—"}</div>
-                    </div>
-                    <div className="px-4 py-3">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Save Date</div>
-                      <div className="font-mono text-slate-800">
-                        {d.pgUpdatedAt ? new Date(d.pgUpdatedAt).toLocaleString("ja-JP", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" }) : "—"}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* PG作成者/Save Dateは基本情報先頭の「プログラムファイル」3列ブロックに統合済みのため、ここには表示しない */}
                 {d.clampNote && (
                   <div className="px-4 py-3">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">クランプ</div>
