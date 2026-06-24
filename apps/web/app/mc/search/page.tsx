@@ -119,15 +119,7 @@ export default function McSearchPage() {
             <button onClick={handleSearch} disabled={loading} className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 text-white py-2 rounded-lg text-sm font-bold transition-colors mt-1">{loading ? "検索中..." : "● 検索"}</button>
             {results.length > 0 && <button onClick={() => { setMcIdInput(""); setMachiningIdInput(""); setPartIdInput(""); setDrawingNoInput(""); setNameInput(""); setClientInput(""); setMachineInput(""); setResults([]); setTotal(null); }} className="w-full border border-slate-200 text-slate-500 hover:bg-slate-50 py-1.5 rounded-lg text-xs">クリア</button>}
             {total !== null && <div className="text-xs text-slate-500 bg-slate-50 rounded p-2">{total > 0 ? <span><b className="text-slate-700">{total}</b> 件ヒット</span> : <span className="text-red-500">0件（条件を変更してください）</span>}</div>}
-            {recent.length > 0 && <div className="pt-2 border-t border-slate-100">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">最近のアクセス</div>
-              {recent.slice(0,5).map((r: any,i) => (
-                <div key={i} onClick={() => handleSelect(r.mc_id)} className="flex items-center gap-2 py-1.5 px-1 rounded cursor-pointer hover:bg-slate-50 text-[11px]">
-                  <span className="font-mono text-teal-600 font-bold w-16 shrink-0">MCID:{r.legacy_mcid ?? r.mc_id}</span>
-                  <span className="text-slate-600 truncate">{r.part_name ?? r.drawing_no}</span>
-                </div>
-              ))}
-            </div>}
+
           </div>
         </aside>
         <main className="w-[460px] shrink-0 border-r border-slate-200 flex flex-col overflow-hidden">
@@ -165,14 +157,16 @@ export default function McSearchPage() {
         </main>
         <section className="flex-1 overflow-y-auto p-5">
           {recent.length > 0 ? (<>
-            <h3 className="text-sm font-bold text-slate-600 mb-3">最近のアクセス <span className="font-normal text-slate-400 text-xs">直近5件</span></h3>
+            <h3 className="text-sm font-bold text-slate-600 mb-3">最近のアクセス <span className="font-normal text-slate-400 text-xs">直近10件</span></h3>
             <div className="space-y-2">
               {recent.map((r: any,i) => (
                 <div key={i} onClick={() => handleSelect(r.mc_id)} className="bg-white border border-slate-200 rounded-lg px-4 py-3 cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-mono text-teal-600 font-bold text-sm">{r.drawing_no}</span>
-                      <span className="font-mono text-[10px] text-slate-400">MCID:{r.mc_id}</span>
+                      <span className="font-mono text-[10px] text-slate-400">MCID:{r.legacy_mcid ?? r.mc_id}</span>
+                      {r.machining_id != null && <span className="font-mono text-[10px] text-slate-400">加工ID:{r.machining_id}</span>}
+                      {r.part_id && <span className="font-mono text-[10px] text-slate-400">部品ID:{r.part_id}</span>}
                     </div>
                     <div className="text-xs text-slate-500 truncate">{r.part_name}</div>
                   </div>

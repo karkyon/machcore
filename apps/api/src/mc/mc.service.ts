@@ -203,27 +203,29 @@ export class McService {
   async recent() {
     const logs = await this.prisma.operationLog.findMany({
       where:   { mcProgramId: { not: null } },
-      take:    5,
+      take:    10,
       orderBy: { createdAt: 'desc' },
       select: {
         createdAt: true,
         user:      { select: { name: true } },
         mcProgram: {
           select: {
-            id: true, legacyMcid: true, status: true,
-            part:     { select: { drawingNo: true, name: true } },
+            id: true, legacyMcid: true, machiningId: true, status: true,
+            part:     { select: { id: true, partId: true, drawingNo: true, name: true } },
             machining: { select: { version: true, oNumber: true, machine: { select: { machineCode: true } } } },
           },
         },
       },
     });
     return logs.map(l => ({
-      mc_id:        l.mcProgram?.id,
-      legacy_mcid:  l.mcProgram?.legacyMcid ?? null,
-      drawing_no:   l.mcProgram?.part.drawingNo,
-      part_name:    l.mcProgram?.part.name,
-      machine_code: l.mcProgram?.machining?.machine?.machineCode ?? null,
-      version:      l.mcProgram?.machining?.version ?? '1.0001',
+      mc_id:         l.mcProgram?.id,
+      legacy_mcid:   l.mcProgram?.legacyMcid ?? null,
+      machining_id:  l.mcProgram?.machiningId ?? null,
+      part_id:       l.mcProgram?.part.partId ?? null,
+      drawing_no:    l.mcProgram?.part.drawingNo,
+      part_name:     l.mcProgram?.part.name,
+      machine_code:  l.mcProgram?.machining?.machine?.machineCode ?? null,
+      version:       l.mcProgram?.machining?.version ?? '1.0001',
       status:       l.mcProgram?.status,
       operator_name: l.user?.name,
       accessed_at:  l.createdAt,
