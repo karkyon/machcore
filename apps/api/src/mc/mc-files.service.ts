@@ -234,23 +234,11 @@ export class McFilesService {
     let sortOrder = 0;
 
     if (fileTypeEnum === 'PROGRAM') {
-      if (isFolderUpload) {
-        // ケース2: フォルダ構成 → {base}/mc_files/pg/{machining_id}/{original_filename}
-        flatDir    = path.join(basePath, 'MC', 'files', 'Programs', String(machId));
-        storedName = file.filename;  // オリジナルのまま維持
-        // 同名のファイル（単体アップで作られた pg/{machId} ファイル）が存在したら trash/ へ退避
-        const pgFlatFile = path.join(basePath, 'MC', 'files', 'Programs', String(machId));
-        if (fs.existsSync(pgFlatFile) && fs.statSync(pgFlatFile).isFile()) {
-          const ts2     = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-          const trashD2 = path.join(basePath, 'trash');
-          this.ensureDir(trashD2);
-          fs.renameSync(pgFlatFile, path.join(trashD2, `${machId}-${ts2}`));
-        }
-      } else {
-        // ケース1: 単一ファイル → {base}/mc_files/pg/{machining_id}[.ext]
-        flatDir    = path.join(basePath, 'MC', 'files', 'Programs');
-        storedName = `${machId}${ext}`;  // ファイル名=加工ID+拡張子
-      }
+      // 単体/フォルダどちらも統一: {base}/mc_files/pg/{machining_id}/{original_filename}
+      // 旧仕様(単体ファイルを machining_id にリネーム)は廃止。
+      // 旧Accessシステムの「加工IDフォルダの中に元ファイル名のまま保存」という仕様に統一する。
+      flatDir    = path.join(basePath, 'MC', 'files', 'Programs', String(machId));
+      storedName = file.filename;  // オリジナルのファイル名・拡張子をそのまま維持
 
       // 同名ファイルが既存の場合は trash/ へタイムスタンプ付きで退避
       const dest = path.join(flatDir, storedName);
