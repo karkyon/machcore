@@ -981,8 +981,8 @@ def phase6(pg, dry_run=False):
 
 
 
-def phase7(pg, dry_run=False, force_copy=False):
-    section("PHASE 7: 図・写真・プログラム ファイル移行")
+def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
+    section("PHASE 7: 図・写真・プログラム ファイル移行" + ("（プログラムのみ）" if prg_only else ""))
     import shutil as _shutil
 
     # コピー先ディレクトリを必ず作成
@@ -992,9 +992,13 @@ def phase7(pg, dry_run=False, force_copy=False):
 
     if not dry_run:
         # mc_filesレコードは必ず全削除して再登録
-        pgc.execute("DELETE FROM mc_files")
+        # ★prg_only指定時はPROGRAM分のみ削除（DRAWING/PHOTOのmc_filesは保持）
+        if prg_only:
+            pgc.execute("DELETE FROM mc_files WHERE file_type = 'PROGRAM'")
+        else:
+            pgc.execute("DELETE FROM mc_files")
         pg.commit()
-        log("mc_files既存データ削除完了")
+        log("mc_files既存データ削除完了" + ("（PROGRAM分のみ）" if prg_only else ""))
 
         # --force-copy またはデフォルトでコピー先を全削除→再コピー
         # ※ コピー元(SRC_*) と コピー先(DST_*) は別マウント。必ず削除→再コピーが正しい動作
@@ -1021,9 +1025,11 @@ def phase7(pg, dry_run=False, force_copy=False):
                         os.makedirs(str(dst_dir.parent), exist_ok=True)
                         os.makedirs(str(dst_dir), exist_ok=True)
 
-        for label, dst_dir in [("Drawings", DST_DRAW), ("Pictures", DST_PHOTO), ("Programs", DST_PRG)]:
+        _clear_targets = [("Programs", DST_PRG)] if prg_only else \
+            [("Drawings", DST_DRAW), ("Pictures", DST_PHOTO), ("Programs", DST_PRG)]
+        for label, dst_dir in _clear_targets:
             _safe_rmtree_and_mkdir(dst_dir, label)
-        log("コピー先ディレクトリクリア完了")
+        log("コピー先ディレクトリクリア完了" + ("（Programsのみ）" if prg_only else ""))
 
     pgc.execute("SELECT id, machining_id FROM mc_programs")
     machining_map: dict[int, list[int]] = {}
@@ -1103,9 +1109,9 @@ def phase7(pg, dry_run=False, force_copy=False):
               fsize, pg_role, sort_order, ADMIN_ID))
 
     # ── 7A: 図 (SRC_DRAW → DST_DRAW) ──────────────
-    log("\n--- 7A: 図 (Drawings) ---")
+    log("\n--- 7A: 図 (Drawings) ---" + ("[prg_onlyのためスキップ]" if prg_only else ""))
     ok = nomatch = err = 0
-    if not SRC_DRAW.exists():
+    if prg_only or not SRC_DRAW.exists():
         log(f"[WARN] SRC_DRAW が存在しない: {SRC_DRAW} - スキップ", "WARN")
     else:
         files = sorted(f for f in SRC_DRAW.rglob("*") if f.is_file())
@@ -1135,9 +1141,9 @@ def phase7(pg, dry_run=False, force_copy=False):
     log(f"7A完了: ok={ok} nomatch={nomatch} err={err}")
 
     # ── 7B: 写真 (SRC_PHOTO → DST_PHOTO) ──────────
-    log("\n--- 7B: 写真 (Pictures) ---")
+    log("\n--- 7B: 写真 (Pictures) ---" + ("[prg_onlyのためスキップ]" if prg_only else ""))
     ok = nomatch = err = 0
-    if not SRC_PHOTO.exists():
+    if prg_only or not SRC_PHOTO.exists():
         log(f"[WARN] SRC_PHOTO が存在しない: {SRC_PHOTO} - スキップ", "WARN")
     else:
         files = sorted(f for f in SRC_PHOTO.rglob("*") if f.is_file())
@@ -1599,6 +1605,8 @@ def main():
                         help="PHASE7: コピー先ファイルを全削除してから再コピー")
     parser.add_argument("--skip-file-copy", action="store_true",
                         help="PHASE7をスキップ（ファイルコピーなし、データのみ移行）")
+    parser.add_argument("--prg-only", action="store_true",
+                        help="PHASE7: プログラムファイル(7C)のみ実行。図(7A)・写真(7B)はスキップ")
     args = parser.parse_args()
 
     dry = args.dry_run
@@ -1611,6 +1619,7 @@ def main():
     try:
         force_copy = args.force_copy
         skip_file  = args.skip_file_copy
+        prg_only   = args.prg_only
         phases = {1:phase1, 2:phase2, 3:phase3, 4:phase4,
                   5:phase5, 6:phase6, 7:phase7, 8:phase8, 9:phase9, 10:phase10}
         if args.phase == 0:
@@ -1620,7 +1629,7 @@ def main():
         for p in run:
             try:
                 if p == 7:
-                    phases[p](pg, dry_run=dry, force_copy=force_copy)
+                    phases[p](pg, dry_run=dry, force_copy=force_copy, prg_only=prg_only)
                 else:
                     phases[p](pg, dry_run=dry)
             except Exception as e:
