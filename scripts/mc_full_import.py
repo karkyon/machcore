@@ -1206,19 +1206,29 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
         src_dir  = folder_map.get(key)
         if not src_dir: nomatch += 1; continue
 
+        src_item = src_dir / str(file_name).strip()
+        if not src_item.exists():
+            notfound += 1
+            continue
+
         _creator_raw, _sdate = pg_creator_map.get(mach_id, (None, None))
         _uploaded_by = _resolve_pg_creator(_creator_raw) or ADMIN_ID
-        # ★修正: S_DATEが取得できないケースがあるため NOW() にフォールバック(NOT NULL制約対応)
         _uploaded_at = (_sdate - _td7(hours=9)) if _sdate else datetime.now()
 
         dst_dir = DST_PRG / str(mach_id)
         dst_dir.mkdir(parents=True, exist_ok=True)
 
-        try:
-            src_files = sorted(f for f in src_dir.iterdir() if f.is_file())
-        except Exception as e:
-            err += 1
-            if err <= 10: log(f"  ERR_LISTDIR {mach_id} dir={src_dir}: {e}", "WARN")
+        if src_item.is_file():
+            src_files = [src_item]
+        elif src_item.is_dir():
+            try:
+                src_files = sorted(f for f in src_item.iterdir() if f.is_file())
+            except Exception as e:
+                err += 1
+                if err <= 10: log(f"  ERR_LISTDIR {mach_id} dir={src_item}: {e}", "WARN")
+                continue
+        else:
+            notfound += 1
             continue
 
         if not src_files:
@@ -1239,8 +1249,6 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
                 copied_any = True
             except Exception as e:
                 err += 1
-                # ★修正: INSERT失敗時は必ずrollbackしてトランザクションを復旧する。
-                # これがないと以降の全INSERTが「current transaction is aborted」で連鎖失敗する。
                 if not dry_run:
                     try:
                         pg.rollback()
