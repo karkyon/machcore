@@ -1164,8 +1164,11 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
     log("プログラムファイル作成者・作成日（ACC_マシニングraw）取得中...")
     _mc_prg = ss_connect(SS_MC_DB)
     _mc_prg_c = _mc_prg.cursor()
+    # ★訂正: PG作成者は [作成](段取シート作成者)ではなく [prg] 列が正しい。
+    #   PG更新日時も固定列値ではなく実ファイルのファイルシステム更新日時(mtime)を使う
+    #   仕様のため、ここでは prg(作成者名) のみ取得する。日付はコピー時にmtimeから取得する。
     _mc_prg_c.execute("""
-        SELECT 加工ID, ﾌｫﾙﾀﾞ1, ﾌｫﾙﾀﾞ2, ﾌｧｲﾙ名, 作成, S_DATE
+        SELECT 加工ID, ﾌｫﾙﾀﾞ1, ﾌｫﾙﾀﾞ2, ﾌｧｲﾙ名, prg
         FROM ACC_マシニングraw
         WHERE ﾌｧｲﾙ名 IS NOT NULL AND ﾌｫﾙﾀﾞ1 IS NOT NULL AND ﾌｧｲﾙ名 != ''
     """)
@@ -1185,10 +1188,10 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
         normed = re.sub(r"[\s\u3000]+", " ", val).strip()
         return _u7_norm.get(normed)
 
-    # 加工ID → (PG作成者名, 作成日) のマップ
-    pg_creator_map: dict[int, tuple] = {}
-    for _kakoid7, _f1, _f2, _fname, _creator_raw, _sdate in _prg_creator_rows:
-        pg_creator_map[_kakoid7] = (_creator_raw, _sdate)
+    # 加工ID → PG作成者名 のマップ（日付はファイルmtimeから別途取得するためここでは持たない）
+    pg_creator_map: dict[int, str] = {}
+    for _kakoid7, _f1, _f2, _fname, _creator_raw in _prg_creator_rows:
+        pg_creator_map[_kakoid7] = _creator_raw
 
     # ── (folder1, folder2) → 実ディレクトリパスを直接構築 ──
     # 旧VBA仕様: SSPrg & folder1 & "\" & folder1 & folder2
@@ -1330,9 +1333,8 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
             notfound += 1
             continue
 
-        _creator_raw, _sdate = pg_creator_map.get(mach_id, (None, None))
+        _creator_raw = pg_creator_map.get(mach_id)
         _uploaded_by = _resolve_pg_creator(_creator_raw) or ADMIN_ID
-        _uploaded_at = (_sdate - _td7(hours=9)) if _sdate else datetime.now()
 
         dst_dir = DST_PRG / str(mach_id)
         dst_dir.mkdir(parents=True, exist_ok=True)
@@ -1354,6 +1356,15 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
             notfound += 1
             continue
 
+        # ★PG更新日時: 固定列値ではなく実ファイルのファイルシステム更新日時(mtime)を使う。
+        #   旧Access仕様: PrgDay.Caption = FileDateTime(Prgpath) と同等の取得方法。
+        #   複数ファイルの場合はMAIN(.spf以外)優先、無ければ全体の最新mtimeを使う。
+        _main_file = next((f for f in src_files if not f.name.lower().endswith(".spf")), src_files[0])
+        try:
+            _uploaded_at = datetime.fromtimestamp(_main_file.stat().st_mtime)
+        except Exception:
+            _uploaded_at = datetime.now()
+
         copied_any = False
         for sort_idx, src_file in enumerate(src_files):
             dst_file = dst_dir / src_file.name
@@ -1362,9 +1373,14 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
                     _shutil.copy2(src_file, dst_file)
                 fsize   = src_file.stat().st_size
                 pg_role = "SUB" if src_file.name.lower().endswith(".spf") else "MAIN"
+                # ファイル個別のmtimeをuploaded_atとして使う（MAINファイルはdst_file側にも反映）
+                try:
+                    _file_mtime = datetime.fromtimestamp(src_file.stat().st_mtime)
+                except Exception:
+                    _file_mtime = _uploaded_at
                 _insert_program_file(mc_id, src_file.name, src_file.name, "text/plain",
                                      dst_file, fsize, pg_role, sort_idx, src_file,
-                                     _uploaded_by, _uploaded_at)
+                                     _uploaded_by, _file_mtime)
                 copied_any = True
             except Exception as e:
                 err += 1
