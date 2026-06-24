@@ -108,6 +108,21 @@ export default function McEditPage() {
     shiki: {id:number;name:string}[];
     index: {id:number;name:string;machine:string|null;model:string|null}[];
   } | null>(null);
+
+  // ★クランプ アイテム選択モーダル用: アイテム欄(clampItem)の自動追従ロジック。
+  //   リストボックス選択(バイス/チャック/爪/インデックス/その他/テールストック/治具/and-or)
+  //   によって変化する自動算出値(clampPreview)を、ユーザーが手入力で書き換えていない場合のみ
+  //   clampItemに反映する。Hooksはコンポーネント本体のトップレベルで呼び出す必要があるため、
+  //   モーダルの条件付きレンダリング内ではなくここに配置する。
+  const [clampPreview, setClampPreview] = useState("");
+  const prevClampPreviewRef = React.useRef<string>("");
+  React.useEffect(() => {
+    if (clampItem === prevClampPreviewRef.current && clampPreview !== prevClampPreviewRef.current) {
+      setClampItem(clampPreview);
+    }
+    prevClampPreviewRef.current = clampPreview;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clampPreview]);
   const [cycleH,       setCycleH]       = useState(0);
   const [cycleM,       setCycleM]       = useState(0);
   const [cycleS,       setCycleS]       = useState(0);
@@ -2475,17 +2490,12 @@ export default function McEditPage() {
         if (clampJig === 1)       parts.push("治具");
         const preview = parts.join(sep);
 
-        // ★アイテム欄(clampItem)はテキストボックスとして手入力可能にする。
-        //   リストボックス選択時は、直前まで自動算出値(preview)と一致していた場合のみ
-        //   追従させる（= ユーザーが手で書き換えていなければ追従、書き換えていれば上書きしない）。
-        const prevPreviewRef = React.useRef<string>(preview);
-        React.useEffect(() => {
-          if (clampItem === prevPreviewRef.current && preview !== prevPreviewRef.current) {
-            setClampItem(preview);
-          }
-          prevPreviewRef.current = preview;
-          // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [preview]);
+        // レンダー中にトップレベルstateを直接更新するのは禁止のため、
+        // 値が変わった場合のみ次のレンダーサイクルでstateを同期する。
+        if (preview !== clampPreview) {
+          // React 18の「レンダー中のsetState」パターン（無限ループにならないよう値比較必須）
+          setClampPreview(preview);
+        }
 
         const handleApply = () => {
           if (clampNote && clampNote.trim() !== "" && clampNote !== clampItem) {
