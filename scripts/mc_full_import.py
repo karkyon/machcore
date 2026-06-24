@@ -981,6 +981,125 @@ def phase6(pg, dry_run=False):
 
 
 
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PHASE7結果検証（読み取り専用・DB/FSへの書き込みなし）
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def _verify_program_files(pg, sample_n=10):
+    pgc = pg.cursor()
+    pgc.execute("""
+        SELECT f.id, p.machining_id, f.stored_name, f.file_path, f.source_path, f.file_size
+        FROM mc_files f
+        JOIN mc_programs p ON p.id = f.mc_program_id
+        WHERE f.file_type = 'PROGRAM' AND f.is_deleted = false
+        ORDER BY f.id
+    """)
+    rows = pgc.fetchall()
+    pgc.execute("SELECT machining_id, folder1, folder2 FROM mc_machining_details")
+    fd_map = {r[0]: (r[1] or "", r[2] or "") for r in pgc.fetchall()}
+
+    total = len(rows); ok = 0
+    err_src = []; err_dst = []; err_size = []; err_fd = []; err_path = []
+    for fid, mach_id, stored_name, file_path, source_path, file_size in rows:
+        good = True
+        src_exists = bool(source_path) and Path(source_path).exists()
+        if not src_exists:
+            err_src.append((fid, mach_id, source_path)); good = False
+        dst_exists = bool(file_path) and Path(file_path).exists()
+        if not dst_exists:
+            err_dst.append((fid, mach_id, file_path)); good = False
+        if src_exists and dst_exists:
+            try:
+                s_sz = Path(source_path).stat().st_size
+                d_sz = Path(file_path).stat().st_size
+                if s_sz != d_sz or d_sz != (file_size or -1):
+                    err_size.append((fid, mach_id, s_sz, d_sz, file_size)); good = False
+            except OSError as e:
+                err_size.append((fid, mach_id, "STAT_ERROR", str(e), file_size)); good = False
+        f1, f2 = fd_map.get(mach_id, ("", ""))
+        expected_fd = f"{f1}{f2}"
+        if source_path and expected_fd and expected_fd not in Path(source_path).parts:
+            err_fd.append((fid, mach_id, expected_fd, source_path)); good = False
+        if file_path:
+            expected_suffix = f"Programs/{mach_id}/{stored_name}"
+            if not str(file_path).replace("\\", "/").endswith(expected_suffix):
+                err_path.append((fid, mach_id, file_path, expected_suffix)); good = False
+        if good: ok += 1
+
+    log(f"  PROGRAM検証: 対象={total}件 OK={ok}件")
+    log(f"    ①source_path不在={len(err_src)} ②file_path不在={len(err_dst)} "
+        f"③サイズ不一致={len(err_size)} ④FD名不整合={len(err_fd)} ⑤新パス規則違反={len(err_path)}")
+    for label, lst in [("①source_path不在", err_src), ("②file_path不在", err_dst),
+                        ("③サイズ不一致", err_size), ("④FD名不整合", err_fd),
+                        ("⑤新パス規則違反", err_path)]:
+        for item in lst[:sample_n]:
+            log(f"      [{label}] {item}", "WARN")
+    return total - ok
+
+
+def _verify_image_files(pg, file_type, sample_n=10):
+    pgc = pg.cursor()
+    pgc.execute("""
+        SELECT f.id, p.machining_id, f.stored_name, f.file_path, f.source_path, f.file_size
+        FROM mc_files f
+        JOIN mc_programs p ON p.id = f.mc_program_id
+        WHERE f.file_type = %s AND f.is_deleted = false
+        ORDER BY f.id
+    """, (file_type,))
+    rows = pgc.fetchall()
+
+    total = len(rows); ok = 0
+    err_src = []; err_dst = []; err_size = []; err_name = []; err_mismatch = []
+    name_re = re.compile(r'^(\d+)-(\d+)\.[A-Za-z]+$')
+    for fid, mach_id, stored_name, file_path, source_path, file_size in rows:
+        good = True
+        src_exists = bool(source_path) and Path(source_path).exists()
+        if not src_exists:
+            err_src.append((fid, mach_id, source_path)); good = False
+        dst_exists = bool(file_path) and Path(file_path).exists()
+        if not dst_exists:
+            err_dst.append((fid, mach_id, file_path)); good = False
+        if src_exists and dst_exists:
+            try:
+                s_sz = Path(source_path).stat().st_size
+                d_sz = Path(file_path).stat().st_size
+                if s_sz != d_sz or d_sz != (file_size or -1):
+                    err_size.append((fid, mach_id, s_sz, d_sz, file_size)); good = False
+            except OSError as e:
+                err_size.append((fid, mach_id, "STAT_ERROR", str(e), file_size)); good = False
+        m = name_re.match(stored_name or "")
+        if not m:
+            err_name.append((fid, mach_id, stored_name)); good = False
+        elif int(m.group(1)) != mach_id:
+            err_mismatch.append((fid, mach_id, int(m.group(1)), stored_name)); good = False
+        if good: ok += 1
+
+    log(f"  {file_type}検証: 対象={total}件 OK={ok}件")
+    log(f"    ①source_path不在={len(err_src)} ②file_path不在={len(err_dst)} "
+        f"③サイズ不一致={len(err_size)} ⑥命名規則違反={len(err_name)} ⑦ID取り違え={len(err_mismatch)}")
+    for label, lst in [("①source_path不在", err_src), ("②file_path不在", err_dst),
+                        ("③サイズ不一致", err_size), ("⑥命名規則違反", err_name),
+                        ("⑦ID取り違え", err_mismatch)]:
+        for item in lst[:sample_n]:
+            log(f"      [{label}] {item}", "WARN")
+    return total - ok
+
+
+def verify_imported_files(pg, prg_only=False):
+    """PHASE7直後に呼び出す検証関数（読み取り専用）。異常0件なら戻り値0。"""
+    section("PHASE7結果検証（読み取り専用）")
+    total_err = 0
+    total_err += _verify_program_files(pg)
+    if not prg_only:
+        total_err += _verify_image_files(pg, "DRAWING")
+        total_err += _verify_image_files(pg, "PHOTO")
+    if total_err == 0:
+        log("検証結果: 全件正常です ✅")
+    else:
+        log(f"検証結果: 異常 {total_err}件 見つかりました ⚠️ 上記サンプルを確認してください", "WARN")
+    return total_err
+
+
 def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
     section("PHASE 7: 図・写真・プログラム ファイル移行" + ("（プログラムのみ）" if prg_only else ""))
     import shutil as _shutil
@@ -1267,6 +1386,10 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
     pgc.execute("SELECT file_type, COUNT(*) FROM mc_files GROUP BY file_type ORDER BY file_type")
     log("\n--- mc_files 集計 ---")
     for row in pgc.fetchall(): log(f"  {row[0]}: {row[1]}件")
+
+    # ★追加: コピー直後に自動検証を実行（読み取り専用、DB/FSへの書き込みなし）
+    if not dry_run:
+        verify_imported_files(pg, prg_only=prg_only)
 
 
 
