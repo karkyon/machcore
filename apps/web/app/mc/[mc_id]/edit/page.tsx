@@ -130,13 +130,32 @@ export default function McEditPage() {
     if (clampOther)           parts.push(clampOther);
     if (clampTailstock === 1) parts.push("テールストック");
     if (clampJig === 1)       parts.push("治具");
-    return parts.join(sep);
+    const result = parts.join(sep);
+    console.log("%c[CLAMP-DEBUG] useMemo再計算", "color:#fff;background:#7c3aed;padding:2px 4px", {
+      clampVise, clampShiki, clampChuck, clampTsume, clampIndex, clampOther, clampTailstock, clampJig, clampSelection,
+      result,
+    });
+    return result;
   }, [clampVise, clampShiki, clampChuck, clampTsume, clampIndex, clampOther, clampTailstock, clampJig, clampSelection]);
 
   const prevClampPreviewRef = React.useRef<string>(clampPreview);
+  console.log("%c[CLAMP-DEBUG] レンダー実行中", "color:#fff;background:#0891b2;padding:2px 4px", {
+    clampPreview, clampItem, prevRef: prevClampPreviewRef.current,
+  });
   React.useEffect(() => {
+    console.log("%c[CLAMP-DEBUG] useEffect発火", "color:#fff;background:#dc2626;padding:2px 4px", {
+      clampPreview,
+      clampItem,
+      prevRefBefore: prevClampPreviewRef.current,
+      cond_itemEqualsPrev: clampItem === prevClampPreviewRef.current,
+      cond_previewChanged: clampPreview !== prevClampPreviewRef.current,
+      willUpdate: (clampItem === prevClampPreviewRef.current && clampPreview !== prevClampPreviewRef.current),
+    });
     if (clampItem === prevClampPreviewRef.current && clampPreview !== prevClampPreviewRef.current) {
+      console.log("%c[CLAMP-DEBUG] setClampItem実行 ->", "color:#fff;background:#16a34a;padding:2px 4px", clampPreview);
       setClampItem(clampPreview);
+    } else {
+      console.log("%c[CLAMP-DEBUG] setClampItem スキップ（条件不成立）", "color:#000;background:#fbbf24;padding:2px 4px");
     }
     prevClampPreviewRef.current = clampPreview;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1118,6 +1137,7 @@ export default function McEditPage() {
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-slate-500">クランプ</label>
                     <button type="button" onClick={async () => {
+                    console.log("%c[CLAMP-DEBUG] モーダルOPEN setClampItem(clampNote)", "color:#fff;background:#0f766e;padding:2px 4px", clampNote);
                     setClampItem(clampNote);
                     if (!clampMasterData) {
                       try {
@@ -2553,7 +2573,7 @@ export default function McEditPage() {
                         <span className="text-slate-400">— なし —</span>
                       </div>
                       {VISE_ROWS.map((r, i) => (
-                        <div key={i} className={rowCls(clampVise === r.name)} onClick={() => setClampVise(r.name)}>
+                        <div key={i} className={rowCls(clampVise === r.name)} onClick={() => { console.log("%c[CLAMP-DEBUG] バイスonClick", "color:#fff;background:#7c3aed;padding:2px 4px", r.name); setClampVise(r.name); }}>
                           <span className="w-44 truncate shrink-0">{r.name}</span>
                           <span className="w-20 truncate text-slate-500 shrink-0">{r.model}</span>
                           <span className="truncate text-slate-400">{r.maker}</span>
@@ -2606,7 +2626,7 @@ export default function McEditPage() {
                         <span className="text-slate-400">— なし —</span>
                       </div>
                       {CHUCK_ROWS.map((r, i) => (
-                        <div key={i} className={rowCls(clampChuck === r.name)} onClick={() => setClampChuck(r.name)}>
+                        <div key={i} className={rowCls(clampChuck === r.name)} onClick={() => { console.log("%c[CLAMP-DEBUG] チャックonClick", "color:#fff;background:#7c3aed;padding:2px 4px", r.name); setClampChuck(r.name); }}>
                           <span className="w-40 truncate shrink-0">{r.name}</span>
                           <span className="w-16 truncate text-slate-500 shrink-0">{r.size}</span>
                           <span className="truncate text-slate-400">{r.maker}</span>
@@ -2622,7 +2642,7 @@ export default function McEditPage() {
                         <span className="text-slate-400 text-xs">— なし —</span>
                       </div>
                       {TSUME_LIST.map((v, i) => (
-                        <div key={i} className={rowCls(clampTsume === v)} onClick={() => setClampTsume(v)}>
+                        <div key={i} className={rowCls(clampTsume === v)} onClick={() => { console.log("%c[CLAMP-DEBUG] 爪onClick", "color:#fff;background:#7c3aed;padding:2px 4px", v); setClampTsume(v); }}>
                           <span>{v}</span>
                         </div>
                       ))}
@@ -2640,7 +2660,7 @@ export default function McEditPage() {
                         <span className="text-slate-400">— なし —</span>
                       </div>
                       {INDEX_ROWS.map((r, i) => (
-                        <div key={i} className={rowCls(clampIndex === r.name)} onClick={() => setClampIndex(r.name)}>
+                        <div key={i} className={rowCls(clampIndex === r.name)} onClick={() => { console.log("%c[CLAMP-DEBUG] インデックスonClick", "color:#fff;background:#7c3aed;padding:2px 4px", r.name); setClampIndex(r.name); }}>
                           <span className="w-44 truncate shrink-0">{r.name}</span>
                           <span className="w-24 truncate text-slate-500 shrink-0">{r.machine}</span>
                           <span className="truncate text-slate-400">{r.model}</span>
@@ -2656,7 +2676,7 @@ export default function McEditPage() {
                         <span className="text-slate-400 text-xs">— なし —</span>
                       </div>
                       {OTHER_LIST.map((v, i) => (
-                        <div key={i} className={rowCls(clampOther === v)} onClick={() => setClampOther(v)}>
+                        <div key={i} className={rowCls(clampOther === v)} onClick={() => { console.log("%c[CLAMP-DEBUG] その他onClick", "color:#fff;background:#7c3aed;padding:2px 4px", v); setClampOther(v); }}>
                           <span>{v}</span>
                         </div>
                       ))}
@@ -2669,7 +2689,7 @@ export default function McEditPage() {
                   <div className={lblCls}>アイテム</div>
                   <textarea
                     value={clampItem}
-                    onChange={e => setClampItem(e.target.value)}
+                    onChange={e => { console.log("%c[CLAMP-DEBUG] アイテムtextarea手入力onChange", "color:#fff;background:#be185d;padding:2px 4px", e.target.value); setClampItem(e.target.value); }}
                     rows={2}
                     placeholder="（リストから選択、または直接入力してください）"
                     className={`w-full px-2 py-2 rounded border text-xs font-mono resize-none focus:ring-2 focus:ring-orange-400 focus:outline-none ${clampItem ? "bg-orange-50 border-orange-300 text-orange-900" : "bg-slate-50 border-slate-200 text-slate-400"}`}
