@@ -1202,7 +1202,8 @@ def phase7(pg, dry_run=False, force_copy=False):
 
         _creator_raw, _sdate = pg_creator_map.get(mach_id, (None, None))
         _uploaded_by = _resolve_pg_creator(_creator_raw) or ADMIN_ID
-        _uploaded_at = (_sdate - _td7(hours=9)) if _sdate else None
+        # ★修正: S_DATEが取得できないケースがあるため NOW() にフォールバック(NOT NULL制約対応)
+        _uploaded_at = (_sdate - _td7(hours=9)) if _sdate else datetime.now()
 
         dst_dir = DST_PRG / str(mach_id)
         dst_dir.mkdir(parents=True, exist_ok=True)
@@ -1232,8 +1233,16 @@ def phase7(pg, dry_run=False, force_copy=False):
                 copied_any = True
             except Exception as e:
                 err += 1
+                # ★修正: INSERT失敗時は必ずrollbackしてトランザクションを復旧する。
+                # これがないと以降の全INSERTが「current transaction is aborted」で連鎖失敗する。
+                if not dry_run:
+                    try:
+                        pg.rollback()
+                    except Exception:
+                        pass
                 if err <= 10: log(f"  ERR {mach_id}/{src_file.name}: {e}", "WARN")
         if copied_any:
+            if not dry_run: pg.commit()
             ok += 1
         if ok % 500 == 0 and ok > 0:
             if not dry_run: pg.commit()
