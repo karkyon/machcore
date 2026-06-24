@@ -114,8 +114,26 @@ export default function McEditPage() {
   //   によって変化する自動算出値(clampPreview)を、ユーザーが手入力で書き換えていない場合のみ
   //   clampItemに反映する。Hooksはコンポーネント本体のトップレベルで呼び出す必要があるため、
   //   モーダルの条件付きレンダリング内ではなくここに配置する。
-  const [clampPreview, setClampPreview] = useState("");
-  const prevClampPreviewRef = React.useRef<string>("");
+  //   preview自体もuseMemoでトップレベル計算することで、IIFE内での
+  //   「レンダー中setState」(1サイクル遅延の原因)を排除する。
+  const clampPreview = React.useMemo(() => {
+    const sep = clampSelection === 1 ? " & " : " or ";
+    const parts: string[] = [];
+    if (clampVise)            parts.push(clampVise);
+    if (clampShiki)           parts.push("敷板 " + clampShiki);
+    if (clampChuck) {
+      let c = clampChuck;
+      if (clampTsume) c += " " + clampTsume;
+      parts.push(c);
+    }
+    if (clampIndex)           parts.push(clampIndex);
+    if (clampOther)           parts.push(clampOther);
+    if (clampTailstock === 1) parts.push("テールストック");
+    if (clampJig === 1)       parts.push("治具");
+    return parts.join(sep);
+  }, [clampVise, clampShiki, clampChuck, clampTsume, clampIndex, clampOther, clampTailstock, clampJig, clampSelection]);
+
+  const prevClampPreviewRef = React.useRef<string>(clampPreview);
   React.useEffect(() => {
     if (clampItem === prevClampPreviewRef.current && clampPreview !== prevClampPreviewRef.current) {
       setClampItem(clampPreview);
@@ -2475,27 +2493,9 @@ export default function McEditPage() {
         ];
         const OTHER_LIST = ["サブテーブル", "傾斜テーブル", "サーキュラーテーブル", "アングル", "電磁チャック", "Vブロック"];
 
-        const sep = clampSelection === 1 ? " & " : " or ";
-        const parts: string[] = [];
-        if (clampVise)           parts.push(clampVise);
-        if (clampShiki)          parts.push("敷板 " + clampShiki);
-        if (clampChuck) {
-          let c = clampChuck;
-          if (clampTsume) c += " " + clampTsume;
-          parts.push(c);
-        }
-        if (clampIndex)          parts.push(clampIndex);
-        if (clampOther)          parts.push(clampOther);
-        if (clampTailstock === 1) parts.push("テールストック");
-        if (clampJig === 1)       parts.push("治具");
-        const preview = parts.join(sep);
-
-        // レンダー中にトップレベルstateを直接更新するのは禁止のため、
-        // 値が変わった場合のみ次のレンダーサイクルでstateを同期する。
-        if (preview !== clampPreview) {
-          // React 18の「レンダー中のsetState」パターン（無限ループにならないよう値比較必須）
-          setClampPreview(preview);
-        }
+        // preview計算はトップレベルのuseMemo(clampPreview)に一本化済み。
+        // IIFE内でのローカル再計算・レンダー中setStateは行わない（1サイクル遅延の原因だった）。
+        const preview = clampPreview;
 
         const handleApply = () => {
           if (clampNote && clampNote.trim() !== "" && clampNote !== clampItem) {
