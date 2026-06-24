@@ -714,6 +714,21 @@ export class McService {
       return { raw, body, comment };
     });
 
+    // ★ルール8(tooling_parser_unified_spec_v3.md): メイン/サブプログラム判定のための事前スキャン
+    //   M98P{3桁以上} で参照されている番号の集合を作る。
+    //   (M98P2/3/4等の工具交換退避マクロは2桁以下なので自然に除外される)
+    const referencedSubPgNos = new Set<string>();
+    {
+      const reAll = /M98P(\d{3,})/gi;
+      for (const r of rows) {
+        let m: RegExpExecArray | null;
+        reAll.lastIndex = 0;
+        while ((m = reAll.exec(r.body.toUpperCase())) !== null) {
+          referencedSubPgNos.add(String(parseInt(m[1], 10)));
+        }
+      }
+    }
+
     // ─────────────────────────────────────────
     // フェーズ2: Oグループに分割
     //   O**** が現れるたびに新グループ開始
@@ -738,7 +753,20 @@ export class McService {
 
     // Oグループの配列を構築
     const groups: { oEntry: GroupEntry; inner: RawRow[] }[] = [];
+    // ★ルール8: サブプログラムと判定されたグループはここに分離する（ツーリング抽出対象外）
+    const subPrograms: { oEntry: GroupEntry; inner: RawRow[] }[] = [];
     let currentGroup: { oEntry: GroupEntry; inner: RawRow[] } | null = null;
+
+    // ★ルール8: グループがサブプログラムかどうか判定するヘルパー
+    const pushResolvedGroup = (g: { oEntry: GroupEntry; inner: RawRow[] }) => {
+      const numMatch = g.oEntry.tool_no?.match(/(\d+)/);
+      const num = numMatch ? numMatch[1] : null;
+      if (num && referencedSubPgNos.has(num)) {
+        subPrograms.push(g);
+      } else {
+        groups.push(g);
+      }
+    };
 
     // プログラム先頭からO行が出てくる前の行をpreGroupとして扱う
     const preGroup: RawRow[] = [];
@@ -753,8 +781,8 @@ export class McService {
       const oMatch = row.body.match(/^O(\d+)/i) ?? row.body.match(/^:(\d+)/);
       const isColonGroup = !row.body.match(/^O(\d+)/i) && !!row.body.match(/^:(\d+)/);
       if (oMatch) {
-        // 前のグループを確定
-        if (currentGroup) groups.push(currentGroup);
+        // 前のグループを確定（★ルール8判定を通す）
+        if (currentGroup) pushResolvedGroup(currentGroup);
         const oNum = normalizeO(oMatch[1]);
         currentGroup = {
           oEntry: {
@@ -772,7 +800,7 @@ export class McService {
         else              preGroup.push(row);
       }
     }
-    if (currentGroup) groups.push(currentGroup);
+    if (currentGroup) pushResolvedGroup(currentGroup);
 
     // ─────────────────────────────────────────
     // フェーズ3: 各Oグループを解析し、ツーリング行を生成
@@ -815,6 +843,14 @@ export class McService {
 
       const flushN = () => {
         if (!curN) return;
+        // ★ルール9(修正版・Excel実例で確定): T/H/D/SUBが一切出現しないNブロック
+        //   （ワーク座標系セットアップ等）のみツーリングリストから除外する。
+        //   SUBのみ持つブロック（例: N1300(D-D-DOWN) → SUB=1300, T/H/Dなし）は
+        //   出力対象である（01_ツーリングデータ読み取りロジック_v2.md/サンプルシートで確認済み）。
+        if (!curN.t && !curN.h && !curN.d && curN.subs.length === 0) {
+          curN = null;
+          return;
+        }
         // 主行
         const mainSub  = curN.subs[0]      ?? null;
         const mainNote = curN.comments[0]  ?? null;
@@ -936,10 +972,19 @@ export class McService {
           continue;
         }
 
-        // 括弧のみ行（コメント独立行）
+        // 括弧のみ行（コメント独立行 or Nブロック内の説明コメント）
         if (!row.body && row.comment) {
           const cUpper = row.comment.toUpperCase();
           const isGoto = cUpper.startsWith('GOTO') || cUpper.includes('GOTO');
+
+          // ★N行直後コメントの誤分類修正:
+          //   curNがアクティブでまだtool_nameが無い場合（N行直後の最初の括弧）は
+          //   独立行を作らず、そのNセクションのtool_nameとして吸収する。
+          if (curN && !curN.tool_name && !isGoto) {
+            curN.tool_name = row.comment;
+            continue;
+          }
+
           flushN();
           finalEntries.push({
             raw_program_line: row.raw,
@@ -1002,7 +1047,14 @@ export class McService {
     // ─────────────────────────────────────────
     finalEntries.forEach((e, i) => { e.sort_order = (i + 1) * 10; });
 
-    return { count: finalEntries.length, items: finalEntries };
+    return {
+      count: finalEntries.length,
+      items: finalEntries,
+      sub_programs: subPrograms.map(g => ({
+        tool_no: g.oEntry.tool_no,
+        tool_name: g.oEntry.tool_name,
+      })),
+    };
 
     // ─── ローカル関数: O行前の特殊行処理 ───
     function parseSpecialRow(row: RawRow): McToolEntry | null {

@@ -1375,6 +1375,23 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
                         pass
                 if err <= 10: log(f"  ERR {mach_id}/{src_file.name}: {e}", "WARN")
         if copied_any:
+            # ★編集モードの「PG作成者」「PG更新日時」欄が空欄になる問題を解消:
+            #   mc_machining_details.pg_created_by / pg_updated_at に同期する。
+            #   (mc_files.uploaded_by/uploaded_at とは別カラムで、編集モードが参照するのはこちら)
+            if not dry_run:
+                try:
+                    pgc.execute("""
+                        UPDATE mc_machining_details
+                        SET pg_created_by = %s, pg_updated_at = %s
+                        WHERE machining_id = %s
+                    """, (_uploaded_by, _uploaded_at, mach_id))
+                except Exception as e:
+                    err += 1
+                    try:
+                        pg.rollback()
+                    except Exception:
+                        pass
+                    if err <= 10: log(f"  ERR_PGMETA {mach_id}: {e}", "WARN")
             if not dry_run: pg.commit()
             ok += 1
         if ok % 500 == 0 and ok > 0:
@@ -1382,6 +1399,8 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
             log(f"  {ok}件完了... nomatch={nomatch} notfound={notfound} err={err}")
     if not dry_run: pg.commit()
     log(f"7C完了: ok={ok} nomatch={nomatch} notfound={notfound} err={err}")
+    pgc.execute("SELECT COUNT(*) FROM mc_machining_details WHERE pg_created_by IS NOT NULL")
+    log(f"  mc_machining_details.pg_created_by設定済み: {pgc.fetchone()[0]}件")
 
     pgc.execute("SELECT file_type, COUNT(*) FROM mc_files GROUP BY file_type ORDER BY file_type")
     log("\n--- mc_files 集計 ---")
