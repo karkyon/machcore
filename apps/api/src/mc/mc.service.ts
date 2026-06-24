@@ -258,7 +258,8 @@ export class McService {
         } },
         registrar: { select: { id: true, name: true } },
         approver:  { select: { id: true, name: true } },
-        files:     { where: { isDeleted: false }, orderBy: { uploadedAt: 'desc' } },
+        files:     { where: { isDeleted: false }, orderBy: { uploadedAt: 'desc' },
+                      include: { uploader: { select: { id: true, name: true } } } },
       },
     });
     if (!r) throw new NotFoundException(`MC_id ${id} が存在しません`);
@@ -313,7 +314,7 @@ export class McService {
       tooling:        (r as any).machining?.tooling       ?? [],
       workOffsets:    (r as any).machining?.workOffsets   ?? [],
       indexPrograms:  (r as any).machining?.indexPrograms ?? [],
-      files: r.files.map(f => ({
+      files: r.files.map((f: any) => ({
         ...f,
         file_type:      f.fileType,
         original_name:  f.originalName,
@@ -322,7 +323,7 @@ export class McService {
         file_path:      f.filePath,
         thumbnail_path: f.thumbnailPath,
         file_size:      f.fileSize,
-        uploaded_by:    f.uploadedBy,
+        uploaded_by:    f.uploader?.name ?? null,
         uploaded_at:    f.uploadedAt,
       })),
       processes: processes.map((p: any) => ({
@@ -748,8 +749,9 @@ export class McService {
 
       const upper = row.body.toUpperCase();
 
-      // O行判定
-      const oMatch = row.body.match(/^O(\d+)/i);
+      // O行判定（':数字' 形式のサブプログラム番号もO行と同等にグループ開始として扱う）
+      const oMatch = row.body.match(/^O(\d+)/i) ?? row.body.match(/^:(\d+)/);
+      const isColonGroup = !row.body.match(/^O(\d+)/i) && !!row.body.match(/^:(\d+)/);
       if (oMatch) {
         // 前のグループを確定
         if (currentGroup) groups.push(currentGroup);
@@ -757,7 +759,7 @@ export class McService {
         currentGroup = {
           oEntry: {
             type: 'O',
-            tool_no:   `O${oNum}`,
+            tool_no:   isColonGroup ? `:${oNum}` : `O${oNum}`,
             tool_name: row.comment ?? null,
             t_no: null, h: null, d: null, d_value: null,
             sub_pg_no: null, note: null, raw: row.raw,
