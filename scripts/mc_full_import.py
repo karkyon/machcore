@@ -1031,36 +1031,63 @@ def phase7(pg, dry_run=False, force_copy=False):
         machining_map.setdefault(mach_id, []).append(mc_id)
     log(f"machining_id種類: {len(machining_map)}件")
 
-    # folder_map構築（プログラム用）
+    # ── プログラムファイル取得元: 作成者(作成)/作成日(S_DATE)をACC_マシニングrawから取得 ──
+    # PHASE1ではこの2列を mc_machining_details.creator_id / sheet_created_at（段取シート用）に
+    # 流用しているため、PHASE7では別途SQL Serverへ直接問い合わせて
+    # mc_files.uploaded_by / uploaded_at に正確な値を反映する。
+    from datetime import timedelta as _td7
+    log("プログラムファイル作成者・作成日（ACC_マシニングraw）取得中...")
+    _mc_prg = ss_connect(SS_MC_DB)
+    _mc_prg_c = _mc_prg.cursor()
+    _mc_prg_c.execute("""
+        SELECT 加工ID, ﾌｫﾙﾀﾞ1, ﾌｫﾙﾀﾞ2, ﾌｧｲﾙ名, 作成, S_DATE
+        FROM ACC_マシニングraw
+        WHERE ﾌｧｲﾙ名 IS NOT NULL AND ﾌｫﾙﾀﾞ1 IS NOT NULL AND ﾌｧｲﾙ名 != ''
+    """)
+    _prg_creator_rows = _mc_prg_c.fetchall()
+    _mc_prg.close()
+    log(f"  取得: {len(_prg_creator_rows)}件")
+
+    # users.name → id 解決マップ（PHASE6と同じ正規化ロジック）
+    pgc.execute("SELECT id, name FROM users")
+    _u7_rows = pgc.fetchall()
+    _u7_exact = {r[1]: r[0] for r in _u7_rows}
+    _u7_norm  = {re.sub(r"[\s\u3000]+", " ", r[1]).strip(): r[0] for r in _u7_rows}
+    def _resolve_pg_creator(raw_val):
+        if not raw_val: return None
+        val = str(raw_val).strip()
+        if val in _u7_exact: return _u7_exact[val]
+        normed = re.sub(r"[\s\u3000]+", " ", val).strip()
+        return _u7_norm.get(normed)
+
+    # 加工ID → (PG作成者名, 作成日) のマップ
+    pg_creator_map: dict[int, tuple] = {}
+    for _kakoid7, _f1, _f2, _fname, _creator_raw, _sdate in _prg_creator_rows:
+        pg_creator_map[_kakoid7] = (_creator_raw, _sdate)
+
+    # ── (folder1, folder2) → 実ディレクトリパスを直接構築 ──
+    # 旧VBA仕様: SSPrg & folder1 & "\" & folder1 & folder2
+    # 例: folder1="森", folder2="F" → SRC_PRG/森/森F/
     pgc.execute("""
         SELECT DISTINCT folder1, folder2, file_name FROM mc_machining_details
         WHERE file_name IS NOT NULL AND folder1 IS NOT NULL AND file_name != ''
     """)
     combos = pgc.fetchall()
 
-    log("プログラムファイルインデックス構築中...")
-    file_index: dict[str, list] = {}
-    if SRC_PRG.exists():
-        for top in SRC_PRG.iterdir():
-            if not top.is_dir(): continue
-            for sub in top.iterdir():
-                if sub.is_dir():
-                    for f in sub.iterdir():
-                        if f.is_file():
-                            file_index.setdefault(f.name, []).append(f)
-                elif sub.is_file():
-                    file_index.setdefault(sub.name, []).append(sub)
-    else:
-        log(f"[WARN] SRC_PRG が存在しない: {SRC_PRG}", "WARN")
-    log(f"インデックス: {len(file_index)}種類")
-
+    log("プログラムファイルディレクトリ直接解決中...")
     folder_map: dict[tuple, object] = {}
+    _dirmiss = 0
     for folder1, folder2, file_name in combos:
         key = (folder1, folder2)
         if key in folder_map: continue
-        paths = file_index.get(file_name, [])
-        if paths:
-            folder_map[key] = paths[0].parent
+        f1 = str(folder1).strip()
+        f2 = str(folder2 or "").strip()
+        candidate_dir = SRC_PRG / f1 / f"{f1}{f2}"
+        if candidate_dir.exists() and candidate_dir.is_dir():
+            folder_map[key] = candidate_dir
+        else:
+            _dirmiss += 1
+    log(f"  ディレクトリ解決: {len(folder_map)}件 / 未解決: {_dirmiss}件")
 
     def insert_file(mc_id, ftype, orig, stored, mime, fpath, fsize, pg_role=None, sort_order=0, src_path=None):
         if dry_run: return
@@ -1139,8 +1166,27 @@ def phase7(pg, dry_run=False, force_copy=False):
     log(f"7B完了: ok={ok} nomatch={nomatch} err={err}")
 
     # ── 7C: プログラム (SRC_PRG → DST_PRG) ────────
+    # 仕様: <FD名>=folder1+folder2 ディレクトリの中身を、加工IDのフォルダへ
+    #       完全にそのまま（ファイル名・拡張子そのまま）コピーする。
+    #       ファイルが1件でも複数でも同一ロジック（フォルダ単位コピー）。
     log("\n--- 7C: プログラム (Programs) ---")
     ok = nomatch = notfound = err = 0
+
+    def _insert_program_file(mc_id, orig_name, stored_name, mime, fpath, fsize,
+                              pg_role, sort_order, src_path, uploaded_by_id, uploaded_at_val):
+        if dry_run: return
+        pgc.execute("""
+            INSERT INTO mc_files
+              (mc_program_id, file_type, original_name, stored_name, mime_type,
+               file_path, source_path, thumbnail_path, file_size, pg_role, sort_order,
+               is_deleted, uploaded_by, uploaded_at)
+            VALUES (%s,'PROGRAM',%s,%s,%s,%s,%s,NULL,%s,%s,%s,false,%s,%s)
+            ON CONFLICT DO NOTHING
+        """, (mc_id, orig_name, stored_name, mime, str(fpath),
+              str(src_path) if src_path else None,
+              fsize, pg_role, sort_order,
+              uploaded_by_id, uploaded_at_val))
+
     pgc.execute("""
         SELECT d.machining_id, p.id, d.folder1, d.folder2, d.file_name
         FROM mc_machining_details d
@@ -1153,22 +1199,42 @@ def phase7(pg, dry_run=False, force_copy=False):
         key      = (folder1, folder2)
         src_dir  = folder_map.get(key)
         if not src_dir: nomatch += 1; continue
-        src_file = src_dir / file_name
-        if not src_file.exists() or not src_file.is_file(): notfound += 1; continue
-        dst_dir  = DST_PRG / str(mach_id)
+
+        _creator_raw, _sdate = pg_creator_map.get(mach_id, (None, None))
+        _uploaded_by = _resolve_pg_creator(_creator_raw) or ADMIN_ID
+        _uploaded_at = (_sdate - _td7(hours=9)) if _sdate else None
+
+        dst_dir = DST_PRG / str(mach_id)
         dst_dir.mkdir(parents=True, exist_ok=True)
-        dst_file = dst_dir / file_name
+
         try:
-            if not dry_run:
-                _shutil.copy2(src_file, dst_file)
-            fsize   = src_file.stat().st_size
-            pg_role = "SUB" if str(file_name).lower().endswith(".spf") else "MAIN"
-            insert_file(mc_id, "PROGRAM", file_name, file_name, "text/plain",
-                        dst_file, fsize, pg_role=pg_role, sort_order=0, src_path=src_file)
-            ok += 1
+            src_files = sorted(f for f in src_dir.iterdir() if f.is_file())
         except Exception as e:
             err += 1
-            if err <= 10: log(f"  ERR {mach_id}/{file_name}: {e}", "WARN")
+            if err <= 10: log(f"  ERR_LISTDIR {mach_id} dir={src_dir}: {e}", "WARN")
+            continue
+
+        if not src_files:
+            notfound += 1
+            continue
+
+        copied_any = False
+        for sort_idx, src_file in enumerate(src_files):
+            dst_file = dst_dir / src_file.name
+            try:
+                if not dry_run:
+                    _shutil.copy2(src_file, dst_file)
+                fsize   = src_file.stat().st_size
+                pg_role = "SUB" if src_file.name.lower().endswith(".spf") else "MAIN"
+                _insert_program_file(mc_id, src_file.name, src_file.name, "text/plain",
+                                     dst_file, fsize, pg_role, sort_idx, src_file,
+                                     _uploaded_by, _uploaded_at)
+                copied_any = True
+            except Exception as e:
+                err += 1
+                if err <= 10: log(f"  ERR {mach_id}/{src_file.name}: {e}", "WARN")
+        if copied_any:
+            ok += 1
         if ok % 500 == 0 and ok > 0:
             if not dry_run: pg.commit()
             log(f"  {ok}件完了... nomatch={nomatch} notfound={notfound} err={err}")
