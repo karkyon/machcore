@@ -519,6 +519,40 @@ export default function McDetailPage() {
                     <div className="font-semibold text-slate-800">{d.machiningQty ?? 1} 個</div>
                   </div>
                 </div>
+                {/* ── 行2.5: プログラムファイル登録状態（旧Accessﾏｼﾆﾝｸﾞ画面のﾌｫﾙﾀﾞ1/ﾌｫﾙﾀﾞ2/ﾌｧｲﾙ名/作成/IN_DATEに相当） ── */}
+                {(() => {
+                  const pgFile = d.files?.find(f => f.file_type === "PROGRAM");
+                  return (
+                    <div className="grid grid-cols-3 divide-x divide-slate-100 bg-amber-50/40">
+                      <div className="px-4 py-3 col-span-2">
+                        <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">プログラムファイル</div>
+                        {pgFile ? (
+                          <>
+                            <div className="font-mono font-semibold text-slate-800 text-sm">{pgFile.original_name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                              📁 mc_files/pg/{d.machiningId}/{pgFile.original_name}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-slate-400 text-sm">未登録</div>
+                        )}
+                      </div>
+                      <div className="px-4 py-3">
+                        <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">登録者 / 登録日時</div>
+                        {pgFile ? (
+                          <>
+                            <div className="font-medium text-slate-800 text-sm">{pgFile.uploaded_by ?? "—"}</div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {pgFile.uploaded_at ? new Date(pgFile.uploaded_at).toLocaleString("ja-JP") : "—"}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-slate-400 text-sm">—</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
                 {/* ── 行3: 共通部品コード + バッジ群 ── */}
                 <div className="px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">
                   <div>
