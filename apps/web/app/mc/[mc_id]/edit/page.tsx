@@ -2475,21 +2475,34 @@ export default function McEditPage() {
         if (clampJig === 1)       parts.push("治具");
         const preview = parts.join(sep);
 
+        // ★アイテム欄(clampItem)はテキストボックスとして手入力可能にする。
+        //   リストボックス選択時は、直前まで自動算出値(preview)と一致していた場合のみ
+        //   追従させる（= ユーザーが手で書き換えていなければ追従、書き換えていれば上書きしない）。
+        const prevPreviewRef = React.useRef<string>(preview);
+        React.useEffect(() => {
+          if (clampItem === prevPreviewRef.current && preview !== prevPreviewRef.current) {
+            setClampItem(preview);
+          }
+          prevPreviewRef.current = preview;
+          // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [preview]);
+
         const handleApply = () => {
-          if (clampNote && clampNote.trim() !== "" && clampNote !== preview) {
+          if (clampNote && clampNote.trim() !== "" && clampNote !== clampItem) {
             if (!window.confirm(
               "現在のクランプ欄に文字が入力されています。\n\n" +
               "【現在】" + clampNote.slice(0, 50) + (clampNote.length > 50 ? "…" : "") + "\n\n" +
-              "【新しい内容】" + (preview || "（空）") + "\n\n" +
+              "【新しい内容】" + (clampItem || "（空）") + "\n\n" +
               "上書きしますか？"
             )) return;
           }
-          setClampNote(preview);
+          setClampNote(clampItem);
           setClampModalOpen(false);
         };
         const handleClear = () => {
           setClampVise(""); setClampShiki(""); setClampChuck(""); setClampTsume("");
           setClampIndex(""); setClampOther(""); setClampTailstock(2); setClampJig(2); setClampSelection(1);
+          setClampItem("");
         };
 
         // ListBox行スタイル
@@ -2641,12 +2654,16 @@ export default function McEditPage() {
                   </div>
                 </div>
 
-                {/* アイテム（プレビュー） */}
+                {/* アイテム（手入力可・リストボックス選択で自動追従） */}
                 <div>
                   <div className={lblCls}>アイテム</div>
-                  <div className={`px-2 py-2 rounded border text-xs font-mono min-h-[36px] ${preview ? "bg-orange-50 border-orange-300 text-orange-900" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-                    {preview || "（選択してください）"}
-                  </div>
+                  <textarea
+                    value={clampItem}
+                    onChange={e => setClampItem(e.target.value)}
+                    rows={2}
+                    placeholder="（リストから選択、または直接入力してください）"
+                    className={`w-full px-2 py-2 rounded border text-xs font-mono resize-none focus:ring-2 focus:ring-orange-400 focus:outline-none ${clampItem ? "bg-orange-50 border-orange-300 text-orange-900" : "bg-slate-50 border-slate-200 text-slate-400"}`}
+                  />
                 </div>
               </div>
 
