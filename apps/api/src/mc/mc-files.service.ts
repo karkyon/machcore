@@ -205,6 +205,9 @@ export class McFilesService {
     pgRoleOverride?: PgRole,
     isFolderUpload?: boolean,  // true=ケース2（フォルダ構成）、false/undefined=ケース1（単一）
     fileTypeOverride?: 'PHOTO' | 'DRAWING',  // フロントから明示指定されたファイル種別
+    folderName?:     string,  // ★追加: フォルダ単位アップロード時の「元のフォルダ名」(例: "1846.WPD")。
+                               //   加工IDフォルダの中に、この名前のサブフォルダをそのまま保持する。
+                               //   例: 1846.WPD/O1846 → {加工ID}/1846.WPD/O1846
   ) {
     const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcProgramId } });
     if (!mc) throw new NotFoundException(`MC_id ${mcProgramId} が存在しません`);
@@ -234,10 +237,14 @@ export class McFilesService {
     let sortOrder = 0;
 
     if (fileTypeEnum === 'PROGRAM') {
-      // 単体/フォルダどちらも統一: {base}/mc_files/pg/{machining_id}/{original_filename}
-      // 旧仕様(単体ファイルを machining_id にリネーム)は廃止。
-      // 旧Accessシステムの「加工IDフォルダの中に元ファイル名のまま保存」という仕様に統一する。
-      flatDir    = path.join(basePath, 'MC', 'files', 'Programs', String(machId));
+      // ★単体ファイル: {base}/MC/files/Programs/{machining_id}/{original_filename}
+      // ★フォルダ単位: {base}/MC/files/Programs/{machining_id}/{folderName}/{original_filename}
+      //   (元のフォルダ名・階層構造をそのまま加工IDフォルダの中に保持する。
+      //    加工IDフォルダは「元のフォルダの親」として1階層追加するだけで、
+      //    元のフォルダ名やファイル名は一切変更しない。)
+      flatDir    = isFolderUpload && folderName
+        ? path.join(basePath, 'MC', 'files', 'Programs', String(machId), folderName)
+        : path.join(basePath, 'MC', 'files', 'Programs', String(machId));
       storedName = file.filename;  // オリジナルのファイル名・拡張子をそのまま維持
 
       // 同名ファイルが既存の場合は trash/ へタイムスタンプ付きで退避
@@ -300,6 +307,7 @@ export class McFilesService {
         thumbnailPath,
         fileSize:     file.data.length,
         uploadedBy,
+        folderName:   (fileTypeEnum === 'PROGRAM' && isFolderUpload && folderName) ? folderName : null,
       },
     });
     return { id: record.id, message: 'アップロード完了', stored_name: storedName };
@@ -524,12 +532,12 @@ export class McFilesService {
       return { files: [{ name: rec.originalName, content: buf.toString('base64') }] };
     }
 
-    const folderName = String(mc.machiningId);
     const files: Array<{ name: string; folderName: string; content: string }> = [];
     for (const rec of recs) {
       if (!fs.existsSync(rec.filePath)) continue;
       const buf = fs.readFileSync(rec.filePath);
-      files.push({ name: rec.originalName, folderName, content: buf.toString('base64') });
+      const fName = rec.folderName ?? String(mc.machiningId);
+      files.push({ name: rec.originalName, folderName: fName, content: buf.toString('base64') });
     }
     return { files };
   }

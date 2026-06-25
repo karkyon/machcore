@@ -493,6 +493,7 @@ export class McController {
     let fileFilename  = '';
     let fileMimetype  = 'application/octet-stream';
     let ticketId      = '';
+    let folderNameField = '';
 
     for await (const part of req.parts()) {
       if ('file' in part && (part as any).file) {
@@ -503,6 +504,8 @@ export class McController {
         fileMimetype = (part as any).mimetype ?? 'application/octet-stream';
       } else if ((part as any).fieldname === 'ticket') {
         ticketId = (part as any).value ?? '';
+      } else if ((part as any).fieldname === 'folder_name') {
+        folderNameField = (part as any).value ?? '';
       }
     }
 
@@ -522,7 +525,7 @@ export class McController {
     } else {
       const result = await this.mcFiles.upload(payload.mcId, payload.userId,
         { filename: fileFilename, mimetype: fileMimetype, data: buf },
-        undefined, isFolderUpload, payload.fileType as any);
+        undefined, isFolderUpload, payload.fileType as any, folderNameField || undefined);
 
       const PROGRAM_EXTS = new Set(['.min','.spf','.mpf','.nc','.cnc','.tap','.prg','.gcode','.g','.txt']);
       const fileExt = ('.' + (fileFilename.split('.').pop()?.toLowerCase() ?? ''));
@@ -575,12 +578,13 @@ export class McController {
     if (!data) throw new Error('ファイルがありません');
     const buf            = await data.toBuffer();
     const isFolderUpload = (data.fields?.is_folder_upload?.value === 'true');
+    const folderNameField = (data.fields?.folder_name?.value as string | undefined) ?? undefined;
     const pgCreatedBy    = data.fields?.pg_created_by?.value
                              ? parseInt(data.fields.pg_created_by.value, 10)
                              : req.user.id;
     const pgRole = (data.fields?.pg_role?.value ?? undefined) as 'MAIN' | 'SUB' | undefined;
     const fileTypeOverride = (data.fields?.file_type?.value ?? undefined) as 'PHOTO' | 'DRAWING' | undefined;
-    const result = await this.mcFiles.upload(id, req.user.id, { filename: data.filename, mimetype: data.mimetype, data: buf }, pgRole, isFolderUpload, fileTypeOverride);
+    const result = await this.mcFiles.upload(id, req.user.id, { filename: data.filename, mimetype: data.mimetype, data: buf }, pgRole, isFolderUpload, fileTypeOverride, folderNameField);
     // PROGRAMファイルの場合 pg_created_by / pg_updated_at を自動更新
     const PROGRAM_EXTS = new Set(['.min','.spf','.mpf','.nc','.cnc','.tap','.prg','.gcode','.g','.txt']);
     const fileExt = ('.' + (data.filename.split('.').pop()?.toLowerCase() ?? ''));
