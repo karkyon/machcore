@@ -13,7 +13,7 @@ const TAB_COLORS: Record<TabType, string> = {
   programs: "bg-teal-50 text-teal-700 border-teal-300",
 };
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".gif", ".tif", ".tiff"]);
-const TEXT_EXTS  = new Set([".txt", ".nc", ".mpf", ".spf", ".cnc", ".min", ".prg"]);
+const TEXT_EXTS = new Set([".txt", ".nc", ".mpf", ".spf", ".cnc", ".min", ".prg", ""]);
 const PDF_EXTS   = new Set([".pdf"]);
 
 function extOf(n: string) { return n.includes(".") ? "." + n.split(".").pop()!.toLowerCase() : ""; }
@@ -58,6 +58,7 @@ function TreeNode({ node, depth, onSelect, onExpand, selectedPath, searchKw }: {
         )}
         <span className="truncate flex-1">{node.name}</span>
         {!isDir && node.size !== undefined && <span className="text-slate-400 shrink-0 text-[10px]">{fmtSize(node.size)}</span>}
+        {!isDir && node.mtime && <span className="text-slate-300 shrink-0 text-[10px] ml-1">{fmtDate(node.mtime)}</span>}
         {isDir && node.hasChildren && !node.loaded && <span className="text-slate-300 text-[10px]">▶</span>}
       </div>
       {isDir && node.loaded && (node.children ?? []).map((c, i) => (
