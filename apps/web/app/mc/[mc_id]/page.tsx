@@ -530,7 +530,7 @@ export default function McDetailPage() {
                           <>
                             <div className="font-mono font-semibold text-slate-800 text-sm">{pgFile.original_name}</div>
                             <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                              📁 mc_files/pg/{d.machiningId}/{pgFile.original_name}
+                              📁 MC/files/Programs/{d.machiningId}/{pgFile.original_name}
                             </div>
                           </>
                         ) : (

@@ -2046,7 +2046,7 @@ export default function McEditPage() {
                 {pgOrigName && <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded-lg border">{pgOrigName}</span>}
                 {detail?.machiningId && (
                   <span className="text-xs text-slate-400 font-mono">
-                    📁 mc_files/pg/{detail.machiningId}/{pgOrigName || "—"}
+                    📁 MC/files/Programs/{detail.machiningId}/{pgOrigName || "—"}
                   </span>
                 )}
                 <span className="text-xs text-slate-400">{pgContent.split('\n').length}行 / {pgContent.length}文字</span>
