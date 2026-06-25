@@ -1356,28 +1356,25 @@ export class AdminController {
       programs: nodepath.join(basePath, 'MC', 'files', 'Programs'),
     };
 
-    // 1階層のみ読む（件数多い場合のタイムアウト対策）
+    // 1階層のみ読む・hasChildrenチェックなし（I/O最小化）
     const readOneLevel = (dirPath: string): any => {
       if (!fs.existsSync(dirPath)) return { exists: false, path: dirPath, children: [] };
-      if (!fs.statSync(dirPath).isDirectory()) return { exists: false, path: dirPath, children: [] };
+      try { if (!fs.statSync(dirPath).isDirectory()) return { exists: false, path: dirPath, children: [] }; } catch { return { exists: false, path: dirPath, children: [] }; }
       const children: any[] = [];
       try {
         const entries = fs.readdirSync(dirPath, { withFileTypes: true });
         for (const e of entries) {
           const fp = nodepath.join(dirPath, e.name);
           if (e.isDirectory()) {
-            // ディレクトリは hasChildren フラグのみ（中身は遅延ロード）
-            let hasChildren = false;
-            try { hasChildren = fs.readdirSync(fp).length > 0; } catch {}
-            children.push({ name: e.name, path: fp, type: 'dir', hasChildren });
+            // hasChildrenチェックしない（readdirSync追加呼び出し禁止）
+            children.push({ name: e.name, path: fp, type: 'dir', hasChildren: true });
           } else {
-            let size = 0; try { size = fs.statSync(fp).size; } catch {}
-            let mtime = ''; try { mtime = fs.statSync(fp).mtime.toISOString(); } catch {}
+            let size = 0; let mtime = '';
+            try { const st = fs.statSync(fp); size = st.size; mtime = st.mtime.toISOString(); } catch {}
             children.push({ name: e.name, path: fp, type: 'file', size, mtime });
           }
         }
       } catch {}
-      // ディレクトリ先・ファイル後でソート
       children.sort((a, b) => {
         if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
         return a.name.localeCompare(b.name, 'ja');
