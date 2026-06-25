@@ -229,6 +229,7 @@ export default function McDetailPage() {
       setPgContent(data.content ?? "");
       setPgOrigName(data.originalName ?? "");
       setPgFileCount(data.fileCount ?? 1);
+      setPgFilePath(data.filePath ?? "");
       setPgViewerOpen(true);
     } catch {
       showToast("PGファイルが見つかりません");

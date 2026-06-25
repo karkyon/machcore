@@ -1225,6 +1225,7 @@ export default function McEditPage() {
                         const data = (r as any).data ?? r;
                         console.log("[PGEditor] PGファイル読込完了 raw="+(data.content?.length??0)+" name="+(data.originalName??""));
                         pgFullReset(data.content ?? "", data.originalName ?? "");
+        setPgFilePath(data.filePath ?? "");
                         setPgEditorOpen(true);
                       } catch { showToast("PGファイルが見つかりません"); }
                       finally { setPgLoading(false); }
@@ -2046,7 +2047,7 @@ export default function McEditPage() {
                 {pgOrigName && <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded-lg border">{pgOrigName}</span>}
                 {detail?.machiningId && (
                   <span className="text-xs text-slate-400 font-mono">
-                    📁 MC/files/Programs/{detail.machiningId}/{pgOrigName || "—"}
+                    📁 {pgFilePath || `MC/files/Programs/${detail.machiningId}/${pgOrigName || "—"}`}
                   </span>
                 )}
                 <span className="text-xs text-slate-400">{pgContent.split('\n').length}行 / {pgContent.length}文字</span>
