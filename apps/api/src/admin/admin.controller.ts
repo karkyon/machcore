@@ -1,4 +1,6 @@
 import { execSync } from "child_process";
+import * as fs from 'fs';
+import * as nodepath from 'path';
 import type { FastifyReply } from 'fastify';
 import {
   Controller, Get, Post, Put, Delete, Body, UseGuards,
@@ -1338,5 +1340,135 @@ export class AdminController {
 
     reply.send({ message: `v${version} を配置しました`, version, size_bytes: fileBuffer.length });
   }
+
+  // ── ファイルブラウザ ──────────────────────────────────────────
+
+  /** FB-01: ディレクトリツリー取得 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('files/tree')
+  async getFileTree(@Query('path') queryPath: string, @Query('depth') depth: string) {
+    const setting = await this.prisma.companySetting.findFirst();
+    const basePath = setting?.uploadBasePath ?? '/mnt/mc_files';
+    const roots = {
+      photos:   nodepath.join(basePath, 'MC', 'files', 'Pictures'),
+      drawings: nodepath.join(basePath, 'MC', 'files', 'Drawings'),
+      programs: nodepath.join(basePath, 'MC', 'files', 'Programs'),
+    };
+    const maxDepth = parseInt(depth ?? '4', 10);
+    const buildTree = (dirPath: string, cur = 0): any => {
+      if (!fs.existsSync(dirPath)) return { exists: false, children: [] };
+      const st = fs.statSync(dirPath);
+      if (!st.isDirectory()) return null;
+      const children: any[] = [];
+      if (cur < maxDepth) {
+        try {
+          const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+          for (const e of entries) {
+            const fp = nodepath.join(dirPath, e.name);
+            if (e.isDirectory()) {
+              const sub = buildTree(fp, cur + 1);
+              if (sub) children.push({ name: e.name, path: fp, type: 'dir', children: sub.children });
+            } else {
+              let size = 0; try { size = fs.statSync(fp).size; } catch {}
+              let mtime = ''; try { mtime = fs.statSync(fp).mtime.toISOString(); } catch {}
+              children.push({ name: e.name, path: fp, type: 'file', size, mtime });
+            }
+          }
+        } catch {}
+      }
+      return { exists: true, children };
+    };
+    if (queryPath) {
+      const tree = buildTree(queryPath, 0);
+      return { path: queryPath, ...tree };
+    }
+    return {
+      photos:   { path: roots.photos,   ...buildTree(roots.photos) },
+      drawings: { path: roots.drawings, ...buildTree(roots.drawings) },
+      programs: { path: roots.programs, ...buildTree(roots.programs) },
+    };
+  }
+
+  /** FB-02: ファイルプレビュー */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('files/preview')
+  async previewFileBrowser(@Query('path') filePath: string, @Res() reply: FastifyReply) {
+    if (!filePath || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+      return reply.code(404).send({ message: 'ファイルが存在しません' });
+    }
+    const ext = nodepath.extname(filePath).toLowerCase();
+    const mimeMap: Record<string, string> = {
+      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+      '.tif': 'image/tiff', '.tiff': 'image/tiff', '.gif': 'image/gif',
+      '.pdf': 'application/pdf',
+      '.txt': 'text/plain', '.nc': 'text/plain', '.mpf': 'text/plain',
+      '.spf': 'text/plain', '.cnc': 'text/plain', '.min': 'text/plain', '.prg': 'text/plain',
+    };
+    const mime = mimeMap[ext] ?? 'application/octet-stream';
+    if (mime.startsWith('text/')) {
+      try {
+        const text = fs.readFileSync(filePath).toString('utf8').slice(0, 8192);
+        reply.header('Content-Type', 'text/plain; charset=utf-8');
+        return reply.send(text);
+      } catch { return reply.code(500).send({ message: '読み込み失敗' }); }
+    }
+    reply.header('Content-Type', mime);
+    reply.header('Content-Disposition', 'inline');
+    return reply.send(fs.createReadStream(filePath));
+  }
+
+  /** FB-03: ファイルダウンロード */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('files/download')
+  async downloadFileBrowser(@Query('path') filePath: string, @Res() reply: FastifyReply) {
+    if (!filePath || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+      return reply.code(404).send({ message: 'ファイルが存在しません' });
+    }
+    const fn = nodepath.basename(filePath);
+    reply.header('Content-Type', 'application/octet-stream');
+    reply.header('Content-Disposition', "attachment; filename=\"" + encodeURIComponent(fn) + "\"");
+    return reply.send(fs.createReadStream(filePath));
+  }
+
+  /** FB-04: ファイル/ディレクトリ強制削除 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Delete('files/delete')
+  async deleteFileBrowser(@Query('path') filePath: string) {
+    if (!filePath || !fs.existsSync(filePath)) throw new BadRequestException('パスが存在しません');
+    const st = fs.statSync(filePath);
+    if (st.isDirectory()) { fs.rmSync(filePath, { recursive: true, force: true }); }
+    else { fs.unlinkSync(filePath); }
+    return { message: '削除しました', path: filePath };
+  }
+
+  /** FB-05: ファイルアップロード（登録・差し替え） */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('files/upload')
+  async uploadFileBrowser(@Req() req: any, @Res() reply: FastifyReply) {
+    let destDir = ''; let fileName = ''; let fileBuffer: Buffer | null = null;
+    for await (const part of req.parts()) {
+      if ('file' in part) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of (part as any).file) chunks.push(chunk as Buffer);
+        fileBuffer = Buffer.concat(chunks);
+        if (!fileName) fileName = (part as any).filename ?? 'upload';
+      } else {
+        const field = (part as any).fieldname; const val = (part as any).value ?? '';
+        if (field === 'dest_dir') destDir = val;
+        if (field === 'file_name') fileName = val;
+      }
+    }
+    if (!fileBuffer) return reply.code(400).send({ message: 'ファイルがありません' });
+    if (!destDir || !fs.existsSync(destDir)) return reply.code(400).send({ message: '保存先ディレクトリが不正です' });
+    const destPath = nodepath.join(destDir, fileName);
+    fs.writeFileSync(destPath, fileBuffer);
+    return reply.send({ message: 'アップロード完了', path: destPath, size: fileBuffer.length });
+  }
+
 
 }
