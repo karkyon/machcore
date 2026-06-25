@@ -1021,8 +1021,8 @@ def _verify_program_files(pg, sample_n=10):
         if source_path and expected_fd and expected_fd not in Path(source_path).parts:
             err_fd.append((fid, mach_id, expected_fd, source_path)); good = False
         if file_path:
-            expected_suffix = f"Programs/{mach_id}/{stored_name}"
-            if not str(file_path).replace("\\", "/").endswith(expected_suffix):
+            expected_mid = f"Programs/{mach_id}/"
+            if not (expected_mid in str(file_path).replace("\\", "/")):
                 err_path.append((fid, mach_id, file_path, expected_suffix)); good = False
         if good: ok += 1
 
@@ -1336,12 +1336,24 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
         _creator_raw = pg_creator_map.get(mach_id)
         _uploaded_by = _resolve_pg_creator(_creator_raw) or ADMIN_ID
 
-        dst_dir = DST_PRG / str(mach_id)
-        dst_dir.mkdir(parents=True, exist_ok=True)
+        # Programs/{mach_id}/{元フォルダ名}/{filename} 構造
+        # src_itemがファイルの場合: file_nameがフォルダ名として使えないのでfile_nameをサブフォルダ名に
+        # src_itemがディレクトリの場合: そのディレクトリ名をサブフォルダ名にする
+        mach_base_dir = DST_PRG / str(mach_id)
+        mach_base_dir.mkdir(parents=True, exist_ok=True)
 
         if src_item.is_file():
+            # 単体ファイル: file_name（拡張子含む）をそのままサブフォルダ名にはせず
+            # file_nameの拡張子なし部分 or file_name自体をサブフォルダ名に
+            folder_name = src_item.stem if src_item.suffix else src_item.name
+            dst_dir = mach_base_dir / folder_name
+            dst_dir.mkdir(parents=True, exist_ok=True)
             src_files = [src_item]
         elif src_item.is_dir():
+            # フォルダ: ディレクトリ名そのままサブフォルダに
+            folder_name = src_item.name
+            dst_dir = mach_base_dir / folder_name
+            dst_dir.mkdir(parents=True, exist_ok=True)
             try:
                 src_files = sorted(f for f in src_item.iterdir() if f.is_file())
             except Exception as e:
