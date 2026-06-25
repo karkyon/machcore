@@ -494,20 +494,29 @@ export class McController {
     let fileMimetype  = 'application/octet-stream';
     let ticketId      = '';
     let folderNameField = '';
+    const receivedFields: string[] = [];
 
     for await (const part of req.parts()) {
       if ('file' in part && (part as any).file) {
+        receivedFields.push(`file(filename=${(part as any).filename})`);
         const chunks: Buffer[] = [];
         for await (const chunk of (part as any).file) chunks.push(chunk as Buffer);
         fileBuffer  = Buffer.concat(chunks);
         fileFilename = (part as any).filename ?? '';
         fileMimetype = (part as any).mimetype ?? 'application/octet-stream';
       } else if ((part as any).fieldname === 'ticket') {
+        receivedFields.push(`ticket=${(part as any).value}`);
         ticketId = (part as any).value ?? '';
       } else if ((part as any).fieldname === 'folder_name') {
+        receivedFields.push(`folder_name=${(part as any).value}`);
         folderNameField = (part as any).value ?? '';
+      } else {
+        receivedFields.push(`UNKNOWN_FIELD(${(part as any).fieldname})`);
       }
     }
+
+    console.log('[DEBUG][uploadByTicket] 受信フィールド順序:', receivedFields);
+    console.log('[DEBUG][uploadByTicket] fileFilename=', fileFilename, 'ticketId=', ticketId, 'folderNameField=', JSON.stringify(folderNameField));
 
     if (!fileBuffer) throw new BadRequestException('ファイルがありません');
     if (!ticketId)   throw new BadRequestException('ticket が必要です');
@@ -515,24 +524,40 @@ export class McController {
     const payload = this.tickets.consume(ticketId);
     if (!payload) throw new UnauthorizedException('チケットが無効、または期限切れです');
 
+    console.log('[DEBUG][uploadByTicket] チケットpayload=', JSON.stringify(payload));
+
     const buf = fileBuffer;
     const isFolderUpload = payload.isFolderUpload === true;
 
     if (payload.replaceFileId) {
       const result = await this.mcFiles.replace(payload.mcId, payload.replaceFileId, payload.userId,
         { filename: fileFilename, mimetype: fileMimetype, data: buf });
-      return { ...result, mc_id: payload.mcId, machining_id: payload.machiningId, mode: 'replace' };
+      return {
+        ...result, mc_id: payload.mcId, machining_id: payload.machiningId, mode: 'replace',
+        debug: { receivedFields, fileFilename, ticketId, folderNameField, payload, isFolderUpload },
+      };
     } else {
-      const result = await this.mcFiles.upload(payload.mcId, payload.userId,
+      console.log('[DEBUG][uploadByTicket] mcFiles.upload()呼び出し直前: mcId=', payload.mcId, 'isFolderUpload=', isFolderUpload, 'fileType=', payload.fileType, 'folderNameField=', JSON.stringify(folderNameField));
+      const result: any = await this.mcFiles.upload(payload.mcId, payload.userId,
         { filename: fileFilename, mimetype: fileMimetype, data: buf },
         undefined, isFolderUpload, payload.fileType as any, folderNameField || undefined);
+      console.log('[DEBUG][uploadByTicket] mcFiles.upload()戻り値=', JSON.stringify(result));
 
       const PROGRAM_EXTS = new Set(['.min','.spf','.mpf','.nc','.cnc','.tap','.prg','.gcode','.g','.txt']);
       const fileExt = ('.' + (fileFilename.split('.').pop()?.toLowerCase() ?? ''));
       if (PROGRAM_EXTS.has(fileExt)) {
         await this.mc.updatePgMeta(payload.mcId, payload.userId);
       }
-      return { ...result, mc_id: payload.mcId, machining_id: payload.machiningId, mode: 'create' };
+      return {
+        ...result, mc_id: payload.mcId, machining_id: payload.machiningId, mode: 'create',
+        debug: {
+          receivedFields, fileFilename, ticketId,
+          folderNameField, isFolderUpload,
+          payloadFileType: payload.fileType,
+          payloadMcId: payload.mcId,
+          serviceResult: result,
+        },
+      };
     }
   }
 

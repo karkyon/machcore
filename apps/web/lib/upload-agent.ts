@@ -39,6 +39,10 @@ export type AgentUploadFileResult = {
   duplicateMovedTo?: string;
   localDeleted: boolean;
   localDeleteError?: string;
+  debugSourcePath?: string;
+  debugFolderNameSent?: string;
+  debugServerRawResponse?: string;
+  debugServerStatusCode?: number;
 };
 
 export type PickAndUploadResult = {
@@ -47,6 +51,14 @@ export type PickAndUploadResult = {
   success:        boolean;
   files: AgentUploadFileResult[];
   error?: string;
+  debugSelectedFolderPath?: string;
+  debugOriginalFolderName?: string;
+  debugAllFilesFound?: string[];
+  debugFilteredFiles?: string[];
+  debugAttemptedWholeFolderMove?: boolean;
+  debugWholeFolderMoveDestPath?: string;
+  debugWholeFolderMoveError?: string;
+  debugRawAgentResponse?: any;
 };
 
 export type PgToUsbResult = {
@@ -92,7 +104,7 @@ export async function agentPickAndUpload(ticket: string, fileType?: string): Pro
   if (!token) return { agentAvailable: false, cancelled: false, success: false, files: [], error: "Agent未起動" };
 
   try {
-    console.log("[Agent] /pick-and-upload 依頼開始 ticket=", ticket);
+    console.log("[Agent] /pick-and-upload 依頼開始 ticket=", ticket, "fileType=", fileType);
     const res = await fetch(`${AGENT_BASE}/pick-and-upload`, {
       method:  "POST",
       headers: { "Content-Type": "application/json", "X-Agent-Token": token },
@@ -100,9 +112,13 @@ export async function agentPickAndUpload(ticket: string, fileType?: string): Pro
       signal:  AbortSignal.timeout(DIALOG_TIMEOUT_MS),
     });
     const json = await res.json();
-    console.log("[Agent] /pick-and-upload 結果:", json);
-    if (!res.ok) return { agentAvailable: true, cancelled: false, success: false, files: [], error: json.error ?? `HTTP ${res.status}` };
-    return { agentAvailable: true, cancelled: json.cancelled ?? false, success: json.success ?? false, files: json.files ?? [], error: json.error };
+    console.log("%c[Agent-DEBUG] /pick-and-upload 生レスポンス全体(加工なし)", "color:#fff;background:#7c3aed;padding:2px 4px", JSON.parse(JSON.stringify(json)));
+    if (!res.ok) return { agentAvailable: true, cancelled: false, success: false, files: [], error: json.error ?? `HTTP ${res.status}`, debugRawAgentResponse: json };
+    return {
+      agentAvailable: true, cancelled: json.cancelled ?? false, success: json.success ?? false,
+      files: json.files ?? [], error: json.error,
+      debugRawAgentResponse: json,
+    };
   } catch(e: any) {
     console.error("[Agent] /pick-and-upload エラー:", e);
     return { agentAvailable: true, cancelled: false, success: false, files: [], error: e.message };
@@ -117,7 +133,7 @@ export async function agentPickFolderAndUpload(ticket: string, fileType?: string
   if (!token) return { agentAvailable: false, cancelled: false, success: false, files: [], error: "Agent未起動" };
 
   try {
-    console.log("[Agent] /pick-folder-and-upload 依頼開始 ticket=", ticket);
+    console.log("[Agent] /pick-folder-and-upload 依頼開始 ticket=", ticket, "fileType=", fileType);
     const res = await fetch(`${AGENT_BASE}/pick-folder-and-upload`, {
       method:  "POST",
       headers: { "Content-Type": "application/json", "X-Agent-Token": token },
@@ -125,9 +141,39 @@ export async function agentPickFolderAndUpload(ticket: string, fileType?: string
       signal:  AbortSignal.timeout(DIALOG_TIMEOUT_MS),
     });
     const json = await res.json();
-    console.log("[Agent] /pick-folder-and-upload 結果:", json);
-    if (!res.ok) return { agentAvailable: true, cancelled: false, success: false, files: [], error: json.error ?? `HTTP ${res.status}` };
-    return { agentAvailable: true, cancelled: json.cancelled ?? false, success: json.success ?? false, files: json.files ?? [], error: json.error };
+    console.log("%c[Agent-DEBUG] /pick-folder-and-upload 生レスポンス全体(加工なし)", "color:#fff;background:#b45309;padding:2px 4px;font-weight:bold", JSON.parse(JSON.stringify(json)));
+    console.log("%c[Agent-DEBUG] └ debugSelectedFolderPath(選択した実際のフォルダパス)", "color:#92400e", json.debugSelectedFolderPath);
+    console.log("%c[Agent-DEBUG] └ debugOriginalFolderName(送信したフォルダ名)", "color:#92400e", json.debugOriginalFolderName);
+    console.log("%c[Agent-DEBUG] └ debugAllFilesFound(フォルダ内の全ファイル)", "color:#92400e", json.debugAllFilesFound);
+    console.log("%c[Agent-DEBUG] └ debugFilteredFiles(フィルタ後にアップロード対象となったファイル)", "color:#92400e", json.debugFilteredFiles);
+    console.log("%c[Agent-DEBUG] └ debugAttemptedWholeFolderMove(フォルダ全体移動を試みたか)", "color:#92400e", json.debugAttemptedWholeFolderMove);
+    console.log("%c[Agent-DEBUG] └ debugWholeFolderMoveDestPath(フォルダ移動先パス・成功時)", "color:#92400e", json.debugWholeFolderMoveDestPath);
+    console.log("%c[Agent-DEBUG] └ debugWholeFolderMoveError(フォルダ移動エラー・失敗時)", "color:#dc2626", json.debugWholeFolderMoveError);
+    if (Array.isArray(json.files)) {
+      json.files.forEach((f: any, i: number) => {
+        console.log(`%c[Agent-DEBUG]   ファイル[${i}] originalName=${f.originalName}`, "color:#92400e", {
+          debugSourcePath: f.debugSourcePath,
+          debugFolderNameSent: f.debugFolderNameSent,
+          debugServerStatusCode: f.debugServerStatusCode,
+          debugServerRawResponse: f.debugServerRawResponse,
+          localDeleted: f.localDeleted,
+          localDeleteError: f.localDeleteError,
+        });
+      });
+    }
+    if (!res.ok) return { agentAvailable: true, cancelled: false, success: false, files: [], error: json.error ?? `HTTP ${res.status}`, debugRawAgentResponse: json };
+    return {
+      agentAvailable: true, cancelled: json.cancelled ?? false, success: json.success ?? false,
+      files: json.files ?? [], error: json.error,
+      debugSelectedFolderPath: json.debugSelectedFolderPath,
+      debugOriginalFolderName: json.debugOriginalFolderName,
+      debugAllFilesFound: json.debugAllFilesFound,
+      debugFilteredFiles: json.debugFilteredFiles,
+      debugAttemptedWholeFolderMove: json.debugAttemptedWholeFolderMove,
+      debugWholeFolderMoveDestPath: json.debugWholeFolderMoveDestPath,
+      debugWholeFolderMoveError: json.debugWholeFolderMoveError,
+      debugRawAgentResponse: json,
+    };
   } catch(e: any) {
     console.error("[Agent] /pick-folder-and-upload エラー:", e);
     return { agentAvailable: true, cancelled: false, success: false, files: [], error: e.message };

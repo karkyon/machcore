@@ -203,17 +203,20 @@ export class McFilesService {
     uploadedBy:     number,
     file:           { filename: string; mimetype: string; data: Buffer },
     pgRoleOverride?: PgRole,
-    isFolderUpload?: boolean,  // true=ケース2（フォルダ構成）、false/undefined=ケース1（単一）
-    fileTypeOverride?: 'PHOTO' | 'DRAWING',  // フロントから明示指定されたファイル種別
-    folderName?:     string,  // ★追加: フォルダ単位アップロード時の「元のフォルダ名」(例: "1846.WPD")。
-                               //   加工IDフォルダの中に、この名前のサブフォルダをそのまま保持する。
-                               //   例: 1846.WPD/O1846 → {加工ID}/1846.WPD/O1846
+    isFolderUpload?: boolean,
+    fileTypeOverride?: 'PHOTO' | 'DRAWING',
+    folderName?:     string,
   ) {
+    console.log('[DEBUG][McFilesService.upload] 引数受信:', JSON.stringify({
+      mcProgramId, uploadedBy, filename: file.filename, mimetype: file.mimetype,
+      dataLength: file.data.length, pgRoleOverride, isFolderUpload, fileTypeOverride, folderName,
+    }));
+
     const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcProgramId } });
     if (!mc) throw new NotFoundException(`MC_id ${mcProgramId} が存在しません`);
 
     const basePath = await this.getBasePath();
-    const machId   = mc.machiningId;  // 加工ID（旧システムの machining_id）
+    const machId   = mc.machiningId;
     const ext      = path.extname(file.filename).toLowerCase();
 
     const isProgram = this.isProgramFile(file.filename, file.data);
@@ -223,31 +226,31 @@ export class McFilesService {
 
     let fileTypeEnum: string;
     if (isProgram)                      fileTypeEnum = 'PROGRAM';
-    else if (fileTypeOverride)          fileTypeEnum = fileTypeOverride;  // フロント指定を最優先
+    else if (fileTypeOverride)          fileTypeEnum = fileTypeOverride;
     else if (isImage || isPdf)          fileTypeEnum = ['image/jpeg','image/jpg','image/png'].includes(file.mimetype) ? 'PHOTO' : 'DRAWING';
     else                                fileTypeEnum = 'OTHER';
+
+    console.log('[DEBUG][McFilesService.upload] 判定結果:', JSON.stringify({
+      machId, ext, isProgram, isImage, isPdf, fileTypeEnum,
+    }));
 
     const pgRole: PgRole = pgRoleOverride !== undefined
       ? pgRoleOverride
       : (fileTypeEnum === 'PROGRAM' ? this.detectPgRole(file.filename, file.data) : null);
 
-    // ── パス決定 ──────────────────────────────────────────────
     let flatDir: string;
     let storedName: string;
     let sortOrder = 0;
+    const debugPathDecision: any = { fileTypeEnum, isFolderUpload, folderName, machId };
 
     if (fileTypeEnum === 'PROGRAM') {
-      // ★単体ファイル: {base}/MC/files/Programs/{machining_id}/{original_filename}
-      // ★フォルダ単位: {base}/MC/files/Programs/{machining_id}/{folderName}/{original_filename}
-      //   (元のフォルダ名・階層構造をそのまま加工IDフォルダの中に保持する。
-      //    加工IDフォルダは「元のフォルダの親」として1階層追加するだけで、
-      //    元のフォルダ名やファイル名は一切変更しない。)
-      flatDir    = isFolderUpload && folderName
-        ? path.join(basePath, 'MC', 'files', 'Programs', String(machId), folderName)
+      const useFolderSubdir = isFolderUpload && !!folderName;
+      debugPathDecision.useFolderSubdir = useFolderSubdir;
+      flatDir    = useFolderSubdir
+        ? path.join(basePath, 'MC', 'files', 'Programs', String(machId), folderName as string)
         : path.join(basePath, 'MC', 'files', 'Programs', String(machId));
-      storedName = file.filename;  // オリジナルのファイル名・拡張子をそのまま維持
+      storedName = file.filename;
 
-      // 同名ファイルが既存の場合は trash/ へタイムスタンプ付きで退避
       const dest = path.join(flatDir, storedName);
       this.ensureDir(flatDir);
       if (fs.existsSync(dest)) {
@@ -270,20 +273,24 @@ export class McFilesService {
       storedName = `${machId}-${n}${ext}`;
 
     } else {
-      // OTHER
       flatDir = path.join(basePath, 'MC', 'files', 'others');
       storedName = `${machId}-${Date.now()}${ext}`;
     }
 
     this.ensureDir(flatDir);
     const filePath = path.join(flatDir, storedName);
-    fs.writeFileSync(filePath, file.data);
+    debugPathDecision.flatDir = flatDir;
+    debugPathDecision.storedName = storedName;
+    debugPathDecision.filePath = filePath;
+    console.log('[DEBUG][McFilesService.upload] パス決定結果:', JSON.stringify(debugPathDecision));
 
-    // サムネイル生成（写真・図のみ）
+    fs.writeFileSync(filePath, file.data);
+    const fileActuallyExists = fs.existsSync(filePath);
+    console.log('[DEBUG][McFilesService.upload] ファイル書き込み後の実在確認:', JSON.stringify({ filePath, fileActuallyExists, fileSize: fileActuallyExists ? fs.statSync(filePath).size : null }));
+
     let thumbnailPath: string | null = null;
     if (isImage && fileTypeEnum !== 'PROGRAM') {
       try {
-        // PHOTOとDRAWINGでサブディレクトリを分けて名前衝突を防ぐ
         const typeSubDir = fileTypeEnum === 'PHOTO' ? 'photos' : 'drawings';
         const thumbDir  = path.join(basePath, 'MC', 'files', 'thumbnails', typeSubDir);
         this.ensureDir(thumbDir);
@@ -293,6 +300,9 @@ export class McFilesService {
         thumbnailPath = thumbFull;
       } catch { /* ignore */ }
     }
+
+    const folderNameToSave = (fileTypeEnum === 'PROGRAM' && isFolderUpload && folderName) ? folderName : null;
+    console.log('[DEBUG][McFilesService.upload] DB保存直前: folderNameToSave=', JSON.stringify(folderNameToSave));
 
     const record = await this.prisma.mcFile.create({
       data: {
@@ -307,10 +317,22 @@ export class McFilesService {
         thumbnailPath,
         fileSize:     file.data.length,
         uploadedBy,
-        folderName:   (fileTypeEnum === 'PROGRAM' && isFolderUpload && folderName) ? folderName : null,
+        folderName:   folderNameToSave,
       },
     });
-    return { id: record.id, message: 'アップロード完了', stored_name: storedName };
+
+    console.log('[DEBUG][McFilesService.upload] DB保存完了レコード:', JSON.stringify({ id: record.id, filePath: record.filePath, folderName: record.folderName }));
+
+    return {
+      id: record.id, message: 'アップロード完了', stored_name: storedName,
+      debug: {
+        ...debugPathDecision,
+        fileActuallyExists,
+        folderNameToSave,
+        dbRecordFolderName: record.folderName,
+        dbRecordFilePath: record.filePath,
+      },
+    };
   }
 
   async replace(
