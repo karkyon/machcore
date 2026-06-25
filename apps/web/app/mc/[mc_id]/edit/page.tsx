@@ -96,7 +96,6 @@ export default function McEditPage() {
   // sbMode=true かつ未認証の場合は自動で認証モーダルを開く（useAuth後に配置必須）
   React.useEffect(() => {
     if ((sbMode || sbRepeatMode) && !isAuthenticated) {
-      console.log("[EDIT] sbMode/sbRepeatMode=true 未認証 → 認証モーダルを自動表示");
       setAuthOpen(true);
     }
   }, [sbMode, sbRepeatMode, isAuthenticated]);
@@ -301,7 +300,6 @@ export default function McEditPage() {
   useEffect(() => {
     mcApi.findOne(mcId).then(r => {
       const d = (r as any).data ?? r;
-      console.log("[EDIT] 初期データ取得", JSON.stringify({id:d.id,version:d.version,status:d.status,machine:d.machine,oNumber:d.oNumber,cycleTimeSec:d.cycleTimeSec,machiningQty:d.machiningQty},null,2));
       setDetail(d);
       // McDetail.machine は { machineCode, machineName } のみ — id は machines リストから取得
       // machines がまだ空の可能性があるので machineCode を一時保存してから後で解決
@@ -398,15 +396,13 @@ export default function McEditPage() {
     });
     if (!res.ok) throw new Error(`チケット発行失敗: HTTP ${res.status}`);
     const json = await res.json();
-    console.log("[TICKET] 発行完了:", json);
     return json.ticket as string;
   };
 
   // ── 新規アップロード（Agent側でダイアログ表示〜アップロード〜削除まで完結） ──
   const requestNewUpload = async (fileType: 'PHOTO' | 'DRAWING', mode: 'file' | 'folder') => {
-    console.log("[AGENT_UPLOAD] 開始", { fileType, mode });
-    if (!token) { console.log("[AGENT_UPLOAD] tokenなし"); return; }
-    if (fileUploading) { console.log("[AGENT_UPLOAD] 多重クリック防止 - 既に処理中"); return; }
+    if (!token) { return; }
+    if (fileUploading) { return; }
 
     // ボタン多重クリック防止: 即座に処理中状態にする（Agent疎通確認より前）
     setActiveUploadFileType(fileType);
@@ -414,7 +410,6 @@ export default function McEditPage() {
     setFileUploadMsg("⏳ UploadAgentに接続中...");
 
     const agentOnline = await isAgentOnline();
-    console.log("[AGENT_UPLOAD] Agent状態:", agentOnline ? "ONLINE" : "OFFLINE");
     if (!agentOnline) {
       const msg = "❌ UploadAgentが起動していません。アップロードには UploadAgent の起動が必要です。\nタスクトレイを確認し、UploadAgent を起動してください。";
       setFileUploadMsg(msg);
@@ -428,22 +423,18 @@ export default function McEditPage() {
       `【アップロード元ファイルの削除確認】\n` +
       `選択したファイルをアップロードします。アップロード完了後、元ファイルはゴミ箱フォルダへ自動移動されます（格納先はUploadAgentの設定で確認・変更できます）。\n続行しますか？`
     );
-    if (!ok) { console.log("[AGENT_UPLOAD] ユーザキャンセル"); setFileUploading(false); return; }
+    if (!ok) { setFileUploading(false); return; }
 
     setFileUploadMsg("⏳ UploadAgentでファイル選択ダイアログを開いています...");
     try {
-      console.log("[AGENT_UPLOAD] チケット発行中...");
       const ticket = await issueUploadTicket({ fileType, isFolderUpload: mode === "folder" });
-      console.log("[AGENT_UPLOAD] チケット取得:", ticket);
 
-      console.log("[AGENT_UPLOAD] Agentへ依頼:", mode);
       const result = mode === "folder"
         ? await agentPickFolderAndUpload(ticket, fileType)
         : await agentPickAndUpload(ticket, fileType);
-      console.log("[AGENT_UPLOAD] Agentからの結果:", result);
 
       if (result.cancelled) {
-        console.log("[AGENT_UPLOAD] ユーザがAgent側ダイアログでキャンセル");
+        // ユーザがAgent側ダイアログでキャンセル
         setFileUploadMsg(null);
         return;
       }
@@ -461,7 +452,6 @@ export default function McEditPage() {
       let msg = `✅ ${n}件アップロード完了`;
       if (dupCount > 0) msg += `（重複${dupCount}件は既存ファイルをゴミ箱へ退避）`;
       if (delFailCount > 0) msg += ` ⚠️ ${delFailCount}件は元ファイルの削除に失敗 - 手動削除してください`;
-      console.log("[AGENT_UPLOAD] 完了:", msg, result.files);
       setFileUploadMsg(msg);
     } catch (err: any) {
       console.error("[AGENT_UPLOAD] エラー:", err);
@@ -474,16 +464,14 @@ export default function McEditPage() {
 
   // ── 差し替え（Agent側でダイアログ表示〜アップロード〜削除まで完結） ──
   const requestReplaceUpload = async (fileId: number, fileType: 'PHOTO' | 'DRAWING') => {
-    console.log("[AGENT_REPLACE] 開始", { fileId, fileType });
     if (!token) { showToast("認証が必要です"); return; }
-    if (replacingId !== null) { console.log("[AGENT_REPLACE] 多重クリック防止 - 既に処理中"); return; }
+    if (replacingId !== null) { return; }
 
     // ボタン多重クリック防止: 即座に処理中状態にする
     setReplacingId(fileId);
     showToast("⏳ UploadAgentに接続中...");
 
     const agentOnline = await isAgentOnline();
-    console.log("[AGENT_REPLACE] Agent状態:", agentOnline ? "ONLINE" : "OFFLINE");
     if (!agentOnline) {
       const msg = "❌ UploadAgentが起動していません。差し替えには UploadAgent の起動が必要です。";
       showToast(msg);
@@ -496,19 +484,16 @@ export default function McEditPage() {
       `【差し替え確認】\n選択したファイルで既存ファイルを差し替えます。\n` +
       `既存ファイルはサーバの /trash フォルダへ、選択した元ファイルはゴミ箱フォルダへ、それぞれ移動されます（格納先はUploadAgentの設定で確認・変更できます）。\n続行しますか？`
     );
-    if (!ok) { console.log("[AGENT_REPLACE] ユーザキャンセル"); setReplacingId(null); return; }
+    if (!ok) { setReplacingId(null); return; }
 
     showToast("⏳ UploadAgentでファイル選択ダイアログを開いています...");
     try {
-      console.log("[AGENT_REPLACE] チケット発行中...");
       const ticket = await issueUploadTicket({ fileType, replaceFileId: fileId });
-      console.log("[AGENT_REPLACE] チケット取得:", ticket);
 
       const result = await agentPickAndUpload(ticket, fileType);
-      console.log("[AGENT_REPLACE] Agentからの結果:", result);
 
       if (result.cancelled) {
-        console.log("[AGENT_REPLACE] ユーザがAgent側ダイアログでキャンセル");
+        // ユーザがAgent側ダイアログでキャンセル
         return;
       }
       if (!result.success) {
@@ -592,7 +577,6 @@ export default function McEditPage() {
   const pgSetContent = (val: string) => {
     pgContentRef.current = val;
     setPgContent(val);
-    console.log("[PGEditor] pgSetContent len="+val.length);
   };
   const pgSetMatch = (positions: number[], idx: number) => {
     pgMatchPositionsRef.current = positions;
@@ -601,7 +585,6 @@ export default function McEditPage() {
     setPgMatchPositions(positions);
     setPgMatchIndex(idx);
     setPgMatchCount(positions.length);
-    console.log("[PGEditor] pgSetMatch count="+positions.length+" idx="+idx+" pos="+(positions[idx]??-1));
   };
   const pgClearMatch = () => {
     pgMatchPositionsRef.current = [];
@@ -626,19 +609,17 @@ export default function McEditPage() {
     setPgEditorSearch(""); setPgEditorReplace("");
     setPgDarkMode(false);
     if (origName !== undefined) setPgOrigName(origName);
-    console.log("[PGEditor] pgFullReset len="+normalized.length+" origName="+(origName??""));
   };
 
   // textareaの指定文字オフセット位置へスクロール（中央表示）
   const scrollToMatch = (ta: HTMLTextAreaElement, pos: number) => {
-    if (!pgContentRef.current) { console.warn("[PGEditor] scrollToMatch: empty ref skip"); return; }
+    if (!pgContentRef.current) { return; }
     const text   = pgContentRef.current.slice(0, pos);
     const lines  = (text.match(/\n/g) || []).length;
     const style  = getComputedStyle(ta);
     const lh     = parseFloat(style.lineHeight) || 18;
     const pt     = parseFloat(style.paddingTop)  || 0;
     ta.scrollTop = Math.max(0, lines * lh + pt - ta.clientHeight / 2);
-    console.log("[PGEditor] scrollToMatch pos="+pos+" line="+lines+" scrollTop="+ta.scrollTop);
   };
 
   const execSearchQuery = (q: string, fromIndex = 0) => {
@@ -665,7 +646,6 @@ export default function McEditPage() {
         ta2.focus();
         ta2.setSelectionRange(_pos, _pos + _len);
         scrollToMatch(ta2, _pos);
-        console.log("[PGEditor] rAF setSelectionRange pos="+_pos+" end="+(_pos+_len)+" taValueLen="+ta2.value.length);
       });
     } catch {}
   };
@@ -677,7 +657,6 @@ export default function McEditPage() {
     const ta = pgTextareaRef.current;
     if (!ta) return;
     const keywordChanged = (q !== pgLastSearchRef.current);
-    console.log("[PGEditor] handleSearchBtn q="+q+" contentLen="+pgContentRef.current.length+" matches="+pgMatchPositionsRef.current.length+" idx="+pgMatchIndexRef.current+" keywordChanged="+keywordChanged);
     // キーワードが変わった場合、またはマッチがない場合は新規検索
     if (keywordChanged || pgMatchPositionsRef.current.length === 0) {
       pgLastSearchRef.current = q;
@@ -689,7 +668,6 @@ export default function McEditPage() {
       setPgMatchIndex(nextIdx);
       const _pos2 = positions[nextIdx];
       const _len2 = q.length;
-      console.log("[PGEditor] next nextIdx="+nextIdx+" pos="+_pos2);
       requestAnimationFrame(() => {
         const ta2 = pgTextareaRef.current;
         if (!ta2) return;
@@ -702,8 +680,7 @@ export default function McEditPage() {
 
   // Undo: スタックから1つ戻す
   const pgUndo = () => {
-    console.log("[PGEditor] Undo undoStack="+pgUndoStack.current.length+" redoStack="+pgRedoStack.current.length);
-    if (pgUndoStack.current.length === 0) { console.warn("[PGEditor] Undo stack empty"); return; }
+    if (pgUndoStack.current.length === 0) { return; }
     pgRedoStack.current.push(pgContentRef.current);
     const prev = pgUndoStack.current.pop()!;
     pgSetContent(prev);
@@ -713,8 +690,7 @@ export default function McEditPage() {
 
   // Redo: スタックから1つ進める
   const pgRedo = () => {
-    console.log("[PGEditor] Redo undoStack="+pgUndoStack.current.length+" redoStack="+pgRedoStack.current.length);
-    if (pgRedoStack.current.length === 0) { console.warn("[PGEditor] Redo stack empty"); return; }
+    if (pgRedoStack.current.length === 0) { return; }
     pgUndoStack.current.push(pgContentRef.current);
     const next = pgRedoStack.current.pop()!;
     pgSetContent(next);
@@ -731,9 +707,7 @@ export default function McEditPage() {
   const handlePgUploadFromUSB = async (mode: "file" | "folder") => {
     if (!token) { showToast("❌ 認証が必要です"); return; }
     setPgUploadModalOpen(false);
-    console.log("[PG_UPLOAD] handlePgUploadFromUSB開始", { mode });
     const pgAgentOnline = await isAgentOnline();
-    console.log("[PG_UPLOAD] Agent状態:", pgAgentOnline ? "ONLINE" : "OFFLINE");
     if (!pgAgentOnline) {
       const msg = "❌ UploadAgentが起動していません。PGファイルのアップロードには UploadAgent の起動が必要です。";
       showToast(msg);
@@ -744,19 +718,16 @@ export default function McEditPage() {
       `【PGファイルアップロード - 元ファイル削除確認】\n` +
       `アップロード完了後、元ファイルはゴミ箱(.machcore_trash)へ自動移動されます。\n続行しますか？`
     );
-    if (!ok) { console.log("[PG_UPLOAD] ユーザキャンセル"); return; }
+    if (!ok) { return; }
     setPgUploading(true);
     try {
-      console.log("[PG_UPLOAD] チケット発行中...", { mode });
       const ticket = await issueUploadTicket({ fileType: "PROGRAM", isFolderUpload: mode === "folder" });
-      console.log("[PG_UPLOAD] チケット取得:", ticket);
 
       const result = mode === "folder"
         ? await agentPickFolderAndUpload(ticket, "PROGRAM")
         : await agentPickAndUpload(ticket, "PROGRAM");
-      console.log("[PG_UPLOAD] Agentからの結果:", result);
 
-      if (result.cancelled) { console.log("[PG_UPLOAD] キャンセル"); setPgUploading(false); return; }
+      if (result.cancelled) { setPgUploading(false); return; }
       if (!result.success) {
         showToast(`❌ ${result.error ?? "アップロードに失敗しました"}`);
         setPgUploading(false);
@@ -779,7 +750,6 @@ export default function McEditPage() {
       let msg = `✅ ${n2}件登録完了`;
       if (delFailCount > 0) msg += ` ⚠️ ${delFailCount}件は元ファイルの削除に失敗 - 手動削除してください`;
       else msg += "。元ファイルをゴミ箱に移動しました";
-      console.log("[PG_UPLOAD] 完了:", msg, result.files);
       showToast(msg);
     } catch (e: any) {
       console.error("[PG_UPLOAD] エラー:", e);
@@ -789,9 +759,6 @@ export default function McEditPage() {
     }
   };
   const handleSave = async () => {
-    console.log("[EDIT] handleSave開始", { sbMode, sbRepeatMode, token: token ? "あり" : "なし", mcId,
-      data: { machineId, oNumber, clampNote, cycleH, cycleM, cycleS, machiningQty, note, creatorId, sheetCreatedAt,
-              toolingRows: toolingRows.length, offsetRows: offsetRows.length, indexRows: indexRows.length } });
     if (!token) { setSaveError("認証が必要です"); return; }
     setSaving(true); setSaveError(null);
     try {
@@ -859,7 +826,6 @@ export default function McEditPage() {
   //    ★段取シートバック(新規sbMode/リピートsbRepeatMode)の場合のみ/recordへ遷移する。
   //      通常編集(部品照会等)の場合は作業記録フローに乗せず、MC詳細へ戻す。
   const handleKanryoOk = async () => {
-    console.log("[EDIT] handleKanryoOk", { kanryoType, kanryoDetail, pendingBody, sbMode, sbRepeatMode, token: token ? "あり" : "なし" });
     if (!token || !pendingBody) return;
     const isSb = pendingBody.isSbMode || sbRepeatMode;
     try {
@@ -1131,7 +1097,7 @@ export default function McEditPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">機械</label>
-                    <select value={machineId} onChange={e => { console.log("[EDIT] 機械変更", e.target.value); setMachineId(e.target.value); }} data-fi="true"
+                    <select value={machineId} onChange={e => { setMachineId(e.target.value); }} data-fi="true"
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
                       <option value="">— 選択 —</option>
                       {displayMachines
@@ -1143,7 +1109,7 @@ export default function McEditPage() {
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">主Oナンバ</label>
-                    <input value={oNumber} onChange={e => { console.log("[EDIT] 主Oナンバ変更", e.target.value); setONumber(e.target.value); }} data-fi="true"
+                    <input value={oNumber} onChange={e => { setONumber(e.target.value); }} data-fi="true"
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
                   </div>
                 </div>
@@ -1224,7 +1190,6 @@ export default function McEditPage() {
                       try {
                         const r = await mcApi.getPgFile(mcId);
                         const data = (r as any).data ?? r;
-                        console.log("[PGEditor] PGファイル読込完了 raw="+(data.content?.length??0)+" name="+(data.originalName??""));
                         pgFullReset(data.content ?? "", data.originalName ?? "");
         setPgFilePath(data.filePath ?? "");
                         setPgEditorOpen(true);
@@ -2136,7 +2101,6 @@ export default function McEditPage() {
                   pgEditorSearchRef.current = "";
                   pgEditorReplaceRef.current = "";
                   pgLastSearchRef.current = "";
-                  console.log("[PGEditor] closed - all refs cleared");
                 }}
                   className="px-2.5 py-1.5 text-sm font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg" title="閉じる">
                   ✕
@@ -2185,19 +2149,16 @@ export default function McEditPage() {
                 if (!sq || pgMatchPositionsRef.current.length === 0) return;
                 const cur = pgContentRef.current;
                 const pos = pgMatchPositionsRef.current[pgMatchIndexRef.current];
-                console.log("[PGEditor] 1件置換クリック sq="+sq+" rq="+rq+" pos="+pos+" matchCount="+pgMatchPositionsRef.current.length+" matchIdx="+pgMatchIndexRef.current);
                 if (pos === undefined || pos < 0 || pos + sq.length > cur.length) {
                   console.error("[PGEditor] 1件置換 pos無効 pos="+pos+" curLen="+cur.length);
                   return;
                 }
                 const context = cur.slice(Math.max(0,pos-15), pos+sq.length+15);
-                console.log("[PGEditor] 置換前コンテキスト: ["+context+"]");
                 pgUndoStack.current.push(cur);
                 pgRedoStack.current = [];
                 const newContent = cur.slice(0, pos) + rq + cur.slice(pos + sq.length);
                 pgSetContent(newContent);
                 showToast("1件置換しました");
-                console.log("[PGEditor] 置換後コンテキスト: ["+newContent.slice(Math.max(0,pos-15), pos+rq.length+15)+"]");
                 execSearchQuery(sq, pos + rq.length);
               }} className="px-3 py-1.5 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-bold border border-blue-300 shrink-0">置換</button>
               <button onClick={() => {
@@ -2206,7 +2167,6 @@ export default function McEditPage() {
                 if (!sq) return;
                 const cur = pgContentRef.current;
                 const count = cur.split(sq).length - 1;
-                console.log("[PGEditor] 全置換クリック sq="+sq+" rq="+rq+" count="+count);
                 if (count === 0) { showToast("見つかりません"); return; }
                 pgUndoStack.current.push(cur);
                 pgRedoStack.current = [];

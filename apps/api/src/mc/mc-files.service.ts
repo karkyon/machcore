@@ -232,11 +232,9 @@ export class McFilesService {
     let flatDir: string;
     let storedName: string;
     let sortOrder = 0;
-    const debugPathDecision: any = { fileTypeEnum, isFolderUpload, folderName, machId };
 
     if (fileTypeEnum === 'PROGRAM') {
       const useFolderSubdir = isFolderUpload && !!folderName;
-      debugPathDecision.useFolderSubdir = useFolderSubdir;
       flatDir    = useFolderSubdir
         ? path.join(basePath, 'MC', 'files', 'Programs', String(machId), folderName as string)
         : path.join(basePath, 'MC', 'files', 'Programs', String(machId));
@@ -271,7 +269,6 @@ export class McFilesService {
     this.ensureDir(flatDir);
     const filePath = path.join(flatDir, storedName);
     fs.writeFileSync(filePath, file.data);
-    const fileActuallyExists = fs.existsSync(filePath);
 
     let thumbnailPath: string | null = null;
     if (isImage && fileTypeEnum !== 'PROGRAM') {
@@ -307,13 +304,6 @@ export class McFilesService {
 
     return {
       id: record.id, message: 'アップロード完了', stored_name: storedName,
-      debug: {
-        ...debugPathDecision,
-        fileActuallyExists,
-        folderNameToSave,
-        dbRecordFolderName: record.folderName,
-        dbRecordFilePath: record.filePath,
-      },
     };
   }
 
@@ -482,8 +472,14 @@ export class McFilesService {
     });
     if (recs.length === 0) throw new NotFoundException('PGファイルが存在しません');
 
-    if (recs.length === 1) {
-      // ケース1: 単一ファイル → そのままDL
+    // ★仕様統一: getPgFileInfo()と同じ基準。「件数=1なら単体扱い」ではなく、
+    //   各レコードのfolder_nameカラムの有無で単体/フォルダ構成を判定する。
+    //   フォルダアップロードでも偶然1ファイルしかないケースで、旧ロジックは
+    //   フォルダ階層を無視してフラットにDLしてしまう不具合があったため統一。
+    const hasFolderStructure = recs.some(r => !!r.folderName);
+
+    if (!hasFolderStructure && recs.length === 1) {
+      // ケース1: 単体ファイル（フォルダ構成なし） → そのままDL
       const rec = recs[0];
       if (!fs.existsSync(rec.filePath)) throw new NotFoundException('PGファイルが見つかりません');
       return {
@@ -493,7 +489,7 @@ export class McFilesService {
       };
     }
 
-    // ケース2: 複数ファイル → ZIPでDL（ZIP名={machining_id}.zip）
+    // ケース2: フォルダ構成、または複数ファイル → ZIPでDL（ZIP名={machining_id}.zip）
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const archiver = require('archiver');
     const { PassThrough } = require('stream');

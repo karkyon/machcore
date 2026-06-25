@@ -809,18 +809,11 @@ export const mcApi = {
 
 export const mcFilesApi = {
   // ★旧式ブラウザ直接アップロード(upload)は削除済み。呼び出し元が存在しない死んだ関数だった。
-  //   PHOTO/DRAWING/PROGRAMのアップロードはすべてUploadAgent経由(upload-ticket / upload-by-ticket)に統一済み。
+  //   PHOTO/DRAWING/PROGRAMのアップロード・差し替えはすべてUploadAgent経由
+  //   (upload-ticket発行 → upload-by-ticket、差し替えはissueUploadTicket({replaceFileId})経由)に統一済み。
+  //   replace(fetch直書き版)も呼び出し元ゼロの死んだ関数だったため削除済み。
   delete: (mcId: number, fileId: number, token: string) =>
     api.delete(`/mc/${mcId}/files/${fileId}`, { headers: { Authorization: `Bearer ${token}` } }),
-  replace: (mcId: number, fileId: number, file: File, token: string) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    return fetch(`/api/mc/${mcId}/files/${fileId}/replace`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: fd,
-    }).then(r => r.json());
-  },
 };
 
 
