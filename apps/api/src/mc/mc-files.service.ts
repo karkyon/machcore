@@ -16,10 +16,10 @@ type PgRole = 'MAIN' | 'SUB' | null;
 //   uploadBasePath = /mnt/mc_files (admin設定値)
 //   MCファイル格納先: {base}/MC/files/{Programs,Pictures,Drawings,thumbnails,others}
 //
-//   PG ケース1（単一ファイル）:
-//     {base}/MC/files/Programs/{machining_id}[.ext]
-//   PG ケース2（フォルダ構成）:
+//   PG 単体ファイルアップロード:
 //     {base}/MC/files/Programs/{machining_id}/{filename}
+//   PG フォルダアップロード:
+//     {base}/MC/files/Programs/{machining_id}/{元フォルダ名}/{filename}
 //   写真:    {base}/MC/files/Pictures/{machining_id}-{n}.jpg
 //   図:      {base}/MC/files/Drawings/{machining_id}-{n}.*
 //   サムネ:  {base}/MC/files/thumbnails/thumb_{name}.jpg
@@ -420,10 +420,17 @@ export class McFilesService {
 
     // 既存なし → 新規保存
     const name = originalName ?? `${machId}`;
-    const flatDir = path.join(basePath, 'MC', 'files', 'Programs');
+    // Programs/{machId}/{name} に保存（単体アップロードと同じ構造）
+    const flatDir  = path.join(basePath, 'MC', 'files', 'Programs', String(machId));
     this.ensureDir(flatDir);
-    const storedName = `${machId}`;
+    const storedName = name;
     const filePath   = path.join(flatDir, storedName);
+    if (fs.existsSync(filePath)) {
+      const ts = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+      const bakExt = path.extname(storedName); const bakBase = path.basename(storedName, bakExt);
+      const trashDir = path.join(basePath, 'trash'); this.ensureDir(trashDir);
+      fs.renameSync(filePath, path.join(trashDir, `${bakBase}-${ts}${bakExt}`));
+    }
     fs.writeFileSync(filePath, buf);
 
     await this.prisma.mcFile.create({
