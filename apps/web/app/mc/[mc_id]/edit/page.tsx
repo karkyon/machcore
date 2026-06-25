@@ -2025,7 +2025,7 @@ export default function McEditPage() {
                 className="w-full px-4 py-4 bg-amber-50 hover:bg-amber-100 border-2 border-amber-300 rounded-xl text-left transition-colors">
                 <div className="font-bold text-amber-800 mb-1">📁 フォルダ単位</div>
                 <div className="text-xs text-amber-600">メインPG + サブPGを含むフォルダを選択。加工IDのフォルダを作成し、フォルダ内の全ファイル名は変更せずそのまま保存します。</div>
-                <div className="text-[10px] text-amber-400 mt-1 font-mono">例: 1846.WPD/O1846 → {detail?.machiningId}/O1846</div>
+                <div className="text-[10px] text-amber-400 mt-1 font-mono">例: 1846.WPD/O1846 → {detail?.machiningId}/1846.WPD/O1846</div>
               </button>
             </div>
             <p className="text-[10px] text-slate-400 text-center">Chrome / Edge のみ対応（HTTPS必須）</p>
