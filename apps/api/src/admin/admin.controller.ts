@@ -1343,11 +1343,11 @@ export class AdminController {
 
   // ── ファイルブラウザ ──────────────────────────────────────────
 
-  /** FB-01: ディレクトリツリー取得 */
+  /** FB-01: ディレクトリツリー取得（1階層のみ・遅延ロード対応） */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
   @Get('files/tree')
-  async getFileTree(@Query('path') queryPath: string, @Query('depth') depth: string) {
+  async getFileTree(@Query('path') queryPath: string) {
     const setting = await this.prisma.companySetting.findFirst();
     const basePath = setting?.uploadBasePath ?? '/mnt/mc_files';
     const roots = {
@@ -1355,38 +1355,44 @@ export class AdminController {
       drawings: nodepath.join(basePath, 'MC', 'files', 'Drawings'),
       programs: nodepath.join(basePath, 'MC', 'files', 'Programs'),
     };
-    const maxDepth = parseInt(depth ?? '4', 10);
-    const buildTree = (dirPath: string, cur = 0): any => {
-      if (!fs.existsSync(dirPath)) return { exists: false, children: [] };
-      const st = fs.statSync(dirPath);
-      if (!st.isDirectory()) return null;
+
+    // 1階層のみ読む（件数多い場合のタイムアウト対策）
+    const readOneLevel = (dirPath: string): any => {
+      if (!fs.existsSync(dirPath)) return { exists: false, path: dirPath, children: [] };
+      if (!fs.statSync(dirPath).isDirectory()) return { exists: false, path: dirPath, children: [] };
       const children: any[] = [];
-      if (cur < maxDepth) {
-        try {
-          const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-          for (const e of entries) {
-            const fp = nodepath.join(dirPath, e.name);
-            if (e.isDirectory()) {
-              const sub = buildTree(fp, cur + 1);
-              if (sub) children.push({ name: e.name, path: fp, type: 'dir', children: sub.children });
-            } else {
-              let size = 0; try { size = fs.statSync(fp).size; } catch {}
-              let mtime = ''; try { mtime = fs.statSync(fp).mtime.toISOString(); } catch {}
-              children.push({ name: e.name, path: fp, type: 'file', size, mtime });
-            }
+      try {
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+        for (const e of entries) {
+          const fp = nodepath.join(dirPath, e.name);
+          if (e.isDirectory()) {
+            // ディレクトリは hasChildren フラグのみ（中身は遅延ロード）
+            let hasChildren = false;
+            try { hasChildren = fs.readdirSync(fp).length > 0; } catch {}
+            children.push({ name: e.name, path: fp, type: 'dir', hasChildren });
+          } else {
+            let size = 0; try { size = fs.statSync(fp).size; } catch {}
+            let mtime = ''; try { mtime = fs.statSync(fp).mtime.toISOString(); } catch {}
+            children.push({ name: e.name, path: fp, type: 'file', size, mtime });
           }
-        } catch {}
-      }
-      return { exists: true, children };
+        }
+      } catch {}
+      // ディレクトリ先・ファイル後でソート
+      children.sort((a, b) => {
+        if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+        return a.name.localeCompare(b.name, 'ja');
+      });
+      return { exists: true, path: dirPath, children };
     };
-    if (queryPath) {
-      const tree = buildTree(queryPath, 0);
-      return { path: queryPath, ...tree };
-    }
+
+    // path指定あり → そのディレクトリの1階層を返す
+    if (queryPath) return readOneLevel(queryPath);
+
+    // path指定なし → 3ルートそれぞれの1階層を返す
     return {
-      photos:   { path: roots.photos,   ...buildTree(roots.photos) },
-      drawings: { path: roots.drawings, ...buildTree(roots.drawings) },
-      programs: { path: roots.programs, ...buildTree(roots.programs) },
+      photos:   readOneLevel(roots.photos),
+      drawings: readOneLevel(roots.drawings),
+      programs: readOneLevel(roots.programs),
     };
   }
 
