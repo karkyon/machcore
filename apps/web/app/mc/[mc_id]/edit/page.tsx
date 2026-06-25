@@ -854,10 +854,13 @@ export default function McEditPage() {
     }
   };
 
-  // ── 終了確認OK: change_type/detail を付けて再updateしバージョンインクリ → recordへ ──
+  // ── 終了確認OK: change_type/detail を付けて再updateしバージョンインクリ ──
+  //    ★段取シートバック(新規sbMode/リピートsbRepeatMode)の場合のみ/recordへ遷移する。
+  //      通常編集(部品照会等)の場合は作業記録フローに乗せず、MC詳細へ戻す。
   const handleKanryoOk = async () => {
-    console.log("[EDIT] handleKanryoOk", { kanryoType, kanryoDetail, pendingBody, token: token ? "あり" : "なし" });
+    console.log("[EDIT] handleKanryoOk", { kanryoType, kanryoDetail, pendingBody, sbMode, sbRepeatMode, token: token ? "あり" : "なし" });
     if (!token || !pendingBody) return;
+    const isSb = pendingBody.isSbMode || sbRepeatMode;
     try {
       await mcApi.finalize(pendingBody.savedMcId, kanryoType, kanryoDetail || undefined, token);
       setShowKanryoModal(false);
@@ -865,6 +868,15 @@ export default function McEditPage() {
       const wasSbMode = pendingBody.isSbMode;
       setPendingBody(null);
       showToast(`✅ ${kanryoType}として登録しました`);
+
+      if (!isSb) {
+        // ★通常編集: 段取シートバックのsessionStorageキーには一切触れず、
+        //   作業記録フローへも乗せない。ログアウトしてMC詳細へ戻る。
+        logout();
+        setTimeout(() => router.push(`/mc/${savedId}`), 600);
+        return;
+      }
+
       if (typeof window !== "undefined") {
         sessionStorage.removeItem("sb_repeat_edit");
         // 新規(sbMode)の場合はsb_next_recordが既にセット済み
@@ -1951,7 +1963,7 @@ export default function McEditPage() {
             <div className="px-5 pb-5 flex gap-3">
               <button onClick={handleKanryoOk}
                 className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm transition-colors">
-                OK — 作業記録へ
+                {(pendingBody?.isSbMode || sbRepeatMode) ? "OK — 作業記録へ" : "OK — 登録する"}
               </button>
               <button onClick={async () => {
                   const isSb = pendingBody?.isSbMode || sbRepeatMode;
