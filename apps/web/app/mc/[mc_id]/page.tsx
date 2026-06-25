@@ -71,6 +71,7 @@ export default function McDetailPage() {
   const [pgContent,    setPgContent]    = useState<string | null>(null);
   const [pgOrigName,   setPgOrigName]   = useState<string>("");
   const [pgFileCount,  setPgFileCount]  = useState(0);
+  const [pgFilePath,   setPgFilePath]   = useState<string>("");
   const [pgViewerOpen, setPgViewerOpen] = useState(false);
   const [pgLoading,    setPgLoading]    = useState(false);
   // PGアップロード
