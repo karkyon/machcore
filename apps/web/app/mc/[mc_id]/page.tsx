@@ -75,7 +75,6 @@ export default function McDetailPage() {
   const [pgViewerOpen, setPgViewerOpen] = useState(false);
   const [pgLoading,    setPgLoading]    = useState(false);
   // PGアップロード
-  const [pgUploading,  setPgUploading]  = useState(false);
   // 共通グループ 供用登録モーダル
   const [cpRegOpen,       setCpRegOpen]       = useState(false);
   const [cpSearchQ,       setCpSearchQ]       = useState("");
@@ -239,34 +238,10 @@ export default function McDetailPage() {
     }
   };
 
-  // PGファイルアップロード
-  const handlePgUpload = async (files: FileList, isFolderUpload: boolean) => {
-    if (!token) { openAuth("edit"); return; }
-    if (files.length === 0) return;
-    setPgUploading(true);
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const fd = new FormData();
-        fd.append('file', files[i]);
-        fd.append('is_folder_upload', String(isFolderUpload));
-        await fetch(`/api/mc/${mcId}/files/upload`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: fd,
-        });
-      }
-      // キャッシュクリア → 再ビューア時に再取得
-      setPgContent(null);
-      // 詳細再取得 (pg_updated_at / pgCreator 更新反映)
-      const refreshed = await mcApi.findOne(mcId);
-      setDetail((refreshed as any).data ?? refreshed);
-      showToast(`PGファイルを${files.length}件アップロードしました`);
-    } catch {
-      showToast("アップロードに失敗しました");
-    } finally {
-      setPgUploading(false);
-    }
-  };
+  // ★旧式ブラウザ直接アップロード(handlePgUpload)は削除済み。
+  //   呼び出し元(UI)が存在しない死んだコードであり、UA(UploadAgent)を経由しない
+  //   /api/mc/{mcId}/files/upload への直接fetchという旧仕様が誤って残存していたため撤去。
+  //   PGファイルのアップロードは編集画面(edit/page.tsx)のhandlePgUploadFromUSB(UA経由)に統一済み。
 
   const fmtDate = (s: string | null | undefined) => {
     if (!s) return "—";

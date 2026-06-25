@@ -808,14 +808,8 @@ export const mcApi = {
 };
 
 export const mcFilesApi = {
-  upload: (mcId: number, file: File, token: string, fileType?: 'PHOTO' | 'DRAWING') => {
-    const fd = new FormData();
-    fd.append('file', file);
-    if (fileType) fd.append('file_type', fileType);
-    return api.post<{ id: number; message: string }>(`/mc/${mcId}/files/upload`, fd, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-  },
+  // ★旧式ブラウザ直接アップロード(upload)は削除済み。呼び出し元が存在しない死んだ関数だった。
+  //   PHOTO/DRAWING/PROGRAMのアップロードはすべてUploadAgent経由(upload-ticket / upload-by-ticket)に統一済み。
   delete: (mcId: number, fileId: number, token: string) =>
     api.delete(`/mc/${mcId}/files/${fileId}`, { headers: { Authorization: `Bearer ${token}` } }),
   replace: (mcId: number, fileId: number, file: File, token: string) => {
