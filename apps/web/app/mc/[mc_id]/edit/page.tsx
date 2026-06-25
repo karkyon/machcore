@@ -200,6 +200,7 @@ export default function McEditPage() {
   const [pgMatchPositions, setPgMatchPositions] = useState<number[]>([]);
   const [pgContent,       setPgContent]       = useState<string>("");
   const [pgOrigName,      setPgOrigName]      = useState<string>("");
+  const [pgFilePath,      setPgFilePath]      = useState<string>("");
   const [pgLoading,       setPgLoading]       = useState(false);
   const [pgSaving,        setPgSaving]        = useState(false);
   const [pgEditorSearch,  setPgEditorSearch]  = useState("");

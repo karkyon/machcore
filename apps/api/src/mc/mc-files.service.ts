@@ -457,7 +457,7 @@ export class McFilesService {
   // ── PGファイル読み込み（インラインビューア用）──────────────────
   // MAINプログラムを優先、なければ最新PROGRAMを返す
   async getPgFile(mcProgramId: number): Promise<{
-    content: string; encoding: string; originalName: string; fileCount: number; filePath: string;
+    content: string; encoding: string; originalName: string; fileCount: number; filePath?: string;
   }> {
     const mainRec = await this.prisma.mcFile.findFirst({
       where:   { mcProgramId, fileType: 'PROGRAM', pgRole: 'MAIN', isDeleted: false },
