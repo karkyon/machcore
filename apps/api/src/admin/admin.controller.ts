@@ -1393,33 +1393,59 @@ export class AdminController {
     };
   }
 
-  /** FB-02: ファイルプレビュー */
+  /** FB-02: ファイルプレビュー（TIFF→PNG変換・拡張子なしテキスト対応） */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
   @Get('files/preview')
   async previewFileBrowser(@Query('path') filePath: string, @Res() reply: FastifyReply) {
-    if (!filePath || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-      return reply.code(404).send({ message: 'ファイルが存在しません' });
-    }
+    if (!filePath || !fs.existsSync(filePath)) return reply.code(404).send({ message: 'ファイルが存在しません' });
+    try { if (fs.statSync(filePath).isDirectory()) return reply.code(404).send({ message: 'ディレクトリです' }); } catch { return reply.code(404).send({ message: 'アクセス不可' }); }
+
     const ext = nodepath.extname(filePath).toLowerCase();
-    const mimeMap: Record<string, string> = {
-      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-      '.tif': 'image/tiff', '.tiff': 'image/tiff', '.gif': 'image/gif',
-      '.pdf': 'application/pdf',
-      '.txt': 'text/plain', '.nc': 'text/plain', '.mpf': 'text/plain',
-      '.spf': 'text/plain', '.cnc': 'text/plain', '.min': 'text/plain', '.prg': 'text/plain',
-    };
-    const mime = mimeMap[ext] ?? 'application/octet-stream';
-    if (mime.startsWith('text/')) {
+    const TEXT_EXTS = new Set(['.txt', '.nc', '.mpf', '.spf', '.cnc', '.min', '.prg', '.min']);
+    const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif']);
+    const TIFF_EXTS  = new Set(['.tif', '.tiff']);
+
+    // 拡張子なし or テキスト系 → UTF-8テキストとして返す
+    if (ext === '' || TEXT_EXTS.has(ext)) {
       try {
-        const text = fs.readFileSync(filePath).toString('utf8').slice(0, 8192);
+        const buf = fs.readFileSync(filePath);
+        // バイナリ判定: NULLバイトが多ければバイナリ
+        const nullCount = [...buf.slice(0, 512)].filter(b => b === 0).length;
+        if (nullCount > 10) return reply.code(415).send({ message: 'バイナリファイルはプレビュー不可' });
+        const text = buf.toString('utf8').slice(0, 16384);
         reply.header('Content-Type', 'text/plain; charset=utf-8');
         return reply.send(text);
       } catch { return reply.code(500).send({ message: '読み込み失敗' }); }
     }
-    reply.header('Content-Type', mime);
-    reply.header('Content-Disposition', 'inline');
-    return reply.send(fs.createReadStream(filePath));
+
+    // TIFF → sharpでJPEGに変換してブラウザに返す
+    if (TIFF_EXTS.has(ext)) {
+      try {
+        const sharp = (await import('sharp')).default;
+        const jpegBuf = await sharp(filePath).jpeg({ quality: 85 }).toBuffer();
+        reply.header('Content-Type', 'image/jpeg');
+        reply.header('Content-Disposition', 'inline');
+        return reply.send(jpegBuf);
+      } catch (e: any) { return reply.code(500).send({ message: 'TIFF変換失敗: ' + e.message }); }
+    }
+
+    // 通常画像
+    if (IMAGE_EXTS.has(ext)) {
+      const mimeMap: Record<string, string> = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif' };
+      reply.header('Content-Type', mimeMap[ext] ?? 'image/jpeg');
+      reply.header('Content-Disposition', 'inline');
+      return reply.send(fs.createReadStream(filePath));
+    }
+
+    // PDF
+    if (ext === '.pdf') {
+      reply.header('Content-Type', 'application/pdf');
+      reply.header('Content-Disposition', 'inline');
+      return reply.send(fs.createReadStream(filePath));
+    }
+
+    return reply.code(415).send({ message: 'プレビュー非対応の形式: ' + ext });
   }
 
   /** FB-03: ファイルダウンロード */
