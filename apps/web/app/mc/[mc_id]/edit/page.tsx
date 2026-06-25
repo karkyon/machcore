@@ -65,9 +65,27 @@ export default function McEditPage() {
   //    編集セッションが残っていれば必ず終了させる。
   //    ヘッダーの「MC詳細」リンクやタブ切り替えなど、明示的な
   //    「キャンセル」ボタンを経由しない遷移であってもセッションを解放する。
+  //    ★さらに、終了確認モーダル(showKanryoModal)が開いたまま=OK/キャンセルいずれも
+  //      押さずに離脱した場合、DBのstatusがCHANGINGのまま固着してしまうため、
+  //      change_type="不明"で自動finalizeし、変更理由未入力のまま離脱したことを記録に残す。
+  const showKanryoModalRef = React.useRef(showKanryoModal);
+  React.useEffect(() => { showKanryoModalRef.current = showKanryoModal; }, [showKanryoModal]);
+  const tokenRef = React.useRef(token);
+  React.useEffect(() => { tokenRef.current = token; }, [token]);
+  const pendingBodyRef = React.useRef(pendingBody);
+  React.useEffect(() => { pendingBodyRef.current = pendingBody; }, [pendingBody]);
   React.useEffect(() => {
     return () => {
       if (isAuthenticated) {
+        if (showKanryoModalRef.current && tokenRef.current && pendingBodyRef.current?.savedMcId) {
+          console.warn("[EDIT] 終了確認モーダルが未完了のまま離脱 — 変更理由不明として自動finalizeします", { mcId });
+          mcApi.finalize(
+            pendingBodyRef.current.savedMcId,
+            "不明",
+            "変更理由未入力（モーダル入力途中で離脱）",
+            tokenRef.current,
+          ).catch(e => console.warn("[EDIT] 離脱時自動finalize失敗", e));
+        }
         console.warn("[EDIT] ページ離脱を検知 — 編集セッションを終了します");
         logout();
       }
@@ -1137,24 +1155,26 @@ export default function McEditPage() {
                   <textarea value={clampNote} onChange={e => setClampNote(e.target.value)} rows={3}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none resize-none" />
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-2">サイクルタイム/1P</label>
-                  <div className="flex items-center gap-2">
-                    <input type="number" min={0} data-fi="true" value={cycleH} onChange={e => setCycleH(Number(e.target.value))}
-                      className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
-                    <span className="text-xs text-slate-400">H</span>
-                    <input type="number" min={0} max={59} data-fi="true" value={cycleM} onChange={e => setCycleM(Number(e.target.value))}
-                      className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
-                    <span className="text-xs text-slate-400">M</span>
-                    <input type="number" min={0} max={59} data-fi="true" value={cycleS} onChange={e => setCycleS(Number(e.target.value))}
-                      className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
-                    <span className="text-xs text-slate-400">S</span>
+                <div className="flex items-end gap-6">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-2">サイクルタイム/1P</label>
+                    <div className="flex items-center gap-2">
+                      <input type="number" min={0} data-fi="true" value={cycleH} onChange={e => setCycleH(Number(e.target.value))}
+                        className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
+                      <span className="text-xs text-slate-400">H</span>
+                      <input type="number" min={0} max={59} data-fi="true" value={cycleM} onChange={e => setCycleM(Number(e.target.value))}
+                        className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
+                      <span className="text-xs text-slate-400">M</span>
+                      <input type="number" min={0} max={59} data-fi="true" value={cycleS} onChange={e => setCycleS(Number(e.target.value))}
+                        className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
+                      <span className="text-xs text-slate-400">S</span>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">加工個数/1サイクル</label>
-                  <input type="number" min={1} data-fi="true" value={machiningQty} onChange={e => setMachiningQty(Number(e.target.value))}
-                    className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm text-center focus:ring-2 focus:ring-teal-400 focus:outline-none" />
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">加工個数/1サイクル</label>
+                    <input type="number" min={1} data-fi="true" value={machiningQty} onChange={e => setMachiningQty(Number(e.target.value))}
+                      className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm text-center focus:ring-2 focus:ring-teal-400 focus:outline-none" />
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-500 block mb-1">備考</label>
@@ -1933,22 +1953,33 @@ export default function McEditPage() {
                 className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm transition-colors">
                 OK — 作業記録へ
               </button>
-              <button onClick={() => {
-                  setShowKanryoModal(false);
-                  if (pendingBody?.isSbMode) {
-                    // 新規: sessionStorageをクリアしてダッシュボードへ
+              <button onClick={async () => {
+                  const isSb = pendingBody?.isSbMode || sbRepeatMode;
+                  if (isSb) {
+                    // 段取シートバック(新規/リピート)フロー: 既存通り「スキップ」(作業記録なしでダッシュボードへ)
+                    setShowKanryoModal(false);
                     if (typeof window !== "undefined") {
                       sessionStorage.removeItem("sb_next_record");
                       sessionStorage.removeItem("sb_sheet_log_id");
+                      sessionStorage.removeItem("sb_repeat_edit");
                     }
                     logout();
+                    router.push("/");
                   } else {
+                    // ★通常編集(部品照会等): 変更内容の確認を経ずに離脱する場合は
+                    //   変更そのものを取り消す(revert)。CHANGINGステータスの固着を防ぐ。
+                    if (token && pendingBody?.savedMcId) {
+                      try { await mcApi.revert(pendingBody.savedMcId, token); }
+                      catch (e) { console.warn("[EDIT] キャンセル時revert失敗", e); }
+                    }
+                    setShowKanryoModal(false);
+                    setPendingBody(null);
                     logout();
+                    router.push(`/mc/${pendingBody?.savedMcId ?? mcId}`);
                   }
-                  router.push("/");
                 }}
                 className="px-5 py-3 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
-                スキップ（作業記録なし）
+                {(pendingBody?.isSbMode || sbRepeatMode) ? "スキップ（作業記録なし）" : "キャンセル（変更を取り消す）"}
               </button>
             </div>
           </div>
