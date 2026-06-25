@@ -207,11 +207,6 @@ export class McFilesService {
     fileTypeOverride?: 'PHOTO' | 'DRAWING',
     folderName?:     string,
   ) {
-    console.log('[DEBUG][McFilesService.upload] 引数受信:', JSON.stringify({
-      mcProgramId, uploadedBy, filename: file.filename, mimetype: file.mimetype,
-      dataLength: file.data.length, pgRoleOverride, isFolderUpload, fileTypeOverride, folderName,
-    }));
-
     const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcProgramId } });
     if (!mc) throw new NotFoundException(`MC_id ${mcProgramId} が存在しません`);
 
@@ -229,10 +224,6 @@ export class McFilesService {
     else if (fileTypeOverride)          fileTypeEnum = fileTypeOverride;
     else if (isImage || isPdf)          fileTypeEnum = ['image/jpeg','image/jpg','image/png'].includes(file.mimetype) ? 'PHOTO' : 'DRAWING';
     else                                fileTypeEnum = 'OTHER';
-
-    console.log('[DEBUG][McFilesService.upload] 判定結果:', JSON.stringify({
-      machId, ext, isProgram, isImage, isPdf, fileTypeEnum,
-    }));
 
     const pgRole: PgRole = pgRoleOverride !== undefined
       ? pgRoleOverride
@@ -279,14 +270,8 @@ export class McFilesService {
 
     this.ensureDir(flatDir);
     const filePath = path.join(flatDir, storedName);
-    debugPathDecision.flatDir = flatDir;
-    debugPathDecision.storedName = storedName;
-    debugPathDecision.filePath = filePath;
-    console.log('[DEBUG][McFilesService.upload] パス決定結果:', JSON.stringify(debugPathDecision));
-
     fs.writeFileSync(filePath, file.data);
     const fileActuallyExists = fs.existsSync(filePath);
-    console.log('[DEBUG][McFilesService.upload] ファイル書き込み後の実在確認:', JSON.stringify({ filePath, fileActuallyExists, fileSize: fileActuallyExists ? fs.statSync(filePath).size : null }));
 
     let thumbnailPath: string | null = null;
     if (isImage && fileTypeEnum !== 'PROGRAM') {
@@ -302,7 +287,6 @@ export class McFilesService {
     }
 
     const folderNameToSave = (fileTypeEnum === 'PROGRAM' && isFolderUpload && folderName) ? folderName : null;
-    console.log('[DEBUG][McFilesService.upload] DB保存直前: folderNameToSave=', JSON.stringify(folderNameToSave));
 
     const record = await this.prisma.mcFile.create({
       data: {
@@ -320,8 +304,6 @@ export class McFilesService {
         folderName:   folderNameToSave,
       },
     });
-
-    console.log('[DEBUG][McFilesService.upload] DB保存完了レコード:', JSON.stringify({ id: record.id, filePath: record.filePath, folderName: record.folderName }));
 
     return {
       id: record.id, message: 'アップロード完了', stored_name: storedName,
@@ -554,20 +536,23 @@ export class McFilesService {
     });
     if (recs.length === 0) throw new NotFoundException('PGファイルが存在しません');
 
-    if (recs.length === 1) {
-      const rec = recs[0];
-      if (!fs.existsSync(rec.filePath)) throw new NotFoundException('PGファイルが見つかりません');
-      const buf = fs.readFileSync(rec.filePath);
-      return { files: [{ name: rec.originalName, content: buf.toString('base64') }] };
-    }
-
-    const files: Array<{ name: string; folderName: string; content: string }> = [];
+    // ★仕様: サーバ上の実際のフォルダ構成(folder_nameカラムの有無)で
+    //   USB書き出し時の階層を決める。「件数=1なら単体扱い」という旧ロジックは、
+    //   フォルダアップロードでも偶然1ファイルしかないケースで階層情報を失うため廃止。
+    //   各レコードが個別にfolder_nameを持っているかどうかだけで判定する。
+    const files: Array<{ name: string; folderName?: string; content: string }> = [];
     for (const rec of recs) {
       if (!fs.existsSync(rec.filePath)) continue;
       const buf = fs.readFileSync(rec.filePath);
-      const fName = rec.folderName ?? String(mc.machiningId);
-      files.push({ name: rec.originalName, folderName: fName, content: buf.toString('base64') });
+      if (rec.folderName) {
+        // フォルダアップロードされたファイル: 元のフォルダ名をそのまま使う
+        files.push({ name: rec.originalName, folderName: rec.folderName, content: buf.toString('base64') });
+      } else {
+        // 単体ファイル: フォルダ階層なし（folderNameキー自体を付けない）
+        files.push({ name: rec.originalName, content: buf.toString('base64') });
+      }
     }
+    if (files.length === 0) throw new NotFoundException('PGファイルが見つかりません');
     return { files };
   }
 
