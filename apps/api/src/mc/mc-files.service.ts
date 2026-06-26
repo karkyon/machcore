@@ -472,13 +472,16 @@ export class McFilesService {
     });
     if (recs.length === 0) throw new NotFoundException('PGファイルが存在しません');
 
-    // ★仕様統一: getPgFileInfo()と同じ基準。「件数=1なら単体扱い」ではなく、
-    //   各レコードのfolder_nameカラムの有無で単体/フォルダ構成を判定する。
-    //   フォルダアップロードでも偶然1ファイルしかないケースで、旧ロジックは
-    //   フォルダ階層を無視してフラットにDLしてしまう不具合があったため統一。
-    const hasFolderStructure = recs.some(r => !!r.folderName);
+    // ★仕様統一(根本対応): 「単体 or フォルダ単位」の判定は、mc_files側のfolder_name文字列
+    //   の有無ではなく、アップロード時の意図を確実に記録するMcMachiningDetail.pgIsFolder
+    //   (machining単位で一意に決まる値)を基準にする。
+    const detail = await this.prisma.mcMachiningDetail.findUnique({
+      where: { machiningId: mc.machiningId },
+      select: { pgIsFolder: true, pgFolderName: true },
+    });
+    const isFolder = detail?.pgIsFolder === true;
 
-    if (!hasFolderStructure && recs.length === 1) {
+    if (!isFolder && recs.length === 1) {
       // ケース1: 単体ファイル（フォルダ構成なし） → そのままDL
       const rec = recs[0];
       if (!fs.existsSync(rec.filePath)) throw new NotFoundException('PGファイルが見つかりません');
@@ -498,6 +501,11 @@ export class McFilesService {
     const pt = new PassThrough();
     pt.on('data', (chunk: Buffer) => chunks.push(chunk));
 
+    // ★フォルダ単位だった場合は、ZIP内も元のフォルダ名のサブディレクトリ配下に格納し
+    //   「加工IDフォルダ以下を構成そのままUSBへ」という仕様を維持する。
+    //   pgFolderNameが何らかの理由で空の場合はmachining_idへフォールバックする。
+    const folderNameForZip = isFolder ? (detail?.pgFolderName || String(mc.machiningId)) : null;
+
     await new Promise<void>((resolve, reject) => {
       pt.on('end', resolve);
       pt.on('error', reject);
@@ -505,8 +513,8 @@ export class McFilesService {
       archive.pipe(pt);
       for (const rec of recs) {
         if (fs.existsSync(rec.filePath)) {
-          // フォルダ内のオリジナルファイル名でZIPに格納
-          archive.file(rec.filePath, { name: rec.originalName });
+          const zipEntryName = folderNameForZip ? `${folderNameForZip}/${rec.originalName}` : rec.originalName;
+          archive.file(rec.filePath, { name: zipEntryName });
         }
       }
       archive.finalize();
@@ -532,17 +540,23 @@ export class McFilesService {
     });
     if (recs.length === 0) throw new NotFoundException('PGファイルが存在しません');
 
-    // ★仕様: サーバ上の実際のフォルダ構成(folder_nameカラムの有無)で
-    //   USB書き出し時の階層を決める。「件数=1なら単体扱い」という旧ロジックは、
-    //   フォルダアップロードでも偶然1ファイルしかないケースで階層情報を失うため廃止。
-    //   各レコードが個別にfolder_nameを持っているかどうかだけで判定する。
+    // ★仕様(根本対応): 「単体 or フォルダ単位」の判定は、mc_files側のfolder_name文字列
+    //   の有無ではなく、アップロード時の意図を確実に記録するMcMachiningDetail.pgIsFolder
+    //   (machining単位で一意に決まる値)を基準にする。pgFolderNameが何らかの理由で空でも
+    //   machining_idへフォールバックし、絶対にフラットコピーにはしない。
+    const detail = await this.prisma.mcMachiningDetail.findUnique({
+      where: { machiningId: mc.machiningId },
+      select: { pgIsFolder: true, pgFolderName: true },
+    });
+    const isFolder = detail?.pgIsFolder === true;
+    const folderNameToUse = isFolder ? (detail?.pgFolderName || String(mc.machiningId)) : null;
+
     const files: Array<{ name: string; folderName?: string; content: string }> = [];
     for (const rec of recs) {
       if (!fs.existsSync(rec.filePath)) continue;
       const buf = fs.readFileSync(rec.filePath);
-      if (rec.folderName) {
-        // フォルダアップロードされたファイル: 元のフォルダ名をそのまま使う
-        files.push({ name: rec.originalName, folderName: rec.folderName, content: buf.toString('base64') });
+      if (folderNameToUse) {
+        files.push({ name: rec.originalName, folderName: folderNameToUse, content: buf.toString('base64') });
       } else {
         // 単体ファイル: フォルダ階層なし（folderNameキー自体を付けない）
         files.push({ name: rec.originalName, content: buf.toString('base64') });

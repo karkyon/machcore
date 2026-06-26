@@ -505,7 +505,18 @@ export default function McDetailPage() {
                         <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">プログラムファイル</div>
                         {pgFile ? (
                           <>
-                            <div className="font-mono font-semibold text-slate-800 text-sm">{pgFile.original_name}</div>
+                            <div className="font-mono font-semibold text-slate-800 text-sm flex items-center gap-1.5 flex-wrap">
+                              {pgFile.original_name}
+                              {d.pgIsFolder ? (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-700 border border-violet-200">
+                                  📁 フォルダ単位{d.pgFolderName ? `: ${d.pgFolderName}` : ""}
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-100 text-sky-700 border border-sky-200">
+                                  📄 単体ファイル
+                                </span>
+                              )}
+                            </div>
                             <div className="text-[10px] text-slate-400 font-mono mt-0.5">
                               📁 {pgFile.file_path?.replace(/^.*?MC\/files\//, "MC/files/") ?? `MC/files/Programs/${d.machiningId}/${pgFile.original_name}`}
                             </div>

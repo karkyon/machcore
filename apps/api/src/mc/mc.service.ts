@@ -577,12 +577,20 @@ export class McService {
   // ══════════════════════════════════════════
   // PGメタ更新
   // ══════════════════════════════════════════
-  async updatePgMeta(id: number, pgCreatedBy: number) {
+  // ★根本対応: 「フォルダ単位アップロードだったか」(pgIsFolder)と「元のフォルダ名」(pgFolderName)を
+  //   ここで初めて正しく更新する。両フィールドはスキーマ・型定義は既に存在していたが、
+  //   実際に書き込む処理が一度も実装されておらず常にfalse/nullのままだった。
+  async updatePgMeta(id: number, pgCreatedBy: number, isFolderUpload?: boolean, folderName?: string) {
     const mc = await this.prisma.mcProgram.findUnique({ where: { id }, select: { machiningId: true } });
     if (!mc) return;
     return this.prisma.mcMachiningDetail.update({
       where: { machiningId: mc.machiningId },
-      data:  { pgCreatedBy, pgUpdatedAt: new Date() },
+      data:  {
+        pgCreatedBy,
+        pgUpdatedAt: new Date(),
+        pgIsFolder:   !!isFolderUpload,
+        pgFolderName: isFolderUpload ? (folderName ?? null) : null,
+      },
     });
   }
 

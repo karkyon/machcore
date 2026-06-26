@@ -530,7 +530,7 @@ export class McController {
       const PROGRAM_EXTS = new Set(['.min','.spf','.mpf','.nc','.cnc','.tap','.prg','.gcode','.g','.txt']);
       const fileExt = ('.' + (fileFilename.split('.').pop()?.toLowerCase() ?? ''));
       if (PROGRAM_EXTS.has(fileExt)) {
-        await this.mc.updatePgMeta(payload.mcId, payload.userId);
+        await this.mc.updatePgMeta(payload.mcId, payload.userId, isFolderUpload, folderNameField || undefined);
       }
       return { ...result, mc_id: payload.mcId, machining_id: payload.machiningId, mode: 'create' };
     }
@@ -589,7 +589,7 @@ export class McController {
     const PROGRAM_EXTS = new Set(['.min','.spf','.mpf','.nc','.cnc','.tap','.prg','.gcode','.g','.txt']);
     const fileExt = ('.' + (data.filename.split('.').pop()?.toLowerCase() ?? ''));
     if (PROGRAM_EXTS.has(fileExt)) {
-      await this.mc.updatePgMeta(id, pgCreatedBy);
+      await this.mc.updatePgMeta(id, pgCreatedBy, isFolderUpload, folderNameField);
     }
     return result;
   }
