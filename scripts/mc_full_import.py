@@ -328,7 +328,25 @@ def phase2(pg, dry_run=False):
     rows = mcc.fetchall()
     log(f"ACC_ツーリング取得: {len(rows)}件")
 
+    # ★根本対応: 旧ACC_ツーリング.H列(nvarchar)は、同じ加工ID内でも
+    #   "H1"(H付き文字列)と "3"(数字のみ)が混在して保存されている実データ不統一が
+    #   SQL Server側で確認された（Accessフォーム上は入力マスクにより常にH付きで
+    #   表示されるため、現場の見た目とDB生データに食い違いがある）。
+    #   全247パターン中、数字のみ=121件・H+数字=125件・"H"単独(数字部分なし)=1件。
+    #   "H"単独は工具番号が欠落した異常値の可能性があるため正規化せず保持し、
+    #   数字のみの値にだけ先頭へHを補って統一する。
+    def normalize_h(raw_h):
+        if raw_h is None:
+            return None
+        s = str(raw_h).strip()
+        if not s:
+            return None
+        if re.fullmatch(r"\d+", s):
+            return f"H{s}"
+        return s  # 既にH付き、または"H"単独(数字なし)等はそのまま
+
     ok = skip = err = 0
+    h_normalized_count = 0
     for row in rows:
         try:
             kakoid, order, n_no, tool_name, t_no, h_no, d_no, d_val, sub_pg, comment, tool_name2, tooling_id = row
@@ -336,6 +354,9 @@ def phase2(pg, dry_run=False):
             tool_name_merged = str(tool_name or "").strip() or None
             tool_name_full   = str(tool_name2 or "").strip() or None
             n_no_str         = str(n_no or "").strip() or None
+            h_no_normalized  = normalize_h(h_no)
+            if h_no and h_no_normalized and str(h_no).strip() != h_no_normalized:
+                h_normalized_count += 1
             if kakoid not in valid_machining_ids: skip += 1; continue
             if not dry_run:
                 pgc.execute("""
@@ -349,7 +370,7 @@ def phase2(pg, dry_run=False):
                       n_no_str,
                       tool_name_merged,
                       str(t_no).strip() if t_no else None,
-                      str(h_no).strip() if h_no else None,
+                      h_no_normalized,
                       str(d_no).strip() if d_no else None,
                       str(d_val).strip() if d_val else None,
                       str(sub_pg).strip() if sub_pg else None,
@@ -367,6 +388,21 @@ def phase2(pg, dry_run=False):
     if not dry_run: pg.commit()
     pgc.execute("SELECT COUNT(*) FROM mc_tooling")
     log(f"PHASE2完了: ok={ok} skip={skip} err={err} DB総数={pgc.fetchone()[0]}")
+    log(f"  H列正規化(数字のみ→H付与)件数: {h_normalized_count}")
+
+    # ★検証: 正規化漏れ(数字のみのまま保存された行)がDBに残っていないか自動チェック。
+    #   想定: length_offset_noがNOT NULLかつ数字のみ(Hで始まらない)の行は0件であるべき。
+    if not dry_run:
+        pgc.execute("""
+            SELECT COUNT(*) FROM mc_tooling
+            WHERE length_offset_no IS NOT NULL
+              AND length_offset_no ~ '^[0-9]+$'
+        """)
+        leftover = pgc.fetchone()[0]
+        if leftover > 0:
+            log(f"  [WARN] H列正規化漏れ検出: {leftover}件が数字のみのまま残存（要調査）", "WARN")
+        else:
+            log("  [OK] H列正規化検証: 数字のみの残存0件（全件H付きまたは特殊値に統一済み）")
     mc.close()
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

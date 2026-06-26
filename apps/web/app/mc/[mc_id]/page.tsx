@@ -25,6 +25,17 @@ const MAIN_TABS = [
   { key: "files",   label: "写真・図" },
 ];
 
+// ★旧システム(Access/SQL Server)のD値はSQL Server側でfloat型のため、
+//   到達時点で末尾ゼロ(19.950→19.95等)の桁数情報が失われている。
+//   サーバー側での復元が不可能なため、表示側で小数点以下3桁固定に整形し
+//   旧システムの見た目に近づける（数値以外の値はそのまま表示）。
+function fmtDValue(raw: string | null | undefined): string {
+  if (raw === null || raw === undefined || raw === "") return "—";
+  const n = Number(raw);
+  if (Number.isNaN(n)) return raw;
+  return n.toFixed(3);
+}
+
 export default function McDetailPage() {
   const { mc_id } = useParams<{ mc_id: string }>();
   const mcId  = parseInt(mc_id);
@@ -680,7 +691,7 @@ export default function McDetailPage() {
                           <td className="px-3 py-2 font-mono text-center whitespace-nowrap">{t.tNo ?? "—"}</td>
                           <td className="px-3 py-2 font-mono text-center whitespace-nowrap">{t.lengthOffsetNo ?? "—"}</td>
                           <td className="px-3 py-2 font-mono text-center whitespace-nowrap">{t.diaOffsetNo ?? "—"}</td>
-                          <td className="px-3 py-2 font-mono text-center whitespace-nowrap">{t.dValueContent ?? "—"}</td>
+                          <td className="px-3 py-2 font-mono text-center whitespace-nowrap">{fmtDValue(t.dValueContent)}</td>
                           <td className="px-3 py-2 font-mono text-center whitespace-nowrap">{t.subPgNo ?? "—"}</td>
                           <td className="px-3 py-2 text-slate-500 text-[11px]">{t.note ?? "—"}</td>
                           <td className="px-3 py-2 font-mono text-right text-slate-400 whitespace-nowrap">{t.sortOrder}</td>
