@@ -21,11 +21,12 @@ function extOf(n: string) { return n.includes(".") ? "." + n.split(".").pop()!.t
 function fmtSize(b: number) { if (b < 1024) return b + " B"; if (b < 1024*1024) return (b/1024).toFixed(1) + " KB"; return (b/1024/1024).toFixed(1) + " MB"; }
 function fmtDate(s?: string) { if (!s) return ""; try { return new Date(s).toLocaleString("ja-JP"); } catch { return s ?? ""; } }
 
-function TreeNode({ node, depth, onSelect, onExpand, selectedPath, searchKw, activeHitPath }: {
+function TreeNode({ node, depth, onSelect, onExpand, selectedPath, searchKw, activeHitPath, onSearchEnterNext }: {
   node: FileNode; depth: number;
   onSelect: (n: FileNode) => void;
   onExpand: (n: FileNode) => void;
   selectedPath: string; searchKw: string; activeHitPath: string;
+  onSearchEnterNext: () => void;
 }) {
   const isDir = node.type === "dir";
   const isSelected = node.path === selectedPath;
@@ -41,15 +42,25 @@ function TreeNode({ node, depth, onSelect, onExpand, selectedPath, searchKw, act
     }
   };
 
+  // ハイライト中の行にフォーカスがある状態でEnterを押すと、検索ボックスと同様に次候補へ移動できる
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" && isActiveHit) {
+      e.preventDefault();
+      onSearchEnterNext();
+    }
+  };
+
   return (
     <div>
       <div
         data-path={node.path}
-        className={"flex items-center gap-1 py-0.5 rounded cursor-pointer text-xs select-none transition-colors " +
+        tabIndex={-1}
+        className={"flex items-center gap-1 py-0.5 rounded cursor-pointer text-xs select-none transition-colors outline-none focus:ring-2 focus:ring-amber-500 " +
           (isActiveHit ? "bg-amber-200 text-amber-900 font-bold ring-2 ring-amber-400" :
            isSelected ? "bg-sky-100 text-sky-800 font-bold" : nameMatch ? "bg-yellow-50 text-yellow-800" : "hover:bg-slate-100 text-slate-700")}
         style={{ paddingLeft: `${8 + depth * 14}px`, paddingRight: "8px" }}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
       >
         {isDir ? (
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
@@ -66,7 +77,7 @@ function TreeNode({ node, depth, onSelect, onExpand, selectedPath, searchKw, act
         {isDir && node.hasChildren && !node.loaded && <span className="text-slate-300 text-[10px]">▶</span>}
       </div>
       {isDir && node.loaded && (node.children ?? []).map((c, i) => (
-        <TreeNode key={i} node={c} depth={depth + 1} onSelect={onSelect} onExpand={onExpand} selectedPath={selectedPath} searchKw={searchKw} activeHitPath={activeHitPath} />
+        <TreeNode key={i} node={c} depth={depth + 1} onSelect={onSelect} onExpand={onExpand} selectedPath={selectedPath} searchKw={searchKw} activeHitPath={activeHitPath} onSearchEnterNext={onSearchEnterNext} />
       ))}
     </div>
   );
@@ -218,13 +229,14 @@ export default function FileBrowserPage() {
       }
     }
     setActiveHitPath(fullPath);
-    // DOMが描画されるのを少し待ってからスクロール
+    // DOMが描画されるのを少し待ってからスクロール＋キーボードフォーカスを移動する
     setTimeout(() => {
       const nodes = document.querySelectorAll("[data-path]");
       for (let i = 0; i < nodes.length; i++) {
         const el = nodes[i] as HTMLElement;
         if (el.getAttribute("data-path") === fullPath) {
           el.scrollIntoView({ block: "center", behavior: "smooth" });
+          el.focus({ preventScroll: true });
           break;
         }
       }
@@ -249,13 +261,17 @@ export default function FileBrowserPage() {
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
   }, [searchKw, runSearch]);
 
-  // Enterキー: 次候補へ移動(末尾なら先頭へ循環)
-  const handleSearchKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "Enter") return;
+  // 次候補へ移動(末尾なら先頭へ循環)。検索ボックスのEnter、ツリー行フォーカス中のEnterの両方から呼ばれる。
+  const goToNextHit = useCallback(async () => {
     if (searchHits.length === 0) return;
     const nextIndex = (searchHitIndex + 1) % searchHits.length;
     setSearchHitIndex(nextIndex);
     await revealPath(searchHits[nextIndex].path);
+  }, [searchHits, searchHitIndex, revealPath]);
+
+  const handleSearchKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    await goToNextHit();
   };
 
   // ディレクトリをクリック時はトグル（展開済みならcollapseも可）
@@ -409,7 +425,7 @@ export default function FileBrowserPage() {
               ) : currentTree.length === 0 ? (
                 <div className="flex items-center justify-center h-20 text-slate-400 text-xs">ファイルがありません</div>
               ) : currentTree.map((node, i) => (
-                <TreeNode key={i} node={node} depth={0} onSelect={handleSelect} onExpand={handleExpand} selectedPath={selected?.path ?? ""} searchKw={searchKw} activeHitPath={activeHitPath} />
+                <TreeNode key={i} node={node} depth={0} onSelect={handleSelect} onExpand={handleExpand} selectedPath={selected?.path ?? ""} searchKw={searchKw} activeHitPath={activeHitPath} onSearchEnterNext={goToNextHit} />
               ))}
             </div>
             <div className="border-t border-slate-200 p-2 shrink-0">

@@ -1500,18 +1500,37 @@ export class AdminController {
 
     const items: Array<{ name: string; path: string; type: 'file' | 'dir'; size?: number; mtime?: string }> = [];
 
-    // ディレクトリ単位で並列readdirする(CIFSの1回あたりレイテンシをまとめて吸収するため、
-    // 深さ1階層ずつ全ディレクトリのreaddirをPromise.allで並行実行する)
+    // ★CIFSマウント上で7,800件超のディレクトリを無制限Promise.allで並列readdirすると、
+    //   CIFS/Node.js双方に過大な同時接続負荷がかかりタイムアウトして応答が返らなくなる
+    //   不具合があったため、同時実行数を制限したワーカープール方式に変更する。
+    const CONCURRENCY = 32;
+    const runPool = async <T, R>(inputs: T[], worker: (item: T) => Promise<R>): Promise<R[]> => {
+      const results: R[] = new Array(inputs.length);
+      let cursor = 0;
+      const workers = Array.from({ length: Math.min(CONCURRENCY, inputs.length) }, async () => {
+        while (cursor < inputs.length) {
+          const idx = cursor++;
+          results[idx] = await worker(inputs[idx]);
+        }
+      });
+      await Promise.all(workers);
+      return results;
+    };
+
+    // 深さ1階層ずつ、その階層の全ディレクトリのreaddirを制限付き並列実行する
     let currentLevel: string[] = [rootPath];
     while (currentLevel.length > 0) {
       const nextLevel: string[] = [];
-      const levelResults = await Promise.all(currentLevel.map(async (dirPath) => {
+      const levelResults = await runPool(currentLevel, async (dirPath) => {
         try {
           return { dirPath, entries: await fsp.readdir(dirPath, { withFileTypes: true }) };
         } catch {
           return { dirPath, entries: [] as any[] };
         }
-      }));
+      });
+
+      // このレベルで見つかった全ファイルのstat呼び出しもまとめて制限付き並列実行する
+      const fileEntries: Array<{ name: string; path: string }> = [];
       for (const { dirPath, entries } of levelResults) {
         for (const e of entries) {
           const fp = nodepath.join(dirPath, e.name);
@@ -1519,12 +1538,22 @@ export class AdminController {
             items.push({ name: e.name, path: fp, type: 'dir' });
             nextLevel.push(fp);
           } else {
-            let size: number | undefined; let mtime: string | undefined;
-            try { const st = await fsp.stat(fp); size = st.size; mtime = st.mtime.toISOString(); } catch {}
-            items.push({ name: e.name, path: fp, type: 'file', size, mtime });
+            fileEntries.push({ name: e.name, path: fp });
           }
         }
       }
+      const statResults = await runPool(fileEntries, async (fe) => {
+        try {
+          const st = await fsp.stat(fe.path);
+          return { ...fe, size: st.size, mtime: st.mtime.toISOString() };
+        } catch {
+          return { ...fe, size: undefined as number | undefined, mtime: undefined as string | undefined };
+        }
+      });
+      for (const r of statResults) {
+        items.push({ name: r.name, path: r.path, type: 'file', size: r.size, mtime: r.mtime });
+      }
+
       currentLevel = nextLevel;
     }
 
