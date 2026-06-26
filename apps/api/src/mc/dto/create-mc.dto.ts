@@ -25,7 +25,7 @@ export class CreateMcDto {
   @IsOptional() @IsInt() @Min(0)
   cycle_time_sec?: number;
 
-  @IsOptional() @IsInt() @Min(1)
+  @IsOptional() @IsNumber() @Min(0.0001)
   machining_qty?: number;
 
   @IsOptional() @IsString() @MaxLength(20)

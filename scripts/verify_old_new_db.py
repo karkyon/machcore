@@ -167,12 +167,17 @@ def verify_basic_info(ss_mc, pg, limit=None):
         (n_mcid, n_kakoid, n_version, n_process_no, n_folder1, n_folder2,
          n_file_name, n_machine_id, n_cycle_sec, n_qty, n_clamp, n_note) = new_row
 
+        # ★mc_full_import.py(PHASE1)と完全に同じ判定基準に統一:
+        #   H/M/S 3つ全部NULLの時だけNone、それ以外(1つでも値があれば)は合計値。
+        #   (修正前はNULLでも無条件に0扱いしていたため、新側None vs 旧側0で
+        #    誤MISMATCHが288件発生していた)
         old_cycle_sec = None
-        try:
-            h = int(time_h or 0); m = int(time_m or 0); s = int(time_s or 0)
-            old_cycle_sec = h * 3600 + m * 60 + s
-        except (TypeError, ValueError):
-            pass
+        if time_h is not None or time_m is not None or time_s is not None:
+            try:
+                h = int(time_h or 0); m = int(time_m or 0); s = int(time_s or 0)
+                old_cycle_sec = h * 3600 + m * 60 + s
+            except (TypeError, ValueError):
+                pass
 
         n_machine_code = machine_id_to_code.get(n_machine_id)
 
@@ -228,10 +233,18 @@ def verify_tooling(ss_mc, pg, limit=None):
     mcc = ss_mc.cursor()
     pgc = pg.cursor()
 
+    # ★重要: 新側(mc_tooling)は順番列の値をそのままsort_orderに格納しているため、
+    #   旧側も「ツーリングID(登録順)」ではなく「順番列の値」基準で並べないと
+    #   両者の行が正しく対応しない(順番列の値とAccess登録順は必ずしも一致しない)。
+    #   順番が同値の行(枝番重複等)はツーリングIDで安定させ、
+    #   順番がNULLの行は最後に回す(新側のsort_orderと対応が崩れないよう)。
     mcc.execute("""
         SELECT 加工ID, 順番, N, 工具, T, H, D, D値, SUB, コメント, ツーリングID
         FROM ACC_ツーリング
-        ORDER BY 加工ID, ツーリングID
+        ORDER BY 加工ID,
+                 CASE WHEN 順番 IS NULL THEN 1 ELSE 0 END,
+                 順番,
+                 ツーリングID
     """)
     old_rows = mcc.fetchall()
     log(f"  旧DB取得: {len(old_rows)}件")

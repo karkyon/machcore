@@ -432,7 +432,7 @@ model McProgram {
   id            Int             @id @default(autoincrement())
   partId        Int                                          @map("part_id")
   machiningId   Int                                          @map("machining_id")
-  machiningQty  Int?            @default(1)                  @map("machining_qty")
+  machiningQty  Decimal?        @db.Decimal(10, 4) @default(1) @map("machining_qty")
   note          String?         @db.Text
   status        McProgramStatus @default(NEW)
   registeredBy  Int                                          @map("registered_by")

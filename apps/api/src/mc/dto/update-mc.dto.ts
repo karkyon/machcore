@@ -1,4 +1,4 @@
-import { IsInt, IsString, IsOptional, Min, MaxLength } from 'class-validator';
+import { IsInt, IsNumber, IsString, IsOptional, Min, MaxLength } from 'class-validator';
 
 export class UpdateMcDto {
   @IsOptional() @IsInt()
@@ -13,7 +13,7 @@ export class UpdateMcDto {
   @IsOptional() @IsInt() @Min(0)
   cycle_time_sec?: number;
 
-  @IsOptional() @IsInt() @Min(1)
+  @IsOptional() @IsNumber() @Min(0.0001)
   machining_qty?: number;
 
   @IsOptional() @IsString() @MaxLength(20)
