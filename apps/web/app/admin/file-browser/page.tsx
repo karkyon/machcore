@@ -158,16 +158,10 @@ export default function FileBrowserPage() {
     return null;
   }, []);
 
-  // CSS属性セレクタ用に特殊文字をエスケープ(パスにスペースや記号が入るケースに対応)
-  const cssEscape = (s: string) => {
-    if (typeof window !== "undefined" && (window as any).CSS && (window as any).CSS.escape) return (window as any).CSS.escape(s);
-    return s.replace(/[^a-zA-Z0-9_\-]/g, (c) => "\" + c);
-  };
-
   // 検索ヒットしたパスまで、ルートから祖先ディレクトリを順番に自動展開してスクロール表示する
   const revealPath = useCallback(async (fullPath: string) => {
     if (!rootPaths[tab] || !fullPath.startsWith(rootPaths[tab])) return;
-    const rel = fullPath.slice(rootPaths[tab].length).replace(/^\/+/, "");
+    const rel = fullPath.slice(rootPaths[tab].length).replace(/^[/]+/, "");
     const segments = rel.split("/").filter(Boolean);
     // 対象自身がファイルなら最後のsegmentは展開しない(親までを展開すればよい)
     let cursor = rootPaths[tab];
@@ -182,8 +176,14 @@ export default function FileBrowserPage() {
     setActiveHitPath(fullPath);
     // DOMが描画されるのを少し待ってからスクロール
     setTimeout(() => {
-      const el = document.querySelector(`[data-path="${cssEscape(fullPath)}"]`);
-      if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+      const nodes = document.querySelectorAll("[data-path]");
+      for (let i = 0; i < nodes.length; i++) {
+        const el = nodes[i] as HTMLElement;
+        if (el.getAttribute("data-path") === fullPath) {
+          el.scrollIntoView({ block: "center", behavior: "smooth" });
+          break;
+        }
+      }
     }, 80);
   }, [tab, rootPaths, trees, findNodeInTree, expandNode]);
 

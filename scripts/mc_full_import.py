@@ -1114,6 +1114,13 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
         # ★prg_only指定時はPROGRAM分のみ削除（DRAWING/PHOTOのmc_filesは保持）
         if prg_only:
             pgc.execute("DELETE FROM mc_files WHERE file_type = 'PROGRAM'")
+            # ★PG関連メタもリセットしておく。再投入時に対象外(notfound/nomatch)となった
+            #   machining_idに古いpg_is_folder/pg_folder_name等が残り続けることを防ぐ。
+            pgc.execute("""
+                UPDATE mc_machining_details
+                SET pg_is_folder = false, pg_folder_name = NULL,
+                    pg_created_by = NULL, pg_updated_at = NULL
+            """)
         else:
             pgc.execute("DELETE FROM mc_files")
         pg.commit()
@@ -1342,10 +1349,13 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
         mach_base_dir = DST_PRG / str(mach_id)
         mach_base_dir.mkdir(parents=True, exist_ok=True)
 
+        # ★後段(pg_is_folder更新)で使うため、ここで一度だけ判定して保持する
+        _src_is_dir = src_item.is_dir()
+
         if src_item.is_file():
             dst_dir = mach_base_dir
             src_files = [src_item]
-        elif src_item.is_dir():
+        elif _src_is_dir:
             dst_dir = mach_base_dir / src_item.name
             dst_dir.mkdir(parents=True, exist_ok=True)
             try:
@@ -1400,13 +1410,19 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
             # ★編集モードの「PG作成者」「PG更新日時」欄が空欄になる問題を解消:
             #   mc_machining_details.pg_created_by / pg_updated_at に同期する。
             #   (mc_files.uploaded_by/uploaded_at とは別カラムで、編集モードが参照するのはこちら)
+            # ★根本対応: src_itemがディレクトリだった時点でフォルダ単位アップロード相当と確実に
+            #   判別できているにも関わらず、従来はpg_is_folder/pg_folder_nameを一切更新しておらず、
+            #   PG->USB機能がインポート済みデータをすべて「単体ファイル」と誤判定していた。
+            _is_folder_import = _src_is_dir
+            _folder_name_import = src_item.name if _is_folder_import else None
             if not dry_run:
                 try:
                     pgc.execute("""
                         UPDATE mc_machining_details
-                        SET pg_created_by = %s, pg_updated_at = %s
+                        SET pg_created_by = %s, pg_updated_at = %s,
+                            pg_is_folder = %s, pg_folder_name = %s
                         WHERE machining_id = %s
-                    """, (_uploaded_by, _uploaded_at, mach_id))
+                    """, (_uploaded_by, _uploaded_at, _is_folder_import, _folder_name_import, mach_id))
                 except Exception as e:
                     err += 1
                     try:
