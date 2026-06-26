@@ -20,16 +20,17 @@ function extOf(n: string) { return n.includes(".") ? "." + n.split(".").pop()!.t
 function fmtSize(b: number) { if (b < 1024) return b + " B"; if (b < 1024*1024) return (b/1024).toFixed(1) + " KB"; return (b/1024/1024).toFixed(1) + " MB"; }
 function fmtDate(s?: string) { if (!s) return ""; try { return new Date(s).toLocaleString("ja-JP"); } catch { return s ?? ""; } }
 
-function TreeNode({ node, depth, onSelect, onExpand, selectedPath, searchKw }: {
+function TreeNode({ node, depth, onSelect, onExpand, selectedPath, searchKw, activeHitPath }: {
   node: FileNode; depth: number;
   onSelect: (n: FileNode) => void;
   onExpand: (n: FileNode) => void;
-  selectedPath: string; searchKw: string;
+  selectedPath: string; searchKw: string; activeHitPath: string;
 }) {
   const isDir = node.type === "dir";
   const isSelected = node.path === selectedPath;
   const isOpen = node.loaded && (node.children ?? []).length >= 0;
   const nameMatch = searchKw ? node.name.toLowerCase().includes(searchKw.toLowerCase()) : false;
+  const isActiveHit = !!activeHitPath && node.path === activeHitPath;
 
   const handleClick = () => {
     onSelect(node);
@@ -42,8 +43,10 @@ function TreeNode({ node, depth, onSelect, onExpand, selectedPath, searchKw }: {
   return (
     <div>
       <div
+        data-path={node.path}
         className={"flex items-center gap-1 py-0.5 rounded cursor-pointer text-xs select-none transition-colors " +
-          (isSelected ? "bg-sky-100 text-sky-800 font-bold" : nameMatch ? "bg-yellow-50 text-yellow-800" : "hover:bg-slate-100 text-slate-700")}
+          (isActiveHit ? "bg-amber-200 text-amber-900 font-bold ring-2 ring-amber-400" :
+           isSelected ? "bg-sky-100 text-sky-800 font-bold" : nameMatch ? "bg-yellow-50 text-yellow-800" : "hover:bg-slate-100 text-slate-700")}
         style={{ paddingLeft: `${8 + depth * 14}px`, paddingRight: "8px" }}
         onClick={handleClick}
       >
@@ -62,7 +65,7 @@ function TreeNode({ node, depth, onSelect, onExpand, selectedPath, searchKw }: {
         {isDir && node.hasChildren && !node.loaded && <span className="text-slate-300 text-[10px]">▶</span>}
       </div>
       {isDir && node.loaded && (node.children ?? []).map((c, i) => (
-        <TreeNode key={i} node={c} depth={depth + 1} onSelect={onSelect} onExpand={onExpand} selectedPath={selectedPath} searchKw={searchKw} />
+        <TreeNode key={i} node={c} depth={depth + 1} onSelect={onSelect} onExpand={onExpand} selectedPath={selectedPath} searchKw={searchKw} activeHitPath={activeHitPath} />
       ))}
     </div>
   );
@@ -79,6 +82,11 @@ export default function FileBrowserPage() {
   const [preview, setPreview]     = useState<{ type: "image" | "pdf" | "text" | "none"; url?: string; text?: string } | null>(null);
   const [prevLoading, setPrevLoading] = useState(false);
   const [searchKw, setSearchKw]   = useState("");
+  const [searchHits, setSearchHits] = useState<{ path: string; type: "file" | "dir" }[]>([]);
+  const [searchHitIndex, setSearchHitIndex] = useState(0);
+  const [activeHitPath, setActiveHitPath] = useState("");
+  const [searchBusy, setSearchBusy] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toast, setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
   const [delConfirm, setDelConfirm] = useState<FileNode | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -117,7 +125,7 @@ export default function FileBrowserPage() {
     finally { setRootLoading(false); }
   };
 
-  // ディレクトリ展開: 対象ノードに子を遅延ロード
+  // ディレクトリ展開: 対象ノードに子を遅延ロード（展開完了をawaitできるようPromiseを返す）
   const expandNode = useCallback(async (target: FileNode) => {
     try {
       const data = await apiFetch(`/api/admin/files/tree?path=${encodeURIComponent(target.path)}`);
@@ -134,8 +142,82 @@ export default function FileBrowserPage() {
         ...prev,
         [tab]: patchTree(prev[tab]),
       }));
-    } catch (e: any) { showToast("展開失敗: " + e.message, false); }
+      return children;
+    } catch (e: any) { showToast("展開失敗: " + e.message, false); return []; }
   }, [tab, apiFetch]);
+
+  // ツリー内の現在のノードを探索し、すでに読み込み済み(loaded)かを判定するヘルパー
+  const findNodeInTree = useCallback((nodes: FileNode[], targetPath: string): FileNode | null => {
+    for (const n of nodes) {
+      if (n.path === targetPath) return n;
+      if (n.children) {
+        const found = findNodeInTree(n.children, targetPath);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, []);
+
+  // CSS属性セレクタ用に特殊文字をエスケープ(パスにスペースや記号が入るケースに対応)
+  const cssEscape = (s: string) => {
+    if (typeof window !== "undefined" && (window as any).CSS && (window as any).CSS.escape) return (window as any).CSS.escape(s);
+    return s.replace(/[^a-zA-Z0-9_\-]/g, (c) => "\" + c);
+  };
+
+  // 検索ヒットしたパスまで、ルートから祖先ディレクトリを順番に自動展開してスクロール表示する
+  const revealPath = useCallback(async (fullPath: string) => {
+    if (!rootPaths[tab] || !fullPath.startsWith(rootPaths[tab])) return;
+    const rel = fullPath.slice(rootPaths[tab].length).replace(/^\/+/, "");
+    const segments = rel.split("/").filter(Boolean);
+    // 対象自身がファイルなら最後のsegmentは展開しない(親までを展開すればよい)
+    let cursor = rootPaths[tab];
+    const dirsToExpand = segments.slice(0, -1); // 最後の要素(対象自身)は展開不要
+    for (const seg of dirsToExpand) {
+      cursor = `${cursor}/${seg}`;
+      const existing = findNodeInTree(trees[tab], cursor);
+      if (!existing || !existing.loaded) {
+        await expandNode({ path: cursor, name: seg, type: "dir" });
+      }
+    }
+    setActiveHitPath(fullPath);
+    // DOMが描画されるのを少し待ってからスクロール
+    setTimeout(() => {
+      const el = document.querySelector(`[data-path="${cssEscape(fullPath)}"]`);
+      if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 80);
+  }, [tab, rootPaths, trees, findNodeInTree, expandNode]);
+
+  // 検索ボックス入力をデバウンスしてヒット一覧を取得（絞り込み表示はしない。位置特定のみ）
+  const runSearch = useCallback(async (kw: string) => {
+    if (!kw.trim()) { setSearchHits([]); setSearchHitIndex(0); setActiveHitPath(""); return; }
+    setSearchBusy(true);
+    try {
+      const data = await apiFetch(`/api/admin/files/search?tab=${tab}&keyword=${encodeURIComponent(kw)}`);
+      const hits = (data.results ?? []).map((r: any) => ({ path: r.path as string, type: r.type as "file" | "dir" }));
+      setSearchHits(hits);
+      setSearchHitIndex(0);
+      if (hits.length > 0) { await revealPath(hits[0].path); } else { setActiveHitPath(""); }
+    } catch (e: any) {
+      showToast("検索失敗: " + e.message, false);
+      setSearchHits([]); setActiveHitPath("");
+    } finally { setSearchBusy(false); }
+  }, [tab, apiFetch, revealPath]);
+
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!searchKw.trim()) { setSearchHits([]); setSearchHitIndex(0); setActiveHitPath(""); return; }
+    searchTimerRef.current = setTimeout(() => { runSearch(searchKw); }, 300);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [searchKw, runSearch]);
+
+  // Enterキー: 次候補へ移動(末尾なら先頭へ循環)
+  const handleSearchKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    if (searchHits.length === 0) return;
+    const nextIndex = (searchHitIndex + 1) % searchHits.length;
+    setSearchHitIndex(nextIndex);
+    await revealPath(searchHits[nextIndex].path);
+  };
 
   // ディレクトリをクリック時はトグル（展開済みならcollapseも可）
   const handleExpand = useCallback((node: FileNode) => {
@@ -228,15 +310,23 @@ export default function FileBrowserPage() {
           <h1 className="text-lg font-bold text-slate-800">ファイルブラウザ</h1>
           <div className="flex gap-1">
             {(["photos", "drawings", "programs"] as TabType[]).map(t => (
-              <button key={t} onClick={() => { setTab(t); setSelected(null); setPreview(null); setSearchKw(""); }}
+              <button key={t} onClick={() => { setTab(t); setSelected(null); setPreview(null); setSearchKw(""); setSearchHits([]); setSearchHitIndex(0); setActiveHitPath(""); }}
                 className={"px-3 py-1 text-xs font-bold rounded-full border transition-colors " +
                   (tab === t ? TAB_COLORS[t] : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200")}>
                 {TAB_LABELS[t]}
               </button>
             ))}
           </div>
-          <input value={searchKw} onChange={e => setSearchKw(e.target.value)} placeholder="ファイル名検索…"
-            className="ml-auto border border-slate-200 rounded-lg px-3 py-1.5 text-xs w-44 focus:outline-none focus:ring-2 focus:ring-sky-400" />
+          <div className="ml-auto flex items-center gap-1.5">
+            <input value={searchKw} onChange={e => setSearchKw(e.target.value)} onKeyDown={handleSearchKeyDown}
+              placeholder="ファイル名・フォルダ名検索…Enterで次候補"
+              className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-sky-400" />
+            {searchKw.trim() && (
+              <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                {searchBusy ? "検索中…" : searchHits.length > 0 ? `${searchHitIndex + 1} / ${searchHits.length} 件` : "0件"}
+              </span>
+            )}
+          </div>
           <button onClick={loadRoots} disabled={rootLoading}
             className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg border border-slate-200 transition-colors">
             {rootLoading ? "読込中…" : "↺ 更新"}
@@ -275,7 +365,7 @@ export default function FileBrowserPage() {
               ) : currentTree.length === 0 ? (
                 <div className="flex items-center justify-center h-20 text-slate-400 text-xs">ファイルがありません</div>
               ) : currentTree.map((node, i) => (
-                <TreeNode key={i} node={node} depth={0} onSelect={handleSelect} onExpand={handleExpand} selectedPath={selected?.path ?? ""} searchKw={searchKw} />
+                <TreeNode key={i} node={node} depth={0} onSelect={handleSelect} onExpand={handleExpand} selectedPath={selected?.path ?? ""} searchKw={searchKw} activeHitPath={activeHitPath} />
               ))}
             </div>
             <div className="border-t border-slate-200 p-2 shrink-0">

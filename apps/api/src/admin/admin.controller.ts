@@ -1474,6 +1474,64 @@ export class AdminController {
     return { message: '削除しました', path: filePath };
   }
 
+  /** FB-06: ファイル名/フォルダ名の横断検索（再帰）。絞り込み表示用ではなく、
+   *  フロント側で対象パスまでツリーを自動展開・自動スクロールするための位置特定API。 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('files/search')
+  async searchFileBrowser(
+    @Query('tab') tab: string,
+    @Query('keyword') keyword: string,
+  ) {
+    if (!keyword || !keyword.trim()) return { results: [], truncated: false };
+    const kw = keyword.trim().toLowerCase();
+
+    const setting = await this.prisma.companySetting.findFirst();
+    const basePath = setting?.uploadBasePath ?? '/mnt/mc_files';
+    const roots: Record<string, string> = {
+      photos:   nodepath.join(basePath, 'MC', 'files', 'Pictures'),
+      drawings: nodepath.join(basePath, 'MC', 'files', 'Drawings'),
+      programs: nodepath.join(basePath, 'MC', 'files', 'Programs'),
+    };
+    const rootPath = roots[tab];
+    if (!rootPath || !fs.existsSync(rootPath)) return { results: [], truncated: false };
+
+    const MAX_RESULTS = 500;
+    const results: Array<{ name: string; path: string; type: 'file' | 'dir'; size?: number; mtime?: string; parentPath: string }> = [];
+    let truncated = false;
+
+    // 再帰的にディレクトリを走査し、名前にkeywordを含むファイル/フォルダを収集する。
+    // ファイル名・フォルダ名のどちらも対象（KARKYONさんの指示通り両方検索）。
+    const walk = (dirPath: string): void => {
+      if (truncated) return;
+      let entries: fs.Dirent[];
+      try { entries = fs.readdirSync(dirPath, { withFileTypes: true }); } catch { return; }
+      for (const e of entries) {
+        if (truncated) return;
+        const fp = nodepath.join(dirPath, e.name);
+        if (e.name.toLowerCase().includes(kw)) {
+          if (e.isDirectory()) {
+            results.push({ name: e.name, path: fp, type: 'dir', parentPath: dirPath });
+          } else {
+            let size = 0; let mtime = '';
+            try { const st = fs.statSync(fp); size = st.size; mtime = st.mtime.toISOString(); } catch {}
+            results.push({ name: e.name, path: fp, type: 'file', size, mtime, parentPath: dirPath });
+          }
+          if (results.length >= MAX_RESULTS) { truncated = true; return; }
+        }
+        if (e.isDirectory()) walk(fp);
+      }
+    };
+    walk(rootPath);
+
+    results.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+      return a.name.localeCompare(b.name, 'ja');
+    });
+
+    return { results, truncated };
+  }
+
   /** FB-05: ファイルアップロード（登録・差し替え） */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
