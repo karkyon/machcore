@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { fbGetCache, fbSetCache, fbSearchCache, type FbIndexItem, type FbTab } from "@/lib/file-browser-index";
 
 type FileNode = { name: string; path: string; type: "file" | "dir"; size?: number; mtime?: string; hasChildren?: boolean; children?: FileNode[]; loaded?: boolean };
 type TabType = "photos" | "drawings" | "programs";
@@ -85,8 +86,12 @@ export default function FileBrowserPage() {
   const [searchHits, setSearchHits] = useState<{ path: string; type: "file" | "dir" }[]>([]);
   const [searchHitIndex, setSearchHitIndex] = useState(0);
   const [activeHitPath, setActiveHitPath] = useState("");
-  const [searchBusy, setSearchBusy] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // タブごとのIndexedDBキャッシュ(フラットなファイル/フォルダ一覧)。メモリにも保持し、
+  // 検索はこの配列に対してJS側でフィルタするためサーバーへのリクエストは発生しない。
+  const [fbIndexCache, setFbIndexCache] = useState<Record<TabType, FbIndexItem[]>>({ photos: [], drawings: [], programs: [] });
+  const [indexBuilding, setIndexBuilding] = useState(false);
+  const [indexCachedAt, setIndexCachedAt] = useState<number | null>(null);
   const [toast, setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
   const [delConfirm, setDelConfirm] = useState<FileNode | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -124,6 +129,45 @@ export default function FileBrowserPage() {
     } catch (e: any) { showToast("ツリー取得失敗: " + e.message, false); }
     finally { setRootLoading(false); }
   };
+
+  // 指定タブのフラットインデックスをサーバーから取得し、IndexedDB+メモリへキャッシュする(ReCache)。
+  const buildIndexForTab = useCallback(async (t: TabType) => {
+    setIndexBuilding(true);
+    try {
+      const data = await apiFetch(`/api/admin/files/index?tab=${t}`);
+      const items: FbIndexItem[] = data.items ?? [];
+      await fbSetCache(t as FbTab, data.rootPath ?? "", items);
+      setFbIndexCache(prev => ({ ...prev, [t]: items }));
+      setIndexCachedAt(Date.now());
+    } catch (e: any) {
+      showToast("検索インデックス構築失敗: " + e.message, false);
+    } finally {
+      setIndexBuilding(false);
+    }
+  }, [apiFetch]);
+
+  // タブを開いた時、IndexedDBキャッシュが無ければ自動構築。あればそれをメモリへ読み込む。
+  const ensureIndexForTab = useCallback(async (t: TabType) => {
+    const cached = await fbGetCache(t as FbTab);
+    if (cached && cached.items.length > 0) {
+      setFbIndexCache(prev => ({ ...prev, [t]: cached.items }));
+      setIndexCachedAt(cached.cachedAt);
+    } else {
+      await buildIndexForTab(t);
+    }
+  }, [buildIndexForTab]);
+
+  useEffect(() => {
+    ensureIndexForTab(tab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  // 「↺ 更新」ボタン: ツリー表示の再取得と、検索インデックスのReCache(再構築)を両方行う
+  const handleRefresh = async () => {
+    await loadRoots();
+    await buildIndexForTab(tab);
+  };
+
 
   // ディレクトリ展開: 対象ノードに子を遅延ロード（展開完了をawaitできるようPromiseを返す）
   const expandNode = useCallback(async (target: FileNode) => {
@@ -187,26 +231,21 @@ export default function FileBrowserPage() {
     }, 80);
   }, [tab, rootPaths, trees, findNodeInTree, expandNode]);
 
-  // 検索ボックス入力をデバウンスしてヒット一覧を取得（絞り込み表示はしない。位置特定のみ）
+  // 検索ボックス入力に対し、ローカルキャッシュ(IndexedDBから読み込んだfbIndexCache)を検索する。
+  // サーバーへのリクエストは発生しないため、9,500件超のディレクトリでもほぼ即時に結果が出る。
   const runSearch = useCallback(async (kw: string) => {
     if (!kw.trim()) { setSearchHits([]); setSearchHitIndex(0); setActiveHitPath(""); return; }
-    setSearchBusy(true);
-    try {
-      const data = await apiFetch(`/api/admin/files/search?tab=${tab}&keyword=${encodeURIComponent(kw)}`);
-      const hits = (data.results ?? []).map((r: any) => ({ path: r.path as string, type: r.type as "file" | "dir" }));
-      setSearchHits(hits);
-      setSearchHitIndex(0);
-      if (hits.length > 0) { await revealPath(hits[0].path); } else { setActiveHitPath(""); }
-    } catch (e: any) {
-      showToast("検索失敗: " + e.message, false);
-      setSearchHits([]); setActiveHitPath("");
-    } finally { setSearchBusy(false); }
-  }, [tab, apiFetch, revealPath]);
+    const items = fbIndexCache[tab] ?? [];
+    const hits = fbSearchCache(items, kw).map(it => ({ path: it.path, type: it.type }));
+    setSearchHits(hits);
+    setSearchHitIndex(0);
+    if (hits.length > 0) { await revealPath(hits[0].path); } else { setActiveHitPath(""); }
+  }, [tab, fbIndexCache, revealPath]);
 
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (!searchKw.trim()) { setSearchHits([]); setSearchHitIndex(0); setActiveHitPath(""); return; }
-    searchTimerRef.current = setTimeout(() => { runSearch(searchKw); }, 300);
+    searchTimerRef.current = setTimeout(() => { runSearch(searchKw); }, 100);
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
   }, [searchKw, runSearch]);
 
@@ -323,14 +362,19 @@ export default function FileBrowserPage() {
               className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-sky-400" />
             {searchKw.trim() && (
               <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                {searchBusy ? "検索中…" : searchHits.length > 0 ? `${searchHitIndex + 1} / ${searchHits.length} 件` : "0件"}
+                {indexBuilding ? "検索インデックス構築中…" : searchHits.length > 0 ? `${searchHitIndex + 1} / ${searchHits.length} 件` : "0件"}
               </span>
             )}
           </div>
-          <button onClick={loadRoots} disabled={rootLoading}
+          <button onClick={handleRefresh} disabled={rootLoading || indexBuilding}
             className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg border border-slate-200 transition-colors">
-            {rootLoading ? "読込中…" : "↺ 更新"}
+            {rootLoading || indexBuilding ? "更新中…" : "↺ 更新"}
           </button>
+          {indexCachedAt && !indexBuilding && (
+            <span className="text-[10px] text-slate-300 whitespace-nowrap">
+              索引: {new Date(indexCachedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}更新
+            </span>
+          )}
         </div>
 
         {toast && (

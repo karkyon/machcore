@@ -1474,17 +1474,18 @@ export class AdminController {
     return { message: '削除しました', path: filePath };
   }
 
-  /** FB-06: ファイル名/フォルダ名の横断検索（再帰）。絞り込み表示用ではなく、
-   *  フロント側で対象パスまでツリーを自動展開・自動スクロールするための位置特定API。 */
+  /** FB-06: ファイルブラウザの全件フラットインデックス取得。
+   *  クライアント側(IndexedDB)でキャッシュして検索に使うための専用API。
+   *  検索のたびにサーバーへ再帰スキャンを要求する旧方式(files/search)は、
+   *  CIFSマウント上で9,500件超のディレクトリを毎回同期readdirSyncするため
+   *  応答に30〜90秒以上かかる重大な性能問題があったため廃止。
+   *  このAPIは「タブを開いた時」「更新ボタンを押した時」の1回だけ呼ばれる想定。
+   *  非同期I/O(fs.promises)を使い、Node.jsのイベントループを長時間ブロックしないようにする。 */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
-  @Get('files/search')
-  async searchFileBrowser(
-    @Query('tab') tab: string,
-    @Query('keyword') keyword: string,
-  ) {
-    if (!keyword || !keyword.trim()) return { results: [], truncated: false };
-    const kw = keyword.trim().toLowerCase();
+  @Get('files/index')
+  async indexFileBrowser(@Query('tab') tab: string) {
+    const fsp = (await import('fs')).promises;
 
     const setting = await this.prisma.companySetting.findFirst();
     const basePath = setting?.uploadBasePath ?? '/mnt/mc_files';
@@ -1494,42 +1495,40 @@ export class AdminController {
       programs: nodepath.join(basePath, 'MC', 'files', 'Programs'),
     };
     const rootPath = roots[tab];
-    if (!rootPath || !fs.existsSync(rootPath)) return { results: [], truncated: false };
+    if (!rootPath) return { items: [], rootPath: '' };
+    try { if (!(await fsp.stat(rootPath)).isDirectory()) return { items: [], rootPath }; } catch { return { items: [], rootPath }; }
 
-    const MAX_RESULTS = 500;
-    const results: Array<{ name: string; path: string; type: 'file' | 'dir'; size?: number; mtime?: string; parentPath: string }> = [];
-    let truncated = false;
+    const items: Array<{ name: string; path: string; type: 'file' | 'dir'; size?: number; mtime?: string }> = [];
 
-    // 再帰的にディレクトリを走査し、名前にkeywordを含むファイル/フォルダを収集する。
-    // ファイル名・フォルダ名のどちらも対象（KARKYONさんの指示通り両方検索）。
-    const walk = (dirPath: string): void => {
-      if (truncated) return;
-      let entries: fs.Dirent[];
-      try { entries = fs.readdirSync(dirPath, { withFileTypes: true }); } catch { return; }
-      for (const e of entries) {
-        if (truncated) return;
-        const fp = nodepath.join(dirPath, e.name);
-        if (e.name.toLowerCase().includes(kw)) {
-          if (e.isDirectory()) {
-            results.push({ name: e.name, path: fp, type: 'dir', parentPath: dirPath });
-          } else {
-            let size = 0; let mtime = '';
-            try { const st = fs.statSync(fp); size = st.size; mtime = st.mtime.toISOString(); } catch {}
-            results.push({ name: e.name, path: fp, type: 'file', size, mtime, parentPath: dirPath });
-          }
-          if (results.length >= MAX_RESULTS) { truncated = true; return; }
+    // ディレクトリ単位で並列readdirする(CIFSの1回あたりレイテンシをまとめて吸収するため、
+    // 深さ1階層ずつ全ディレクトリのreaddirをPromise.allで並行実行する)
+    let currentLevel: string[] = [rootPath];
+    while (currentLevel.length > 0) {
+      const nextLevel: string[] = [];
+      const levelResults = await Promise.all(currentLevel.map(async (dirPath) => {
+        try {
+          return { dirPath, entries: await fsp.readdir(dirPath, { withFileTypes: true }) };
+        } catch {
+          return { dirPath, entries: [] as any[] };
         }
-        if (e.isDirectory()) walk(fp);
+      }));
+      for (const { dirPath, entries } of levelResults) {
+        for (const e of entries) {
+          const fp = nodepath.join(dirPath, e.name);
+          if (e.isDirectory()) {
+            items.push({ name: e.name, path: fp, type: 'dir' });
+            nextLevel.push(fp);
+          } else {
+            let size: number | undefined; let mtime: string | undefined;
+            try { const st = await fsp.stat(fp); size = st.size; mtime = st.mtime.toISOString(); } catch {}
+            items.push({ name: e.name, path: fp, type: 'file', size, mtime });
+          }
+        }
       }
-    };
-    walk(rootPath);
+      currentLevel = nextLevel;
+    }
 
-    results.sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
-      return a.name.localeCompare(b.name, 'ja');
-    });
-
-    return { results, truncated };
+    return { items, rootPath };
   }
 
   /** FB-05: ファイルアップロード（登録・差し替え） */
