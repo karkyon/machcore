@@ -14,7 +14,7 @@ verify_old_new_db.py
 出力:
   JSON形式の中間データ(後続のHTMLレポート生成スクリプトの入力)
 """
-import sys, os, re, json, argparse
+import sys, os, re, json, argparse, unicodedata
 from datetime import datetime
 
 PG_DSN       = "host=localhost port=5440 dbname=machcore_dev user=machcore password=machcore_pass_change_me"
@@ -86,6 +86,26 @@ def normalize_str(raw):
     return s or None
 
 
+def normalize_machine(raw):
+    """機械名正規化: 全角/半角・大文字/小文字・ハイフン/アンダースコア/空白の
+    表記ゆれを統一する。例: 'ＭＣ7' / 'mc7' / 'MC-7' / 'MC_7' は全て 'MC7' に統一。
+    新旧どちらの機械名にも同じ正規化をかけて比較することで、
+    表記ゆれだけが原因の誤検出(機械名_マスタ対応不一致)を解消する。
+    なお、正規化しても一致しない場合は「新システムのmachinesマスタに
+    該当機械が未登録」の可能性が高く、これは検証スクリプトでは自動解決できない
+    (休止中機器としてのマスタ登録はKARKYONさんによる手入力作業)。
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    s = unicodedata.normalize("NFKC", s)  # 全角→半角
+    s = s.upper()
+    s = re.sub(r"[\s\-_]+", "", s)        # 空白・ハイフン・アンダースコア除去
+    return s or None
+
+
 def normalize_num(raw):
     """数値として比較する場合の正規化(整数/小数どちらでも数値的に同一なら一致とみなす)。"""
     if raw is None:
@@ -103,6 +123,8 @@ def values_equal(a, b, kind="str"):
         return normalize_h(a) == normalize_h(b)
     if kind == "num":
         return normalize_num(a) == normalize_num(b)
+    if kind == "machine":
+        return normalize_machine(a) == normalize_machine(b)
     return normalize_str(a) == normalize_str(b)
 
 
@@ -188,7 +210,7 @@ def verify_basic_info(ss_mc, pg, limit=None):
             ("フォルダ1",     folder1,      n_folder1,    "str"),
             ("フォルダ2",     folder2,      n_folder2,    "str"),
             ("ファイル名",    file_name,    n_file_name,  "str"),
-            ("機械",         machine_name, n_machine_code, "str"),
+            ("機械",         machine_name, n_machine_code, "machine"),
             ("サイクルタイム(秒)", old_cycle_sec, n_cycle_sec, "num"),
             ("加工個数",      qty,          n_qty,        "num"),
             ("クランプ",      clamp,        n_clamp,      "str"),

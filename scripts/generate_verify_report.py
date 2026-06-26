@@ -145,9 +145,12 @@ KNOWN_CAUSES = [
     ("D値_末尾ゼロ表記差", "SQL Server側float型のため末尾ゼロがDB到達時点で消失。表示側で3桁固定フォーマット済み。これは既知の復元不可能な差分であり、不具合ではない。", "対応済(表示側で整形)"),
     ("ツーリング順番_小数枝番の整数変換による重複", "旧DBの「順番」列が4.1や9.1等の小数枝番を持つ場合、新システムのsort_order(整数)へ変換する際に枝番が切り捨てられ、既存の整数値と重複する。mc_full_import.py PHASE2のsort_order採番ロジックの見直しが必要。", "未着手"),
     ("ツーリング_行数不一致", "削除されたはずの行が残存、または重複INSERTの可能性。個別調査が必要。", "未着手"),
-    ("機械名_マスタ対応不一致", "旧システムの機械名文字列と新システムmachinesマスタのmachine_codeの対応関係に表記ゆれがある可能性。", "未着手"),
+    ("機械名_マスタ対応不一致", "全角/半角・大文字小文字・ハイフン表記ゆれは検証側で正規化済み。残存分は新システムmachinesマスタに該当機械が未登録のケース。①マスタに存在する機械はブランク→正しい機械名へ手入力修正。②マスタに存在しない機械(旧システム初期のみ使用された休止機器)は新システムに休止中機器として登録後、改めて手入力修正する運用。", "手入力対応"),
     ("ツーリング_T列_不一致", "T番号循環シフトロジック(mc.service.ts parseToolingProgram)の影響、または旧データのT番号自体が一連の処理で変化している可能性。要詳細調査。", "未着手"),
     ("新システムにレコード無し", "インポート対象から除外された(parts紐付け不可・valid_machining_idsに含まれない等)レコード。スキップ理由のログ確認が必要。", "未着手"),
+    ("クランプ_テキスト差分", "手入力での修正で対応するため検証対象外。", "調査対象外"),
+    ("MC工程No_数値不一致", "手入力での修正で対応するため検証対象外。", "調査対象外"),
+    ("バージョン_その他不一致", "手入力での修正で対応するため検証対象外。現場ヒアリングの上で対応。", "調査対象外"),
 ]
 
 
@@ -208,7 +211,7 @@ def render_issue_table(issues):
             for ex in issue["examples"]
         )
         rows.append(f'''
-        <tr>
+        <tr data-cat="{esc(issue["categories"])}">
           <td class="mono" style="color:var(--slate-400)">{i+1}</td>
           <td>
             <div class="issue-name">{esc(issue["name"])}</div>
@@ -218,7 +221,7 @@ def render_issue_table(issues):
           <td style="max-width:320px">{esc(cause)}</td>
           <td>
             <select class="status-select {status_cls}" data-issue="{i}">
-              {"".join(f'<option value="{esc(s)}" {"selected" if s==status else ""}>{esc(s)}</option>' for s in ["未着手","調査中","対応中","対応済","対応済(表示側で整形)"])}
+              {"".join(f'<option value="{esc(s)}" {"selected" if s==status else ""}>{esc(s)}</option>' for s in ["未着手","調査中","対応中","対応済","対応済(表示側で整形)","調査対象外","手入力対応"])}
             </select>
           </td>
           <td class="examples" style="max-width:360px">{examples_html}</td>
@@ -326,6 +329,9 @@ def main():
   nav {{ max-width:1280px; margin: 24px auto 0; padding: 0 32px; display:flex; gap:8px; }}
   .tab-btn {{ padding: 8px 20px; border-radius: 999px; font-size: 14px; font-weight: 700; border: 1px solid var(--slate-300); color: var(--slate-600); background: white; cursor: pointer; transition: all .15s; }}
   .tab-btn.active {{ background: var(--teal-600); color: white; border-color: var(--teal-600); }}
+  .cat-filter-btn {{ padding:5px 14px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid var(--slate-300); color:var(--slate-600); background:white; cursor:pointer; transition: all .15s; }}
+  .cat-filter-btn.active {{ background: var(--slate-700); color: white; border-color: var(--slate-700); }}
+  tr.cat-hidden {{ display:none; }}
   main {{ max-width: 1280px; margin: 0 auto; padding: 24px 32px 48px; }}
   .tab-content.hidden {{ display: none; }}
   .cards {{ display:flex; flex-wrap:wrap; gap:16px; }}
@@ -361,6 +367,8 @@ def main():
   .count-pill {{ display:inline-flex; align-items:center; justify-content:center; width:48px; height:28px; border-radius:999px; background:var(--red-50); color:var(--red-600); font-weight:700; font-size:13px; }}
   select.status-select {{ font-size:12px; font-weight:700; border-radius:999px; padding:4px 12px; border:1px solid; cursor:pointer; }}
   .st-未着手 {{ background:var(--slate-100); color:var(--slate-600); border-color:var(--slate-300); }}
+  .st-調査対象外 {{ background:var(--slate-100); color:var(--slate-400); border-color:var(--slate-300); text-decoration:line-through; }}
+  .st-手入力対応 {{ background:var(--blue-100); color:var(--blue-700); border-color:var(--blue-600); }}
   .st-調査中 {{ background:var(--amber-100); color:var(--amber-700); border-color:var(--amber-500); }}
   .st-対応中 {{ background:var(--blue-100); color:var(--blue-700); border-color:var(--blue-600); }}
   .st-対応済,.st-対応済_表示側で整形_ {{ background:var(--emerald-100); color:var(--emerald-700); border-color:var(--emerald-500); }}
@@ -396,9 +404,15 @@ def main():
 
   <section id="tab-issues" class="tab-content hidden">
     <div class="panel">
-      <div class="panel-head">
-        <h2>不一致パターン別 課題管理</h2>
-        <span class="note">{len(issues)} パターン検出 / ステータスはブラウザ内でのみ変更可（保存はされません）</span>
+      <div class="panel-head" style="flex-wrap:wrap; gap:12px; align-items:center;">
+        <div>
+          <h2>不一致パターン別 課題管理</h2>
+          <span class="note">{len(issues)} パターン検出 / ステータスはブラウザ内でのみ変更可（保存はされません）</span>
+        </div>
+        <div class="cat-filter" style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="cat-filter-btn active" data-cat-filter="__all__">すべて</button>
+          {"".join(f'<button class="cat-filter-btn" data-cat-filter="{esc(c)}">{esc(c)}</button>' for c in sorted(set(cat for issue in issues for cat in issue["categories"].split(", "))))}
+        </div>
       </div>
       <div class="scroll-x">
         <table>
@@ -473,6 +487,18 @@ document.querySelectorAll(".status-select").forEach(sel => {{
   }};
   applyClass();
   sel.addEventListener("change", applyClass);
+}});
+document.querySelectorAll(".cat-filter-btn").forEach(btn => {{
+  btn.addEventListener("click", () => {{
+    document.querySelectorAll(".cat-filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const target = btn.dataset.catFilter;
+    document.querySelectorAll("#tab-issues tbody tr").forEach(tr => {{
+      const cats = (tr.dataset.cat || "").split(", ");
+      const show = (target === "__all__") || cats.includes(target);
+      tr.classList.toggle("cat-hidden", !show);
+    }});
+  }});
 }});
 </script>
 
