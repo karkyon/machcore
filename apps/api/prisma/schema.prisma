@@ -464,7 +464,11 @@ model McProgram {
 model McTooling {
   id              Int      @id @default(autoincrement())
   machiningId     Int                          @map("machining_id")
-  sortOrder       Int      @db.SmallInt        @map("sort_order")
+  // ★smallint(上限32767)だと、ACC_ツーリング.順番列を10倍化した際に
+  //   異常に大きい順番値を持つ行でオーバーフローし、INSERT自体が失敗する
+  //   (実際に786件のINSERT失敗を確認)。integer(上限約21億)に変更し、
+  //   10倍化後の値がどのような大きさでも安全に格納できるようにする。
+  sortOrder       Int                          @map("sort_order")
   toolNo          String?  @db.VarChar(20)     @map("tool_no")
   toolName        String?  @db.VarChar(100)    @map("tool_name")
   tNo             String?  @db.VarChar(10)     @map("t_no")

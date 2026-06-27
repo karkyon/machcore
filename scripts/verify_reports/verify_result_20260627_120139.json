@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-27T08:57:30.944397",
+  "generated_at": "2026-06-27T12:02:01.198464",
   "summaries": [
     {
       "category": "基本情報(MC)",
@@ -11,10 +11,10 @@
     {
       "category": "ツーリング",
       "total": 7835,
-      "matched": 7778,
-      "mismatched": 46,
-      "missing_in_new": 11,
-      "row_count_mismatch": 0
+      "matched": 7334,
+      "mismatched": 41,
+      "missing_in_new": 455,
+      "row_count_mismatch": 5
     }
   ],
   "details": {
@@ -27,12 +27,7 @@
           {
             "field": "バージョン",
             "old": "1.0001",
-            "new": "1.0101"
-          },
-          {
-            "field": "加工個数",
-            "old": "1.0000",
-            "new": "0.6000"
+            "new": "1.0201"
           }
         ]
       },
@@ -536,142 +531,6 @@
     ],
     "tooling": [
       {
-        "kakoid": 87,
-        "status": "MISMATCH",
-        "rows": [
-          {
-            "row_index": 1,
-            "fields": [
-              {
-                "field": "T",
-                "old": "T1",
-                "new": ""
-              },
-              {
-                "field": "D値",
-                "old": "3.0",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "1203",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 2,
-            "fields": [
-              {
-                "field": "T",
-                "old": "T2",
-                "new": ""
-              },
-              {
-                "field": "D値",
-                "old": "2.97",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "1203",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 3,
-            "fields": [
-              {
-                "field": "T",
-                "old": "T3",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "1204",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 4,
-            "fields": [
-              {
-                "field": "SUB",
-                "old": "1205",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 5,
-            "fields": [
-              {
-                "field": "SUB",
-                "old": "1206",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 6,
-            "fields": [
-              {
-                "field": "SUB",
-                "old": "1207",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 7,
-            "fields": [
-              {
-                "field": "SUB",
-                "old": "1208",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 8,
-            "fields": [
-              {
-                "field": "T",
-                "old": "T4",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "1205",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 9,
-            "fields": [
-              {
-                "field": "SUB",
-                "old": "1208",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 10,
-            "fields": [
-              {
-                "field": "T",
-                "old": "T5",
-                "new": ""
-              }
-            ]
-          }
-        ]
-      },
-      {
         "kakoid": 231,
         "status": "MISSING_IN_NEW",
         "rows": []
@@ -1112,92 +971,6 @@
               {
                 "field": "D値",
                 "old": "0.0",
-                "new": ""
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "kakoid": 2502,
-        "status": "MISMATCH",
-        "rows": [
-          {
-            "row_index": 4,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N5",
-                "new": "N3"
-              },
-              {
-                "field": "工具",
-                "old": "16 C 90°",
-                "new": "8 E"
-              },
-              {
-                "field": "T",
-                "old": "T5",
-                "new": "T3"
-              },
-              {
-                "field": "H",
-                "old": "5",
-                "new": "H3"
-              },
-              {
-                "field": "D",
-                "old": "D17",
-                "new": "D15"
-              },
-              {
-                "field": "D値",
-                "old": "2.15",
-                "new": "4.0"
-              },
-              {
-                "field": "コメント",
-                "old": "",
-                "new": "４枚刃　V-XPM"
-              }
-            ]
-          },
-          {
-            "row_index": 5,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N3",
-                "new": "N5"
-              },
-              {
-                "field": "工具",
-                "old": "8 E",
-                "new": "16 C 90°"
-              },
-              {
-                "field": "T",
-                "old": "T3",
-                "new": "T5"
-              },
-              {
-                "field": "H",
-                "old": "3",
-                "new": "H5"
-              },
-              {
-                "field": "D",
-                "old": "D15",
-                "new": "D17"
-              },
-              {
-                "field": "D値",
-                "old": "4.0",
-                "new": "2.15"
-              },
-              {
-                "field": "コメント",
-                "old": "４枚刃　V-XPM",
                 "new": ""
               }
             ]
@@ -7619,2377 +7392,2259 @@
         ]
       },
       {
+        "kakoid": 8558,
+        "status": "ROW_COUNT_MISMATCH",
+        "old_count": 58,
+        "new_count": 35,
+        "rows": []
+      },
+      {
+        "kakoid": 8559,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8562,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8563,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8564,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8565,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8566,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8567,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8568,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8569,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8571,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8572,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8573,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8574,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8575,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8576,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8577,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8578,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8579,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8580,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8581,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8582,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8583,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8584,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8587,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8588,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8589,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8590,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8591,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8592,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8593,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8594,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8595,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8596,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8597,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8598,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8599,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8600,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8601,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8602,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8603,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8604,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8605,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8606,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8607,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8608,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8609,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8610,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8611,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8612,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8613,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8614,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8615,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8616,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8617,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8618,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8619,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8620,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8621,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8622,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8623,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8624,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8625,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8626,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8627,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8628,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8629,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8630,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8631,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8632,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8634,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8635,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8636,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8637,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8638,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8639,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8640,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8641,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8642,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8643,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8648,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8649,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8650,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8651,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8652,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8653,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8654,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8655,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8656,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8657,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8659,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8660,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8661,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8662,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8663,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8665,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8666,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8667,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8668,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8669,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8670,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8671,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8673,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8674,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8676,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8677,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8678,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8679,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8680,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8681,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8682,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8683,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8684,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8685,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
         "kakoid": 8686,
-        "status": "MISMATCH",
-        "rows": [
-          {
-            "row_index": 1,
-            "fields": [
-              {
-                "field": "N",
-                "old": "O4230",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "P2D3200  H30i",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "MIZOARACHIPZA2BAN",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 2,
-            "fields": [
-              {
-                "field": "N",
-                "old": "/M0",
-                "new": "O4230"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "P2D3200  H30i"
-              },
-              {
-                "field": "コメント",
-                "old": "",
-                "new": "MIZOARACHIPZA2BAN"
-              }
-            ]
-          },
-          {
-            "row_index": 3,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N100",
-                "new": "/M0"
-              },
-              {
-                "field": "工具",
-                "old": "#160 - #172 SET",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "M98P[600+#140]",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 4,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N200",
-                "new": "N100"
-              },
-              {
-                "field": "工具",
-                "old": "WORK OFFSET INPUT",
-                "new": "#160 - #172 SET"
-              },
-              {
-                "field": "SUB",
-                "old": "706",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "G10G91L20P#140Z85.75",
-                "new": "M98P[600+#140]"
-              }
-            ]
-          },
-          {
-            "row_index": 5,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N300",
-                "new": "N200"
-              },
-              {
-                "field": "工具",
-                "old": "SENSOR  CK",
-                "new": "WORK OFFSET INPUT"
-              },
-              {
-                "field": "T",
-                "old": "T120",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "120",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "718",
-                "new": "706"
-              },
-              {
-                "field": "コメント",
-                "old": "G54.1P300 Y150. CK",
-                "new": "G10G91L20P#140Z85.75"
-              }
-            ]
-          },
-          {
-            "row_index": 6,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N300"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "SENSOR  CK"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T120"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H120"
-              },
-              {
-                "field": "SUB",
-                "old": "705",
-                "new": "718"
-              },
-              {
-                "field": "コメント",
-                "old": "EXT RESET",
-                "new": "G54.1P300 Y150. CK"
-              }
-            ]
-          },
-          {
-            "row_index": 7,
-            "fields": [
-              {
-                "field": "SUB",
-                "old": "",
-                "new": "705"
-              },
-              {
-                "field": "コメント",
-                "old": "",
-                "new": "EXT RESET"
-              }
-            ]
-          },
-          {
-            "row_index": 8,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N1",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "SI-WC-RESF 12H",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T1",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "1",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "N110  CENTEROTOSHI",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 9,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N5",
-                "new": "N1"
-              },
-              {
-                "field": "工具",
-                "old": "WX-EBD R1.5*3",
-                "new": "SI-WC-RESF 12H"
-              },
-              {
-                "field": "T",
-                "old": "T5",
-                "new": "T1"
-              },
-              {
-                "field": "H",
-                "old": "5",
-                "new": "H1"
-              },
-              {
-                "field": "コメント",
-                "old": "N120  OUT OH ZAGURI",
-                "new": "N110  CENTEROTOSHI"
-              }
-            ]
-          },
-          {
-            "row_index": 10,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N5"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "WX-EBD R1.5*3"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T5"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H5"
-              },
-              {
-                "field": "コメント",
-                "old": "N130  IN OH ZAGURI",
-                "new": "N120  OUT OH ZAGURI"
-              }
-            ]
-          },
-          {
-            "row_index": 11,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N25",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "TGHDL3CBALT20D",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T25",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "25",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "N140  OUT OHDRILL",
-                "new": "N130  IN OH ZAGURI"
-              }
-            ]
-          },
-          {
-            "row_index": 12,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N25"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "TGHDL3CBALT20D"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T25"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H25"
-              },
-              {
-                "field": "コメント",
-                "old": "N150  IN OHDRILL",
-                "new": "N140  OUT OHDRILL"
-              }
-            ]
-          },
-          {
-            "row_index": 13,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N4",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "AE-VMS 10*R0.3",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T4",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "4",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "N160  OUT 2BAN1",
-                "new": "N150  IN OHDRILL"
-              }
-            ]
-          },
-          {
-            "row_index": 14,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N4"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "AE-VMS 10*R0.3"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T4"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H4"
-              },
-              {
-                "field": "コメント",
-                "old": "N170  OUT 2BAN2",
-                "new": "N160  OUT 2BAN1"
-              }
-            ]
-          },
-          {
-            "row_index": 15,
-            "fields": [
-              {
-                "field": "コメント",
-                "old": "N180  OUT 2BAN3",
-                "new": "N170  OUT 2BAN2"
-              }
-            ]
-          },
-          {
-            "row_index": 16,
-            "fields": [
-              {
-                "field": "コメント",
-                "old": "N190  IN 2BAN1",
-                "new": "N180  OUT 2BAN3"
-              }
-            ]
-          },
-          {
-            "row_index": 17,
-            "fields": [
-              {
-                "field": "コメント",
-                "old": "N200  IN 2BAN2",
-                "new": "N190  IN 2BAN1"
-              }
-            ]
-          },
-          {
-            "row_index": 18,
-            "fields": [
-              {
-                "field": "コメント",
-                "old": "N210  IN 2BAN3",
-                "new": "N200  IN 2BAN2"
-              }
-            ]
-          },
-          {
-            "row_index": 19,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N205",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "WX-EBD R1.5*3",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T5",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "5",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "N220  OUT 2BAN4",
-                "new": "N210  IN 2BAN3"
-              }
-            ]
-          },
-          {
-            "row_index": 20,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N205"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "WX-EBD R1.5*3"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T5"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H5"
-              },
-              {
-                "field": "コメント",
-                "old": "N230  IN 2BAN4",
-                "new": "N220  OUT 2BAN4"
-              }
-            ]
-          },
-          {
-            "row_index": 21,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N201",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "** SI-WC-RESF 12H",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T1",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "1",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "701",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "N240  OUT POCKET ARA",
-                "new": "N230  IN 2BAN4"
-              }
-            ]
-          },
-          {
-            "row_index": 22,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N201"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "** SI-WC-RESF 12H"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T1"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H1"
-              },
-              {
-                "field": "SUB",
-                "old": "702",
-                "new": "701"
-              },
-              {
-                "field": "コメント",
-                "old": "N250  IN POCKET ARA",
-                "new": "N240  OUT POCKET ARA"
-              }
-            ]
-          },
-          {
-            "row_index": 23,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N204",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "** AE-VMS 10*R0.3",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T4",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "4",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "701",
-                "new": "702"
-              },
-              {
-                "field": "コメント",
-                "old": "N260  OUT POCKET FIN1",
-                "new": "N250  IN POCKET ARA"
-              }
-            ]
-          },
-          {
-            "row_index": 24,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N204"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "** AE-VMS 10*R0.3"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T4"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H4"
-              },
-              {
-                "field": "SUB",
-                "old": "702",
-                "new": "701"
-              },
-              {
-                "field": "コメント",
-                "old": "N270  IN POCKET FIN1",
-                "new": "N260  OUT POCKET FIN1"
-              }
-            ]
-          },
-          {
-            "row_index": 25,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N6",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "FX-MG-TPMS 16.5*5A SP",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T6",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "6",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "701",
-                "new": "702"
-              },
-              {
-                "field": "コメント",
-                "old": "N280  OUT POCKET FIN2",
-                "new": "N270  IN POCKET FIN1"
-              }
-            ]
-          },
-          {
-            "row_index": 26,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N6"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "FX-MG-TPMS 16.5*5A SP"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T6"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H6"
-              },
-              {
-                "field": "SUB",
-                "old": "702",
-                "new": "701"
-              },
-              {
-                "field": "コメント",
-                "old": "N290  IN POCKET FIN2",
-                "new": "N280  OUT POCKET FIN2"
-              }
-            ]
-          },
-          {
-            "row_index": 27,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N7",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "2.13 D SP",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T7",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "7",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "701",
-                "new": "702"
-              },
-              {
-                "field": "コメント",
-                "old": "N300  OUT MIMI NIGASHI",
-                "new": "N290  IN POCKET FIN2"
-              }
-            ]
-          },
-          {
-            "row_index": 28,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N7"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "2.13 D SP"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T7"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H7"
-              },
-              {
-                "field": "SUB",
-                "old": "702",
-                "new": "701"
-              },
-              {
-                "field": "コメント",
-                "old": "N310  IN MIMI NIGASHI",
-                "new": "N300  OUT MIMI NIGASHI"
-              }
-            ]
-          },
-          {
-            "row_index": 29,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N8",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "FXS-PKE 4*R0.2*70",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T8",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "8",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "701",
-                "new": "702"
-              },
-              {
-                "field": "コメント",
-                "old": "N320  OUT ZA ARA1",
-                "new": "N310  IN MIMI NIGASHI"
-              }
-            ]
-          },
-          {
-            "row_index": 30,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N8"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "FXS-PKE 4*R0.2*70"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T8"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H8"
-              },
-              {
-                "field": "SUB",
-                "old": "702",
-                "new": "701"
-              },
-              {
-                "field": "コメント",
-                "old": "N330  IN ZA ARA1",
-                "new": "N320  OUT ZA ARA1"
-              }
-            ]
-          },
-          {
-            "row_index": 31,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N9",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "WX-CR-EMS 2*R0.1",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T9",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "9",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "701",
-                "new": "702"
-              },
-              {
-                "field": "コメント",
-                "old": "N340  OUT ZA ARA2",
-                "new": "N330  IN ZA ARA1"
-              }
-            ]
-          },
-          {
-            "row_index": 32,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N9"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "WX-CR-EMS 2*R0.1"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T9"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H9"
-              },
-              {
-                "field": "SUB",
-                "old": "702",
-                "new": "701"
-              },
-              {
-                "field": "コメント",
-                "old": "N350  IN ZA ARA2",
-                "new": "N340  OUT ZA ARA2"
-              }
-            ]
-          },
-          {
-            "row_index": 33,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N10",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "2.5 E R0.25 SP",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T10",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "10",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "701",
-                "new": "702"
-              },
-              {
-                "field": "コメント",
-                "old": "N360  OUT ZA FIN1",
-                "new": "N350  IN ZA ARA2"
-              }
-            ]
-          },
-          {
-            "row_index": 34,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N10"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "2.5 E R0.25 SP"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T10"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H10"
-              },
-              {
-                "field": "SUB",
-                "old": "702",
-                "new": "701"
-              },
-              {
-                "field": "コメント",
-                "old": "N370  IN ZA FIN1",
-                "new": "N360  OUT ZA FIN1"
-              }
-            ]
-          },
-          {
-            "row_index": 35,
-            "fields": [
-              {
-                "field": "SUB",
-                "old": "701",
-                "new": "702"
-              },
-              {
-                "field": "コメント",
-                "old": "N380  OUT ZA FIN2",
-                "new": "N370  IN ZA FIN1"
-              }
-            ]
-          },
-          {
-            "row_index": 36,
-            "fields": [
-              {
-                "field": "SUB",
-                "old": "702",
-                "new": "701"
-              },
-              {
-                "field": "コメント",
-                "old": "N390  IN ZA FIN2",
-                "new": "N380  OUT ZA FIN2"
-              }
-            ]
-          },
-          {
-            "row_index": 37,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N11",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "DUR-MG-TPDS 1.5*7.5A SP",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T11",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "11",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "701",
-                "new": "702"
-              },
-              {
-                "field": "コメント",
-                "old": "N400  OUT TAPER",
-                "new": "N390  IN ZA FIN2"
-              }
-            ]
-          },
-          {
-            "row_index": 38,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N11"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "DUR-MG-TPDS 1.5*7.5A SP"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T11"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H11"
-              },
-              {
-                "field": "SUB",
-                "old": "702",
-                "new": "701"
-              },
-              {
-                "field": "コメント",
-                "old": "N410  INTAPER",
-                "new": "N400  OUT TAPER"
-              }
-            ]
-          },
-          {
-            "row_index": 39,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N12",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "4.5 C SP",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T12",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "12",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "703",
-                "new": "702"
-              },
-              {
-                "field": "コメント",
-                "old": "N420  OUT CENTER",
-                "new": "N410  INTAPER"
-              }
-            ]
-          },
-          {
-            "row_index": 40,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N12"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "4.5 C SP"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T12"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H12"
-              },
-              {
-                "field": "SUB",
-                "old": "704",
-                "new": "703"
-              },
-              {
-                "field": "コメント",
-                "old": "N430  IN CENTER",
-                "new": "N420  OUT CENTER"
-              }
-            ]
-          },
-          {
-            "row_index": 41,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N23",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "2.6 D WD-4D",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T23",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "23",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "703",
-                "new": "704"
-              },
-              {
-                "field": "コメント",
-                "old": "N440  OUT DRILL",
-                "new": "N430  IN CENTER"
-              }
-            ]
-          },
-          {
-            "row_index": 42,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N23"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "2.6 D WD-4D"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T23"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H23"
-              },
-              {
-                "field": "SUB",
-                "old": "704",
-                "new": "703"
-              },
-              {
-                "field": "コメント",
-                "old": "N450  IN DRILL",
-                "new": "N440  OUT DRILL"
-              }
-            ]
-          },
-          {
-            "row_index": 43,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N24",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "WH55-OT 5P M3*0.5 STD",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T24",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "24",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "703",
-                "new": "704"
-              },
-              {
-                "field": "コメント",
-                "old": "N460  OUT TAP",
-                "new": "N450  IN DRILL"
-              }
-            ]
-          },
-          {
-            "row_index": 44,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N24"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "WH55-OT 5P M3*0.5 STD"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T24"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H24"
-              },
-              {
-                "field": "SUB",
-                "old": "704",
-                "new": "703"
-              },
-              {
-                "field": "コメント",
-                "old": "N470  IN TAP",
-                "new": "N460  OUT TAP"
-              }
-            ]
-          },
-          {
-            "row_index": 45,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N301",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "*** SI-WC-RESF 12H",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T1",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "1",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "",
-                "new": "704"
-              },
-              {
-                "field": "コメント",
-                "old": "N480  OUT MIZO SQUARE1",
-                "new": "N470  IN TAP"
-              }
-            ]
-          },
-          {
-            "row_index": 46,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N301"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "*** SI-WC-RESF 12H"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T1"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H1"
-              },
-              {
-                "field": "コメント",
-                "old": "N490  IN MIZO SQUARE1",
-                "new": "N480  OUT MIZO SQUARE1"
-              }
-            ]
-          },
-          {
-            "row_index": 47,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N14",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "FXS-HS-PKE 12*R1*80",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T14",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "14",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "N500  OUT MIZO SQUARE2",
-                "new": "N490  IN MIZO SQUARE1"
-              }
-            ]
-          },
-          {
-            "row_index": 48,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N14"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "FXS-HS-PKE 12*R1*80"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T14"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H14"
-              },
-              {
-                "field": "コメント",
-                "old": "N510  IN MIZO SQUARE2",
-                "new": "N500  OUT MIZO SQUARE2"
-              }
-            ]
-          },
-          {
-            "row_index": 49,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N16",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "WX-EBD R5*10",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T16",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "16",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "N520  OUT NUSUMI",
-                "new": "N510  IN MIZO SQUARE2"
-              }
-            ]
-          },
-          {
-            "row_index": 50,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N16"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "WX-EBD R5*10"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T16"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H16"
-              },
-              {
-                "field": "コメント",
-                "old": "N530  IN NUSUMI",
-                "new": "N520  OUT NUSUMI"
-              }
-            ]
-          },
-          {
-            "row_index": 51,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N26",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "WX-EBD R6*12",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T26",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "26",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "N540  OUT MIZO BALL ARA",
-                "new": "N530  IN NUSUMI"
-              }
-            ]
-          },
-          {
-            "row_index": 52,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N26"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "WX-EBD R6*12"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T26"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H26"
-              },
-              {
-                "field": "コメント",
-                "old": "N550  OUT MIZO BALL ARA2",
-                "new": "N540  OUT MIZO BALL ARA"
-              }
-            ]
-          },
-          {
-            "row_index": 53,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N28",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "FX-MG-EBD R6.5*13",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T28",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "28",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "N560  IN MIZO BALL ARA",
-                "new": "N550  OUT MIZO BALL ARA2"
-              }
-            ]
-          },
-          {
-            "row_index": 54,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N28"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "FX-MG-EBD R6.5*13"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T28"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H28"
-              },
-              {
-                "field": "コメント",
-                "old": "N570  IN MIZO BALL ARA2",
-                "new": "N560  IN MIZO BALL ARA"
-              }
-            ]
-          },
-          {
-            "row_index": 55,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N214",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "** FXS-HS-PKE 12*R1*80",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T14",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "14",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "N580  OUT MENTORI",
-                "new": "N570  IN MIZO BALL ARA2"
-              }
-            ]
-          },
-          {
-            "row_index": 56,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N214"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "** FXS-HS-PKE 12*R1*80"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T14"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H14"
-              },
-              {
-                "field": "コメント",
-                "old": "N590  IN MENTORI",
-                "new": "N580  OUT MENTORI"
-              }
-            ]
-          },
-          {
-            "row_index": 57,
-            "fields": [
-              {
-                "field": "コメント",
-                "old": "",
-                "new": "N590  IN MENTORI"
-              }
-            ]
-          },
-          {
-            "row_index": 58,
-            "fields": [
-              {
-                "field": "SUB",
-                "old": "722",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "COUNT UP M09",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 59,
-            "fields": [
-              {
-                "field": "T",
-                "old": "T100",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "100",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "10",
-                "new": "722"
-              },
-              {
-                "field": "コメント",
-                "old": "SOUJI",
-                "new": "COUNT UP M09"
-              }
-            ]
-          },
-          {
-            "row_index": 60,
-            "fields": [
-              {
-                "field": "N",
-                "old": "M600",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T100"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H100"
-              },
-              {
-                "field": "SUB",
-                "old": "",
-                "new": "10"
-              },
-              {
-                "field": "コメント",
-                "old": "",
-                "new": "SOUJI"
-              }
-            ]
-          },
-          {
-            "row_index": 61,
-            "fields": [
-              {
-                "field": "N",
-                "old": "M30",
-                "new": "M600"
-              },
-              {
-                "field": "工具",
-                "old": "//////////////////",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 62,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "M30"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "//////////////////"
-              }
-            ]
-          }
-        ]
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8687,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8688,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8689,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8690,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8691,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8692,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8693,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8694,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8695,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8696,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8697,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8698,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8699,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8701,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8702,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8719,
+        "status": "ROW_COUNT_MISMATCH",
+        "old_count": 164,
+        "new_count": 138,
+        "rows": []
+      },
+      {
+        "kakoid": 8720,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8724,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8725,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8726,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8727,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8728,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8729,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8730,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8732,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8733,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8734,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8735,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8737,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8739,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8740,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8741,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8744,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8745,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8746,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8747,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8748,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8749,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8750,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8751,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8752,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8753,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8754,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8755,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8756,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8757,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8758,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8759,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8760,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8761,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8762,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8763,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8766,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8767,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8768,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8769,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8770,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8771,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8772,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8774,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8776,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8777,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8778,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8779,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8780,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8781,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8782,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8785,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8786,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8789,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8791,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8792,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8794,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8796,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8797,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8798,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8799,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8800,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8801,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8802,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8803,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8804,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8805,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8806,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8807,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8810,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8811,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8816,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8817,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8818,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8819,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8823,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8826,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8827,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8828,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8829,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8830,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8831,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8832,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8836,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8837,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8838,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8840,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8841,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8842,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8843,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8844,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8845,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8848,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8849,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8851,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8852,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8853,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8854,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8855,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8856,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8857,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8858,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8859,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8860,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8861,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8862,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8865,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8866,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8867,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8868,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8870,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8872,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8873,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8874,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8875,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8876,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8877,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8878,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8879,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8880,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8882,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8883,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8886,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8887,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8888,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8889,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8890,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8891,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8892,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8893,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8894,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8929,
+        "status": "ROW_COUNT_MISMATCH",
+        "old_count": 19,
+        "new_count": 3,
+        "rows": []
+      },
+      {
+        "kakoid": 8930,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8931,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8932,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8933,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8934,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8935,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8936,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8937,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8938,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8939,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8943,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8944,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8945,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8946,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8947,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8948,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8949,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8950,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8951,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8952,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8953,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8954,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8955,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8956,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8957,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8959,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8960,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8961,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8962,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8963,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8964,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8965,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8966,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8967,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8968,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8970,
+        "status": "MISSING_IN_NEW",
+        "rows": []
       },
       {
         "kakoid": 8971,
-        "status": "MISMATCH",
-        "rows": [
-          {
-            "row_index": 1,
-            "fields": [
-              {
-                "field": "工具",
-                "old": "6322_TGX20.MPF",
-                "new": "CAN"
-              }
-            ]
-          },
-          {
-            "row_index": 2,
-            "fields": [
-              {
-                "field": "工具",
-                "old": "CAN",
-                "new": "6322_TGX20.MPF"
-              }
-            ]
-          }
-        ]
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8974,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8975,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8976,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8977,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8978,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8979,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8980,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8982,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8983,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8984,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8985,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8987,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8988,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8990,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8991,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8992,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8993,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8994,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8995,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8996,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8997,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8998,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 8999,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9000,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9001,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9002,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9003,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9004,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9005,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9006,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9007,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9008,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9011,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9012,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9015,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9016,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9017,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9018,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9019,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9020,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9021,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9022,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9023,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9024,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9025,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9026,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9027,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9028,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9029,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9030,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9031,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9032,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9033,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9034,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9035,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9036,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9037,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9038,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9039,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9040,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9041,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9042,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9043,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9044,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9045,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9046,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9047,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9048,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9049,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9050,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9051,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9052,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9053,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9054,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9055,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9056,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9057,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9058,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9059,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9060,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9061,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9062,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9063,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9064,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9065,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9066,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9067,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9068,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9069,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9070,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9071,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9072,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9073,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9074,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9075,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9076,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9077,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9078,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9079,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9080,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9081,
+        "status": "MISSING_IN_NEW",
+        "rows": []
       },
       {
         "kakoid": 9082,
-        "status": "MISMATCH",
-        "rows": [
-          {
-            "row_index": 1,
-            "fields": [
-              {
-                "field": "N",
-                "old": "O1277",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "5190504-002",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 2,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "O1277"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "5190504-002"
-              },
-              {
-                "field": "コメント",
-                "old": "210729 YOSHIDA",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 3,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N1",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "10 E4",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T1",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "H1",
-                "new": ""
-              },
-              {
-                "field": "D",
-                "old": "D5",
-                "new": ""
-              },
-              {
-                "field": "D値",
-                "old": "5.1",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "1279",
-                "new": ""
-              },
-              {
-                "field": "コメント",
-                "old": "1280ｻﾌﾞ ｱﾗ刃長15以上",
-                "new": "210729 YOSHIDA"
-              }
-            ]
-          },
-          {
-            "row_index": 4,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N1"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "10 E4"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T1"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H1"
-              },
-              {
-                "field": "D",
-                "old": "",
-                "new": "D5"
-              },
-              {
-                "field": "D値",
-                "old": "",
-                "new": "5.1"
-              },
-              {
-                "field": "SUB",
-                "old": "1280",
-                "new": "1279"
-              },
-              {
-                "field": "コメント",
-                "old": "φ18.05",
-                "new": "1280ｻﾌﾞ ｱﾗ刃長15以上"
-              }
-            ]
-          },
-          {
-            "row_index": 5,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N2",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "10×T1.2 KC",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T2",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "H2",
-                "new": ""
-              },
-              {
-                "field": "D",
-                "old": "D6",
-                "new": ""
-              },
-              {
-                "field": "D値",
-                "old": "5.11",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "1281",
-                "new": "1280"
-              },
-              {
-                "field": "コメント",
-                "old": "1282ｻﾌﾞ ｷｰｼｰﾄﾞｶｯﾀｰ",
-                "new": "φ18.05"
-              }
-            ]
-          },
-          {
-            "row_index": 6,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N2"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "10×T1.2 KC"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T2"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H2"
-              },
-              {
-                "field": "D",
-                "old": "",
-                "new": "D6"
-              },
-              {
-                "field": "D値",
-                "old": "",
-                "new": "5.11"
-              },
-              {
-                "field": "SUB",
-                "old": "1282",
-                "new": "1281"
-              },
-              {
-                "field": "コメント",
-                "old": "φ19.05",
-                "new": "1282ｻﾌﾞ ｷｰｼｰﾄﾞｶｯﾀｰ"
-              }
-            ]
-          },
-          {
-            "row_index": 7,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N3",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "16 C",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T3",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "H3",
-                "new": ""
-              },
-              {
-                "field": "D",
-                "old": "D7",
-                "new": ""
-              },
-              {
-                "field": "D値",
-                "old": "3.0",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "1278",
-                "new": "1282"
-              },
-              {
-                "field": "コメント",
-                "old": "ﾒﾝ 16Cのみ",
-                "new": "φ19.05"
-              }
-            ]
-          },
-          {
-            "row_index": 8,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N3"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "16 C"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T3"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H3"
-              },
-              {
-                "field": "D",
-                "old": "",
-                "new": "D7"
-              },
-              {
-                "field": "D値",
-                "old": "",
-                "new": "3.0"
-              },
-              {
-                "field": "SUB",
-                "old": "1283",
-                "new": "1278"
-              },
-              {
-                "field": "コメント",
-                "old": "1280ｻﾌﾞ",
-                "new": "ﾒﾝ 16Cのみ"
-              }
-            ]
-          },
-          {
-            "row_index": 9,
-            "fields": [
-              {
-                "field": "SUB",
-                "old": "1280",
-                "new": "1283"
-              },
-              {
-                "field": "コメント",
-                "old": "ﾒﾝ",
-                "new": "1280ｻﾌﾞ"
-              }
-            ]
-          },
-          {
-            "row_index": 10,
-            "fields": [
-              {
-                "field": "N",
-                "old": "N4",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "10 E4 SIAGE",
-                "new": ""
-              },
-              {
-                "field": "T",
-                "old": "T4",
-                "new": ""
-              },
-              {
-                "field": "H",
-                "old": "H4",
-                "new": ""
-              },
-              {
-                "field": "D",
-                "old": "D8",
-                "new": ""
-              },
-              {
-                "field": "D値",
-                "old": "5.0",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "1284",
-                "new": "1280"
-              },
-              {
-                "field": "コメント",
-                "old": "1280ｻﾌﾞ 仕上",
-                "new": "ﾒﾝ"
-              }
-            ]
-          },
-          {
-            "row_index": 11,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "N4"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "10 E4 SIAGE"
-              },
-              {
-                "field": "T",
-                "old": "",
-                "new": "T4"
-              },
-              {
-                "field": "H",
-                "old": "",
-                "new": "H4"
-              },
-              {
-                "field": "D",
-                "old": "",
-                "new": "D8"
-              },
-              {
-                "field": "D値",
-                "old": "",
-                "new": "5.0"
-              },
-              {
-                "field": "SUB",
-                "old": "1280",
-                "new": "1284"
-              },
-              {
-                "field": "コメント",
-                "old": "刃長15以上",
-                "new": "1280ｻﾌﾞ 仕上"
-              }
-            ]
-          },
-          {
-            "row_index": 12,
-            "fields": [
-              {
-                "field": "N",
-                "old": "M30",
-                "new": ""
-              },
-              {
-                "field": "工具",
-                "old": "////////////",
-                "new": ""
-              },
-              {
-                "field": "SUB",
-                "old": "",
-                "new": "1280"
-              },
-              {
-                "field": "コメント",
-                "old": "",
-                "new": "刃長15以上"
-              }
-            ]
-          },
-          {
-            "row_index": 13,
-            "fields": [
-              {
-                "field": "N",
-                "old": "O1278",
-                "new": "M30"
-              },
-              {
-                "field": "工具",
-                "old": "11D",
-                "new": "////////////"
-              }
-            ]
-          },
-          {
-            "row_index": 14,
-            "fields": [
-              {
-                "field": "N",
-                "old": "O1279",
-                "new": "O1278"
-              },
-              {
-                "field": "工具",
-                "old": "SUB",
-                "new": "11D"
-              },
-              {
-                "field": "SUB",
-                "old": "1280",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 15,
-            "fields": [
-              {
-                "field": "N",
-                "old": "O1280",
-                "new": "O1279"
-              },
-              {
-                "field": "工具",
-                "old": "18.05",
-                "new": "SUB"
-              },
-              {
-                "field": "SUB",
-                "old": "",
-                "new": "1280"
-              }
-            ]
-          },
-          {
-            "row_index": 16,
-            "fields": [
-              {
-                "field": "N",
-                "old": "O1281",
-                "new": "O1280"
-              },
-              {
-                "field": "工具",
-                "old": "SUB",
-                "new": "18.05"
-              },
-              {
-                "field": "SUB",
-                "old": "1282",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 17,
-            "fields": [
-              {
-                "field": "N",
-                "old": "O1282",
-                "new": "O1281"
-              },
-              {
-                "field": "工具",
-                "old": "10/T1.2 KC",
-                "new": "SUB"
-              },
-              {
-                "field": "SUB",
-                "old": "",
-                "new": "1282"
-              }
-            ]
-          },
-          {
-            "row_index": 18,
-            "fields": [
-              {
-                "field": "N",
-                "old": "O1283",
-                "new": "O1282"
-              },
-              {
-                "field": "工具",
-                "old": "SUB",
-                "new": "10/T1.2 KC"
-              },
-              {
-                "field": "SUB",
-                "old": "1280",
-                "new": ""
-              }
-            ]
-          },
-          {
-            "row_index": 19,
-            "fields": [
-              {
-                "field": "N",
-                "old": "O1284",
-                "new": "O1283"
-              }
-            ]
-          },
-          {
-            "row_index": 20,
-            "fields": [
-              {
-                "field": "N",
-                "old": "",
-                "new": "O1284"
-              },
-              {
-                "field": "工具",
-                "old": "",
-                "new": "SUB"
-              },
-              {
-                "field": "SUB",
-                "old": "",
-                "new": "1280"
-              }
-            ]
-          }
-        ]
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9083,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9084,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9085,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9086,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9089,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9090,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9091,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9092,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9093,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9094,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9095,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9096,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9097,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9098,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9099,
+        "status": "ROW_COUNT_MISMATCH",
+        "old_count": 67,
+        "new_count": 11,
+        "rows": []
+      },
+      {
+        "kakoid": 9487,
+        "status": "ROW_COUNT_MISMATCH",
+        "old_count": 37,
+        "new_count": 7,
+        "rows": []
+      },
+      {
+        "kakoid": 9488,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9490,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9491,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9492,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9493,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9495,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9496,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9497,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9498,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9499,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9500,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9501,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9502,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9503,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9504,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9505,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9506,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9507,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9508,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9509,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9510,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9511,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9512,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9513,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9514,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9515,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9517,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9518,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9519,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9520,
+        "status": "MISSING_IN_NEW",
+        "rows": []
+      },
+      {
+        "kakoid": 9521,
+        "status": "MISSING_IN_NEW",
+        "rows": []
       }
     ]
   }
