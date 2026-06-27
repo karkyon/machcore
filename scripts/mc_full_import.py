@@ -323,7 +323,10 @@ def phase2(pg, dry_run=False):
     mcc.execute("""
         SELECT 加工ID, 順番, N, 工具, T, H, D, D値, SUB, コメント, 工具名, ツーリングID
         FROM ACC_ツーリング
-        ORDER BY 加工ID, ツーリングID
+        ORDER BY 加工ID,
+                 CASE WHEN 順番 IS NULL THEN 1 ELSE 0 END,
+                 順番,
+                 ツーリングID
     """)
     rows = mcc.fetchall()
     log(f"ACC_ツーリング取得: {len(rows)}件")
@@ -347,6 +350,13 @@ def phase2(pg, dry_run=False):
 
     ok = skip = err = 0
     h_normalized_count = 0
+    # ★sort_order再採番用カウンタ: 旧「順番」列の値そのものは並び順の情報源としてのみ
+    #   使い(SQLのORDER BYで既に並び替え済み)、値の大きさは一切使わない。
+    #   加工IDが変わるたびに10からリセットし、10刻みで振り直す。
+    #   これにより値は常に小さい範囲(1加工IDあたり最大でも行数×10程度)に収まり、
+    #   小数枝番(4.1等)もソート順の中で正しい位置に自然に挿入される。
+    _reseq_prev_kakoid = None
+    _reseq_counter = 0
     for row in rows:
         try:
             kakoid, order, n_no, tool_name, t_no, h_no, d_no, d_val, sub_pg, comment, tool_name2, tooling_id = row
@@ -358,6 +368,13 @@ def phase2(pg, dry_run=False):
             if h_no and h_no_normalized and str(h_no).strip() != h_no_normalized:
                 h_normalized_count += 1
             if kakoid not in valid_machining_ids: skip += 1; continue
+            # 加工IDが変わったらカウンタをリセット(SQLはORDER BY 加工ID, 順番, ツーリングID
+            # 済みなので、ここでのループ順そのものが正しい並び順になっている)
+            if kakoid != _reseq_prev_kakoid:
+                _reseq_prev_kakoid = kakoid
+                _reseq_counter = 0
+            _reseq_counter += 1
+            new_sort_order = _reseq_counter * 10
             if not dry_run:
                 pgc.execute("""
                     INSERT INTO mc_tooling (
@@ -366,10 +383,7 @@ def phase2(pg, dry_run=False):
                         sub_pg_no, note, raw_program_line
                     ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """, (kakoid,
-                      # ★小数枝番対応: 順番列を10倍してsort_orderに格納。
-                      #   順番=5.2(枝番) → 52, 順番=5(既存整数) → 50 となり、
-                      #   間隔10の整数値間に枝番を重複なく吸収できる。
-                      round(float(order or 0) * 10),
+                      new_sort_order,
                       n_no_str,
                       tool_name_merged,
                       str(t_no).strip() if t_no else None,
