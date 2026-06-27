@@ -387,6 +387,42 @@ def render_detail_section_tooling(details):
     return "\n".join(rows)
 
 
+def render_detail_section_generic(details, id_label="加工ID"):
+    """ワークオフセット・インデックスプログラム共通の詳細テーブル行を生成する。
+    rows構造が②ツーリングと同じ(kakoid/status/rows[].fields[])のため共通化する。
+    """
+    rows = []
+    for rec in details:
+        if rec["status"] == "MISSING_IN_NEW":
+            rows.append(f'''
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">{rec["kakoid"]}</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>''')
+            continue
+        if rec["status"] == "ROW_COUNT_MISMATCH":
+            rows.append(f'''
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">{rec["kakoid"]}</td>
+              <td class="px-3 py-2 text-xs" colspan="4">
+                <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[11px] font-bold">行数不一致</span>
+                <span class="ml-2 text-slate-500">旧:{rec["old_count"]}行 → 新:{rec["new_count"]}行</span>
+              </td>
+            </tr>''')
+            continue
+        for row in rec.get("rows", []):
+            for fd in row.get("fields", []):
+                rows.append(f'''
+                <tr class="border-b border-slate-100">
+                  <td class="px-3 py-2 font-mono text-xs">{rec["kakoid"]}</td>
+                  <td class="px-3 py-2 font-mono text-xs text-slate-400">{row.get("row_index","")}</td>
+                  <td class="px-3 py-2 text-xs font-bold text-slate-700">{esc(fd["field"])}</td>
+                  <td class="px-3 py-2 text-xs text-red-500">{esc(fd["old"])}</td>
+                  <td class="px-3 py-2 text-xs text-emerald-600 font-bold">{esc(fd["new"])}</td>
+                </tr>''')
+    return "\n".join(rows)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--in", dest="infile", default="/tmp/verify_result.json")
@@ -493,6 +529,9 @@ def main():
   <button class="tab-btn" data-tab="issues">🧩 課題管理</button>
   <button class="tab-btn" data-tab="detail-basic">📋 詳細: 基本情報</button>
   <button class="tab-btn" data-tab="detail-tooling">🔧 詳細: ツーリング</button>
+  <button class="tab-btn" data-tab="detail-wo">📐 詳細: ワークオフセット</button>
+  <button class="tab-btn" data-tab="detail-ip">🧭 詳細: インデックスプログラム</button>
+  <button class="tab-btn" data-tab="detail-history">🕘 詳細: 履歴(変更/印刷/作業記録)</button>
 </nav>
 
 <main>
@@ -565,6 +604,60 @@ def main():
           </thead>
           <tbody>
             {render_detail_section_tooling(details["tooling"])}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-detail-wo" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-head"><h2>ワークオフセット 不一致詳細</h2></div>
+      <div class="scroll-x scroll-y">
+        <table>
+          <thead class="sticky">
+            <tr>
+              <th>加工ID</th><th>#</th><th>項目</th><th>旧値</th><th>新値</th>
+            </tr>
+          </thead>
+          <tbody>
+            {render_detail_section_generic(details.get("work_offsets", []))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-detail-ip" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-head"><h2>インデックスプログラム 不一致詳細</h2></div>
+      <div class="scroll-x scroll-y">
+        <table>
+          <thead class="sticky">
+            <tr>
+              <th>加工ID</th><th>#</th><th>項目</th><th>旧値</th><th>新値</th>
+            </tr>
+          </thead>
+          <tbody>
+            {render_detail_section_generic(details.get("index_programs", []))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-detail-history" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-head"><h2>履歴(変更履歴/印刷履歴/作業記録) 不一致詳細</h2></div>
+      <div class="scroll-x scroll-y">
+        <table>
+          <thead class="sticky">
+            <tr>
+              <th>MCID</th><th>#</th><th>項目</th><th>旧値</th><th>新値</th>
+            </tr>
+          </thead>
+          <tbody>
+            {render_detail_section_generic(details.get("history", []))}
           </tbody>
         </table>
       </div>

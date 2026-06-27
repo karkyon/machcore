@@ -493,11 +493,15 @@ model McWorkOffset {
   id          Int      @id @default(autoincrement())
   machiningId Int                          @map("machining_id")
   gCode       String   @db.VarChar(10)     @map("g_code")
-  xOffset     Decimal? @db.Decimal(12, 3)  @map("x_offset")
-  yOffset     Decimal? @db.Decimal(12, 3)  @map("y_offset")
-  zOffset     Decimal? @db.Decimal(12, 3)  @map("z_offset")
-  aOffset     Decimal? @db.Decimal(12, 3)  @map("a_offset")
-  rOffset     Decimal? @db.Decimal(12, 3)  @map("r_offset")
+  // ★旧ACC_ワークオフセットのX/Y/Z/A/R列は小数点以下4桁の精度を持つ
+  //   (例: -538.4672)。Decimal(12,3)では第4桁が丸められ、データが
+  //   1桁少ない精度で保存されていた(実際に244件の不一致を確認)。
+  //   Decimal(12,4)に変更し、旧データの精度をそのまま保持できるようにする。
+  xOffset     Decimal? @db.Decimal(12, 4)  @map("x_offset")
+  yOffset     Decimal? @db.Decimal(12, 4)  @map("y_offset")
+  zOffset     Decimal? @db.Decimal(12, 4)  @map("z_offset")
+  aOffset     Decimal? @db.Decimal(12, 4)  @map("a_offset")
+  rOffset     Decimal? @db.Decimal(12, 4)  @map("r_offset")
   note        String?  @db.VarChar(100)
   createdAt   DateTime @default(now())     @map("created_at")
   updatedAt   DateTime @updatedAt          @map("updated_at")
