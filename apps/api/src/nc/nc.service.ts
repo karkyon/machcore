@@ -3,6 +3,7 @@ import { CreateWorkRecordDto } from './dto/create-work-record.dto';
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateNcDto } from "./dto/create-nc.dto";
 import { UpdateNcDto } from "./dto/update-nc.dto";
+import { SaveNcToolingDto } from "./dto/save-nc-tooling.dto";
 
 import * as fs from 'fs';
 import { execSync } from 'child_process';
@@ -182,13 +183,10 @@ export class NcService {
     return { nc_id: nc.id, message: "新規登録が完了しました" };
   }
 
-  /** NC-05: 更新 */
+  /** NC-05: 更新（MC方式: ステータスをCHANGINGにするのみ。履歴登録はfinalize()で行う） */
   async update(id: number, dto: UpdateNcDto, operatorId: number) {
     const existing = await this.prisma.ncProgram.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException(`NC_id ${id} が存在しません`);
-
-    const versionBefore = existing.version;
-    const versionAfter  = dto.version ?? existing.version;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.ncProgram.update({
@@ -198,37 +196,154 @@ export class NcService {
           machiningTime: dto.machining_time !== undefined ? dto.machining_time : existing.machiningTime,
           folderName:    dto.folder_name    ?? existing.folderName,
           fileName:      dto.file_name      ?? existing.fileName,
-          version:       versionAfter,
           clampNote:     dto.clamp_note     !== undefined ? dto.clamp_note     : existing.clampNote,
           status:        "CHANGING",
         },
       });
-      const changedFields: string[] = [];
-      if (dto.machine_id     !== undefined) changedFields.push("機械");
-      if (dto.machining_time !== undefined) changedFields.push("加工時間");
-      if (dto.folder_name    !== undefined) changedFields.push("フォルダ名");
-      if (dto.file_name      !== undefined) changedFields.push("ファイル名");
-      if (dto.version        !== undefined) changedFields.push(`Ver ${versionBefore}→${versionAfter}`);
-      if (dto.clamp_note     !== undefined) changedFields.push("クランプ備考");
-
-      await tx.changeHistory.create({
-        data: {
-          ncProgramId:   id,
-          operatorId,
-          changeType:    "CHANGE",
-          versionBefore,
-          versionAfter,
-          content: changedFields.length > 0
-            ? `変更項目: ${changedFields.join(", ")}`
-            : "内容変更",
-        },
+      // 変更履歴はfinalize()で登録するためupdateでは登録しない（MC方式）
+      await tx.operationLog.create({
+        data: { userId: operatorId, ncProgramId: id, actionType: "EDIT_SAVE", metadata: { action: "update" } },
       });
       return result;
     });
 
-    return { nc_id: updated.id, message: "更新が完了しました" };
+    return { nc_id: id, version: updated.version, message: "更新しました" };
   }
-  
+
+  // ══════════════════════════════════════════
+  // NC-05b: 終了確認（バージョンインクリ + 変更履歴登録）— MC finalize()のロジックを移植
+  // ══════════════════════════════════════════
+  async finalize(id: number, changeType: string, changeDetail: string | undefined, operatorId: number) {
+    const nc = await this.prisma.ncProgram.findUnique({ where: { id } });
+    if (!nc) throw new NotFoundException(`NC_id ${id} が存在しません`);
+
+    const verStr   = nc.version ?? "1.0001";
+    const verFloat = parseFloat(verStr) || 1.0001;
+    const ver1 = Math.floor(verFloat);
+    const ver2 = Math.floor(verFloat * 100) - ver1 * 100;
+    const ver3 = Math.floor(verFloat * 10000) - ver1 * 10000 - ver2 * 100;
+    const isMajor = ["大変更", "新規登録", "試作登録"].includes(changeType);
+    const newVerFloat = isMajor
+      ? ver1 + 1 + ver3 / 10000
+      : ver1 + ver2 / 100 + 0.01 + ver3 / 10000;
+    const newVer1    = Math.floor(newVerFloat);
+    const newVer2    = Math.round((newVerFloat - newVer1) * 10000);
+    const newVersion = `${newVer1}.${String(newVer2).padStart(4, "0")}`;
+    const content    = `${changeType}${changeDetail ? " " + changeDetail : ""}`;
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.ncProgram.update({
+        where: { id },
+        data:  { version: newVersion, status: "CHANGING" },
+      });
+      await tx.changeHistory.create({
+        data: {
+          ncProgramId:   id,
+          changeType:    "CHANGE",
+          operatorId,
+          versionBefore: nc.version ?? "1.0001",
+          versionAfter:  newVersion,
+          content,
+        },
+      });
+      return { nc_id: id, version: newVersion, message: `${changeType}として登録しました` };
+    });
+  }
+
+  // ══════════════════════════════════════════
+  // NC-05c: 変更キャンセル（CHANGING → 前の状態に戻す）— MC revert()のロジックを移植
+  // ══════════════════════════════════════════
+  async revert(id: number) {
+    const nc = await this.prisma.ncProgram.findUnique({ where: { id } });
+    if (!nc) throw new NotFoundException(`NC_id ${id} が存在しません`);
+    if (nc.status !== "CHANGING") {
+      return { nc_id: id, message: "ステータスはCHANGINGではありません", status: nc.status };
+    }
+    const nextStatus = nc.approvedBy ? "APPROVED" : "NEW";
+    await this.prisma.ncProgram.update({
+      where: { id },
+      data:  { status: nextStatus },
+    });
+    return { nc_id: id, message: "変更をキャンセルしました", status: nextStatus };
+  }
+
+  // ══════════════════════════════════════════
+  // NC-06: 承認 — MC approve()のロジックを移植
+  // ══════════════════════════════════════════
+  async approve(id: number, operatorId: number) {
+    const nc = await this.prisma.ncProgram.findUnique({ where: { id } });
+    if (!nc) throw new NotFoundException(`NC_id ${id} が存在しません`);
+    if (nc.status === "APPROVED") {
+      throw new Error("既に承認済みです");
+    }
+    return this.prisma.$transaction(async (tx) => {
+      await tx.ncProgram.update({
+        where: { id },
+        data: {
+          status:     "APPROVED",
+          approvedBy: operatorId,
+          approvedAt: new Date(),
+        },
+      });
+      await tx.changeHistory.create({
+        data: {
+          ncProgramId:   id,
+          changeType:    "APPROVAL",
+          operatorId,
+          versionBefore: nc.version,
+          versionAfter:  nc.version,
+          content:       "承認",
+        },
+      });
+      await tx.operationLog.create({
+        data: {
+          userId:      operatorId,
+          ncProgramId: id,
+          actionType:  "EDIT_SAVE",
+          metadata:    { action: "approve", version: nc.version },
+        },
+      });
+      return { nc_id: id, message: "承認しました", version: nc.version };
+    });
+  }
+
+  // ══════════════════════════════════════════
+  // ツーリングデータ — MC getTooling()/saveTooling()のロジックを移植
+  // ══════════════════════════════════════════
+  async getTooling(ncId: number) {
+    return this.prisma.ncTool.findMany({
+      where:   { ncProgramId: ncId },
+      orderBy: { sortOrder: "asc" },
+    });
+  }
+
+  async saveTooling(ncId: number, dto: SaveNcToolingDto, operatorId: number) {
+    const nc = await this.prisma.ncProgram.findUnique({ where: { id: ncId } });
+    if (!nc) throw new NotFoundException(`NC_id ${ncId} が存在しません`);
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.ncTool.deleteMany({ where: { ncProgramId: ncId } });
+      if (dto.items.length > 0) {
+        await tx.ncTool.createMany({
+          data: dto.items.map(item => ({
+            ncProgramId: ncId,
+            sortOrder:   item.sort_order,
+            processType: item.process_type ?? null,
+            chipModel:   item.chip_model   ?? null,
+            holderModel: item.holder_model ?? null,
+            noseR:       item.nose_r       ?? null,
+            tNumber:     item.t_number     ?? null,
+            note:        item.note         ?? null,
+          })),
+        });
+      }
+      await tx.operationLog.create({
+        data: { userId: operatorId, ncProgramId: ncId, actionType: "EDIT_SAVE", metadata: { action: "save_tooling" } },
+      });
+      return { nc_id: ncId, count: dto.items.length, message: "ツーリングデータを保存しました" };
+    });
+  }
+
   /** NC-09: 変更履歴一覧 */
   async changeHistory(ncProgramId: number) {
     const rows = await this.prisma.changeHistory.findMany({

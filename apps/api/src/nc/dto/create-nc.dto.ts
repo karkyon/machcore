@@ -23,8 +23,8 @@ export class CreateNcDto {
   @IsNotEmpty() @IsString() @MaxLength(50)
   file_name: string;
 
-  @IsString() @Matches(/^[A-Z]$/, { message: 'version は A〜Z の1文字' })
-  version: string;
+  @IsOptional() @IsString() @Matches(/^\d+\.\d{4}$/, { message: 'version は "1.0001" 形式の数値文字列' })
+  version?: string;
 
   @IsOptional() @IsString() @MaxLength(2000)
   clamp_note?: string;

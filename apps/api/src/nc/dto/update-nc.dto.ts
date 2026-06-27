@@ -16,7 +16,7 @@ export class UpdateNcDto {
   @IsOptional() @IsString() @MaxLength(50)
   file_name?: string;
 
-  @IsOptional() @IsString() @Matches(/^[A-Z]$/, { message: 'version は A〜Z の1文字' })
+  @IsOptional() @IsString() @Matches(/^\d+\.\d{4}$/, { message: 'version は "1.0001" 形式の数値文字列' })
   version?: string;
 
   @IsOptional() @IsString() @MaxLength(2000)

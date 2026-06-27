@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Delete, Param, Query,
+  Controller, Get, Post, Put, Patch, Delete, Param, Query,
   ParseIntPipe, Body, UseGuards, Req, Res,
 } from "@nestjs/common";
 import { Roles } from "../common/decorators/roles.decorator";
@@ -15,6 +15,8 @@ import { OperationLogService } from "../common/operation-log.service";
 import { CreateNcDto } from "./dto/create-nc.dto";
 import { UpdateNcDto } from "./dto/update-nc.dto";
 import { CreateWorkRecordDto } from "./dto/create-work-record.dto";
+import { FinalizeNcDto } from "./dto/finalize-nc.dto";
+import { SaveNcToolingDto } from "./dto/save-nc-tooling.dto";
 
 @Controller("nc")
 export class NcController {
@@ -169,6 +171,54 @@ export class NcController {
       metadata:    { target: 'nc_data' },
     });
     return this.nc.update(id, dto, req.user.id);
+  }
+
+  /** NC-05b: 終了確認（バージョンインクリ + 変更履歴登録） */
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
+  @Roles("OPERATOR", "ADMIN")
+  @Post(":nc_id/finalize")
+  finalize(
+    @Param("nc_id", ParseIntPipe) id: number,
+    @Body() dto: FinalizeNcDto,
+    @Req() req: any,
+  ) {
+    return this.nc.finalize(id, dto.change_type, dto.change_detail, req.user.id);
+  }
+
+  /** NC-05c: 変更キャンセル（CHANGING → 前の状態に戻す） */
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
+  @Roles("OPERATOR", "ADMIN")
+  @Patch(":nc_id/revert")
+  revert(@Param("nc_id", ParseIntPipe) id: number) {
+    return this.nc.revert(id);
+  }
+
+  /** NC-06: 承認 */
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
+  @Roles("ADMIN")
+  @Post(":nc_id/approve")
+  approve(
+    @Param("nc_id", ParseIntPipe) id: number,
+    @Req() req: any,
+  ) {
+    return this.nc.approve(id, req.user.id);
+  }
+
+  // ── ツーリング ──────────────────────────────
+  @Get(":nc_id/tooling")
+  getTooling(@Param("nc_id", ParseIntPipe) id: number) {
+    return this.nc.getTooling(id);
+  }
+
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
+  @Roles("OPERATOR", "ADMIN")
+  @Put(":nc_id/tooling")
+  saveTooling(
+    @Param("nc_id", ParseIntPipe) id: number,
+    @Body() dto: SaveNcToolingDto,
+    @Req() req: any,
+  ) {
+    return this.nc.saveTooling(id, dto, req.user.id);
   }
 
   /** NC-07: 段取シートデータ取得（認証不要） */

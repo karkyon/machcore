@@ -167,7 +167,7 @@ model NcProgram {
   folderName    String          @db.VarChar(100)             @map("folder_name")
   fileName      String          @db.VarChar(100)             @map("file_name")
   oNumber       String?         @db.VarChar(20)              @map("o_number")
-  version       String          @default("A") @db.VarChar(10)
+  version       String          @default("1.0001") @db.VarChar(10) // MC方式に統一(数値文字列)
   clampNote     String?         @db.Text                     @map("clamp_note")
   drawingCount  Int             @default(0)                  @map("drawing_count")
   photoCount    Int             @default(0)                  @map("photo_count")
