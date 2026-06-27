@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MachCore NC",
-  description: "NC旋盤プログラム管理システム",
+  title: "MachCore",
+  description: "MachCore — MC マシニング / NC 旋盤 管理システム",
 };
 
 export default function RootLayout({
