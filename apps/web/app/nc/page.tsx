@@ -94,10 +94,6 @@ export default function NcDashboard() {
         <span className="text-slate-400 text-xs">|</span>
         <span className="text-sm font-medium">NC 旋盤 ダッシュボード</span>
         <div className="ml-auto flex items-center gap-2 text-xs">
-          <button onClick={() => router.push("/mc")}
-            className="bg-teal-600 hover:bg-teal-500 text-white px-3 py-1.5 rounded font-bold transition-colors">
-            MC マシニング →
-          </button>
           {lastAt && <span className="text-slate-400">更新: {lastAt.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})}</span>}
           <button onClick={load} className="bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 rounded transition-colors text-slate-300">
             ↺ 更新
@@ -112,7 +108,7 @@ export default function NcDashboard() {
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">NC 旋盤</p>
             <nav className="space-y-1">
               {[
-                { label: "ダッシュボード", href: "/",           active: true },
+                { label: "ダッシュボード", href: "/nc",         active: true },
                 { label: "部品検索",       href: "/nc/search",  active: false },
               ].map(item => (
                 <button key={item.href} onClick={() => router.push(item.href)}

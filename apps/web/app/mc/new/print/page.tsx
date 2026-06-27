@@ -166,7 +166,7 @@ function McNewPrintInner() {
               className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3.5 rounded-xl text-sm mt-3">
               {printing ? "登録・送信中..." : "🖨 プリンタに直接印刷（加工IDを確定）"}
             </button>
-            <button onClick={() => { logout(); if (typeof window !== "undefined") sessionStorage.removeItem("mc_new_pending"); router.push("/"); }}
+            <button onClick={() => { logout(); if (typeof window !== "undefined") sessionStorage.removeItem("mc_new_pending"); router.push("/mc"); }}
               disabled={printing || previewing}
               className="w-full bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-600 font-bold py-3 rounded-xl text-sm transition-colors mt-3">
               ✗ キャンセル（ダッシュボードへ戻る）

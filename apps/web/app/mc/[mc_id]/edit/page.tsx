@@ -992,7 +992,7 @@ export default function McEditPage() {
                   sessionStorage.removeItem("sb_sheet_log_id");
                   sessionStorage.removeItem("sb_repeat_edit");
                 }
-                router.push("/");
+                router.push("/mc");
               }}
               className="text-blue-200 hover:text-white text-xs px-3 py-1 rounded border border-blue-400 hover:border-white transition-colors">
               キャンセル（中断）
@@ -1947,7 +1947,7 @@ export default function McEditPage() {
                       sessionStorage.removeItem("sb_repeat_edit");
                     }
                     logout();
-                    router.push("/");
+                    router.push("/mc");
                   } else {
                     // ★通常編集(部品照会等): 変更内容の確認を経ずに離脱する場合は
                     //   変更そのものを取り消す(revert)。CHANGINGステータスの固着を防ぐ。
