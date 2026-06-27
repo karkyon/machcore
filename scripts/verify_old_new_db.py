@@ -378,6 +378,337 @@ def verify_tooling(ss_mc, pg, limit=None):
     return summary, results
 
 
+# ────────────────────────────────────────────────────────────
+# ③ ワークオフセット 比較
+# ────────────────────────────────────────────────────────────
+
+def verify_work_offsets(ss_mc, pg, limit=None):
+    log("③ ワークオフセット 比較開始...")
+    mcc = ss_mc.cursor()
+    pgc = pg.cursor()
+
+    mcc.execute("""
+        SELECT 加工ID, G, X, Y, Z, A, R, WOD_ID
+        FROM ACC_ワークオフセット
+        ORDER BY 加工ID, WOD_ID
+    """)
+    old_rows = mcc.fetchall()
+    log(f"  旧DB取得: {len(old_rows)}件")
+    if limit:
+        old_rows = old_rows[:limit]
+
+    from collections import defaultdict
+    old_by_kakoid = defaultdict(list)
+    orphan_old_count = 0
+    for row in old_rows:
+        if row[0] is None:
+            orphan_old_count += 1
+            continue
+        old_by_kakoid[row[0]].append(row)
+    if orphan_old_count:
+        log(f"  [WARN] 旧DB側で加工IDがNULLの孤立行: {orphan_old_count}件（比較対象外として除外）")
+
+    pgc.execute("""
+        SELECT machining_id, g_code, x_offset, y_offset, z_offset, a_offset, r_offset
+        FROM mc_work_offsets
+        ORDER BY machining_id, id
+    """)
+    new_by_kakoid = defaultdict(list)
+    for row in pgc.fetchall():
+        if row[0] is None:
+            continue
+        new_by_kakoid[row[0]].append(row)
+
+    results = []
+    matched = mismatched = missing_in_new = row_count_mismatch = 0
+    kakoids = sorted(old_by_kakoid.keys())
+
+    for kakoid in kakoids:
+        old_list = old_by_kakoid[kakoid]
+        new_list = new_by_kakoid.get(kakoid)
+
+        if new_list is None:
+            missing_in_new += 1
+            results.append({"kakoid": kakoid, "status": "MISSING_IN_NEW", "rows": []})
+            continue
+
+        # ★mc_full_import.py PHASE4は同一加工ID内で同一Gコードが重複する場合、
+        #   ON CONFLICT DO NOTHINGで2件目以降をスキップする仕様。
+        #   そのため旧側もGコード単位で重複除去(先勝ち)してから比較する。
+        old_dedup = {}
+        for r in old_list:
+            g = str(r[1] or "").strip()
+            if g not in old_dedup:
+                old_dedup[g] = r
+        old_gcodes = sorted(old_dedup.keys())
+        new_by_g = {str(r[1] or "").strip(): r for r in new_list}
+        new_gcodes = sorted(new_by_g.keys())
+
+        if len(old_dedup) != len(new_by_g):
+            row_count_mismatch += 1
+            results.append({
+                "kakoid": kakoid, "status": "ROW_COUNT_MISMATCH",
+                "old_count": len(old_dedup), "new_count": len(new_by_g), "rows": [],
+            })
+            continue
+
+        row_diffs = []
+        for idx, g in enumerate(old_gcodes):
+            old_r = old_dedup[g]
+            new_r = new_by_g.get(g)
+            if new_r is None:
+                row_diffs.append({"row_index": idx + 1, "fields": [
+                    {"field": "Gコード", "old": g, "new": ""}
+                ]})
+                continue
+            (o_kakoid, o_g, o_x, o_y, o_z, o_a, o_r, o_wid) = old_r
+            (n_kakoid, n_g, n_x, n_y, n_z, n_a, n_r) = new_r
+            field_checks = [
+                ("X", o_x, n_x, "num"), ("Y", o_y, n_y, "num"),
+                ("Z", o_z, n_z, "num"), ("A", o_a, n_a, "num"),
+                ("R", o_r, n_r, "num"),
+            ]
+            diffs = []
+            for label, old_v, new_v, kind in field_checks:
+                if not values_equal(old_v, new_v, kind):
+                    diffs.append({
+                        "field": label,
+                        "old": "" if old_v is None else str(old_v),
+                        "new": "" if new_v is None else str(new_v),
+                    })
+            if diffs:
+                row_diffs.append({"row_index": idx + 1, "fields": diffs})
+
+        if row_diffs:
+            mismatched += 1
+            results.append({"kakoid": kakoid, "status": "MISMATCH", "rows": row_diffs})
+        else:
+            matched += 1
+
+    summary = {
+        "category": "ワークオフセット",
+        "total": len(kakoids),
+        "matched": matched,
+        "mismatched": mismatched,
+        "missing_in_new": missing_in_new,
+        "row_count_mismatch": row_count_mismatch,
+    }
+    log(f"  ③ 完了: total={len(kakoids)} matched={matched} mismatched={mismatched} "
+        f"row_count_mismatch={row_count_mismatch} missing={missing_in_new}")
+    return summary, results
+
+
+# ────────────────────────────────────────────────────────────
+# ④ インデックスプログラム 比較
+# ────────────────────────────────────────────────────────────
+
+def verify_index_programs(ss_mc, pg, limit=None):
+    log("④ インデックスプログラム 比較開始...")
+    mcc = ss_mc.cursor()
+    pgc = pg.cursor()
+
+    try:
+        mcc.execute("SELECT TOP 1 * FROM ACC_インデックスプログラム")
+        cols = [d[0] for d in mcc.description]
+    except Exception as e:
+        log(f"  [WARN] ACC_インデックスプログラム取得失敗: {e}")
+        return {"category": "インデックスプログラム", "total": 0, "matched": 0,
+                "mismatched": 0, "missing_in_new": 0, "row_count_mismatch": 0}, []
+
+    mcc.execute("SELECT * FROM ACC_インデックスプログラム ORDER BY 加工ID, IP_ID")
+    old_rows = mcc.fetchall()
+    log(f"  旧DB取得: {len(old_rows)}件")
+    if limit:
+        old_rows = old_rows[:limit]
+
+    from collections import defaultdict
+    old_by_kakoid = defaultdict(list)
+    for row in old_rows:
+        row_dict = dict(zip(cols, row))
+        kakoid = row_dict.get("加工ID")
+        if kakoid is None:
+            continue
+        old_by_kakoid[kakoid].append(row_dict)
+
+    pgc.execute("""
+        SELECT machining_id, sort_order, axis_0, axis_1, axis_2, note
+        FROM mc_index_programs
+        ORDER BY machining_id, sort_order
+    """)
+    new_by_kakoid = defaultdict(list)
+    for row in pgc.fetchall():
+        if row[0] is None:
+            continue
+        new_by_kakoid[row[0]].append(row)
+
+    results = []
+    matched = mismatched = missing_in_new = row_count_mismatch = 0
+    kakoids = sorted(old_by_kakoid.keys())
+
+    for kakoid in kakoids:
+        old_list = old_by_kakoid[kakoid]
+        new_list = new_by_kakoid.get(kakoid)
+
+        if new_list is None:
+            missing_in_new += 1
+            results.append({"kakoid": kakoid, "status": "MISSING_IN_NEW", "rows": []})
+            continue
+
+        if len(old_list) != len(new_list):
+            row_count_mismatch += 1
+            results.append({
+                "kakoid": kakoid, "status": "ROW_COUNT_MISMATCH",
+                "old_count": len(old_list), "new_count": len(new_list), "rows": [],
+            })
+            continue
+
+        row_diffs = []
+        for idx, (old_rd, new_r) in enumerate(zip(old_list, new_list)):
+            o_step = old_rd.get("STEP_N")
+            o_axis1 = old_rd.get("第1軸")
+            o_axis2 = old_rd.get("第2軸")
+            (n_kakoid, n_sort, n_axis0, n_axis1, n_axis2, n_note) = new_r
+            field_checks = [
+                ("STEP_N", o_step, n_axis0, "str"),
+                ("第1軸", o_axis1, n_axis1, "str"),
+                ("第2軸", o_axis2, n_axis2, "str"),
+            ]
+            diffs = []
+            for label, old_v, new_v, kind in field_checks:
+                if not values_equal(old_v, new_v, kind):
+                    diffs.append({
+                        "field": label,
+                        "old": "" if old_v is None else str(old_v),
+                        "new": "" if new_v is None else str(new_v),
+                    })
+            if diffs:
+                row_diffs.append({"row_index": idx + 1, "fields": diffs})
+
+        if row_diffs:
+            mismatched += 1
+            results.append({"kakoid": kakoid, "status": "MISMATCH", "rows": row_diffs})
+        else:
+            matched += 1
+
+    summary = {
+        "category": "インデックスプログラム",
+        "total": len(kakoids),
+        "matched": matched,
+        "mismatched": mismatched,
+        "missing_in_new": missing_in_new,
+        "row_count_mismatch": row_count_mismatch,
+    }
+    log(f"  ④ 完了: total={len(kakoids)} matched={matched} mismatched={mismatched} "
+        f"row_count_mismatch={row_count_mismatch} missing={missing_in_new}")
+    return summary, results
+
+
+# ────────────────────────────────────────────────────────────
+# ⑤ 履歴(変更履歴/印刷履歴/作業記録) 比較
+#   旧ACC_変更履歴の1レコードは内容区分ID(nk)により最大3テーブルに分散する。
+#   mc_full_import.py PHASE6の分岐ロジックをそのまま再現し、
+#   「MCIDごとに旧側で予測される各テーブルの件数」と
+#   「新側に実際に入っている件数」を比較する(個別フィールド突合ではなく件数ベース)。
+# ────────────────────────────────────────────────────────────
+
+def verify_history(ss_mc, pg, limit=None):
+    log("⑤ 履歴(変更履歴/印刷履歴/作業記録) 比較開始...")
+    mcc = ss_mc.cursor()
+    pgc = pg.cursor()
+
+    mcc.execute("""
+        SELECT MCID, 内容区分ID, 総時間
+        FROM ACC_変更履歴
+        ORDER BY MCID
+    """)
+    old_rows = mcc.fetchall()
+    log(f"  旧DB取得: {len(old_rows)}件")
+    if limit:
+        old_rows = old_rows[:limit]
+
+    # mcid → legacy_mcidでmc_programs.idへの対応(複数あり得る: 共通部品等)
+    pgc.execute("SELECT id, legacy_mcid FROM mc_programs WHERE legacy_mcid IS NOT NULL")
+    mcid_map = {}
+    for mc_db_id, lmid in pgc.fetchall():
+        mcid_map.setdefault(lmid, []).append(mc_db_id)
+
+    from collections import defaultdict
+    # MCIDごとに旧側で予測される件数を集計(mc_full_import.py PHASE6ロジックの再現)
+    expected = defaultdict(lambda: {"setup_sheet_logs": 0, "change_history": 0, "work_records": 0})
+    for mcid, nk_raw, total_time in old_rows:
+        if mcid is None:
+            continue
+        try:
+            nk = int(nk_raw or 0)
+        except (TypeError, ValueError):
+            nk = 0
+        has_total_time = total_time is not None and str(total_time).strip() != ""
+
+        if nk in (1, 3, 7):
+            expected[mcid]["setup_sheet_logs"] += 1
+        if nk in (2, 4, 5, 6, 8, 9, 10, 11, 13, 14, 15, 16, 99):
+            expected[mcid]["change_history"] += 1
+        if nk == 17 or has_total_time:
+            expected[mcid]["work_records"] += 1
+
+    # 新側の実際の件数をMCID単位(mc_programs.id単位)で集計
+    pgc.execute("SELECT mc_program_id, COUNT(*) FROM mc_setup_sheet_logs WHERE mc_program_id IS NOT NULL GROUP BY mc_program_id")
+    actual_sl = dict(pgc.fetchall())
+    pgc.execute("SELECT mc_program_id, COUNT(*) FROM mc_change_history GROUP BY mc_program_id")
+    actual_ch = dict(pgc.fetchall())
+    pgc.execute("SELECT mc_program_id, COUNT(*) FROM work_records WHERE mc_program_id IS NOT NULL GROUP BY mc_program_id")
+    actual_wr = dict(pgc.fetchall())
+
+    results = []
+    matched = mismatched = missing_in_new = 0
+    mcids = sorted(expected.keys())
+
+    for mcid in mcids:
+        mc_db_ids = mcid_map.get(mcid, [])
+        if not mc_db_ids:
+            missing_in_new += 1
+            results.append({"kakoid": mcid, "status": "MISSING_IN_NEW", "rows": []})
+            continue
+
+        exp = expected[mcid]
+        # 同一MCIDが複数mc_programsレコードに展開されるケース(共通部品)では合算して比較
+        act_sl = sum(actual_sl.get(d, 0) for d in mc_db_ids)
+        act_ch = sum(actual_ch.get(d, 0) for d in mc_db_ids)
+        act_wr = sum(actual_wr.get(d, 0) for d in mc_db_ids)
+
+        field_checks = [
+            ("印刷履歴件数", exp["setup_sheet_logs"], act_sl, "num"),
+            ("変更履歴件数", exp["change_history"], act_ch, "num"),
+            ("作業記録件数", exp["work_records"], act_wr, "num"),
+        ]
+        diffs = []
+        for label, old_v, new_v, kind in field_checks:
+            if not values_equal(old_v, new_v, kind):
+                diffs.append({
+                    "field": label,
+                    "old": "" if old_v is None else str(old_v),
+                    "new": "" if new_v is None else str(new_v),
+                })
+        if diffs:
+            mismatched += 1
+            results.append({
+                "kakoid": mcid, "status": "MISMATCH",
+                "rows": [{"row_index": 1, "fields": diffs}],
+            })
+        else:
+            matched += 1
+
+    summary = {
+        "category": "履歴(変更/印刷/作業記録)",
+        "total": len(mcids),
+        "matched": matched,
+        "mismatched": mismatched,
+        "missing_in_new": missing_in_new,
+    }
+    log(f"  ⑤ 完了: total={len(mcids)} matched={matched} mismatched={mismatched} missing={missing_in_new}")
+    return summary, results
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=None, help="検証対象を先頭N件に制限(テスト用)")
@@ -391,13 +722,19 @@ def main():
 
     summary1, results1 = verify_basic_info(ss_mc, pg, args.limit)
     summary2, results2 = verify_tooling(ss_mc, pg, args.limit)
+    summary3, results3 = verify_work_offsets(ss_mc, pg, args.limit)
+    summary4, results4 = verify_index_programs(ss_mc, pg, args.limit)
+    summary5, results5 = verify_history(ss_mc, pg, args.limit)
 
     output = {
         "generated_at": datetime.now().isoformat(),
-        "summaries": [summary1, summary2],
+        "summaries": [summary1, summary2, summary3, summary4, summary5],
         "details": {
             "basic_info": results1,
             "tooling": results2,
+            "work_offsets": results3,
+            "index_programs": results4,
+            "history": results5,
         },
     }
 

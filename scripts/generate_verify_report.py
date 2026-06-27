@@ -62,6 +62,15 @@ def classify_issue(field, old_v, new_v, category):
     if f in ("N", "工具", "T", "D", "SUB"):
         return f"ツーリング_{f}列_不一致"
 
+    if f in ("X", "Y", "Z", "A", "R", "Gコード"):
+        return f"ワークオフセット_{f}列_不一致"
+
+    if f in ("STEP_N", "第1軸", "第2軸"):
+        return f"インデックスプログラム_{f}列_不一致"
+
+    if f in ("印刷履歴件数", "変更履歴件数", "作業記録件数"):
+        return f"履歴_{f}不一致"
+
     return f"{f}_その他不一致"
 
 
@@ -123,6 +132,98 @@ def build_issue_table(details):
                 if len(issue_map[key]["examples"]) < 5:
                     issue_map[key]["examples"].append({
                         "key": f"加工ID:{rec['kakoid']} / 行{row['row_index']} / {fd['field']}",
+                        "old": fd["old"], "new": fd["new"],
+                    })
+
+    # ③ワークオフセット
+    for rec in details.get("work_offsets", []):
+        cat = "ワークオフセット"
+        if rec["status"] == "MISSING_IN_NEW":
+            key = "ワークオフセット_新システムにレコード無し"
+            issue_map[key]["count"] += 1
+            issue_map[key]["category_set"].add(cat)
+            if len(issue_map[key]["examples"]) < 5:
+                issue_map[key]["examples"].append({
+                    "key": f"加工ID:{rec['kakoid']}",
+                    "old": "(レコード存在)", "new": "(レコード無し)",
+                })
+            continue
+        if rec["status"] == "ROW_COUNT_MISMATCH":
+            key = "ワークオフセット_行数不一致"
+            issue_map[key]["count"] += 1
+            issue_map[key]["category_set"].add(cat)
+            if len(issue_map[key]["examples"]) < 5:
+                issue_map[key]["examples"].append({
+                    "key": f"加工ID:{rec['kakoid']}",
+                    "old": f"{rec.get('old_count')}行", "new": f"{rec.get('new_count')}行",
+                })
+            continue
+        for row in rec.get("rows", []):
+            for fd in row.get("fields", []):
+                key = classify_issue(fd["field"], fd["old"], fd["new"], cat)
+                issue_map[key]["count"] += 1
+                issue_map[key]["category_set"].add(cat)
+                if len(issue_map[key]["examples"]) < 5:
+                    issue_map[key]["examples"].append({
+                        "key": f"加工ID:{rec['kakoid']} / {fd['field']}",
+                        "old": fd["old"], "new": fd["new"],
+                    })
+
+    # ④インデックスプログラム
+    for rec in details.get("index_programs", []):
+        cat = "インデックスプログラム"
+        if rec["status"] == "MISSING_IN_NEW":
+            key = "インデックスプログラム_新システムにレコード無し"
+            issue_map[key]["count"] += 1
+            issue_map[key]["category_set"].add(cat)
+            if len(issue_map[key]["examples"]) < 5:
+                issue_map[key]["examples"].append({
+                    "key": f"加工ID:{rec['kakoid']}",
+                    "old": "(レコード存在)", "new": "(レコード無し)",
+                })
+            continue
+        if rec["status"] == "ROW_COUNT_MISMATCH":
+            key = "インデックスプログラム_行数不一致"
+            issue_map[key]["count"] += 1
+            issue_map[key]["category_set"].add(cat)
+            if len(issue_map[key]["examples"]) < 5:
+                issue_map[key]["examples"].append({
+                    "key": f"加工ID:{rec['kakoid']}",
+                    "old": f"{rec.get('old_count')}行", "new": f"{rec.get('new_count')}行",
+                })
+            continue
+        for row in rec.get("rows", []):
+            for fd in row.get("fields", []):
+                key = classify_issue(fd["field"], fd["old"], fd["new"], cat)
+                issue_map[key]["count"] += 1
+                issue_map[key]["category_set"].add(cat)
+                if len(issue_map[key]["examples"]) < 5:
+                    issue_map[key]["examples"].append({
+                        "key": f"加工ID:{rec['kakoid']} / {fd['field']}",
+                        "old": fd["old"], "new": fd["new"],
+                    })
+
+    # ⑤履歴(変更履歴/印刷履歴/作業記録)
+    for rec in details.get("history", []):
+        cat = "履歴(変更/印刷/作業記録)"
+        if rec["status"] == "MISSING_IN_NEW":
+            key = "履歴_新システムにMCレコード無し"
+            issue_map[key]["count"] += 1
+            issue_map[key]["category_set"].add(cat)
+            if len(issue_map[key]["examples"]) < 5:
+                issue_map[key]["examples"].append({
+                    "key": f"MCID:{rec['kakoid']}",
+                    "old": "(レコード存在)", "new": "(レコード無し)",
+                })
+            continue
+        for row in rec.get("rows", []):
+            for fd in row.get("fields", []):
+                key = classify_issue(fd["field"], fd["old"], fd["new"], cat)
+                issue_map[key]["count"] += 1
+                issue_map[key]["category_set"].add(cat)
+                if len(issue_map[key]["examples"]) < 5:
+                    issue_map[key]["examples"].append({
+                        "key": f"MCID:{rec['kakoid']} / {fd['field']}",
                         "old": fd["old"], "new": fd["new"],
                     })
 
