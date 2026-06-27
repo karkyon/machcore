@@ -1,4 +1,5 @@
 import { IsNumber, IsInt, IsString, IsOptional, Min, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateMcDto {
   @IsInt()
@@ -25,7 +26,8 @@ export class CreateMcDto {
   @IsOptional() @IsInt() @Min(0)
   cycle_time_sec?: number;
 
-  @IsOptional() @IsNumber() @Min(0.0001)
+  // update-mc.dto.tsと同じ理由でType変換を追加(将来の同種バグ予防)
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0.0001)
   machining_qty?: number;
 
   @IsOptional() @IsString() @MaxLength(20)

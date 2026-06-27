@@ -366,7 +366,10 @@ def phase2(pg, dry_run=False):
                         sub_pg_no, note, raw_program_line
                     ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """, (kakoid,
-                      int(float(order or 0)),
+                      # ★小数枝番対応: 順番列を10倍してsort_orderに格納。
+                      #   順番=5.2(枝番) → 52, 順番=5(既存整数) → 50 となり、
+                      #   間隔10の整数値間に枝番を重複なく吸収できる。
+                      round(float(order or 0) * 10),
                       n_no_str,
                       tool_name_merged,
                       str(t_no).strip() if t_no else None,

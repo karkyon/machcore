@@ -312,7 +312,11 @@ export default function McEditPage() {
       setONumber(d.oNumber ?? "");
       setClampNote(d.clampNote ?? "");
       setNote(d.note ?? "");
-      setMachiningQty(d.machiningQty ?? 1);
+      // ★Prisma Decimal型はAPIレスポンスで文字列("1.0000"等)として返るため、
+      //   Number()で確実に数値化してからstateへ格納する。これを怠ると、
+      //   一度も編集せず保存した際に文字列のままバックエンドへ送信され、
+      //   class-validatorのIsNumberが文字列を受け付けず400エラーになる。
+      setMachiningQty(d.machiningQty != null ? Number(d.machiningQty) : 1);
       if (d.cycleTimeSec != null) {
         setCycleH(Math.floor(d.cycleTimeSec / 3600));
         setCycleM(Math.floor((d.cycleTimeSec % 3600) / 60));
@@ -768,7 +772,7 @@ export default function McEditPage() {
         o_number:       oNumber   || undefined,
         clamp_note:     clampNote || undefined,
         cycle_time_sec: cycleTimeSec > 0 ? cycleTimeSec : undefined,
-        machining_qty:  machiningQty,
+        machining_qty:  Number(machiningQty),
         note:           note || undefined,
         creator_id:     (creatorId && !isNaN(parseInt(creatorId))) ? parseInt(creatorId) : null,
         sheet_created_at: sheetCreatedAt || null,
