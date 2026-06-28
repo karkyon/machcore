@@ -132,6 +132,16 @@ export class NcService {
     }));
   }
 
+  /** Ridoc図面プロキシ用: 部品の図番取得（MC側 findPartDrawingNo と同方式） */
+  async findPartDrawingNo(ncId: number): Promise<{ drawingNo: string | null } | null> {
+    const r = await this.prisma.ncProgram.findUnique({
+      where: { id: ncId },
+      select: { part: { select: { drawingNo: true } } },
+    });
+    if (!r) return null;
+    return { drawingNo: r.part.drawingNo || null };
+  }
+
   /** NC-03: NC詳細 */
   async findOne(id: number) {
     const r = await this.prisma.ncProgram.findUnique({

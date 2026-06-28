@@ -270,10 +270,10 @@ export default function NcEditPage() {
             </span>
             NC詳細
           </button>
+          <span className="text-slate-600">|</span>
           <button onClick={() => router.push("/nc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>ダッシュボードへ
           </button>
-          <span className="text-slate-600">|</span>
           <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
           <span className="text-sm font-medium flex items-center gap-1.5">変更・登録</span>
           <span className="ml-auto">

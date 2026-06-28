@@ -97,6 +97,43 @@ export class NcController {
     return this.nc.listFiles(id);
   }
 
+  // ── Ridoc図面プロキシ（TN=サムネ / ORG=原寸）MC側と同方式 ──
+  @Get(":nc_id/drawing-image")
+  async drawingImage(
+    @Param("nc_id", ParseIntPipe) ncId: number,
+    @Query("imgType") imgType: string = "TN",
+    @Res() reply: FastifyReply,
+  ) {
+    if (imgType !== "TN" && imgType !== "ORG") {
+      reply.status(400).send({ error: "imgType は TN または ORG を指定してください" });
+      return;
+    }
+    const prog = await this.nc.findPartDrawingNo(ncId);
+    if (!prog) { reply.status(404).send({ error: "NC レコードが見つかりません" }); return; }
+    if (!prog.drawingNo) { reply.status(404).send({ error: "図面番号が登録されていません" }); return; }
+    const ridocUrl = process.env.RIDOC_API_URL;
+    if (!ridocUrl) { reply.status(503).send({ error: "RIDOC_API_URL が設定されていません" }); return; }
+    const url = `${ridocUrl}/v1/DrawingImage?docId=${encodeURIComponent(prog.drawingNo)}&imgType=${imgType}`;
+    try {
+      const upstream = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+      if (!upstream.ok) { reply.status(upstream.status).send(await upstream.text()); return; }
+      const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      if (["image/tiff", "image/tif", "image/bmp", "application/octet-stream"].includes(contentType)) {
+        const sharp = (await import("sharp")).default;
+        const jpeg = await sharp(buf).jpeg({ quality: 90 }).toBuffer();
+        reply.header("Content-Type", "image/jpeg");
+        reply.header("Cache-Control", "public, max-age=3600");
+        return reply.send(jpeg);
+      }
+      reply.header("Content-Type", contentType);
+      reply.header("Cache-Control", "public, max-age=3600");
+      return reply.send(buf);
+    } catch (e) {
+      reply.status(502).send({ error: "RidocImageAPI への接続に失敗しました" });
+    }
+  }
+
   // ── UploadAgent連携: ワンタイムアップロードチケット発行（MC側と同方式） ──
   @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
   @Roles("OPERATOR", "ADMIN")

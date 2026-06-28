@@ -67,6 +67,7 @@ export default function NcDetailPage() {
 
   // AUTH（D&Dより先に宣言必須）
   const { operator, isAuthenticated, logout, token } = useAuth();
+  const [drawingLoading, setDrawingLoading] = useState(false);
   const [authModalOpen,   setAuthModalOpen]   = useState(false);
   const [authSessionType, setAuthSessionType] = useState("edit");
 
@@ -678,6 +679,42 @@ export default function NcDetailPage() {
           {mainTab === "files" && (
             <div className="p-5 space-y-4">
 
+              {/* ── 📋 Ridoc図面カード ── */}
+              {d.part.drawingNo && (
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs font-bold text-white bg-indigo-600 px-2.5 py-0.5 rounded-full">📋 図面</span>
+                    <span className="text-xs text-slate-400">{d.part.drawingNo}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <a
+                      href={`/api/nc/${ncId}/drawing-image?imgType=ORG`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setDrawingLoading(true)}
+                      className="bg-white rounded-xl border-2 border-indigo-300 overflow-hidden cursor-pointer hover:shadow-md transition-shadow block"
+                    >
+                      <div className="aspect-square bg-indigo-50 flex items-center justify-center overflow-hidden">
+                        <img src={`/api/nc/${ncId}/drawing-image?imgType=TN`} alt={`図面 ${d.part.drawingNo}`}
+                          className="w-full h-full object-contain" loading="lazy"
+                          onError={e => {
+                            const el = e.target as HTMLImageElement; el.style.display = "none";
+                            const par = el.parentElement;
+                            if (par && !par.querySelector(".no-tn-msg")) {
+                              const m = document.createElement("span"); m.className = "no-tn-msg text-[10px] text-slate-400 text-center px-2";
+                              m.textContent = "図面取得不可"; par.appendChild(m);
+                            }
+                          }} />
+                      </div>
+                      <div className="px-2 py-1.5 bg-indigo-50 border-t border-indigo-200">
+                        <p className="text-[11px] text-indigo-800 font-bold truncate">{d.part.drawingNo}</p>
+                        <p className="text-[10px] text-slate-400">クリックで原寸表示（新規タブ）</p>
+                      </div>
+                    </a>
+                  </div>
+                </div>
+              )}
+
               {/* ── ローディング ── */}
               {filesLoading && (
                 <div className="flex items-center justify-center py-16 text-slate-400 gap-2">
@@ -698,7 +735,7 @@ export default function NcDetailPage() {
                     onDelete={handleDelete}
                   />
                   <FileSection
-                    title="📄 図・段取図"
+                    title="📐 図"
                     colorTheme="purple"
                     files={files.filter(f => f.file_type === "DRAWING")}
                     isAuthenticated={isAuthenticated}
