@@ -81,6 +81,7 @@ export default function NcSearchPage() {
         <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
         <span className="text-base font-medium">{adminInfo?.companyName ?? "NC 旋盤管理システム"}</span>
         <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => router.push("/nc")} className="text-xs bg-slate-600 hover:bg-slate-500 text-white font-bold px-3 py-1.5 rounded-lg transition-colors">← ダッシュボードへ</button>
           <span className="text-[10px] text-slate-400 bg-slate-700 px-2 py-0.5 rounded">認証不要</span>
           {isAdmin && <div className="flex items-center gap-2 pl-2 border-l border-slate-700">
             <span className="text-[11px] text-slate-300">管理者</span>

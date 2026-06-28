@@ -222,17 +222,19 @@ export default function NcDetailPage() {
       <div className="h-screen flex flex-col bg-slate-50" onMouseMove={onMouseMove} onMouseUp={onMouseUp}>
 
         {/* ── ヘッダー ── */}
-        <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
+        <header className="bg-slate-800 text-white px-5 py-2 flex items-center gap-3 shrink-0">
           <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
-          <span className="text-sm font-medium">NC 詳細</span>
-          <span className="ml-auto">
+          <span className="text-sm font-medium text-white">NC 詳細</span>
+          <span className="ml-auto flex items-center gap-3">
+            <button onClick={() => router.push("/nc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+              ダッシュボードへ
+            </button>
             <button onClick={() => router.push("/nc/search")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 rounded-lg text-xs font-bold text-white transition-colors">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
               部品検索へ戻る
             </button>
           </span>
-
-
         </header>
 
         {/* ── フローティング工程切り替えパネル ── */}
@@ -292,64 +294,62 @@ export default function NcDetailPage() {
 
         {/* ── 部品ヘッダーエリア ── */}
         <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
-          <div className="flex items-center gap-3 mb-1">
-            <span className="font-mono text-sky-600 font-bold text-lg">{d.part.drawingNo}</span>
-            <ProcessBadge level={d.processL} />
-            <StatusBadge status={d.status} />
-            <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">
-              Ver. {d.version}
-            </span>
+          <div className="flex items-center gap-3 flex-wrap mb-1.5">
+            <span className="font-mono text-sky-600 font-bold text-2xl leading-none">{d.part.drawingNo}</span>
+            <span className="text-slate-300 text-xl font-light">/</span>
+            <span className="font-bold text-slate-800 text-xl leading-none">{d.part.name}</span>
+            <div className="flex items-center gap-2 ml-2">
+              <ProcessBadge level={d.processL} />
+              <StatusBadge status={d.status} />
+              <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
+            </div>
           </div>
-          <div className="text-sm text-slate-700 font-medium mb-1">{d.part.name}</div>
-          <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
-            <span>NC_id: {d.id}</span>
-            <span>部品ID: {d.part.partId}</span>
-            {d.part.clientName && <span>納入先: {d.part.clientName}</span>}
-            {d.processingId && <span>加工ID: {d.processingId}</span>}
+          <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
+            <span>NC_id: <span className="text-slate-700">{d.id}</span></span>
+            <span className="text-slate-400">|</span>
+            <span>部品ID: <span className="text-slate-700">{d.part.partId}</span></span>
+            {d.part.clientName && <><span className="text-slate-400">|</span><span>納入先: <span className="text-slate-700">{d.part.clientName}</span></span></>}
+            {d.processingId && <><span className="text-slate-400">|</span><span>加工ID: <span className="text-slate-700">{d.processingId}</span></span></>}
           </div>
         </div>
 
-        {/* ── 画面ナビゲーションタブ ── */}
-        <nav className="bg-slate-700 px-5 flex gap-0 shrink-0">
-          {([
-            { href: `/nc/${ncId}`,        label: "NC詳細",    active: true,  svg: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> },
-            { href: `/nc/${ncId}/edit`,   label: "変更・登録", active: false, svg: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> },
-            { href: `/nc/${ncId}/print`,  label: "段取シート", active: false, svg: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> },
-            { href: `/nc/${ncId}/record`, label: "作業記録",  active: false, svg: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> },
-          ] as { href: string; label: string; active: boolean; svg: React.ReactNode }[]).map(tab => (
-            <button
-              key={tab.href}
-              onClick={() => router.push(tab.href)}
-              className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-                tab.active
-                  ? "border-sky-400 text-sky-300"
-                  : "border-transparent text-slate-400 hover:text-white hover:border-slate-400"
-              }`}
-            >
-              {tab.svg}
-              <span>{tab.label}</span>
-            </button>
-          ))}
+        {/* ── 画面ナビゲーションタブ（MC側準拠: ブラウザタブ風） ── */}
+        <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
+          <button onClick={() => router.push(`/nc/${ncId}`)}
+            className="px-4 py-1.5 text-[12px] font-bold flex items-center gap-1.5 rounded-t border border-b-0 border-[#1b2a41] bg-[#1b2a41] text-white">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>NC詳細
+          </button>
+          <button onClick={() => router.push(`/nc/${ncId}/edit`)}
+            className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
+          </button>
+          <button onClick={() => router.push(`/nc/${ncId}/print`)}
+            className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
+          </button>
+          <button onClick={() => router.push(`/nc/${ncId}/record`)}
+            className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録
+          </button>
         </nav>
 
-        {/* ── メインタブバー ── */}
-        <div className="bg-white border-b border-slate-200 px-5 shrink-0 flex gap-0">
+        {/* ── メインタブバー（MC側準拠: コンテンツタブ） ── */}
+        <div className="bg-[#f4f7fb] border-b border-[#d0d8e4] px-4 flex gap-1 items-end shrink-0 pt-1.5 overflow-x-auto">
           {([
-            { key: "lathe",   label: "旋盤データ", svg: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg> },
-            { key: "history", label: "履歴",       svg: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg> },
-            { key: "files",   label: "写真・図",   svg: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> },
-          ] as { key: MainTab; label: string; svg: React.ReactNode }[]).map(t => (
+            { key: "lathe",   label: "旋盤データ" },
+            { key: "history", label: "履歴" },
+            { key: "files",   label: "写真・図" },
+          ] as { key: MainTab; label: string }[]).map(t => (
             <button
               key={t.key}
               onClick={() => setMainTab(t.key)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap rounded-t border border-b-0 transition-colors ${
                 mainTab === t.key
-                  ? "border-sky-500 text-sky-600"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
+                  ? "border-[#1b2a41] bg-[#1b2a41] text-white"
+                  : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"
               }`}
             >
-              {t.svg}
-              <span>{t.label}</span>
+              {t.label}
             </button>
           ))}
         </div>

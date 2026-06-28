@@ -1066,7 +1066,7 @@ function McRecordPageInner() {
           sessionStorage.removeItem("sb_next_record");
           sessionStorage.removeItem("sb_sheet_log_id");
           logout();
-          setTimeout(() => router.push("/"), 1500);
+          setTimeout(() => router.push("/mc"), 1500);
         }
       }
     } catch (e: any) {
@@ -1087,7 +1087,7 @@ function McRecordPageInner() {
               <span className="w-5 h-5 rounded-full bg-teal-500 flex items-center justify-center shrink-0"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></span>MC詳細
             </button>
             <span className="text-slate-600">|</span>
-            <button onClick={() => router.push("/")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
+            <button onClick={() => router.push("/mc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>ダッシュボードへ
             </button>
           </>
@@ -1622,7 +1622,7 @@ function McRecordPageInner() {
                 <button onClick={() => {
                     resetForm();
                     if (!editRecordId) {
-                      if (sbMode) { router.push("/"); }
+                      if (sbMode) { router.push("/mc"); }
                       else { logout(); router.push(`/mc/${mcId}`); }
                     }
                   }}
