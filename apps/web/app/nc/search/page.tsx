@@ -130,15 +130,7 @@ export default function NcSearchPage() {
             <button onClick={handleSearch} disabled={loading} className="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white py-2 rounded-lg text-sm font-bold transition-colors mt-1">{loading ? "検索中..." : "● 検索"}</button>
             {results.length > 0 && <button onClick={() => { setNcIdInput(""); setPartIdInput(""); setDrawingNoInput(""); setNameInput(""); setClientInput(""); setMachineInput(""); setResults([]); setTotal(null); }} className="w-full border border-slate-200 text-slate-500 hover:bg-slate-50 py-1.5 rounded-lg text-xs">クリア</button>}
             {total !== null && <div className="text-xs text-slate-500 bg-slate-50 rounded p-2">{total > 0 ? <span><b className="text-slate-700">{total}</b> 件ヒット</span> : <span className="text-red-500">0件（条件を変更してください）</span>}</div>}
-            {recent.length > 0 && <div className="pt-2 border-t border-slate-100">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">最近のアクセス</div>
-              {recent.slice(0,5).map((r: any,i) => (
-                <div key={i} onClick={() => handleSelect(r.nc_id)} className="flex items-center gap-2 py-1.5 px-1 rounded cursor-pointer hover:bg-slate-50 text-[11px]">
-                  <span className="font-mono text-sky-600 font-bold w-10 shrink-0">{r.nc_id}</span>
-                  <span className="text-slate-600 truncate">{r.drawing_no}</span>
-                </div>
-              ))}
-            </div>}
+
             {isAdmin && <div className="pt-2 border-t border-slate-100 text-center"><button onClick={() => router.push("/admin")} className="text-xs text-sky-500 hover:underline">▶ 管理画面へ</button></div>}
           </div>
         </aside>
