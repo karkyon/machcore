@@ -2,6 +2,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { ncApi, machinesApi, filesApi, NcDetail, Machine, UpdateNcBody, downloadApi } from "@/lib/api";
+import { isAgentOnline, agentPickAndUpload } from "@/lib/upload-agent";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,28 +35,59 @@ export default function NcEditPage() {
   // AUTH（必ずファイルアップロードより先に宣言）
   const { operator, isAuthenticated, logout, token } = useAuth();
 
-  // ── ファイルアップロード（useAuth後に配置）──
-  const photoInputRef = useRef<HTMLInputElement>(null);
-  const scanInputRef  = useRef<HTMLInputElement>(null);
+  // ── ファイルアップロード（UploadAgent経由、MC側と同方式）──
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
 
-  const handleFileUpload = useCallback(async (file: File) => {
-    if (!token) return;
+  const issueNcUploadTicket = async (fileType: "PHOTO" | "DRAWING") => {
+    if (!token) throw new Error("認証が必要です");
+    const res = await fetch(`/api/nc/${ncId}/files/upload-ticket`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ file_type: fileType }),
+    });
+    if (!res.ok) throw new Error(`チケット発行失敗: HTTP ${res.status}`);
+    const json = await res.json();
+    return json.ticket as string;
+  };
+
+  const requestNcUpload = useCallback(async (fileType: "PHOTO" | "DRAWING") => {
+    if (!token || uploading) return;
     setUploading(true);
-    setUploadMsg(null);
+    setUploadMsg("⏳ UploadAgentに接続中...");
+
+    const agentOnline = await isAgentOnline();
+    if (!agentOnline) {
+      const msg = "❌ UploadAgentが起動していません。タスクトレイを確認し、UploadAgent を起動してください。";
+      setUploadMsg(msg);
+      setUploading(false);
+      window.alert(msg);
+      return;
+    }
+
+    const ok = window.confirm(
+      "【アップロード元ファイルの削除確認】\n選択したファイルをアップロードします。アップロード完了後、元ファイルはゴミ箱フォルダへ自動移動されます。\n続行しますか？"
+    );
+    if (!ok) { setUploading(false); setUploadMsg(null); return; }
+
+    setUploadMsg("⏳ UploadAgentでファイル選択ダイアログを開いています...");
     try {
-      await filesApi.upload(ncId, file, token);
-      setUploadMsg(`✅ ${file.name} をアップロードしました`);
+      const ticket = await issueNcUploadTicket(fileType);
+      const result = await agentPickAndUpload(ticket, fileType);
+
+      if (result.cancelled) { setUploadMsg(null); return; }
+      if (!result.success) { setUploadMsg(`❌ ${result.error ?? "アップロードに失敗しました"}`); return; }
+
       const res = await ncApi.findOne(ncId);
       setDetail(res.data);
-    } catch {
-      setUploadMsg("❌ アップロードに失敗しました");
+      setUploadMsg(`✅ ${result.files.length}件アップロード完了`);
+    } catch (e: any) {
+      setUploadMsg("❌ アップロード失敗: " + (e.message ?? "不明なエラー"));
     } finally {
       setUploading(false);
-      setTimeout(() => setUploadMsg(null), 3000);
+      setTimeout(() => setUploadMsg(null), 5000);
     }
-  }, [token, ncId]);
+  }, [token, ncId, uploading]);
 
   // PG エディタ
   const [pgOpen,       setPgOpen]       = useState(false);
@@ -472,19 +504,27 @@ export default function NcEditPage() {
                     </div>
                     <div className="pt-1 space-y-2">
                       <button
-                        onClick={() => photoInputRef.current?.click()}
+                        onClick={() => requestNcUpload("PHOTO")}
                         disabled={uploading}
-                        className="w-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                        className="w-full border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
                       >
+                        {uploading && <span className="inline-block w-3 h-3 border-2 border-teal-700 border-t-transparent rounded-full animate-spin" />}
                         📷 写真を取り込む
                       </button>
                       <button
-                        onClick={() => scanInputRef.current?.click()}
+                        onClick={() => requestNcUpload("DRAWING")}
                         disabled={uploading}
-                        className="w-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                        className="w-full border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
                       >
-                        📄 図をスキャン
+                        {uploading && <span className="inline-block w-3 h-3 border-2 border-purple-700 border-t-transparent rounded-full animate-spin" />}
+                        📄 図を取り込む
                       </button>
+                      {uploadMsg && (
+                        <p className={`text-[11px] text-center font-bold ${uploadMsg.startsWith("⏳") ? "text-amber-600 animate-pulse" : uploadMsg.startsWith("❌") ? "text-red-600" : "text-teal-600"}`}>
+                          {uploadMsg}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-slate-400 text-center">UploadAgentでファイル選択ダイアログが開きます</p>
                     </div>
                     {/* NCプログラム操作パネル */}
                     <div className="rounded-xl p-2.5 space-y-1.5" style={{background:"#0f172a", border:"1.5px solid #1e40af"}}>
@@ -552,12 +592,6 @@ export default function NcEditPage() {
 
             </div>
           )}
-
-          {/* ファイル入力（非表示） */}
-          <input ref={photoInputRef} type="file" accept="image/*,.pdf,.tif,.tiff" multiple className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }} />
-          <input ref={scanInputRef} type="file" accept="image/*,.pdf,.tif,.tiff" multiple className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }} />
 
         </div>
       </div>

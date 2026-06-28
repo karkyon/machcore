@@ -678,64 +678,6 @@ export default function NcDetailPage() {
           {mainTab === "files" && (
             <div className="p-5 space-y-4">
 
-              {/* ── D&Dゾーン ── */}
-              <div
-                {...getRootProps()}
-                className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-default ${
-                  isDragActive
-                    ? "border-sky-400 bg-sky-50"
-                    : "border-slate-200 bg-slate-50 hover:border-slate-300"
-                } ${!isAuthenticated ? "opacity-50" : ""}`}
-              >
-                <input {...getInputProps()} />
-                <div className="text-3xl mb-2">{isDragActive ? "📂" : "🖼"}</div>
-                <p className="text-sm text-slate-500">
-                  {isDragActive
-                    ? "ここにドロップしてアップロード"
-                    : isAuthenticated
-                      ? "ファイルをここにドラッグ＆ドロップ（または下のボタンから選択）"
-                      : "認証後にファイルをドロップできます"}
-                </p>
-              </div>
-
-              {/* ── エラー表示 ── */}
-              {fileError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-lg">
-                  {fileError}
-                </div>
-              )}
-
-              {/* ── アップロードボタン ── */}
-              <div className="flex items-center gap-3">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/tiff,application/pdf"
-                  className="hidden"
-                  onChange={handleUpload}
-                />
-                {(isAuthenticated && operator) ? (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors"
-                  >
-                    {uploading ? <span className="animate-spin">⏳</span> : <span>📎</span>}
-                    {uploading ? "アップロード中…" : "ファイルを追加"}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => openAuth("edit")}
-                    className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white text-sm rounded-lg hover:bg-slate-700 transition-colors"
-                  >
-                    🔐 認証してファイルを追加
-                  </button>
-                )}
-                <span className="text-xs text-slate-400">
-                  対応形式: JPEG / PNG / TIFF / PDF
-                </span>
-              </div>
-
               {/* ── ローディング ── */}
               {filesLoading && (
                 <div className="flex items-center justify-center py-16 text-slate-400 gap-2">

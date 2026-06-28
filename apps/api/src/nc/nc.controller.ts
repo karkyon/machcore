@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Put, Patch, Delete, Param, Query,
-  ParseIntPipe, Body, UseGuards, Req, Res,
+  ParseIntPipe, Body, UseGuards, Req, Res, BadRequestException, UnauthorizedException,
 } from "@nestjs/common";
 import { Roles } from "../common/decorators/roles.decorator";
 import { RolesGuard } from "../common/guards/roles.guard";
@@ -17,12 +17,16 @@ import { UpdateNcDto } from "./dto/update-nc.dto";
 import { CreateWorkRecordDto } from "./dto/create-work-record.dto";
 import { FinalizeNcDto } from "./dto/finalize-nc.dto";
 import { SaveNcToolingDto } from "./dto/save-nc-tooling.dto";
+import { NcFilesService } from "./nc-files.service";
+import { UploadTicketService } from "../mc/upload-ticket.service";
 
 @Controller("nc")
 export class NcController {
   constructor(
     private readonly nc: NcService,
     private readonly opLog: OperationLogService,
+    private readonly ncFiles: NcFilesService,
+    private readonly tickets: UploadTicketService,
   ) {}
 
   @Get("search")
@@ -91,6 +95,61 @@ export class NcController {
   @Get(":nc_id/files")
   listFiles(@Param("nc_id", ParseIntPipe) id: number) {
     return this.nc.listFiles(id);
+  }
+
+  // ── UploadAgent連携: ワンタイムアップロードチケット発行（MC側と同方式） ──
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
+  @Roles("OPERATOR", "ADMIN")
+  @Post(":nc_id/files/upload-ticket")
+  async issueUploadTicket(
+    @Param("nc_id", ParseIntPipe) ncId: number,
+    @Body() body: { file_type?: "PHOTO" | "DRAWING"; replace_file_id?: number; is_folder_upload?: boolean },
+    @Req() req: any,
+  ) {
+    const ticket = this.tickets.issue({
+      mcId: ncId,
+      machiningId: ncId,
+      userId: req.user.id,
+      fileType: body.file_type,
+      replaceFileId: body.replace_file_id,
+      isFolderUpload: body.is_folder_upload,
+      system: "NC",
+    });
+    return { ticket: ticket.ticket, expires_in_sec: 60, nc_id: ncId };
+  }
+
+  // ── UploadAgent連携: チケット式アップロード受理（MC側と同方式） ──
+  @Post("files/upload-by-ticket")
+  async uploadByTicket(@Req() req: any) {
+    let fileBuffer:  Buffer | null = null;
+    let fileFilename = "";
+    let fileMimetype = "application/octet-stream";
+    let ticketId     = "";
+
+    for await (const part of req.parts()) {
+      if ("file" in part && (part as any).file) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of (part as any).file) chunks.push(chunk as Buffer);
+        fileBuffer  = Buffer.concat(chunks);
+        fileFilename = (part as any).filename ?? "";
+        fileMimetype = (part as any).mimetype ?? "application/octet-stream";
+      } else if ((part as any).fieldname === "ticket") {
+        ticketId = (part as any).value ?? "";
+      }
+    }
+
+    if (!fileBuffer) throw new BadRequestException("ファイルがありません");
+    if (!ticketId)   throw new BadRequestException("ticket が必要です");
+
+    const payload = this.tickets.consume(ticketId);
+    if (!payload || payload.system !== "NC") throw new UnauthorizedException("チケットが無効、または期限切れです");
+
+    const result = await this.ncFiles.upload(
+      payload.mcId, payload.userId,
+      { filename: fileFilename, mimetype: fileMimetype, data: fileBuffer },
+      payload.fileType as any,
+    );
+    return { ...result, nc_id: payload.mcId, mode: "create" };
   }
 
 

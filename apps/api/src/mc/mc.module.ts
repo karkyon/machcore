@@ -8,6 +8,6 @@ import { UploadTicketService } from './upload-ticket.service';
 @Module({
   controllers: [McController],
   providers:   [McService, McFilesService, UploadTicketService, AppLoggerService],
-  exports:     [McService],
+  exports:     [McService, UploadTicketService],
 })
 export class McModule {}

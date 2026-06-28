@@ -325,10 +325,10 @@ function RecordPageInner() {
         <button onClick={() => router.push(`/nc/${ncId}`)} className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-white transition-colors shrink-0">
           <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></span>NC詳細
         </button>
+        <span className="text-slate-600">|</span>
         <button onClick={() => router.push("/nc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>ダッシュボードへ
         </button>
-        <span className="text-slate-600">|</span>
         <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
         <span className="text-sm font-medium">作業記録</span>
         <span className="ml-auto">

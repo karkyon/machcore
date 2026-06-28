@@ -12,6 +12,7 @@ export interface UploadTicketPayload {
   userId:         number;
   expiresAt:      number;
   used:           boolean;
+  system:         'MC' | 'NC'; // どちらのシステム宛のチケットか（既定は'MC'、後方互換のため）
 }
 
 const TICKET_TTL_MS_SINGLE = 60_000;       // 単体アップロード: 60秒・1回限り
@@ -29,6 +30,7 @@ export class UploadTicketService {
     mcId: number; machiningId: number; userId: number;
     fileType?: 'PHOTO' | 'DRAWING' | 'PROGRAM';
     replaceFileId?: number; isFolderUpload?: boolean; isPgToUsb?: boolean;
+    system?: 'MC' | 'NC';
   }): UploadTicketPayload {
     const ttl = params.isFolderUpload ? TICKET_TTL_MS_FOLDER : TICKET_TTL_MS_SINGLE;
     const ticket: UploadTicketPayload = {
@@ -42,6 +44,7 @@ export class UploadTicketService {
       userId: params.userId,
       expiresAt: Date.now() + ttl,
       used: false,
+      system: params.system ?? 'MC',
     };
     this.tickets.set(ticket.ticket, ticket);
     return ticket;
