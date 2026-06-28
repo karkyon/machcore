@@ -330,7 +330,7 @@ function RecordPageInner() {
         </button>
         <span className="text-slate-600">|</span>
         <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
-        <span className="text-sm font-medium">⏱ 作業記録</span>
+        <span className="text-sm font-medium">作業記録</span>
         <span className="ml-auto">
           {isAuthenticated ? (
             <span className="text-[11px] bg-amber-600 text-white px-3 py-1 rounded font-bold animate-pulse">

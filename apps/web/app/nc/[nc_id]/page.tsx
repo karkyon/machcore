@@ -749,6 +749,7 @@ export default function NcDetailPage() {
                 <div className="space-y-6">
                   <FileSection
                     title="📷 写真"
+                    colorTheme="teal"
                     files={files.filter(f => f.file_type === "PHOTO")}
                     isAuthenticated={isAuthenticated}
                     onPreview={setPreviewFile}
@@ -756,6 +757,7 @@ export default function NcDetailPage() {
                   />
                   <FileSection
                     title="📄 図・段取図"
+                    colorTheme="purple"
                     files={files.filter(f => f.file_type === "DRAWING")}
                     isAuthenticated={isAuthenticated}
                     onPreview={setPreviewFile}
@@ -908,24 +910,32 @@ function Empty({ label }: { label: string }) {
   );
 }
 
+const FILE_SECTION_THEME: Record<string, { badge: string; border: string; bg: string }> = {
+  teal:   { badge: "bg-teal-600",   border: "border-teal-300",   bg: "bg-teal-50" },
+  purple: { badge: "bg-purple-600", border: "border-purple-300", bg: "bg-purple-50" },
+};
+
 function FileSection({
   title,
   files,
   isAuthenticated,
   onPreview,
   onDelete,
+  colorTheme = "teal",
 }: {
   title: string;
   files: NcFile[];
   isAuthenticated: boolean;
   onPreview: (f: NcFile) => void;
   onDelete: (id: number) => void;
+  colorTheme?: "teal" | "purple";
 }) {
+  const theme = FILE_SECTION_THEME[colorTheme] ?? FILE_SECTION_THEME.teal;
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-sm font-bold text-slate-600">{title}</span>
-        <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+        <span className={`text-xs font-bold text-white ${theme.badge} px-2.5 py-0.5 rounded-full`}>{title}</span>
+        <span className="text-xs text-slate-400">
           {files.length} 件
         </span>
       </div>
@@ -939,10 +949,10 @@ function FileSection({
           {files.map(f => (
             <div
               key={f.id}
-              className="group relative bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              className={`group relative bg-white border-2 ${theme.border} rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer`}
             >
               <div
-                className="aspect-square bg-slate-100 flex items-center justify-center overflow-hidden"
+                className={`aspect-square ${theme.bg} flex items-center justify-center overflow-hidden`}
                 onClick={() => onPreview(f)}
               >
                 {f.mime_type === "application/pdf" ? (
@@ -964,9 +974,9 @@ function FileSection({
                 )}
               </div>
 
-              <div className="px-2 py-1.5">
-                <p className="text-[10px] text-slate-500 truncate leading-tight">{f.original_name}</p>
-                <p className="text-[9px] text-slate-300 mt-0.5">{fmtSize(f.file_size)}</p>
+              <div className={`px-2 py-1.5 ${theme.bg} border-t ${theme.border}`}>
+                <p className="text-[10px] text-slate-700 font-bold truncate leading-tight">{f.original_name}</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">{fmtSize(f.file_size)}</p>
               </div>
 
               {isAuthenticated && (
