@@ -5,6 +5,7 @@ import { ncApi, machinesApi, filesApi, NcDetail, Machine, UpdateNcBody, download
 import { isAgentOnline, agentPickAndUpload } from "@/lib/upload-agent";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
+import { NcPartHeader } from "@/components/nc/NcPartHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import GCodeEditor from "@/components/nc/GCodeEditor";
@@ -289,27 +290,8 @@ export default function NcEditPage() {
           </span>
         </header>
 
-        {/* 部品情報エリア（MC側準拠: text-2xl + "/"セパレータ） */}
-        {d && (
-          <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
-            <div className="flex items-center gap-3 flex-wrap mb-1.5">
-              <span className="font-mono text-sky-600 font-bold text-2xl leading-none">{d.part.drawingNo}</span>
-              <span className="text-slate-300 text-xl font-light">/</span>
-              <span className="font-bold text-slate-800 text-xl leading-none">{d.part.name}</span>
-              <div className="flex items-center gap-2 ml-2">
-                <ProcessBadge level={d.processL} />
-                <StatusBadge status={d.status} />
-                <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
-              <span>NC_id: <span className="text-slate-700">{d.id}</span></span>
-              <span className="text-slate-400">|</span>
-              <span>部品ID: <span className="text-slate-700">{d.part.partId}</span></span>
-              {d.part.clientName && <><span className="text-slate-400">|</span><span>納入先: <span className="text-slate-700">{d.part.clientName}</span></span></>}
-            </div>
-          </div>
-        )}
+        {/* 部品情報エリア（共通コンポーネント） */}
+        {d && <NcPartHeader data={d} />}
 
         {/* タブナビ（MC側準拠: ブラウザタブ風） */}
         <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">

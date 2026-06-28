@@ -7,6 +7,7 @@ import {
   NcDetail, WorkRecord, Machine, UserInfo, SetupSheetLog,
   CreateWorkRecordBody, UpdateWorkRecordBody,
 } from "@/lib/api";
+import { NcPartHeader } from "@/components/nc/NcPartHeader";
 
 // ─── 時間入力コンポーネント ─────────────────────────────────────
 function NumInput({ value, onChange, min=0, max=999, className="" }: {
@@ -342,30 +343,8 @@ function RecordPageInner() {
         </span>
       </header>
 
-      {/* 部品情報エリア */}
-      <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
-        <div className="flex items-center gap-3 flex-wrap mb-1.5">
-          <span className="font-mono text-sky-600 font-bold text-2xl leading-none">{nc.part?.drawingNo}</span>
-          <span className="text-[11px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded font-mono font-bold">L{nc.processL}</span>
-          <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-            nc.status === "APPROVED" ? "bg-green-100 text-green-700" :
-            nc.status === "PENDING_APPROVAL" ? "bg-yellow-100 text-yellow-700" :
-            nc.status === "CHANGING" ? "bg-orange-100 text-orange-700" :
-            "bg-slate-100 text-slate-600"
-          }`}>{
-            nc.status === "APPROVED" ? "承認済" :
-            nc.status === "PENDING_APPROVAL" ? "承認待ち" :
-            nc.status === "CHANGING" ? "変更中" : "新規"
-          }</span>
-          <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {nc.version}</span>
-        </div>
-        <div className="text-sm text-slate-700 font-medium mb-1">{nc.part?.name}</div>
-        <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono">
-          <span>NC_id: {nc.id}</span>
-          <span>部品ID: {nc.part?.partId}</span>
-          {nc.part?.clientName && <span>納入先: {nc.part.clientName}</span>}
-        </div>
-      </div>
+      {/* 部品情報エリア（共通コンポーネント） */}
+      <NcPartHeader data={nc} />
 
       {/* タブナビ（MC側準拠: ブラウザタブ風） */}
       <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
