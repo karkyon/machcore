@@ -33,3 +33,5 @@ uploads/
 
 # 実行済みパッチスクリプト
 fix_v*.py
+diag_v*.py
+cleanup_v*.py
