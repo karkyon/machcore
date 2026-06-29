@@ -68,9 +68,35 @@ export default function NcDetailPage() {
 
   // AUTH（D&Dより先に宣言必須）
   const { operator, isAuthenticated, logout, token } = useAuth();
-  const [drawingLoading, setDrawingLoading] = useState(false);
   const [authModalOpen,   setAuthModalOpen]   = useState(false);
   const [authSessionType, setAuthSessionType] = useState("edit");
+
+  // 写真・図プレビュー（MC側準拠: ズーム/前後ナビ）
+  const [previewZoom, setPreviewZoom] = useState<"fit" | "real" | number>("fit");
+
+  // 📋 Ridoc図面ビューア（MC側準拠: ズーム/パン/認証フロー）
+  const [drawingModal,   setDrawingModal]   = useState(false);
+  const [drawingLoading, setDrawingLoading] = useState(false);
+  const [drawingBlobUrl, setDrawingBlobUrl] = useState<string | null>(null);
+  const [drawingZoom,    setDrawingZoom]    = useState<number | "fit">("fit");
+  const [drawingPan,     setDrawingPan]     = useState({ x: 0, y: 0 });
+  const [drawingAuthOpen, setDrawingAuthOpen] = useState(false);
+  const drawingDrag = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
+
+  const openDrawingViewer = useCallback(async () => {
+    if (!isAuthenticated) { setDrawingAuthOpen(true); return; }
+    setDrawingModal(true);
+    setDrawingLoading(true);
+    try {
+      const res = await fetch(`/api/nc/${ncId}/drawing-image?imgType=ORG`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      setDrawingBlobUrl(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob); });
+    } catch { setDrawingBlobUrl(null); }
+    finally { setDrawingLoading(false); }
+  }, [isAuthenticated, ncId, token]);
 
   const openAuth = useCallback((sessionType: string) => {
     setAuthSessionType(sessionType);
@@ -671,12 +697,9 @@ export default function NcDetailPage() {
                     <span className="text-xs text-slate-400">{d.part.drawingNo}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
-                    <a
-                      href={`/api/nc/${ncId}/drawing-image?imgType=ORG`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => setDrawingLoading(true)}
-                      className="bg-white rounded-xl border-2 border-indigo-300 overflow-hidden cursor-pointer hover:shadow-md transition-shadow block"
+                    <div
+                      onClick={openDrawingViewer}
+                      className="bg-white rounded-xl border-2 border-indigo-300 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                     >
                       <div className="aspect-square bg-indigo-50 flex items-center justify-center overflow-hidden">
                         <img src={`/api/nc/${ncId}/drawing-image?imgType=TN`} alt={`図面 ${d.part.drawingNo}`}
@@ -692,9 +715,9 @@ export default function NcDetailPage() {
                       </div>
                       <div className="px-2 py-1.5 bg-indigo-50 border-t border-indigo-200">
                         <p className="text-[11px] text-indigo-800 font-bold truncate">{d.part.drawingNo}</p>
-                        <p className="text-[10px] text-slate-400">クリックで原寸表示（新規タブ）</p>
+                        <p className="text-[10px] text-slate-400">クリックで拡大表示</p>
                       </div>
-                    </a>
+                    </div>
                   </div>
                 </div>
               )}
@@ -737,47 +760,75 @@ export default function NcDetailPage() {
 
             </div>
               {/* ── プレビューモーダル ── */}
-              {previewFile && (
-                <div
-                  className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-                  onClick={() => setPreviewFile(null)}
-                >
-                  <div
-                    className="bg-white rounded-xl overflow-hidden shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col"
-                    onClick={e => e.stopPropagation()}
-                  >
-                    {/* モーダルヘッダー */}
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
-                      <div>
-                        <p className="text-sm font-bold text-slate-700 truncate max-w-[480px]">
-                          {previewFile.original_name}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          {fmtSize(previewFile.file_size)} ・ {fmtUploadDate(previewFile.uploaded_at)}
-                          {previewFile.uploaded_by && ` ・ ${previewFile.uploaded_by}`}
-                        </p>
+              {previewFile && (() => {
+                const imgFiles = (files ?? []).filter((f: any) => f.file_type === "PHOTO" || f.file_type === "DRAWING");
+                const curIdx = imgFiles.findIndex((f: any) => f.id === previewFile.id);
+                const goPrev = () => { if (curIdx > 0) { setPreviewFile(imgFiles[curIdx - 1]); setPreviewZoom("fit"); setPdfPage(1); } };
+                const goNext = () => { if (curIdx < imgFiles.length - 1) { setPreviewFile(imgFiles[curIdx + 1]); setPreviewZoom("fit"); setPdfPage(1); } };
+                return (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-0"
+                  onClick={() => { setPreviewFile(null); setPreviewZoom("fit"); }}>
+                  <div className="bg-white flex flex-col w-screen h-screen" onClick={e => e.stopPropagation()}>
+                    {/* ヘッダー */}
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-slate-50 shrink-0 gap-2">
+                      <p className="text-sm font-bold text-slate-700 truncate max-w-[40%]">
+                        {previewFile.original_name}
+                        <span className="ml-2 text-xs text-slate-400 font-normal">{curIdx + 1} / {imgFiles.length}</span>
+                      </p>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {previewFile.mime_type !== "application/pdf" && (
+                          <>
+                            <button onClick={() => setPreviewZoom("fit")}
+                              className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${previewZoom === "fit" ? "bg-sky-600 text-white border-sky-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
+                              画面内
+                            </button>
+                            <button onClick={() => setPreviewZoom("real")}
+                              className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${previewZoom === "real" ? "bg-sky-600 text-white border-sky-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
+                              実寸(100%)
+                            </button>
+                            <button onClick={() => setPreviewZoom(z => { const cur = typeof z === "number" ? z : 100; return Math.max(10, cur - 20); })}
+                              className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">－</button>
+                            <span className="text-xs text-slate-500 w-12 text-center font-mono">
+                              {previewZoom === "fit" ? "FIT" : previewZoom === "real" ? "100%" : `${previewZoom}%`}
+                            </span>
+                            <button onClick={() => setPreviewZoom(z => { const cur = typeof z === "number" ? z : 100; return Math.min(400, cur + 20); })}
+                              className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">＋</button>
+                            <div className="w-px h-5 bg-slate-200 mx-1" />
+                            <button onClick={() => {
+                              const w = window.open("");
+                              if (w) { w.document.write(`<img src="/api/files/serve/${previewFile.id}" onload="window.print();window.close()">`); }
+                            }} className="px-2.5 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">🖨 印刷</button>
+                          </>
+                        )}
+                        {isAuthenticated && (
+                          <a href={`/api/files/serve/${previewFile.id}`} download={previewFile.original_name}
+                            className="px-2.5 py-1 text-xs font-bold rounded border bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100">
+                            ✏️ 編集用DL
+                          </a>
+                        )}
+                        <button onClick={() => { setPreviewFile(null); setPreviewZoom("fit"); }}
+                          className="ml-1 text-slate-400 hover:text-slate-700 text-lg px-1.5">✕</button>
                       </div>
-                      <button
-                        onClick={() => setPreviewFile(null)}
-                        className="text-slate-400 hover:text-slate-700 text-xl px-2"
-                      >
-                        ✕
-                      </button>
                     </div>
-
-                    {/* プレビュー本体 */}
-                    <div className="flex-1 overflow-auto bg-slate-900 flex items-center justify-center min-h-[300px]">
+                    {/* 画像/PDFエリア＋左右ナビ */}
+                    <div className="flex-1 relative overflow-hidden bg-slate-900 flex items-center justify-center">
+                      {curIdx > 0 && (
+                        <button onClick={goPrev}
+                          className="absolute left-3 z-10 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white text-xl flex items-center justify-center transition-colors">
+                          ‹
+                        </button>
+                      )}
                       {previewFile.mime_type === "application/pdf" ? (
-                        <div className="flex flex-col items-center gap-2 py-2">
+                        <div className="flex flex-col items-center gap-2 py-2 w-full h-full overflow-auto">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => setPdfPage(p => Math.max(1, p - 1))}
+                              onClick={() => setPdfPage(pg => Math.max(1, pg - 1))}
                               disabled={pdfPage <= 1}
                               className="px-3 py-1 bg-slate-700 text-white text-xs rounded disabled:opacity-40"
                             >◀</button>
                             <span className="text-white text-xs">{pdfPage} / {pdfNumPages}</span>
                             <button
-                              onClick={() => setPdfPage(p => Math.min(pdfNumPages, p + 1))}
+                              onClick={() => setPdfPage(pg => Math.min(pdfNumPages, pg + 1))}
                               disabled={pdfPage >= pdfNumPages}
                               className="px-3 py-1 bg-slate-700 text-white text-xs rounded disabled:opacity-40"
                             >▶</button>
@@ -785,33 +836,155 @@ export default function NcDetailPage() {
                           <Document
                             file={`/api/files/serve/${previewFile.id}`}
                             onLoadSuccess={({ numPages }) => { setPdfNumPages(numPages); setPdfPage(1); }}
-                            className="max-h-[65vh] overflow-auto"
+                            className="max-h-[80vh] overflow-auto"
                           >
-                            <Page pageNumber={pdfPage} width={700} />
+                            <Page pageNumber={pdfPage} width={900} />
                           </Document>
                         </div>
                       ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`/api/files/serve/${previewFile.id}`}
-                          alt={previewFile.original_name}
-                          className="max-w-full max-h-[70vh] object-contain"
-                        />
+                        <div className="w-full h-full overflow-auto flex items-center justify-center">
+                          <img
+                            key={previewFile.id}
+                            src={`/api/files/serve/${previewFile.id}`}
+                            alt={previewFile.original_name}
+                            style={
+                              previewZoom === "fit"
+                                ? { maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }
+                                : previewZoom === "real"
+                                ? { width: "auto", height: "auto", maxWidth: "none", maxHeight: "none", display: "block" }
+                                : { transform: `scale(${(previewZoom as number) / 100})`, transformOrigin: "top left", display: "block" }
+                            }
+                          />
+                        </div>
                       )}
-                    </div>
-
-                    {/* ダウンロードリンク */}
-                    <div className="px-4 py-3 border-t border-slate-200 shrink-0 flex justify-end">
-                      <a
-                        href={`/api/files/serve/${previewFile.id}`}
-                        download={previewFile.original_name}
-                        className="text-xs text-sky-600 hover:underline"
-                      >
-                        ⬇ ダウンロード
-                      </a>
+                      {curIdx < imgFiles.length - 1 && (
+                        <button onClick={goNext}
+                          className="absolute right-3 z-10 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white text-xl flex items-center justify-center transition-colors">
+                          ›
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
+                );
+              })()}
+
+              {/* 📋 Ridoc図面ビューア（MC側準拠: ズーム・パン） */}
+              {drawingModal && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-0"
+                  onClick={() => { setDrawingModal(false); setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}>
+                  <div className="bg-white flex flex-col w-screen h-screen" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-slate-50 shrink-0 gap-2">
+                      <p className="text-sm font-bold text-slate-700">📋 図面 — {d.part.drawingNo}</p>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button onClick={() => { setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}
+                          className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${drawingZoom === "fit" ? "bg-sky-600 text-white border-sky-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
+                          FIT
+                        </button>
+                        <button onClick={() => { setDrawingZoom(100); setDrawingPan({x:0,y:0}); }}
+                          className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${drawingZoom === 100 ? "bg-sky-600 text-white border-sky-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
+                          100%
+                        </button>
+                        <button onClick={() => setDrawingZoom(z => { const cur = typeof z === "number" ? z : 100; return Math.max(10, cur - 20); })}
+                          className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">－</button>
+                        <span className="text-xs text-slate-500 w-12 text-center font-mono">
+                          {drawingZoom === "fit" ? "FIT" : `${drawingZoom}%`}
+                        </span>
+                        <button onClick={() => setDrawingZoom(z => { const cur = typeof z === "number" ? z : 100; return Math.min(800, cur + 20); })}
+                          className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">＋</button>
+                        <div className="w-px h-5 bg-slate-200 mx-1" />
+                        {drawingBlobUrl && (
+                          <a href={drawingBlobUrl} download={`drawing-${d.part.drawingNo}.jpg`}
+                            className="px-2.5 py-1 text-xs font-bold rounded border bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100">
+                            ⬇ ダウンロード
+                          </a>
+                        )}
+                        <button onClick={() => { setDrawingModal(false); setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}
+                          className="ml-1 text-slate-400 hover:text-slate-700 text-lg px-1.5">✕</button>
+                      </div>
+                    </div>
+                    <div
+                      className="flex-1 relative overflow-hidden bg-slate-900 flex items-center justify-center"
+                      style={{ cursor: drawingZoom !== "fit" ? (drawingDrag.current ? "grabbing" : "grab") : "default" }}
+                      onWheel={e => {
+                        if (!drawingBlobUrl) return;
+                        e.preventDefault();
+                        const delta = e.deltaY > 0 ? -20 : 20;
+                        setDrawingZoom(z => {
+                          const cur = typeof z === "number" ? z : 100;
+                          return Math.max(10, Math.min(800, cur + delta));
+                        });
+                      }}
+                      onMouseDown={e => {
+                        if (drawingZoom === "fit") return;
+                        drawingDrag.current = { startX: e.clientX, startY: e.clientY, panX: drawingPan.x, panY: drawingPan.y };
+                      }}
+                      onMouseMove={e => {
+                        if (!drawingDrag.current) return;
+                        setDrawingPan({
+                          x: drawingDrag.current.panX + (e.clientX - drawingDrag.current.startX),
+                          y: drawingDrag.current.panY + (e.clientY - drawingDrag.current.startY),
+                        });
+                      }}
+                      onMouseUp={() => { drawingDrag.current = null; }}
+                      onMouseLeave={() => { drawingDrag.current = null; }}
+                    >
+                      {drawingLoading ? (
+                        <div className="flex flex-col items-center gap-3 text-slate-400">
+                          <div className="w-8 h-8 border-2 border-slate-500 border-t-white rounded-full animate-spin" />
+                          <span className="text-sm">図面を取得中…</span>
+                        </div>
+                      ) : drawingBlobUrl ? (
+                        <div
+                          style={{
+                            transform: drawingZoom === "fit"
+                              ? `translate(${drawingPan.x}px, ${drawingPan.y}px)`
+                              : `translate(${drawingPan.x}px, ${drawingPan.y}px) scale(${(drawingZoom as number) / 100})`,
+                            transformOrigin: "center center",
+                            transition: drawingDrag.current ? "none" : "transform 0.1s ease",
+                            userSelect: "none",
+                          }}
+                        >
+                          <img
+                            src={drawingBlobUrl}
+                            alt={`図面 ${d.part.drawingNo}`}
+                            draggable={false}
+                            style={
+                              drawingZoom === "fit"
+                                ? { maxWidth: "95vw", maxHeight: "calc(100vh - 60px)", objectFit: "contain", display: "block" }
+                                : { width: "auto", height: "auto", display: "block" }
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <p className="text-slate-400 text-sm text-center px-8">
+                          図面を取得できませんでした<br />
+                          <span className="text-xs text-slate-500">（Ridocサーバー未応答またはRIDOC_API_URL未設定）</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {drawingAuthOpen && (
+                <AuthModal isOpen={true} ncProgramId={ncId} sessionType="edit"
+                  onSuccess={async () => {
+                    setDrawingAuthOpen(false);
+                    setDrawingModal(true);
+                    setDrawingLoading(true);
+                    try {
+                      const t = token ?? "";
+                      const res = await fetch(`/api/nc/${ncId}/drawing-image?imgType=ORG`, {
+                        headers: t ? { Authorization: `Bearer ${t}` } : {},
+                      });
+                      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                      const blob = await res.blob();
+                      setDrawingBlobUrl(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob); });
+                    } catch { setDrawingBlobUrl(null); }
+                    finally { setDrawingLoading(false); }
+                  }}
+                  onCancel={() => setDrawingAuthOpen(false)} />
               )}
             </div>
           )}
