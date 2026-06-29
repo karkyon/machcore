@@ -1350,10 +1350,13 @@ export class AdminController {
   async getFileTree(@Query('path') queryPath: string) {
     const setting = await this.prisma.companySetting.findFirst();
     const basePath = setting?.uploadBasePath ?? '/mnt/mc_files';
+    const ncBasePath = setting?.ncStoragePath ?? '/mnt/nc_files';
     const roots = {
-      photos:   nodepath.join(basePath, 'MC', 'files', 'Pictures'),
-      drawings: nodepath.join(basePath, 'MC', 'files', 'Drawings'),
-      programs: nodepath.join(basePath, 'MC', 'files', 'Programs'),
+      photos:     nodepath.join(basePath, 'MC', 'files', 'Pictures'),
+      drawings:   nodepath.join(basePath, 'MC', 'files', 'Drawings'),
+      programs:   nodepath.join(basePath, 'MC', 'files', 'Programs'),
+      nc_photos:   nodepath.join(ncBasePath, 'NC', 'files', 'Pictures'),
+      nc_drawings: nodepath.join(ncBasePath, 'NC', 'files', 'Drawings'),
     };
 
     // 1階層のみ読む・hasChildrenチェックなし（I/O最小化）
@@ -1385,11 +1388,13 @@ export class AdminController {
     // path指定あり → そのディレクトリの1階層を返す
     if (queryPath) return readOneLevel(queryPath);
 
-    // path指定なし → 3ルートそれぞれの1階層を返す
+    // path指定なし → 全ルートそれぞれの1階層を返す
     return {
-      photos:   readOneLevel(roots.photos),
-      drawings: readOneLevel(roots.drawings),
-      programs: readOneLevel(roots.programs),
+      photos:     readOneLevel(roots.photos),
+      drawings:   readOneLevel(roots.drawings),
+      programs:   readOneLevel(roots.programs),
+      nc_photos:   readOneLevel(roots.nc_photos),
+      nc_drawings: readOneLevel(roots.nc_drawings),
     };
   }
 
@@ -1489,10 +1494,13 @@ export class AdminController {
 
     const setting = await this.prisma.companySetting.findFirst();
     const basePath = setting?.uploadBasePath ?? '/mnt/mc_files';
+    const ncBasePath = setting?.ncStoragePath ?? '/mnt/nc_files';
     const roots: Record<string, string> = {
-      photos:   nodepath.join(basePath, 'MC', 'files', 'Pictures'),
-      drawings: nodepath.join(basePath, 'MC', 'files', 'Drawings'),
-      programs: nodepath.join(basePath, 'MC', 'files', 'Programs'),
+      photos:     nodepath.join(basePath, 'MC', 'files', 'Pictures'),
+      drawings:   nodepath.join(basePath, 'MC', 'files', 'Drawings'),
+      programs:   nodepath.join(basePath, 'MC', 'files', 'Programs'),
+      nc_photos:   nodepath.join(ncBasePath, 'NC', 'files', 'Pictures'),
+      nc_drawings: nodepath.join(ncBasePath, 'NC', 'files', 'Drawings'),
     };
     const rootPath = roots[tab];
     if (!rootPath) return { items: [], rootPath: '' };

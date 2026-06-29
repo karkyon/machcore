@@ -7,7 +7,7 @@
 //       候補が返る。サーバー側の負荷も「検索ごと」から「キャッシュ構築ごと」に減る。
 
 export type FbIndexItem = { name: string; path: string; type: "file" | "dir"; size?: number; mtime?: string };
-export type FbTab = "photos" | "drawings" | "programs";
+export type FbTab = "photos" | "drawings" | "programs" | "nc_photos" | "nc_drawings";
 
 const DB_NAME = "machcore_file_browser_cache";
 const DB_VERSION = 1;

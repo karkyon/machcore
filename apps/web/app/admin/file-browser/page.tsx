@@ -5,13 +5,18 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import { fbGetCache, fbSetCache, fbSearchCache, type FbIndexItem, type FbTab } from "@/lib/file-browser-index";
 
 type FileNode = { name: string; path: string; type: "file" | "dir"; size?: number; mtime?: string; hasChildren?: boolean; children?: FileNode[]; loaded?: boolean };
-type TabType = "photos" | "drawings" | "programs";
+type TabType = "photos" | "drawings" | "programs" | "nc_photos" | "nc_drawings";
 
-const TAB_LABELS: Record<TabType, string> = { photos: "写真", drawings: "図", programs: "プログラム" };
+const TAB_LABELS: Record<TabType, string> = {
+  photos: "MC写真", drawings: "MC図", programs: "MCプログラム",
+  nc_photos: "NC写真", nc_drawings: "NC図",
+};
 const TAB_COLORS: Record<TabType, string> = {
-  photos:   "bg-rose-50 text-rose-700 border-rose-300",
-  drawings: "bg-violet-50 text-violet-700 border-violet-300",
-  programs: "bg-teal-50 text-teal-700 border-teal-300",
+  photos:      "bg-rose-50 text-rose-700 border-rose-300",
+  drawings:    "bg-violet-50 text-violet-700 border-violet-300",
+  programs:    "bg-teal-50 text-teal-700 border-teal-300",
+  nc_photos:   "bg-sky-50 text-sky-700 border-sky-300",
+  nc_drawings: "bg-amber-50 text-amber-700 border-amber-300",
 };
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".gif", ".tif", ".tiff"]);
 const TEXT_EXTS = new Set([".txt", ".nc", ".mpf", ".spf", ".cnc", ".min", ".prg", ""]);
@@ -87,8 +92,8 @@ export default function FileBrowserPage() {
   const router   = useRouter();
   const pathname = usePathname();
   const [tab, setTab]             = useState<TabType>("photos");
-  const [trees, setTrees]         = useState<Record<TabType, FileNode[]>>({ photos: [], drawings: [], programs: [] });
-  const [rootPaths, setRootPaths] = useState<Record<TabType, string>>({ photos: "", drawings: "", programs: "" });
+  const [trees, setTrees]         = useState<Record<TabType, FileNode[]>>({ photos: [], drawings: [], programs: [], nc_photos: [], nc_drawings: [] });
+  const [rootPaths, setRootPaths] = useState<Record<TabType, string>>({ photos: "", drawings: "", programs: "", nc_photos: "", nc_drawings: "" });
   const [rootLoading, setRootLoading] = useState(false);
   const [selected, setSelected]   = useState<FileNode | null>(null);
   const [preview, setPreview]     = useState<{ type: "image" | "pdf" | "text" | "none"; url?: string; text?: string } | null>(null);
@@ -100,7 +105,7 @@ export default function FileBrowserPage() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // タブごとのIndexedDBキャッシュ(フラットなファイル/フォルダ一覧)。メモリにも保持し、
   // 検索はこの配列に対してJS側でフィルタするためサーバーへのリクエストは発生しない。
-  const [fbIndexCache, setFbIndexCache] = useState<Record<TabType, FbIndexItem[]>>({ photos: [], drawings: [], programs: [] });
+  const [fbIndexCache, setFbIndexCache] = useState<Record<TabType, FbIndexItem[]>>({ photos: [], drawings: [], programs: [], nc_photos: [], nc_drawings: [] });
   const [indexBuilding, setIndexBuilding] = useState(false);
   const [indexCachedAt, setIndexCachedAt] = useState<number | null>(null);
   const [toast, setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
@@ -128,14 +133,18 @@ export default function FileBrowserPage() {
     try {
       const data = await apiFetch("/api/admin/files/tree");
       setTrees({
-        photos:   (data.photos?.children   ?? []).map((n: FileNode) => ({ ...n, loaded: false })),
-        drawings: (data.drawings?.children ?? []).map((n: FileNode) => ({ ...n, loaded: false })),
-        programs: (data.programs?.children ?? []).map((n: FileNode) => ({ ...n, loaded: false })),
+        photos:      (data.photos?.children      ?? []).map((n: FileNode) => ({ ...n, loaded: false })),
+        drawings:    (data.drawings?.children    ?? []).map((n: FileNode) => ({ ...n, loaded: false })),
+        programs:    (data.programs?.children    ?? []).map((n: FileNode) => ({ ...n, loaded: false })),
+        nc_photos:   (data.nc_photos?.children   ?? []).map((n: FileNode) => ({ ...n, loaded: false })),
+        nc_drawings: (data.nc_drawings?.children ?? []).map((n: FileNode) => ({ ...n, loaded: false })),
       });
       setRootPaths({
-        photos:   data.photos?.path   ?? "",
-        drawings: data.drawings?.path ?? "",
-        programs: data.programs?.path ?? "",
+        photos:      data.photos?.path      ?? "",
+        drawings:    data.drawings?.path    ?? "",
+        programs:    data.programs?.path    ?? "",
+        nc_photos:   data.nc_photos?.path   ?? "",
+        nc_drawings: data.nc_drawings?.path ?? "",
       });
     } catch (e: any) { showToast("ツリー取得失敗: " + e.message, false); }
     finally { setRootLoading(false); }
@@ -363,14 +372,26 @@ export default function FileBrowserPage() {
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-200 bg-white flex items-center gap-3 shrink-0 flex-wrap">
           <h1 className="text-lg font-bold text-slate-800">ファイルブラウザ</h1>
-          <div className="flex gap-1">
-            {(["photos", "drawings", "programs"] as TabType[]).map(t => (
-              <button key={t} onClick={() => { setTab(t); setSelected(null); setPreview(null); setSearchKw(""); setSearchHits([]); setSearchHitIndex(0); setActiveHitPath(""); }}
-                className={"px-3 py-1 text-xs font-bold rounded-full border transition-colors " +
-                  (tab === t ? TAB_COLORS[t] : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200")}>
-                {TAB_LABELS[t]}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              {(["photos", "drawings", "programs"] as TabType[]).map(t => (
+                <button key={t} onClick={() => { setTab(t); setSelected(null); setPreview(null); setSearchKw(""); setSearchHits([]); setSearchHitIndex(0); setActiveHitPath(""); }}
+                  className={"px-3 py-1 text-xs font-bold rounded-full border transition-colors " +
+                    (tab === t ? TAB_COLORS[t] : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200")}>
+                  {TAB_LABELS[t]}
+                </button>
+              ))}
+            </div>
+            <span className="text-slate-200">|</span>
+            <div className="flex gap-1">
+              {(["nc_photos", "nc_drawings"] as TabType[]).map(t => (
+                <button key={t} onClick={() => { setTab(t); setSelected(null); setPreview(null); setSearchKw(""); setSearchHits([]); setSearchHitIndex(0); setActiveHitPath(""); }}
+                  className={"px-3 py-1 text-xs font-bold rounded-full border transition-colors " +
+                    (tab === t ? TAB_COLORS[t] : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200")}>
+                  {TAB_LABELS[t]}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
             <input value={searchKw} onChange={e => setSearchKw(e.target.value)} onKeyDown={handleSearchKeyDown}
