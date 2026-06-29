@@ -171,7 +171,23 @@ export class NcService {
       },
     });
     if (!r) throw new NotFoundException(`NC_id ${id} が存在しません`);
-    return r;
+    // フロントエンドのNcDetail型との互換性のためmachining配下フィールドをフラット展開して返す
+    return {
+      ...r,
+      machine:       r.machining?.machine     ?? null,
+      tools:         r.machining?.tools        ?? [],
+      processL:      r.machining?.processL     ?? null,
+      version:       r.machining?.version      ?? '1.0001',
+      folderName:    r.machining?.folderName   ?? '',
+      fileName:      r.machining?.fileName     ?? '',
+      oNumber:       r.machining?.oNumber      ?? null,
+      clampNote:     r.machining?.clampNote    ?? null,
+      machiningTime: r.machining?.machiningTime ?? null,
+      setupTimeRef:  r.machining?.setupTimeRef  ?? null,
+      drawingCount:  r.machining?.drawingCount  ?? 0,
+      photoCount:    r.machining?.photoCount    ?? 0,
+      processingId:  r.machining?.processingId  ?? null,
+    };
   }
 
   /** NC-04: 新規登録 */
