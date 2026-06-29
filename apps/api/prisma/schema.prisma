@@ -118,7 +118,7 @@ model Machine {
   updatedAt   DateTime @updatedAt              @map("updated_at")
   systemType  SystemType  @default(NC)  @map("system_type")
   mcSpecs     Json?                     @map("mc_specs")
-  ncPrograms  NcProgram[]
+  ncMachiningDetails NcMachiningDetail[]
   workRecords WorkRecord[]
   mcMachiningDetails McMachiningDetail[]
   timecards   MachineTimecard[]
@@ -157,52 +157,87 @@ model CompanySetting {
   @@map("company_settings")
 }
 
+model NcMachiningDetail {
+  // PK: 旧K_id(ACC_Lathe.K_id)をそのまま使用する。MC側McMachiningDetail.machiningIdが
+  // 旧加工IDを直接PKに採用する方式と同じ考え方(autoincrementにしない)。
+  kId            Int       @id                              @map("k_id")
+  processL       Int       @db.SmallInt                     @map("process_l")
+  machineId      Int?                                       @map("machine_id")
+  // 加工時間/段取時間: 旧ACC_Lathe.Tm/Tsの意味の違いが未確証のため、
+  // MC側cycleTimeSec(1カラム集約)への統合は行わず、2カラム構成を維持する。
+  machiningTime  Int?                                       @map("machining_time")
+  setupTimeRef   Int?                                       @map("setup_time_ref")
+  // フォルダ: 旧ACC_Lathe.FD_nameは単一カラムのため、MC側folder1/folder2分割は適用しない。
+  folderName     String    @db.VarChar(100)                 @map("folder_name")
+  fileName       String    @db.VarChar(100)                 @map("file_name")
+  oNumber        String?   @db.VarChar(20)                  @map("o_number")
+  version        String    @default("1.0001") @db.VarChar(10)
+  clampNote      String?   @db.Text                         @map("clamp_note")
+  drawingCount   Int       @default(0)                      @map("drawing_count")
+  photoCount     Int       @default(0)                      @map("photo_count")
+  // 将来のNC側「共通部品追加」機能のために列を用意(MC側commonPartCodeと同形)。
+  // 今回のデータ移行(nc_full_import.py)では設定しない。
+  commonPartCode String?   @db.VarChar(20)                  @map("common_part_code")
+  // 画像編集機能(ImageEditor.tsx/files.service.ts saveEditedFile)のファイル名
+  // プレフィックスとして使われる加工ID識別文字列。旧NcProgramから移設。
+  // nc_full_import.pyでは未設定(常にNULL)、files.service.ts側でmachiningIdへの
+  // フォールバックに変更する追従はSTEP3(API修正)で行う。
+  processingId   String?   @db.VarChar(50)                  @map("processing_id")
+  legacyVer      String?   @db.VarChar(20)                  @map("legacy_ver")
+  createdAt      DateTime  @default(now())                  @map("created_at")
+  updatedAt      DateTime  @updatedAt                       @map("updated_at")
+
+  machine  Machine?    @relation(fields: [machineId], references: [id])
+  programs NcProgram[]
+  tools    NcTool[]
+
+  @@index([machineId])
+  @@map("nc_machining_details")
+}
+
+// ============================================================
+// NC 正規化テーブル: nc_programs (部品と加工の紐付けのみ保持)
+// MC側 mc_programs と同じ考え方。unique制約を持たないことで、
+// 同一K_id(NcMachiningDetail)を複数の部品(共通部品)が共有できるようにする。
+// ============================================================
 model NcProgram {
   id            Int             @id @default(autoincrement())
-  partId        Int                                           @map("part_id")
-  processL      Int             @db.SmallInt                 @map("process_l")
-  machineId     Int?                                         @map("machine_id")
-  machiningTime Int?                                         @map("machining_time")
-  setupTimeRef  Int?                                         @map("setup_time_ref")
-  folderName    String          @db.VarChar(100)             @map("folder_name")
-  fileName      String          @db.VarChar(100)             @map("file_name")
-  oNumber       String?         @db.VarChar(20)              @map("o_number")
-  version       String          @default("1.0001") @db.VarChar(10) // MC方式に統一(数値文字列)
-  clampNote     String?         @db.Text                     @map("clamp_note")
-  drawingCount  Int             @default(0)                  @map("drawing_count")
-  photoCount    Int             @default(0)                  @map("photo_count")
+  partId        Int                                          @map("part_id")
+  machiningId   Int                                          @map("machining_id")
   status        NcProgramStatus @default(NEW)
-  processingId  String?         @db.VarChar(50)              @map("processing_id")
   registeredBy  Int                                          @map("registered_by")
   approvedBy    Int?                                         @map("approved_by")
   registeredAt  DateTime        @default(now())              @map("registered_at")
   approvedAt    DateTime?                                    @map("approved_at")
-  legacyVer     String?         @db.VarChar(20)              @map("legacy_ver")
-  legacyKid     Int?                                         @map("legacy_kid")
+  // 旧NC_id(ACC_NC.NC_id、部品×加工の対応行ID)。旧legacyKidはNcMachiningDetail側に移動。
+  legacyNcId    Int?                                         @map("legacy_nc_id")
   createdAt     DateTime        @default(now())              @map("created_at")
   updatedAt     DateTime        @updatedAt                   @map("updated_at")
-  part           Part             @relation(fields: [partId],       references: [id])
-  machine        Machine?         @relation(fields: [machineId],    references: [id])
-  registrar      User             @relation("RegisteredBy", fields: [registeredBy], references: [id])
-  approver       User?            @relation("ApprovedBy",  fields: [approvedBy],   references: [id])
-  tools          NcTool[]
+
+  part           Part               @relation(fields: [partId],       references: [id])
+  machining      NcMachiningDetail  @relation(fields: [machiningId],  references: [kId])
+  registrar      User               @relation("RegisteredBy", fields: [registeredBy], references: [id])
+  approver       User?              @relation("ApprovedBy",  fields: [approvedBy],   references: [id])
   files          NcFile[]
   changeHistory  ChangeHistory[]
   workRecords    WorkRecord[]
   setupSheetLogs SetupSheetLog[]
   operationLogs  OperationLog[]
   workSessions   WorkSession[]
-  @@unique([partId, processL], name: "unique_part_process")
+
+  @@index([machiningId])
+  @@index([partId])
   @@index([status])
-  @@index([folderName])
-  @@index([fileName])
-  @@index([legacyKid])
+  @@index([legacyNcId])
   @@map("nc_programs")
 }
 
 model NcTool {
   id          Int      @id @default(autoincrement())
-  ncProgramId Int                        @map("nc_program_id")
+  // MC側McTooling方式に合わせ、部品(NcProgram)単位ではなく加工データ本体
+  // (NcMachiningDetail)単位で持つ。共通部品で複数NcProgramが同じ加工データを
+  // 共有しても、ツーリング行は重複登録されない。
+  machiningId Int                        @map("machining_id")
   sortOrder   Int      @db.SmallInt      @map("sort_order")
   processType String?  @db.VarChar(50)  @map("process_type")
   chipModel   String?  @db.VarChar(100) @map("chip_model")
@@ -212,8 +247,8 @@ model NcTool {
   note        String?  @db.Text
   createdAt   DateTime @default(now())  @map("created_at")
   updatedAt   DateTime @updatedAt       @map("updated_at")
-  ncProgram   NcProgram @relation(fields: [ncProgramId], references: [id], onDelete: Cascade)
-  @@index([ncProgramId, sortOrder])
+  machining   NcMachiningDetail @relation(fields: [machiningId], references: [kId], onDelete: Cascade)
+  @@index([machiningId, sortOrder])
   @@map("nc_tools")
 }
 
