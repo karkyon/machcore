@@ -292,6 +292,7 @@ export default function McNewPage() {
           isOpen={true}
           ncProgramId={0}
           sessionType="edit"
+          system="MC"
           onSuccess={() => handleAuthSuccess()}
           onCancel={() => setAuthOpen(false)}
         />

@@ -8,11 +8,14 @@ type Props = {
   sessionType: string;
   ncProgramId?: number;
   mcProgramId?: number;
+  /** 明示的にシステム種別を指定する場合に使用。指定時は最優先で使われる。
+   *  未指定時は従来通り mcProgramId の有無で判定(NC側呼び出しは無修正で動作する後方互換)。 */
+  system?: "MC" | "NC";
   onSuccess: () => void;
   onCancel: () => void;
 };
 
-export default function AuthModal({ isOpen, sessionType, ncProgramId, mcProgramId, onSuccess, onCancel }: Props) {
+export default function AuthModal({ isOpen, sessionType, ncProgramId, mcProgramId, system, onSuccess, onCancel }: Props) {
   const { login } = useAuth();
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserInfo | null>(null);
@@ -22,15 +25,17 @@ export default function AuthModal({ isOpen, sessionType, ncProgramId, mcProgramI
 
   useEffect(() => {
     if (isOpen) {
-      // MC側からの呼び出しはmcProgramIdが渡される。NC側はncProgramIdのみ。
-      // これによりAuthModalの担当者選択にMC/NC関係ないユーザが混在しないようにする。
-      const system = mcProgramId ? "MC" : "NC";
-      usersApi.list(system).then(r => setUsers(r.data)).catch(() => {});
+      // system propが明示されていればそれを最優先。
+      // 未指定時は従来通り mcProgramId の有無で判定(MC側からはmcProgramId、NC側はncProgramIdのみが渡される想定)。
+      // 注意: mcProgramId は呼び出し元によって 0 が渡されることがあるため、
+      //       「undefined かどうか」で判定し、値が0であることをNCと誤判定しないようにする。
+      const resolvedSystem: "MC" | "NC" = system ?? (mcProgramId !== undefined ? "MC" : "NC");
+      usersApi.list(resolvedSystem).then(r => setUsers(r.data)).catch(() => {});
       setSelectedUser(null);
       setPassword("");
       setError(null);
     }
-  }, [isOpen, mcProgramId]);
+  }, [isOpen, mcProgramId, system]);
 
   const handleSubmit = async () => {
     if (!selectedUser || !password) return;

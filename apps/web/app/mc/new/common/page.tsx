@@ -300,6 +300,7 @@ export default function McNewCommonPage() {
         <AuthModal
           isOpen={true}
           sessionType="edit"
+          system="MC"
           onSuccess={() => setAuthOpen(false)}
           onCancel={() => setAuthOpen(false)}
         />
