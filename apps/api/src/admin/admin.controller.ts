@@ -1350,13 +1350,15 @@ export class AdminController {
   async getFileTree(@Query('path') queryPath: string) {
     const setting = await this.prisma.companySetting.findFirst();
     const basePath = setting?.uploadBasePath ?? '/mnt/mc_files';
-    const ncBasePath = setting?.ncStoragePath ?? '/mnt/nc_files';
+    // ★v028修正: NC側写真・図の実保存先は NcFilesService.upload() と同じ uploadBasePath を使う。
+    //   旧実装は ncStoragePath (NC側プログラムファイル専用の別設定値) を誤って参照していたため、
+    //   実際の保存先と表示参照先が一致せず「ファイルがありません」と表示される不具合があった。
     const roots = {
       photos:     nodepath.join(basePath, 'MC', 'files', 'Pictures'),
       drawings:   nodepath.join(basePath, 'MC', 'files', 'Drawings'),
       programs:   nodepath.join(basePath, 'MC', 'files', 'Programs'),
-      nc_photos:   nodepath.join(ncBasePath, 'NC', 'files', 'Pictures'),
-      nc_drawings: nodepath.join(ncBasePath, 'NC', 'files', 'Drawings'),
+      nc_photos:   nodepath.join(basePath, 'NC', 'files', 'Pictures'),
+      nc_drawings: nodepath.join(basePath, 'NC', 'files', 'Drawings'),
     };
 
     // 1階層のみ読む・hasChildrenチェックなし（I/O最小化）
@@ -1494,13 +1496,13 @@ export class AdminController {
 
     const setting = await this.prisma.companySetting.findFirst();
     const basePath = setting?.uploadBasePath ?? '/mnt/mc_files';
-    const ncBasePath = setting?.ncStoragePath ?? '/mnt/nc_files';
+    // ★v028修正: files/tree と同じ理由でuploadBasePath基準に統一(詳細はfiles/tree側コメント参照)
     const roots: Record<string, string> = {
       photos:     nodepath.join(basePath, 'MC', 'files', 'Pictures'),
       drawings:   nodepath.join(basePath, 'MC', 'files', 'Drawings'),
       programs:   nodepath.join(basePath, 'MC', 'files', 'Programs'),
-      nc_photos:   nodepath.join(ncBasePath, 'NC', 'files', 'Pictures'),
-      nc_drawings: nodepath.join(ncBasePath, 'NC', 'files', 'Drawings'),
+      nc_photos:   nodepath.join(basePath, 'NC', 'files', 'Pictures'),
+      nc_drawings: nodepath.join(basePath, 'NC', 'files', 'Drawings'),
     };
     const rootPath = roots[tab];
     if (!rootPath) return { items: [], rootPath: '' };
