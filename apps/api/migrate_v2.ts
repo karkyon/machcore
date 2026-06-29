@@ -218,11 +218,14 @@ async function migrateNcPrograms(
     const clampNote = [r2['Clamp'] ? `クランプ: ${r2['Clamp']}` : '', r2['Note'] || ''].filter(Boolean).join('\n') || null;
     const regBy = userMap.byId.get(parseInt(r2['Reco_P'] || '0')) || 1;
     try {
-      const prog = await prisma.ncProgram.upsert({
-        where: { unique_part_process: { partId: newPartId, processL: parseInt(r2['L'] || '1') } },
+      // 新スキーマ: NcMachiningDetail(加工データ本体)→NcProgram(部品×登録)の2段階
+      const kid_i = parseInt(kId);
+      await prisma.ncMachiningDetail.upsert({
+        where: { kId: kid_i },
         update: {},
         create: {
-          partId: newPartId, processL: parseInt(r2['L'] || '1'),
+          kId: kid_i,
+          processL: parseInt(r2['L'] || '1'),
           machineId: machineMap.get(parseInt(r2['Machine'] || '0')) || null,
           machiningTime: parseInt(r2['Tm'] || '0') || null,
           setupTimeRef: parseInt(r2['Ts'] || '0') || null,
@@ -230,15 +233,21 @@ async function migrateNcPrograms(
           oNumber: r2['oNo'] || null,
           version: String(parseInt(r2['Ver'] || '0') || 'A'),
           legacyVer: r2['Ver'] || null,
-          legacyKid: parseInt(kId) || null,
           clampNote, drawingCount: parseInt(r2['Fig'] || '0'),
           photoCount: parseInt(r2['Photo'] || '0'),
+        }
+      });
+      const prog = await prisma.ncProgram.create({
+        data: {
+          partId: newPartId,
+          machiningId: kid_i,
+          legacyNcId: ncId,
           status: 'APPROVED', registeredBy: regBy,
           registeredAt: toDateTime(r2['Reco_D']) || new Date('2005-01-01'),
         }
       });
       ncIdMap.set(ncId, prog.id);
-      kidMap.set(parseInt(kId), prog.id);
+      kidMap.set(kid_i, prog.id);
       ok++;
     } catch { ng++; }
   }
@@ -257,14 +266,14 @@ async function migrateNcTools(ncIdMap: Map<number, number>): Promise<void> {
   for (const r of t1) kToNc.set(r['K_id'], parseInt(r['NC_id']));
   let ok = 0, ng = 0;
   for (const r of tools) {
-    const oldNcId = kToNc.get(r['K_id']);
-    if (!oldNcId) { ng++; continue; }
-    const newId = ncIdMap.get(oldNcId);
-    if (!newId) { ng++; continue; }
+    // 新スキーマ: nc_tools.machiningId = NcMachiningDetail.kId(=旧K_id)
+    const kId_tool = parseInt(r['K_id'] || '0');
+    if (!kId_tool) { ng++; continue; }
+    const newId = kId_tool;  // NcMachiningDetail.kIdは旧K_idそのもの
     const pt = [r['Shave1'], r['Shave2']].filter(Boolean).join(' / ') || null;
     try {
       await prisma.ncTool.create({
-        data: { ncProgramId: newId, sortOrder: parseInt(r['No'] || '0'),
+        data: { machiningId: newId, sortOrder: parseInt(r['No'] || '0'),
           processType: pt, chipModel: r['Chip'] || null,
           holderModel: r['Holder'] || null,
           noseR: r['NorzR'] ? String(parseFloat(r['NorzR'])) : null,
