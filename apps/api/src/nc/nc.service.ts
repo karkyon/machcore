@@ -46,7 +46,7 @@ export class NcService {
       where.part = { ...(where.part ?? {}), clientName: { contains: clientName, mode: "insensitive" } };
     }
     if (machineId) {
-      where.machineId = machineId;
+      where.machining = { ...(where.machining ?? {}), machineId };
     }
 
     const [total, data] = await Promise.all([
@@ -56,12 +56,17 @@ export class NcService {
         take: limit,
         skip: offset,
         select: {
-          id: true, processL: true, version: true, status: true,
-          folderName: true, fileName: true, machiningTime: true,
-          part:    { select: { id: true, partId: true, drawingNo: true, name: true, clientName: true } },
-          machine: { select: { machineCode: true } },
+          id: true, status: true,
+          part:     { select: { id: true, partId: true, drawingNo: true, name: true, clientName: true } },
+          machining: {
+            select: {
+              processL: true, version: true, folderName: true,
+              fileName: true, machiningTime: true,
+              machine: { select: { machineCode: true } },
+            },
+          },
         },
-        orderBy: [{ part: { drawingNo: "asc" } }, { processL: "asc" }],
+        orderBy: [{ part: { drawingNo: "asc" } }, { machining: { processL: "asc" } }],
       }),
     ]);
     return {
@@ -69,11 +74,11 @@ export class NcService {
       data: data.map(r => ({
         nc_id: r.id, part_db_id: r.part.id, part_id: r.part.partId,
         drawing_no: r.part.drawingNo, part_name: r.part.name,
-        client_name: r.part.clientName, process_l: r.processL,
-        machine_code: r.machine?.machineCode ?? null,
-        status: r.status, version: r.version,
-        folder_name: r.folderName, file_name: r.fileName,
-        machining_time: r.machiningTime,
+        client_name: r.part.clientName, process_l: r.machining?.processL ?? null,
+        machine_code: r.machining?.machine?.machineCode ?? null,
+        status: r.status, version: r.machining?.version ?? null,
+        folder_name: r.machining?.folderName ?? null, file_name: r.machining?.fileName ?? null,
+        machining_time: r.machining?.machiningTime ?? null,
       })),
     };
   }
@@ -94,14 +99,16 @@ export class NcService {
     const rows = await this.prisma.ncProgram.findMany({
       where: { partId: partDbId },
       select: {
-        id: true, processL: true, version: true, status: true,
-        machine: { select: { machineCode: true } },
+        id: true, status: true,
+        machining: {
+          select: { processL: true, version: true, machine: { select: { machineCode: true } } },
+        },
       },
-      orderBy: { processL: "asc" },
+      orderBy: { machining: { processL: "asc" } },
     });
     return rows.map(r => ({
-      nc_id: r.id, process_l: r.processL, version: r.version,
-      status: r.status, machine_code: r.machine?.machineCode ?? null,
+      nc_id: r.id, process_l: r.machining?.processL ?? null, version: r.machining?.version ?? null,
+      status: r.status, machine_code: r.machining?.machine?.machineCode ?? null,
     }));
   }
 
@@ -116,18 +123,23 @@ export class NcService {
         user: { select: { name: true } },
         ncProgram: {
           select: {
-            id: true, processL: true, version: true,
-            part:    { select: { drawingNo: true, name: true } },
-            machine: { select: { machineCode: true } },
+            id: true, status: true,
+            part:     { select: { drawingNo: true, name: true } },
+            machining: {
+              select: {
+                processL: true, version: true,
+                machine: { select: { machineCode: true } },
+              },
+            },
           },
         },
       },
     });
     return logs.map(l => ({
       nc_id: l.ncProgram?.id, drawing_no: l.ncProgram?.part.drawingNo,
-      part_name: l.ncProgram?.part.name, process_l: l.ncProgram?.processL,
-      machine_code: l.ncProgram?.machine?.machineCode,
-      version: l.ncProgram?.version, action_type: l.actionType,
+      part_name: l.ncProgram?.part.name, process_l: l.ncProgram?.machining?.processL ?? null,
+      machine_code: l.ncProgram?.machining?.machine?.machineCode ?? null,
+      version: l.ncProgram?.machining?.version ?? null, action_type: l.actionType,
       operator_name: l.user?.name, accessed_at: l.createdAt,
     }));
   }
@@ -147,10 +159,15 @@ export class NcService {
     const r = await this.prisma.ncProgram.findUnique({
       where: { id },
       include: {
-        part: true, machine: true,
+        part:     true,
+        machining: {
+          include: {
+            machine: true,
+            tools:   { orderBy: { sortOrder: "asc" } },
+          },
+        },
         registrar: { select: { id: true, name: true } },
         approver:  { select: { id: true, name: true } },
-        tools: { orderBy: { sortOrder: "asc" } },
       },
     });
     if (!r) throw new NotFoundException(`NC_id ${id} が存在しません`);
@@ -163,18 +180,30 @@ export class NcService {
     if (!part) throw new NotFoundException(`part_id ${dto.part_id} が存在しません`);
 
     const nc = await this.prisma.$transaction(async (tx) => {
+      // NcMachiningDetail(加工データ本体)を先に作成。
+      // 新規登録時のk_idは、既存最大値+1で採番する(旧K_id方式の踏襲)。
+      const maxKid = await tx.ncMachiningDetail.aggregate({ _max: { kId: true } });
+      const newKid = (maxKid._max.kId ?? 0) + 1;
+      await tx.ncMachiningDetail.upsert({
+        where: { kId: newKid },
+        update: {},
+        create: {
+          kId:          newKid,
+          processL:     dto.process_l,
+          machineId:    dto.machine_id     ?? null,
+          machiningTime: dto.machining_time ?? null,
+          folderName:   dto.folder_name,
+          fileName:     dto.file_name,
+          version:      dto.version ?? "1.0001",
+          clampNote:    dto.clamp_note     ?? null,
+        },
+      });
       const created = await tx.ncProgram.create({
         data: {
-          partId:        dto.part_id,
-          processL:      dto.process_l,
-          machineId:     dto.machine_id     ?? null,
-          machiningTime: dto.machining_time ?? null,
-          folderName:    dto.folder_name,
-          fileName:      dto.file_name,
-          version:       dto.version,
-          clampNote:     dto.clamp_note     ?? null,
-          status:        "NEW",
-          registeredBy:  operatorId,
+          partId:       dto.part_id,
+          machiningId:  newKid,
+          status:       "NEW",
+          registeredBy: operatorId,
         },
       });
       await tx.changeHistory.create({
@@ -183,7 +212,7 @@ export class NcService {
           operatorId,
           changeType:    "NEW_REGISTRATION",
           versionBefore: null,
-          versionAfter:  dto.version,
+          versionAfter:  dto.version ?? "1.0001",
           content:       `新規登録: ${part.drawingNo} L${dto.process_l}`,
         },
       });
@@ -198,17 +227,30 @@ export class NcService {
     const existing = await this.prisma.ncProgram.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException(`NC_id ${id} が存在しません`);
 
+    // 既存データのmachining_id取得
+    const existingWithMachining = await this.prisma.ncProgram.findUnique({
+      where: { id },
+      include: { machining: true },
+    });
+    if (!existingWithMachining) throw new NotFoundException(`NC_id ${id} が存在しません`);
+    const existingM = existingWithMachining.machining;
+
     const updated = await this.prisma.$transaction(async (tx) => {
+      // 加工データ(NcMachiningDetail)を更新
+      await tx.ncMachiningDetail.update({
+        where: { kId: existingWithMachining.machiningId },
+        data: {
+          machineId:    dto.machine_id     !== undefined ? dto.machine_id     : existingM.machineId,
+          machiningTime: dto.machining_time !== undefined ? dto.machining_time : existingM.machiningTime,
+          folderName:   dto.folder_name    ?? existingM.folderName,
+          fileName:     dto.file_name      ?? existingM.fileName,
+          clampNote:    dto.clamp_note     !== undefined ? dto.clamp_note     : existingM.clampNote,
+        },
+      });
+      // NcProgramのステータスのみ更新
       const result = await tx.ncProgram.update({
         where: { id },
-        data: {
-          machineId:     dto.machine_id     !== undefined ? dto.machine_id     : existing.machineId,
-          machiningTime: dto.machining_time !== undefined ? dto.machining_time : existing.machiningTime,
-          folderName:    dto.folder_name    ?? existing.folderName,
-          fileName:      dto.file_name      ?? existing.fileName,
-          clampNote:     dto.clamp_note     !== undefined ? dto.clamp_note     : existing.clampNote,
-          status:        "CHANGING",
-        },
+        data: { status: "CHANGING" },
       });
       // 変更履歴はfinalize()で登録するためupdateでは登録しない（MC方式）
       await tx.operationLog.create({
@@ -217,17 +259,21 @@ export class NcService {
       return result;
     });
 
-    return { nc_id: id, version: updated.version, message: "更新しました" };
+    return { nc_id: id, version: existingM.version, message: "更新しました" };
   }
 
   // ══════════════════════════════════════════
   // NC-05b: 終了確認（バージョンインクリ + 変更履歴登録）— MC finalize()のロジックを移植
   // ══════════════════════════════════════════
   async finalize(id: number, changeType: string, changeDetail: string | undefined, operatorId: number) {
-    const nc = await this.prisma.ncProgram.findUnique({ where: { id } });
-    if (!nc) throw new NotFoundException(`NC_id ${id} が存在しません`);
+    const ncWithMachining = await this.prisma.ncProgram.findUnique({
+      where:   { id },
+      include: { machining: true },
+    });
+    if (!ncWithMachining) throw new NotFoundException(`NC_id ${id} が存在しません`);
+    const nc = ncWithMachining;
 
-    const verStr   = nc.version ?? "1.0001";
+    const verStr   = nc.machining?.version ?? "1.0001";
     const verFloat = parseFloat(verStr) || 1.0001;
     const ver1 = Math.floor(verFloat);
     const ver2 = Math.floor(verFloat * 100) - ver1 * 100;
@@ -242,16 +288,21 @@ export class NcService {
     const content    = `${changeType}${changeDetail ? " " + changeDetail : ""}`;
 
     return this.prisma.$transaction(async (tx) => {
+      // バージョンはNcMachiningDetail側を更新
+      await tx.ncMachiningDetail.update({
+        where: { kId: nc.machiningId },
+        data:  { version: newVersion },
+      });
       await tx.ncProgram.update({
         where: { id },
-        data:  { version: newVersion, status: "CHANGING" },
+        data:  { status: "CHANGING" },
       });
       await tx.changeHistory.create({
         data: {
           ncProgramId:   id,
           changeType:    "CHANGE",
           operatorId,
-          versionBefore: nc.version ?? "1.0001",
+          versionBefore: nc.machining?.version ?? "1.0001",
           versionAfter:  newVersion,
           content,
         },
@@ -281,11 +332,15 @@ export class NcService {
   // NC-06: 承認 — MC approve()のロジックを移植
   // ══════════════════════════════════════════
   async approve(id: number, operatorId: number) {
-    const nc = await this.prisma.ncProgram.findUnique({ where: { id } });
-    if (!nc) throw new NotFoundException(`NC_id ${id} が存在しません`);
-    if (nc.status === "APPROVED") {
+    const ncApprove = await this.prisma.ncProgram.findUnique({
+      where:   { id },
+      include: { machining: { select: { version: true } } },
+    });
+    if (!ncApprove) throw new NotFoundException(`NC_id ${id} が存在しません`);
+    if (ncApprove.status === "APPROVED") {
       throw new Error("既に承認済みです");
     }
+    const approveVer = ncApprove.machining?.version ?? "1.0001";
     return this.prisma.$transaction(async (tx) => {
       await tx.ncProgram.update({
         where: { id },
@@ -300,8 +355,8 @@ export class NcService {
           ncProgramId:   id,
           changeType:    "APPROVAL",
           operatorId,
-          versionBefore: nc.version,
-          versionAfter:  nc.version,
+          versionBefore: approveVer,
+          versionAfter:  approveVer,
           content:       "承認",
         },
       });
@@ -310,10 +365,10 @@ export class NcService {
           userId:      operatorId,
           ncProgramId: id,
           actionType:  "EDIT_SAVE",
-          metadata:    { action: "approve", version: nc.version },
+          metadata:    { action: "approve", version: approveVer },
         },
       });
-      return { nc_id: id, message: "承認しました", version: nc.version };
+      return { nc_id: id, message: "承認しました", version: approveVer };
     });
   }
 
@@ -321,8 +376,13 @@ export class NcService {
   // ツーリングデータ — MC getTooling()/saveTooling()のロジックを移植
   // ══════════════════════════════════════════
   async getTooling(ncId: number) {
+    const prog = await this.prisma.ncProgram.findUnique({
+      where:  { id: ncId },
+      select: { machiningId: true },
+    });
+    if (!prog) throw new NotFoundException(`NC_id ${ncId} が存在しません`);
     return this.prisma.ncTool.findMany({
-      where:   { ncProgramId: ncId },
+      where:   { machiningId: prog.machiningId },
       orderBy: { sortOrder: "asc" },
     });
   }
@@ -331,12 +391,19 @@ export class NcService {
     const nc = await this.prisma.ncProgram.findUnique({ where: { id: ncId } });
     if (!nc) throw new NotFoundException(`NC_id ${ncId} が存在しません`);
 
+    const progForTooling = await this.prisma.ncProgram.findUnique({
+      where:  { id: ncId },
+      select: { machiningId: true },
+    });
+    if (!progForTooling) throw new NotFoundException(`NC_id ${ncId} が存在しません`);
+    const machiningId = progForTooling.machiningId;
+
     return this.prisma.$transaction(async (tx) => {
-      await tx.ncTool.deleteMany({ where: { ncProgramId: ncId } });
+      await tx.ncTool.deleteMany({ where: { machiningId } });
       if (dto.items.length > 0) {
         await tx.ncTool.createMany({
           data: dto.items.map(item => ({
-            ncProgramId: ncId,
+            machiningId,
             sortOrder:   item.sort_order,
             processType: item.process_type ?? null,
             chipModel:   item.chip_model   ?? null,
@@ -525,8 +592,12 @@ export class NcService {
     });
     if (!nc) throw new NotFoundException(`NC_id ${ncProgramId} が存在しません`);
  
-    // 使用機械: dto.machine_id → nc.machineId → null の優先順
-    const machineId = dto.machine_id ?? nc.machineId ?? null;
+    // 使用機械: dto.machine_id → machining.machineId → null の優先順
+    const ncWithMachiningForWR = await this.prisma.ncProgram.findUnique({
+      where:  { id: ncProgramId },
+      select: { machining: { select: { machineId: true } } },
+    });
+    const machineId = dto.machine_id ?? ncWithMachiningForWR?.machining?.machineId ?? null;
  
     const record = await this.prisma.workRecord.create({
       data: {
@@ -621,11 +692,15 @@ async getPrintData(ncProgramId: number) {
   const nc = await this.prisma.ncProgram.findUnique({
     where: { id: ncProgramId },
     include: {
-      part:      true,
-      machine:   true,
+      part:     true,
+      machining: {
+        include: {
+          machine: true,
+          tools:   { orderBy: { sortOrder: 'asc' } },
+        },
+      },
       registrar: { select: { id: true, name: true } },
       approver:  { select: { id: true, name: true } },
-      tools:     { orderBy: { sortOrder: 'asc' } },
       files: {
         where:   { fileType: 'DRAWING' },
         orderBy: { uploadedAt: 'desc' },
@@ -633,7 +708,20 @@ async getPrintData(ncProgramId: number) {
     },
   });
   if (!nc) throw new NotFoundException(`NC_id ${ncProgramId} が存在しません`);
-  return nc;
+  // buildSetupSheetHtmlとの互換性のためにフラット展開したオブジェクトを返す
+  return {
+    ...nc,
+    machine:      nc.machining?.machine   ?? null,
+    tools:        nc.machining?.tools     ?? [],
+    processL:     nc.machining?.processL  ?? null,
+    version:      nc.machining?.version   ?? null,
+    folderName:   nc.machining?.folderName ?? '',
+    fileName:     nc.machining?.fileName  ?? '',
+    oNumber:      nc.machining?.oNumber   ?? null,
+    clampNote:    nc.machining?.clampNote ?? null,
+    machiningTime: nc.machining?.machiningTime ?? null,
+    processingId: nc.machining?.processingId ?? null,
+  };
 }
 
 // ── NC-08: 段取シートPDF生成（Puppeteer） ───────────────────────
@@ -698,7 +786,7 @@ async generateSetupSheetPdf(
 
     // SetupSheetLog INSERT（エラーはログのみ）
     await this.prisma.setupSheetLog.create({
-      data: { ncProgramId, operatorId, version: data?.version ?? null },
+      data: { ncProgramId, operatorId, version: (data as any)?.machining?.version ?? (data as any)?.version ?? null },
     }).catch(e => console.warn('SetupSheetLog insert failed:', e.message));
 
     return pdfBuffer;
@@ -933,7 +1021,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
 
   /** ファイルパス解決（company_settings.upload_base_path / folderName / fileName） */
   private async resolvePgFilePath(
-    nc: { id: number; fileName: string; folderName: string | null },
+    nc: { id: number; fileName: string; folderName?: string | null },
   ): Promise<string> {
     const setting = await this.prisma.companySetting.findFirst();
     const base =
@@ -947,7 +1035,11 @@ private buildSetupSheetHtml(data: any, opts: any): string {
 
   /** NC-06: PGファイル読込（chardet でエンコード自動検出 → UTF-8 変換） */
   async getPgFile(id: number) {
-    const nc = await this.prisma.ncProgram.findUniqueOrThrow({ where: { id }, select: { id: true, fileName: true, folderName: true } });
+    const ncPg = await this.prisma.ncProgram.findUniqueOrThrow({
+      where:  { id },
+      include: { machining: { select: { fileName: true, folderName: true } } },
+    });
+    const nc = { id: ncPg.id, fileName: ncPg.machining?.fileName ?? '', folderName: ncPg.machining?.folderName ?? null };
     const filePath = await this.resolvePgFilePath(nc);
 
     if (!fs.existsSync(filePath)) {
@@ -988,7 +1080,11 @@ private buildSetupSheetHtml(data: any, opts: any): string {
     encoding = 'UTF-8',
     lineEnding = 'LF',
   ) {
-    const nc = await this.prisma.ncProgram.findUniqueOrThrow({ where: { id }, select: { id: true, fileName: true, folderName: true } });
+    const ncSavePg = await this.prisma.ncProgram.findUniqueOrThrow({
+      where:  { id },
+      include: { machining: { select: { fileName: true, folderName: true } } },
+    });
+    const nc = { id: ncSavePg.id, fileName: ncSavePg.machining?.fileName ?? '', folderName: ncSavePg.machining?.folderName ?? null };
     const filePath = await this.resolvePgFilePath(nc);
 
     if (!fs.existsSync(filePath)) {
@@ -1010,10 +1106,11 @@ private buildSetupSheetHtml(data: any, opts: any): string {
 
   /** NC-07: PGファイルダウンロード（バイナリストリーム返却） */
   async downloadPgFile(id: number): Promise<{ buffer: Buffer; fileName: string }> {
-    const nc = await this.prisma.ncProgram.findUniqueOrThrow({
-      where: { id },
-      select: { id: true, fileName: true, folderName: true },
+    const ncDownPg = await this.prisma.ncProgram.findUniqueOrThrow({
+      where:   { id },
+      include: { machining: { select: { fileName: true, folderName: true } } },
     });
+    const nc = { id: ncDownPg.id, fileName: ncDownPg.machining?.fileName ?? '', folderName: ncDownPg.machining?.folderName ?? null };
     const filePath = await this.resolvePgFilePath(nc);
 
     if (!fs.existsSync(filePath)) {

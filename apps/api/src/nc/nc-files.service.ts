@@ -47,7 +47,10 @@ export class NcFilesService {
     file:        { filename: string; mimetype: string; data: Buffer },
     fileTypeOverride?: 'PHOTO' | 'DRAWING',
   ) {
-    const nc = await this.prisma.ncProgram.findUnique({ where: { id: ncProgramId } });
+    const nc = await this.prisma.ncProgram.findUnique({
+      where:  { id: ncProgramId },
+      select: { id: true, machiningId: true },
+    });
     if (!nc) throw new NotFoundException(`NC_id ${ncProgramId} が存在しません`);
 
     const basePath = await this.getBasePath();
@@ -102,12 +105,17 @@ export class NcFilesService {
   }
 
   private async updateFileCounts(ncProgramId: number) {
+    const prog = await this.prisma.ncProgram.findUnique({
+      where:  { id: ncProgramId },
+      select: { machiningId: true },
+    });
+    if (!prog) return;
     const [photoCount, drawingCount] = await Promise.all([
       this.prisma.ncFile.count({ where: { ncProgramId, fileType: 'PHOTO' } }),
       this.prisma.ncFile.count({ where: { ncProgramId, fileType: 'DRAWING' } }),
     ]);
-    await this.prisma.ncProgram.update({
-      where: { id: ncProgramId },
+    await this.prisma.ncMachiningDetail.update({
+      where: { kId: prog.machiningId },
       data:  { photoCount, drawingCount },
     });
   }

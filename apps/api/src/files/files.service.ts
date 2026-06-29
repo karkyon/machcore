@@ -319,14 +319,19 @@ export class FilesService {
     return { upload_base_path: setting.uploadBasePath, message: '保存先パスを更新しました' };
   }
 
-  // ── nc_programs の drawingCount / photoCount 更新 ─────────────
+  // ── nc_machining_details の drawingCount / photoCount 更新 ─────
   private async updateFileCounts(ncProgramId: number) {
+    const prog = await this.prisma.ncProgram.findUnique({
+      where:  { id: ncProgramId },
+      select: { machiningId: true },
+    });
+    if (!prog) return;
     const [drawings, photos] = await Promise.all([
       this.prisma.ncFile.count({ where: { ncProgramId, fileType: 'DRAWING' } }),
       this.prisma.ncFile.count({ where: { ncProgramId, fileType: 'PHOTO'   } }),
     ]);
-    await this.prisma.ncProgram.update({
-      where: { id: ncProgramId },
+    await this.prisma.ncMachiningDetail.update({
+      where: { kId: prog.machiningId },
       data:  { drawingCount: drawings, photoCount: photos },
     });
   }

@@ -483,7 +483,7 @@ export class AdminController {
         orderBy: { createdAt: 'desc' },
         include: {
           user:      { select: { name: true, employeeCode: true } },
-          ncProgram: { select: { id: true, folderName: true, fileName: true,
+          ncProgram: { select: { id: true, machining: { select: { folderName: true, fileName: true } },
                                  part: { select: { drawingNo: true, name: true } } } },
         },
       }),
@@ -499,7 +499,7 @@ export class AdminController {
         nc_id:       r.ncProgramId,
         drawing_no:  (r.ncProgram as any)?.part?.drawingNo ?? null,
         part_name:   (r.ncProgram as any)?.part?.name ?? null,
-        file_name:   r.ncProgram?.fileName ?? null,
+        file_name:   (r.ncProgram as any)?.machining?.fileName ?? null,
         metadata:    r.metadata,
         created_at:  r.createdAt,
       })),

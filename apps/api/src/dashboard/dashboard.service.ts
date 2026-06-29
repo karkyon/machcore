@@ -9,15 +9,19 @@ export class DashboardService {
     const rows = await this.prisma.setupSheetLog.findMany({
       where: { workCollected: false },
       orderBy: [
-        { ncProgram: { machine: { sortOrder: 'asc' } } },
+        { ncProgram: { machining: { machine: { sortOrder: 'asc' } } } },
         { printedAt: 'asc' },
       ],
       include: {
         operator:  { select: { name: true } },
         ncProgram: {
           include: {
-            part:    { select: { partId: true, drawingNo: true, name: true, clientName: true, mainModel: true } },
-            machine: { select: { machineCode: true, machineName: true, sortOrder: true } },
+            part:     { select: { partId: true, drawingNo: true, name: true, clientName: true, mainModel: true } },
+            machining: {
+              include: {
+                machine: { select: { machineCode: true, machineName: true, sortOrder: true } },
+              },
+            },
           },
         },
       },
@@ -30,10 +34,10 @@ export class DashboardService {
       part_name:     s.ncProgram.part.name,
       client_name:   s.ncProgram.part.clientName ?? null,
       main_model:    s.ncProgram.part.mainModel ?? null,
-      process_l:     s.ncProgram.processL,
-      machine_code:  s.ncProgram.machine?.machineCode ?? null,
-      machine_name:  s.ncProgram.machine?.machineName ?? null,
-      machine_sort:  s.ncProgram.machine?.sortOrder ?? 999,
+      process_l:     s.ncProgram.machining?.processL ?? null,
+      machine_code:  s.ncProgram.machining?.machine?.machineCode ?? null,
+      machine_name:  s.ncProgram.machining?.machine?.machineName ?? null,
+      machine_sort:  s.ncProgram.machining?.machine?.sortOrder ?? 999,
       version:       s.version ?? null,
       printed_at:    s.printedAt,
       operator_name: s.operator.name,
