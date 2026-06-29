@@ -87,7 +87,7 @@ export async function agentPgToUsb(ticket: string, apiBaseUrl: string): Promise<
  * Agentへ「単体ファイル選択→アップロード→ローカル削除」を一括依頼する。
  * Agent内でネイティブファイルダイアログが表示される。
  */
-export async function agentPickAndUpload(ticket: string, fileType?: string): Promise<PickAndUploadResult> {
+export async function agentPickAndUpload(ticket: string, fileType?: string, uploadPath?: string): Promise<PickAndUploadResult> {
   const token = await getAgentToken();
   if (!token) return { agentAvailable: false, cancelled: false, success: false, files: [], error: "Agent未起動" };
 
@@ -95,7 +95,7 @@ export async function agentPickAndUpload(ticket: string, fileType?: string): Pro
     const res = await fetch(`${AGENT_BASE}/pick-and-upload`, {
       method:  "POST",
       headers: { "Content-Type": "application/json", "X-Agent-Token": token },
-      body:    JSON.stringify({ ticket, fileType }),
+      body:    JSON.stringify({ ticket, fileType, uploadPath }),
       signal:  AbortSignal.timeout(DIALOG_TIMEOUT_MS),
     });
     const json = await res.json();
@@ -113,7 +113,7 @@ export async function agentPickAndUpload(ticket: string, fileType?: string): Pro
 /**
  * Agentへ「フォルダ選択→フォルダ内全ファイルアップロード→ローカル削除」を一括依頼する。
  */
-export async function agentPickFolderAndUpload(ticket: string, fileType?: string): Promise<PickAndUploadResult> {
+export async function agentPickFolderAndUpload(ticket: string, fileType?: string, uploadPath?: string): Promise<PickAndUploadResult> {
   const token = await getAgentToken();
   if (!token) return { agentAvailable: false, cancelled: false, success: false, files: [], error: "Agent未起動" };
 
@@ -121,7 +121,7 @@ export async function agentPickFolderAndUpload(ticket: string, fileType?: string
     const res = await fetch(`${AGENT_BASE}/pick-folder-and-upload`, {
       method:  "POST",
       headers: { "Content-Type": "application/json", "X-Agent-Token": token },
-      body:    JSON.stringify({ ticket, fileType }),
+      body:    JSON.stringify({ ticket, fileType, uploadPath }),
       signal:  AbortSignal.timeout(DIALOG_TIMEOUT_MS),
     });
     const json = await res.json();

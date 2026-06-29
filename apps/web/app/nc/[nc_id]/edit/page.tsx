@@ -49,7 +49,7 @@ export default function NcEditPage() {
     });
     if (!res.ok) throw new Error(`チケット発行失敗: HTTP ${res.status}`);
     const json = await res.json();
-    return json.ticket as string;
+    return { ticket: json.ticket as string, uploadPath: json.upload_path as string | undefined };
   };
 
   const requestNcUpload = useCallback(async (fileType: "PHOTO" | "DRAWING") => {
@@ -73,8 +73,8 @@ export default function NcEditPage() {
 
     setUploadMsg("⏳ UploadAgentでファイル選択ダイアログを開いています...");
     try {
-      const ticket = await issueNcUploadTicket(fileType);
-      const result = await agentPickAndUpload(ticket, fileType);
+      const { ticket, uploadPath } = await issueNcUploadTicket(fileType);
+      const result = await agentPickAndUpload(ticket, fileType, uploadPath);
 
       if (result.cancelled) { setUploadMsg(null); return; }
       if (!result.success) { setUploadMsg(`❌ ${result.error ?? "アップロードに失敗しました"}`); return; }

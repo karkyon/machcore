@@ -152,7 +152,7 @@ export class NcController {
       isFolderUpload: body.is_folder_upload,
       system: "NC",
     });
-    return { ticket: ticket.ticket, expires_in_sec: 60, nc_id: ncId };
+    return { ticket: ticket.ticket, expires_in_sec: 60, nc_id: ncId, upload_path: "/api/nc/files/upload-by-ticket" };
   }
 
   // ── UploadAgent連携: チケット式アップロード受理（MC側と同方式） ──

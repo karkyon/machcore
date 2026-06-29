@@ -660,7 +660,8 @@ export default function NcDetailPage() {
 
           {/* ─ 写真・図 ─ */}
           {mainTab === "files" && (
-            <div className="p-5 space-y-4">
+            <div className="p-5">
+            <div className="max-w-3xl mx-auto space-y-4">
 
               {/* ── 📋 Ridoc図面カード ── */}
               {d.part.drawingNo && (
@@ -734,6 +735,7 @@ export default function NcDetailPage() {
                 </div>
               )}
 
+            </div>
               {/* ── プレビューモーダル ── */}
               {previewFile && (
                 <div
@@ -907,7 +909,7 @@ function FileSection({
           なし
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-3 gap-4">
           {files.map(f => (
             <div
               key={f.id}
