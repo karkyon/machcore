@@ -1550,8 +1550,11 @@ export class McService {
     const tcSettings = await this.getSystemSettings();
     const defStart = tcSettings['timecard_default_start'] ?? '08:00';
     const defEnd   = tcSettings['timecard_default_end']   ?? '17:00';
+    // MC専用機能のため、MC側機械(BOTH含む)のみを対象にする
+    // (NC側機械を含めて全件取得していたバグの修正。admin.controller.tsの
+    //  手動初期化エンドポイントと同じフィルタに統一)
     const machines = await this.prisma.machine.findMany({
-      where: { isActive: true },
+      where: { isActive: true, systemType: { in: ['MC', 'BOTH'] } },
       orderBy: { sortOrder: 'asc' },
     });
     // UNIQUE(machine_id, work_date)制約を利用してupsert
