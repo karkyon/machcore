@@ -186,7 +186,7 @@ export type WorkSessionResponse = {
 };
 
 export const usersApi = {
-  list: () => api.get<UserInfo[]>("/users"),
+  list: (system?: "NC" | "MC") => api.get<UserInfo[]>("/users", { params: system ? { system } : undefined }),
 };
 
 export const authApi = {
@@ -212,7 +212,7 @@ export type Machine = {
 };
 
 export const machinesApi = {
-  list: () => api.get<Machine[]>("/machines"),
+  list: (system?: "NC" | "MC") => api.get<Machine[]>("/machines", { params: system ? { system } : undefined }),
 };
 
 export type WorkRecord = {

@@ -702,8 +702,8 @@ function McRecordPageInner() {
       if (sheets.length > 0) setSelectedSheet(sheets[0]);
     }).catch(() => {});
     mcApi.workRecords(mcId).then(r => { const recs=(r as any).data??[]; setRecords(recs); console.log("[RECORD] 作業記録一覧取得",{count:recs.length,latest:recs[0]}); }).catch(() => {});
-    machinesApi.list().then(r => setMachines((r as any).data ?? [])).catch(() => {});
-    usersApi.list().then(r => setUsers((r as any).data ?? [])).catch(() => {});
+    machinesApi.list("MC").then(r => setMachines((r as any).data ?? [])).catch(() => {});
+    usersApi.list("MC").then(r => setUsers((r as any).data ?? [])).catch(() => {});
   }, [mcId]);
 
   // machines/selectedSheet/detail変化時に machineId を自動解決

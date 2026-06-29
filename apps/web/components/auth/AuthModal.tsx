@@ -22,12 +22,15 @@ export default function AuthModal({ isOpen, sessionType, ncProgramId, mcProgramI
 
   useEffect(() => {
     if (isOpen) {
-      usersApi.list().then(r => setUsers(r.data)).catch(() => {});
+      // MC側からの呼び出しはmcProgramIdが渡される。NC側はncProgramIdのみ。
+      // これによりAuthModalの担当者選択にMC/NC関係ないユーザが混在しないようにする。
+      const system = mcProgramId ? "MC" : "NC";
+      usersApi.list(system).then(r => setUsers(r.data)).catch(() => {});
       setSelectedUser(null);
       setPassword("");
       setError(null);
     }
-  }, [isOpen]);
+  }, [isOpen, mcProgramId]);
 
   const handleSubmit = async () => {
     if (!selectedUser || !password) return;

@@ -358,7 +358,7 @@ export default function McEditPage() {
         note:       p.note     ?? "",
       })));
     }).catch(() => {});
-    machinesApi.list().then(r => {
+    machinesApi.list("MC").then(r => {
       const list = (r as any).data ?? [];
       setMachines(list);
       // detail が先に取得済みの場合はここで即座に machineCode → id 解決
@@ -374,7 +374,7 @@ export default function McEditPage() {
         return prev;
       });
     }).catch(() => {});
-    usersApi.list().then(r => setUsers((r as any).data ?? [])).catch(() => {});
+    usersApi.list("MC").then(r => setUsers((r as any).data ?? [])).catch(() => {});
     mcApi.listFiles(mcId).then(r => setFiles((r as any).data ?? [])).catch(() => {});
     mcApi.getPgFile(mcId).then(r => {
       const d2 = (r as any).data ?? r;

@@ -152,8 +152,8 @@ function RecordPageInner() {
       const [ncRes, sheetRes, machRes, userRes] = await Promise.all([
         ncApi.findOne(ncId),
         ncApi.setupSheetLogs(ncId),
-        machinesApi.list(),
-        usersApi.list(),
+        machinesApi.list("NC"),
+        usersApi.list("NC"),
       ]);
       setNc(ncRes.data);
       setSetupSheets((sheetRes.data as any[]).filter(s => !s.work_collected));

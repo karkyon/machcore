@@ -53,7 +53,7 @@ function McPrintPageInner() {
   const showToast = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); }, []);
 
   useEffect(() => {
-    machinesApi.list().then(r => {
+    machinesApi.list("MC").then(r => {
       const list = Array.isArray((r as any).data) ? (r as any).data : (Array.isArray(r) ? r : []);
       setMachines(list);
     }).catch(() => {});

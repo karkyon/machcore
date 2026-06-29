@@ -169,7 +169,7 @@ export default function NcEditPage() {
     if (!ncId) return;
     Promise.all([
       ncApi.findOne(ncId),
-      machinesApi.list(),
+      machinesApi.list("NC"),
     ]).then(([ncRes, machRes]) => {
       const d = ncRes.data;
       setDetail(d);

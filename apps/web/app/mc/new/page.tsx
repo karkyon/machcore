@@ -37,7 +37,7 @@ export default function McNewPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    machinesApi.list().then(r => {
+    machinesApi.list("MC").then(r => {
       const d = (r as any).data ?? r;
       setMachines(Array.isArray(d) ? d.filter((m: Machine) => m.isActive) : []);
     }).catch(() => {});
