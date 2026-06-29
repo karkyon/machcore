@@ -1112,7 +1112,9 @@ function FileSection({
               </div>
 
               <div className={`px-2 py-1.5 ${theme.bg} border-t ${theme.border}`}>
-                <p className="text-[10px] text-slate-700 font-bold truncate leading-tight">{f.original_name}</p>
+                {/* ★v030修正: 管理者ファイルブラウザ(実体ファイル名=stored_nameを表示)とMC側カード一覧表示の
+                    両方と一致させるため、stored_name優先表示に変更(MC側 mc/[mc_id]/page.tsx と同方式) */}
+                <p className="text-[10px] text-slate-700 font-bold truncate leading-tight">{f.stored_name ?? f.original_name}</p>
                 <p className="text-[9px] text-slate-400 mt-0.5">{fmtSize(f.file_size)}</p>
               </div>
 
