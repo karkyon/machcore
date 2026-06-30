@@ -467,15 +467,23 @@ def verify_history_nc(ss, pg, limit=None):
             continue
 
         exp = expected[kid]
-        # 共通部品(同一K_idが複数nc_programsに展開)では、対応する全nc_programs.idの実績を合算
+        # 共通部品(同一K_idが複数nc_programsに展開)では、nc_full_import_v2.py PHASE3が
+        # 1件のHist_id行を len(prog_ids) 件に複製してINSERTする。
+        # そのため期待値側も同じ倍率(len(prog_ids))を乗じてから新側の合算値と比較する
+        # (新側は既に複製後の実件数のため、複製しない場合の生件数のままでは
+        #  共通部品の全K_idで必ず不一致になってしまっていたバグを修正)。
+        dup_factor = len(prog_ids)
+        exp_sl = exp["setup_sheet_logs"] * dup_factor
+        exp_ch = exp["change_history"] * dup_factor
+        exp_wr = exp["work_records"] * dup_factor
         act_sl = sum(actual_sl.get(pid, 0) for pid in prog_ids)
         act_ch = sum(actual_ch.get(pid, 0) for pid in prog_ids)
         act_wr = sum(actual_wr.get(pid, 0) for pid in prog_ids)
 
         field_checks = [
-            ("印刷履歴件数", exp["setup_sheet_logs"], act_sl, "num"),
-            ("変更履歴件数", exp["change_history"], act_ch, "num"),
-            ("作業記録件数", exp["work_records"], act_wr, "num"),
+            ("印刷履歴件数", exp_sl, act_sl, "num"),
+            ("変更履歴件数", exp_ch, act_ch, "num"),
+            ("作業記録件数", exp_wr, act_wr, "num"),
         ]
         diffs = []
         for label, old_v, new_v, kind in field_checks:
