@@ -34,6 +34,7 @@ v038で導入された新スキーマ(NcMachiningDetail + NcProgram)に対応す
   3 = ACC_History → 3テーブル分離移行（setup_sheet_logs/work_records/change_history、
       K_id→全対応NcProgramへ複製）
   4 = nc_programs.status 正規化（K_id単位の判定をその全対応NcProgramへ展開）
+  5 = NCプログラムファイル移行（folder_name配下→K_idフォルダへ。図・写真は対象外）
 
 ソースDB: imotomc (192.168.1.9) ※NC側ビューもMC側と同じimotomc DB内に存在
   - ACC_NC      : NC_id, B_id, K_id
@@ -59,7 +60,7 @@ ACC_FD は nc_programs.folder_name の補完にのみ使う(FD_name→FD_idの�
           新規ユーザー作成は行わない)。
 """
 
-import sys, os, re, argparse, traceback
+import sys, os, re, argparse, traceback, subprocess
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -761,6 +762,7 @@ def final_report(pg):
         ("change_history(NC)", "SELECT COUNT(*) FROM change_history"),
         ("setup_sheet_logs", "SELECT COUNT(*) FROM setup_sheet_logs"),
         ("work_records(NC)", "SELECT COUNT(*) FROM work_records WHERE nc_program_id IS NOT NULL"),
+        ("nc_files(PROGRAM)", "SELECT COUNT(*) FROM nc_files WHERE file_type='PROGRAM'"),
     ]:
         pgc.execute(sql)
         log(f"  {label}: {pgc.fetchone()[0]}件")
@@ -777,10 +779,148 @@ def final_report(pg):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # メイン
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# ----------------------------------------------------------------
+# PHASE 5: NCプログラムファイル移行
+#   mc_full_import.py PHASE7(7C: プログラム)と同じ考え方。
+#   旧サーバ上のプログラム保存場所は nc_machining_details.folder_name
+#   (=ACC_Lathe.FD_name)で、E:\imotodb\D1\NC\プログラム\ 配下のフォルダ名
+#   (A, B, C...)と完全一致することを現地確認済み(2026-06-30, KARKYONさん確認)。
+#   NC側はfolder1+folder2のような2階層構成ではなくfolder_name1本の単一階層
+#   構成のため、MC側PHASE7Cより単純な1階層直下コピーで表現できる。
+#   写真・図(MC側7A/7B相当)は旧サーバ上で実質1枚ずつしか存在せず運用実態が
+#   ないため、本フェーズの対象外とする(現地確認結果を踏まえた判断)。
+# ----------------------------------------------------------------
+SRC_NC_ROOT = Path("/mnt/mcfiles/NC")
+SRC_NC_PRG  = SRC_NC_ROOT / "ﾌﾟﾛｸﾞﾗﾑ"  # NC側プログラムフォルダ(半角ｶﾅ、MC側SRC_PRGと同じ表記)
+DST_NC_ROOT = Path("/mnt/mc_files/NC/files")
+DST_NC_PRG  = DST_NC_ROOT / "Programs"
+NC_FILE_ADMIN_FALLBACK_ID = 22  # ADMIN001 users.id (MC側ADMIN_IDと共通)
+
+
+def _nc_safe_rmtree_and_mkdir(dst_dir, label):
+    """CIFS上でrmtree後mkdir失敗する問題をリトライで対処(mc_full_import.pyと同方式、rm -rf使用)。"""
+    import time as _time
+    if dst_dir.exists():
+        log(f"  {label}: コピー先クリア ({dst_dir})")
+        _res = subprocess.run(["rm", "-rf", str(dst_dir)], capture_output=True, text=True)
+        if _res.returncode != 0:
+            log(f"  [WARN] rm -rf failed: {_res.stderr}", "WARN")
+    for _attempt in range(10):
+        try:
+            os.makedirs(str(dst_dir), exist_ok=True)
+            return
+        except OSError:
+            _time.sleep(1)
+    os.makedirs(str(dst_dir), exist_ok=True)
+
+
+def phase5(pg, dry_run=False):
+    section("PHASE 5: NCプログラムファイル移行 (folder_name配下 -> K_idフォルダへ)")
+    import shutil as _shutil
+    import mimetypes
+
+    pgc = pg.cursor()
+
+    if not SRC_NC_PRG.exists():
+        log(f"[WARN] SRC_NC_PRG が存在しない: {SRC_NC_PRG} - PHASE5をスキップします", "WARN")
+        return
+
+    if not dry_run:
+        log("nc_files(PROGRAM分)既存データ削除...")
+        pgc.execute("DELETE FROM nc_files WHERE file_type = 'PROGRAM'")
+        pg.commit()
+        _nc_safe_rmtree_and_mkdir(DST_NC_PRG, "プログラム(NC)")
+    else:
+        os.makedirs(str(DST_NC_PRG), exist_ok=True)
+
+    # K_id -> [(nc_programs.id, registered_by, registered_at), ...]
+    # (共通部品で複数あり得る。phase3と同じ構築方法)
+    pgc.execute("SELECT id, machining_id, registered_by, registered_at FROM nc_programs")
+    kid_to_programs = {}
+    for prog_id, machining_id, registered_by, registered_at in pgc.fetchall():
+        kid_to_programs.setdefault(machining_id, []).append((prog_id, registered_by, registered_at))
+    log(f"kid_to_programs構築: {len(kid_to_programs)}件のK_idに対応するNcProgram群")
+
+    pgc.execute("""
+        SELECT k_id, folder_name, file_name
+        FROM nc_machining_details
+        WHERE file_name IS NOT NULL AND file_name != ''
+          AND folder_name IS NOT NULL AND folder_name != '' AND folder_name != '(未設定)'
+        ORDER BY k_id
+    """)
+    details = pgc.fetchall()
+    log(f"  対象K_id: {len(details)}件")
+
+    ok = nomatch = notfound = err = 0
+
+    def _insert_nc_program_file(nc_program_id, orig_name, stored_name, mime, fpath, fsize,
+                                 uploaded_by_id, uploaded_at_val):
+        if dry_run:
+            return
+        pgc.execute("""
+            INSERT INTO nc_files
+              (nc_program_id, file_type, original_name, stored_name, mime_type,
+               file_path, thumbnail_path, file_size, uploaded_by, uploaded_at)
+            VALUES (%s,'PROGRAM',%s,%s,%s,%s,NULL,%s,%s,%s)
+        """, (nc_program_id, orig_name, stored_name, mime, str(fpath), fsize,
+              uploaded_by_id, uploaded_at_val))
+
+    for i, (kid, folder_name, file_name) in enumerate(details):
+        src_dir = SRC_NC_PRG / str(folder_name).strip()
+        if not src_dir.exists() or not src_dir.is_dir():
+            notfound += 1
+            continue
+        if kid not in kid_to_programs:
+            nomatch += 1
+            continue
+
+        dst_dir = DST_NC_PRG / str(kid)
+        try:
+            files = sorted(f for f in src_dir.iterdir() if f.is_file())
+            if not files:
+                notfound += 1
+                continue
+            if not dry_run:
+                os.makedirs(str(dst_dir), exist_ok=True)
+            for f in files:
+                dst = dst_dir / f.name
+                if not dry_run:
+                    _shutil.copy2(f, dst)
+                fsize = f.stat().st_size
+                mime = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
+                for prog_id, registered_by, registered_at in kid_to_programs[kid]:
+                    _insert_nc_program_file(
+                        prog_id, f.name, f.name, mime, dst, fsize,
+                        registered_by or NC_FILE_ADMIN_FALLBACK_ID,
+                        registered_at,
+                    )
+            ok += 1
+        except Exception as e:
+            err += 1
+            if err <= 10:
+                log(f"  ERR K_id={kid} folder={folder_name}: {e}", "WARN")
+
+        if (i + 1) % 1000 == 0:
+            if not dry_run:
+                pg.commit()
+            log(f"    {i+1}/{len(details)} ok={ok} nomatch={nomatch} notfound={notfound} err={err}")
+
+    if not dry_run:
+        pg.commit()
+        pgc.execute("SELECT COUNT(*) FROM nc_files WHERE file_type='PROGRAM'")
+        log(f"PHASE5完了: ok(K_id)={ok} nomatch={nomatch} notfound={notfound} err={err} "
+            f"nc_files(PROGRAM)総数={pgc.fetchone()[0]}")
+    else:
+        log(f"PHASE5完了(dry-run): ok(K_id)={ok} nomatch={nomatch} notfound={notfound} err={err}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="MachCore NC完全移行スクリプト v2(新スキーマ対応)")
-    parser.add_argument("--phase", type=int, default=0, help="実行フェーズ (0=全, 1-4=個別)")
+    parser.add_argument("--phase", type=int, default=0, help="実行フェーズ (0=全, 1-5=個別)")
     parser.add_argument("--dry-run", action="store_true", help="DBへの書き込みなし")
+    parser.add_argument("--skip-file-copy", action="store_true",
+                        help="PHASE5をスキップ（プログラムファイルコピーなし、データのみ移行）")
     args = parser.parse_args()
 
     dry = args.dry_run
@@ -802,6 +942,8 @@ def main():
             phase3(pg, dry_run=dry, nc_id_map=nc_id_map, staff_id_map=staff_id_map, machine_id_map=machine_id_map)
         if args.phase in (0, 4):
             phase4(pg, dry_run=dry)
+        if args.phase == 5 or (args.phase == 0 and not args.skip_file_copy):
+            phase5(pg, dry_run=dry)
 
         if args.phase == 0:
             final_report(pg)
