@@ -134,9 +134,21 @@ def verify_basic_info_nc(ss, pg, limit=None):
     ssc = ss.cursor()
     pgc = pg.cursor()
 
-    # 機械名マップ: machines.id → machine_code (NC/BOTH対象)
+    # 機械コードマップ: ACC_Lathe.Machine は ACC_Machine.m_id(整数ID)を指している。
+    # nc_full_import_v2.py PHASE1①と完全に同じ2段階変換を行う:
+    #   m_id → ACC_Machine.Model(文字列) → machines.machine_code との直引き
+    # (旧Machine列をそのままmachine_codeと比較すると型もセマンティクスも異なり、
+    #  必ず不一致になってしまう)
+    ssc.execute("SELECT m_id, Model FROM ACC_Machine")
+    acc_machine_rows = ssc.fetchall()
     pgc.execute("SELECT id, machine_code FROM machines WHERE system_type IN ('NC','BOTH')")
     machine_id_to_code = {r[0]: r[1] for r in pgc.fetchall()}
+    machine_code_set = set(machine_id_to_code.values())
+    mid_to_model = {}
+    for m_id, model in acc_machine_rows:
+        model_str = str(model or "").strip()
+        if model_str in machine_code_set:
+            mid_to_model[m_id] = model_str
 
     # 旧側: ACC_NC(部品×加工対応) と ACC_Lathe(加工データ本体)をK_idで結合
     ssc.execute("""
@@ -187,6 +199,9 @@ def verify_basic_info_nc(ss, pg, limit=None):
          n_setup_time_ref, n_folder_name, n_file_name, n_onumber,
          n_drawing_count, n_photo_count, n_version) = new_row
 
+        # 旧側: m_id(整数) → ACC_Machine.Model(文字列)。新側: machines.id → machine_code(文字列)。
+        # 両者とも「machine_code相当の文字列」に変換してから比較する。
+        old_machine_str = mid_to_model.get(machine_raw) if machine_raw is not None else None
         n_machine_code = machine_id_to_code.get(n_machine_id)
 
         # clamp_noteはnc_full_import_v2.py PHASE1①で
@@ -204,7 +219,7 @@ def verify_basic_info_nc(ss, pg, limit=None):
         field_checks = [
             ("K_id",        kid,        n_kid,            "num"),
             ("L(工程No)",   l_no,       n_process_l,       "num"),
-            ("機械",        machine_raw, n_machine_code,    "machine"),
+            ("機械",        old_machine_str, n_machine_code, "machine"),
             ("フォルダ名",  folder_name_old, n_folder_name,  "str"),
             ("ファイル名",  f_name,     n_file_name,        "str"),
             ("oNo",        ono,        n_onumber,          "str"),
