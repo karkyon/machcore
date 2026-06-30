@@ -867,9 +867,14 @@ def phase5(pg, dry_run=False):
               uploaded_by_id, uploaded_at_val))
 
     for i, (kid, folder_name, file_name) in enumerate(details):
-        src_dir = SRC_NC_PRG / str(folder_name).strip()
-        if not src_dir.exists() or not src_dir.is_dir():
+        # ★v053修正: フォルダ全件ではなく file_name で指定された1ファイルのみコピー。
+        #   folder_name(A,B,C...)は複数K_idが共有する親フォルダ。
+        #   各K_idが使うファイルはnc_machining_details.file_nameで一意に特定できる。
+        src_file = SRC_NC_PRG / str(folder_name).strip() / str(file_name).strip()
+        if not src_file.exists():
             notfound += 1
+            if notfound <= 10:
+                log(f"  [WARN] notfound: K_id={kid} folder={folder_name} file={file_name}", "WARN")
             continue
         if kid not in kid_to_programs:
             nomatch += 1
@@ -877,31 +882,26 @@ def phase5(pg, dry_run=False):
 
         dst_dir = DST_NC_PRG / str(kid)
         try:
-            files = sorted(f for f in src_dir.iterdir() if f.is_file())
-            if not files:
-                notfound += 1
-                continue
             if not dry_run:
                 os.makedirs(str(dst_dir), exist_ok=True)
-            for f in files:
-                dst = dst_dir / f.name
-                if not dry_run:
-                    _shutil.copy2(f, dst)
-                fsize = f.stat().st_size
-                mime = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
-                for prog_id, registered_by, registered_at in kid_to_programs[kid]:
-                    _insert_nc_program_file(
-                        prog_id, f.name, f.name, mime, dst, fsize,
-                        registered_by or NC_FILE_ADMIN_FALLBACK_ID,
-                        registered_at,
-                    )
+            dst = dst_dir / src_file.name
+            if not dry_run:
+                _shutil.copy2(src_file, dst)
+            fsize = src_file.stat().st_size
+            mime = mimetypes.guess_type(src_file.name)[0] or "application/octet-stream"
+            for prog_id, registered_by, registered_at in kid_to_programs[kid]:
+                _insert_nc_program_file(
+                    prog_id, src_file.name, src_file.name, mime, dst, fsize,
+                    registered_by or NC_FILE_ADMIN_FALLBACK_ID,
+                    registered_at,
+                )
             ok += 1
         except Exception as e:
             err += 1
             if err <= 10:
-                log(f"  ERR K_id={kid} folder={folder_name}: {e}", "WARN")
+                log(f"  ERR K_id={kid} folder={folder_name} file={file_name}: {e}", "WARN")
 
-        if (i + 1) % 1000 == 0:
+        if (i + 1) % 500 == 0:
             if not dry_run:
                 pg.commit()
             log(f"    {i+1}/{len(details)} ok={ok} nomatch={nomatch} notfound={notfound} err={err}")
