@@ -140,11 +140,16 @@ export default function McDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mcId, isAuthenticated]);
 
+  // ── [FIX v060] stale closure対策: アンマウント時クリーンアップ内で常に
+  //    最新のisAuthenticatedを参照できるようrefで追従させる。
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  useEffect(() => { isAuthenticatedRef.current = isAuthenticated; }, [isAuthenticated]);
+
   // ── このページ自体がアンマウントされる(=他画面へ遷移する)際に、
   //    認証セッション（PG→USB等の参照モード認証）が残っていれば必ず終了させる。
   useLayoutEffect(() => {
     return () => {
-      if (isAuthenticated) {
+      if (isAuthenticatedRef.current) {
         console.warn("[MC-DETAIL] ページ離脱を検知 — 認証セッションを終了します");
         logout();
       }

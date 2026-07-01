@@ -45,6 +45,13 @@ export default function McEditPage() {
     token_head: token ? token.slice(0, 24) + "..." : null,
   });
 
+  // ── [FIX v060] stale closure対策: アンマウント時クリーンアップ内で
+  //    常に最新のisAuthenticatedを参照できるようrefで追従させる。
+  //    依存配列[]のuseLayoutEffect内で直接isAuthenticatedを見ると、
+  //    マウント時点(=未認証)の値に固定されたままになってしまうため。
+  const isAuthenticatedRef = React.useRef(isAuthenticated);
+  React.useEffect(() => { isAuthenticatedRef.current = isAuthenticated; }, [isAuthenticated]);
+
   // ── 離脱警告（useAuth後に配置必須）────────────────────────────
   React.useEffect(() => {
     if (!isAuthenticated) return;
@@ -93,9 +100,11 @@ export default function McEditPage() {
     });
     return () => {
       console.log("%c[MC-EDIT][unmount-effect] CLEANUP FIRED (leaving page)", "color:#dc2626;font-weight:bold", {
-        time: new Date().toISOString(), mcId, isAuthenticated,
+        time: new Date().toISOString(), mcId,
+        isAuthenticated_stale_closure_value: isAuthenticated,
+        isAuthenticated_live_ref_value: isAuthenticatedRef.current,
       });
-      if (isAuthenticated) {
+      if (isAuthenticatedRef.current) {
         if (showKanryoModalRef.current && tokenRef.current && pendingBodyRef.current?.savedMcId) {
           console.warn("[EDIT] 終了確認モーダルが未完了のまま離脱 — 変更理由不明として自動finalizeします", { mcId });
           mcApi.finalize(

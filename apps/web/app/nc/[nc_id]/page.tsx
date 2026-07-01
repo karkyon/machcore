@@ -81,12 +81,17 @@ export default function NcDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ncId, isAuthenticated]);
 
+  // ── [FIX v060] stale closure対策: アンマウント時クリーンアップ内で常に
+  //    最新のisAuthenticatedを参照できるようrefで追従させる。
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  useEffect(() => { isAuthenticatedRef.current = isAuthenticated; }, [isAuthenticated]);
+
   // ── このページ自体がアンマウントされる(=他画面へ遷移する)際に、
   //    認証セッションが残っていれば必ず終了させる。タブ切り替えなど、明示的な
   //    「キャンセル」ボタンを経由しない遷移であっても、次の画面へ認証状態を持ち越さない。
   useLayoutEffect(() => {
     return () => {
-      if (isAuthenticated) {
+      if (isAuthenticatedRef.current) {
         console.warn("[NC-DETAIL] ページ離脱を検知 — 認証セッションを終了します");
         logout();
       }
