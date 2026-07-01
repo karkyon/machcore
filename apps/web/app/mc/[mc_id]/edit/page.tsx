@@ -68,6 +68,28 @@ export default function McEditPage() {
   // 段取シートバック等で他の mc_id の編集セッション(JWT)を取得した状態で
   // このページに遷移してきた場合、再認証なしで編集・段取シート発行が
   // できてしまうことを防ぐため、不一致を検知したら即座にログアウトする。
+
+  // ── [v063] ④明細入力: Enterキーで次の入力欄(左→右、行末→次行左端)へ移動。
+  //    Shift+Tabによる後退はブラウザ標準のTab移動で機能するため実装不要。
+  const handleEnterMoveNext = React.useCallback((e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key !== "Enter") return;
+    const target = e.target as HTMLElement;
+    if (target.tagName === "TEXTAREA") return;
+    e.preventDefault();
+    const tableEl = target.closest("table");
+    if (!tableEl) return;
+    const focusables = Array.from(
+      tableEl.querySelectorAll<HTMLElement>("input:not([disabled]):not([readonly]), select:not([disabled])")
+    );
+    const idx = focusables.indexOf(target);
+    if (idx >= 0 && idx < focusables.length - 1) {
+      focusables[idx + 1].focus();
+      if ((focusables[idx + 1] as HTMLInputElement).select) {
+        (focusables[idx + 1] as HTMLInputElement).select?.();
+      }
+    }
+  }, []);
+
   React.useLayoutEffect(() => {
     console.log("%c[MC-EDIT][mismatch-effect] fired", "color:#ca8a04", {
       time: new Date().toISOString(), mcId, isAuthenticated,
@@ -94,16 +116,31 @@ export default function McEditPage() {
   React.useEffect(() => { tokenRef.current = token; }, [token]);
   const pendingBodyRef = React.useRef(pendingBody);
   React.useEffect(() => { pendingBodyRef.current = pendingBody; }, [pendingBody]);
+  // sbMode/sbRepeatMode(段取シートバック)の最新値もrefで追従させる。
+  // この2つがtrueの間は、STEP1(変更・登録)→STEP2(作業記録)へ意図的に
+  // 認証トークンを引き継ぐ設計のため、離脱時の自動logout()の対象外とする。
+  const sbModeRef = React.useRef(sbMode);
+  const sbRepeatModeRef = React.useRef(sbRepeatMode);
+  React.useEffect(() => { sbModeRef.current = sbMode; }, [sbMode]);
+  React.useEffect(() => { sbRepeatModeRef.current = sbRepeatMode; }, [sbRepeatMode]);
+
   React.useLayoutEffect(() => {
     console.log("%c[MC-EDIT][unmount-effect] mounted/updated (isAuthenticated captured for cleanup)", "color:#ca8a04", {
       time: new Date().toISOString(), mcId, isAuthenticated_at_setup: isAuthenticated,
+      sbMode, sbRepeatMode,
     });
     return () => {
       console.log("%c[MC-EDIT][unmount-effect] CLEANUP FIRED (leaving page)", "color:#dc2626;font-weight:bold", {
         time: new Date().toISOString(), mcId,
         isAuthenticated_stale_closure_value: isAuthenticated,
         isAuthenticated_live_ref_value: isAuthenticatedRef.current,
+        sbMode_live_ref_value: sbModeRef.current,
+        sbRepeatMode_live_ref_value: sbRepeatModeRef.current,
       });
+      if (sbModeRef.current || sbRepeatModeRef.current) {
+        console.log("%c[MC-EDIT][unmount-effect] 段取シートバック中のためlogout()をスキップ", "color:#0d9488;font-weight:bold");
+        return;
+      }
       if (isAuthenticatedRef.current) {
         if (showKanryoModalRef.current && tokenRef.current && pendingBodyRef.current?.savedMcId) {
           console.warn("[EDIT] 終了確認モーダルが未完了のまま離脱 — 変更理由不明として自動finalizeします", { mcId });
@@ -1480,7 +1517,7 @@ export default function McEditPage() {
                       </button>
                     </div>
                     <div className="overflow-y-auto max-h-[40vh]">
-                      <table className="text-xs w-auto border-collapse">
+                      <table className="text-xs w-auto border-collapse" onKeyDown={handleEnterMoveNext}>
                         <colgroup>
                           <col style={{width:"36px"}} />
                           <col style={{width:"70px"}} />
@@ -1587,7 +1624,7 @@ export default function McEditPage() {
                     </div>
                   </div>
                   <div className="overflow-y-auto max-h-[55vh]">
-                    <table className="text-xs w-full border-collapse">
+                    <table className="text-xs w-full border-collapse" onKeyDown={handleEnterMoveNext}>
                       <colgroup>
                         <col style={{width:"72px"}}/>
                         <col style={{width:"70px"}}/>
@@ -1741,8 +1778,6 @@ export default function McEditPage() {
                               className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
                             <td className="px-1 py-1"><input value={p.axis_2 ?? ""} onChange={e => setIndexRows(r => r.map((x,j) => j===i ? {...x, axis_2: e.target.value} : x))}
                               className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
-                            <td className="px-1 py-1"><input value={p.note ?? ""} onChange={e => setIndexRows(r => r.map((x,j) => j===i ? {...x, note: e.target.value} : x))}
-                              className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
                             <td className="px-1 py-1 text-center">
                               <button onClick={() => setIndexRows(r => r.filter((_,j) => j !== i))}
                                 className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">

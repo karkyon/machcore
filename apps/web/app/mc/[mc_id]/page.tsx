@@ -741,8 +741,7 @@ export default function McDetailPage() {
                         {[o.xOffset, o.yOffset, o.zOffset, o.aOffset, o.rOffset].map((v, j) => (
                           <td key={j} className="px-3 py-2 text-center font-mono">{v ? Number(v).toFixed(4) : "—"}</td>
                         ))}
-                        <td className="px-3 py-2 text-slate-400">{o.note ?? ""}</td>
-                      </tr>
+                        </tr>
                     ))}
                   </tbody>
                 </table>
