@@ -1354,6 +1354,13 @@ export default function McEditPage() {
                       className="px-3 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50">
                       {pgUploading ? "⏳ 登録中..." : "📥 USBから登録"}
                     </button>
+                    <button onClick={() => {
+                      if (!token) { showToast("❌ 認証が必要です"); return; }
+                      openPgMultiEditor();
+                    }}
+                      className="px-3 py-1 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+                      🗂 ファイル一覧/編集
+                    </button>
                   </div>
                   <div className="px-4 py-2 border-b border-slate-100 bg-white">
                     <span className="text-[11px] text-slate-500">
