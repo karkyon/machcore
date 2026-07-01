@@ -2106,11 +2106,6 @@ export default function McEditPage() {
                 <div className="text-xs text-amber-600">メインPG + サブPGを含むフォルダを選択。加工IDのフォルダを作成し、フォルダ内の全ファイル名は変更せずそのまま保存します。</div>
                 <div className="text-[10px] text-amber-400 mt-1 font-mono">例: 1846.WPD/O1846 → {detail?.machiningId}/1846.WPD/O1846</div>
               </button>
-              <button onClick={() => { setPgUploadModalOpen(false); openPgMultiEditor(); }}
-                className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 border-2 border-slate-300 rounded-xl text-left transition-colors">
-                <div className="font-bold text-slate-700 mb-1">🗂 既存ファイルを選んで編集する</div>
-                <div className="text-xs text-slate-500">登録済みのプログラムファイル(複数可)から選択し、内容を編集して保存します。</div>
-              </button>
             </div>
             <p className="text-[10px] text-slate-400 text-center">Chrome / Edge のみ対応（HTTPS必須）</p>
           </div>
