@@ -111,10 +111,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => { tokenRef.current = token; }, [token]);
 
   const login = useCallback((res: WorkSessionResponse) => {
+    const payload = decodeJwtPayload(res.access_token);
+    console.log("%c[AUTH][login] CALLED", "color:#16a34a;font-weight:bold", {
+      time: new Date().toISOString(),
+      session_type: res.session_type,
+      operator: res.operator,
+      mc_program_id: payload?.mc_program_id ?? null,
+      nc_program_id: payload?.nc_program_id ?? null,
+      access_token_head: res.access_token?.slice(0, 24) + "...",
+      expires_at: res.expires_at,
+    });
     setToken(res.access_token);
     setOperator(res.operator);
     setSessionType(res.session_type);
-    const payload = decodeJwtPayload(res.access_token);
     setMcProgramId(payload?.mc_program_id ?? null);
     setNcProgramId(payload?.nc_program_id ?? null);
     if (typeof window !== "undefined") {
@@ -122,10 +131,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionStorage.setItem("work_operator",     JSON.stringify(res.operator));
       sessionStorage.setItem("work_session_type", res.session_type);
     }
+    console.log("%c[AUTH][login] sessionStorage書き込み完了", "color:#16a34a", {
+      work_token_stored: typeof window !== "undefined" ? !!sessionStorage.getItem("work_token") : null,
+    });
   }, []);
 
   const logout = useCallback(() => {
     const t = tokenRef.current;
+    console.log("%c[AUTH][logout] CALLED", "color:#dc2626;font-weight:bold", {
+      time: new Date().toISOString(),
+      token_being_cleared_head: t ? t.slice(0, 24) + "..." : null,
+      mcProgramId_before: mcProgramId,
+      ncProgramId_before: ncProgramId,
+      operator_before: operator,
+      sessionType_before: sessionType,
+      stack: new Error().stack,
+    });
     if (t) {
       authApi.endWorkSession(t).catch(() => {});
     }
@@ -140,7 +161,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionStorage.removeItem("work_operator");
       sessionStorage.removeItem("work_session_type");
     }
-  }, []);
+    console.log("%c[AUTH][logout] sessionStorageクリア完了", "color:#dc2626");
+  }, [mcProgramId, ncProgramId, operator, sessionType]);
 
   // isAuthenticated = token AND operator の両方が揃っているときのみ true
   // これにより isAuthenticated=true && operator=null の状態を完全に排除する
@@ -153,16 +175,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // これにより、編集セッションが残ったまま別の mc_id/nc_id 画面に遷移した際に
   // 「再認証なしで編集・発行ができてしまう」状態を画面側で検知できる。
   const isSessionForMc = useCallback((mcId: number) => {
-    if (!isAuthenticated) return false;
-    if (mcProgramId == null) return true;
-    return mcProgramId === mcId;
+    const result = !isAuthenticated ? false : (mcProgramId == null ? true : mcProgramId === mcId);
+    console.log("%c[AUTH][isSessionForMc] called", "color:#2563eb", {
+      time: new Date().toISOString(), argMcId: mcId, mcProgramId, isAuthenticated, result,
+    });
+    return result;
   }, [isAuthenticated, mcProgramId]);
 
   const isSessionForNc = useCallback((ncId: number) => {
-    if (!isAuthenticated) return false;
-    if (ncProgramId == null) return true;
-    return ncProgramId === ncId;
+    const result = !isAuthenticated ? false : (ncProgramId == null ? true : ncProgramId === ncId);
+    console.log("%c[AUTH][isSessionForNc] called", "color:#2563eb", {
+      time: new Date().toISOString(), argNcId: ncId, ncProgramId, isAuthenticated, result,
+    });
+    return result;
   }, [isAuthenticated, ncProgramId]);
+
+  // ── 毎レンダー時、AuthProviderが保持する全フィールドをダンプする ──
+  console.log("%c[AUTH][RENDER] AuthProvider re-rendered", "color:#9333ea", {
+    time: new Date().toISOString(),
+    token_head: token ? token.slice(0, 24) + "..." : null,
+    operator,
+    sessionType,
+    isAuthenticated,
+    mcProgramId,
+    ncProgramId,
+  });
 
   return (
     <AuthContext.Provider value={{

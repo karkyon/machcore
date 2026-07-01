@@ -1398,6 +1398,7 @@ export class AdminController {
       programs:   readOneLevel(roots.programs),
       nc_photos:   readOneLevel(roots.nc_photos),
       nc_drawings: readOneLevel(roots.nc_drawings),
+      nc_programs: readOneLevel(roots.nc_programs),
     };
   }
 

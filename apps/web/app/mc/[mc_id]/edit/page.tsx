@@ -36,6 +36,15 @@ export default function McEditPage() {
   const { operator, isAuthenticated, token, logout, isSessionForMc } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
 
+  // ── [DEBUG] このページの毎レンダー時点の認証関連フィールドを完全ダンプ ──
+  console.log("%c[MC-EDIT][RENDER]", "color:#0d9488;font-weight:bold", {
+    time: new Date().toISOString(),
+    mcId,
+    isAuthenticated,
+    operator,
+    token_head: token ? token.slice(0, 24) + "..." : null,
+  });
+
   // ── 離脱警告（useAuth後に配置必須）────────────────────────────
   React.useEffect(() => {
     if (!isAuthenticated) return;
@@ -53,6 +62,10 @@ export default function McEditPage() {
   // このページに遷移してきた場合、再認証なしで編集・段取シート発行が
   // できてしまうことを防ぐため、不一致を検知したら即座にログアウトする。
   React.useLayoutEffect(() => {
+    console.log("%c[MC-EDIT][mismatch-effect] fired", "color:#ca8a04", {
+      time: new Date().toISOString(), mcId, isAuthenticated,
+      isSessionForMcResult: isAuthenticated ? isSessionForMc(mcId) : null,
+    });
     if (!mcId) return;
     if (isAuthenticated && !isSessionForMc(mcId)) {
       console.warn("[EDIT] 認証セッションが別のmc_id向けのため強制ログアウト", { mcId });
@@ -75,7 +88,13 @@ export default function McEditPage() {
   const pendingBodyRef = React.useRef(pendingBody);
   React.useEffect(() => { pendingBodyRef.current = pendingBody; }, [pendingBody]);
   React.useLayoutEffect(() => {
+    console.log("%c[MC-EDIT][unmount-effect] mounted/updated (isAuthenticated captured for cleanup)", "color:#ca8a04", {
+      time: new Date().toISOString(), mcId, isAuthenticated_at_setup: isAuthenticated,
+    });
     return () => {
+      console.log("%c[MC-EDIT][unmount-effect] CLEANUP FIRED (leaving page)", "color:#dc2626;font-weight:bold", {
+        time: new Date().toISOString(), mcId, isAuthenticated,
+      });
       if (isAuthenticated) {
         if (showKanryoModalRef.current && tokenRef.current && pendingBodyRef.current?.savedMcId) {
           console.warn("[EDIT] 終了確認モーダルが未完了のまま離脱 — 変更理由不明として自動finalizeします", { mcId });

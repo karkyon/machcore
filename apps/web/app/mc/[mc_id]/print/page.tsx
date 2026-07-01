@@ -24,6 +24,15 @@ function McPrintPageInner() {
   const [nc, setNc]   = useState<McDetail | null>(null);
   const { operator, isAuthenticated, logout, token, isSessionForMc } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
+
+  // ── [DEBUG] このページの毎レンダー時点の認証関連フィールドを完全ダンプ ──
+  console.log("%c[MC-PRINT][RENDER]", "color:#0d9488;font-weight:bold", {
+    time: new Date().toISOString(),
+    mcId,
+    isAuthenticated,
+    operator,
+    token_head: token ? token.slice(0, 24) + "..." : null,
+  });
   const [elapsed, setElapsed]   = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -94,6 +103,10 @@ function McPrintPageInner() {
 
   // -- 別mc_id向けセッションが残っていれば強制ログアウト --
   useLayoutEffect(() => {
+    console.log("%c[MC-PRINT][mismatch-effect] fired", "color:#ca8a04", {
+      time: new Date().toISOString(), mcId, isAuthenticated,
+      isSessionForMcResult: isAuthenticated ? isSessionForMc(mcId) : null,
+    });
     if (isAuthenticated && !isSessionForMc(mcId)) {
       console.warn("[MC-PRINT] 認証セッションが別のmc_id向けのため強制ログアウト", { mcId });
       logout();
@@ -103,7 +116,13 @@ function McPrintPageInner() {
 
   // -- ページ離脱時（アンマウント）に確実にセッションをクリア --
   useLayoutEffect(() => {
+    console.log("%c[MC-PRINT][unmount-effect] mounted/updated", "color:#ca8a04", {
+      time: new Date().toISOString(), mcId, isAuthenticated_at_setup: isAuthenticated,
+    });
     return () => {
+      console.log("%c[MC-PRINT][unmount-effect] CLEANUP FIRED (leaving page)", "color:#dc2626;font-weight:bold", {
+        time: new Date().toISOString(), mcId, isAuthenticated,
+      });
       logout();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
