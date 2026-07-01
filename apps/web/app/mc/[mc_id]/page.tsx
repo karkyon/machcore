@@ -47,28 +47,6 @@ export default function McDetailPage() {
   const [pgFileList, setPgFileList] = useState<any[]>([]);
   const [pgFileListLoading, setPgFileListLoading] = useState(false);
 
-  // [v070] pgViewerOpenが開いており複数ファイルある場合、一覧を取得する
-  useEffect(() => {
-    if (!pgViewerOpen || pgFileCount <= 1) { setPgFileList([]); return; }
-    setPgFileListLoading(true);
-    fetch(`/api/mc/${mcId}/pg-files-list`)
-      .then(r => r.json())
-      .then(d => { const list = (d as any).data ?? d ?? []; setPgFileList(Array.isArray(list) ? list : []); })
-      .catch(() => setPgFileList([]))
-      .finally(() => setPgFileListLoading(false));
-  }, [pgViewerOpen, pgFileCount, mcId]);
-
-  // [v070] ビューア内でファイルを切り替える(読取専用)
-  const switchPgViewerFile = async (f: any) => {
-    setPgLoading(true);
-    try {
-      const r = await fetch(`/api/mc/${mcId}/pg-files/${f.id}/content`);
-      const d = await r.json();
-      setPgContent((d as any).content ?? "");
-      setPgOrigName((d as any).original_name ?? f.original_name ?? "");
-    } catch { showToast("読み込みに失敗しました"); }
-    finally { setPgLoading(false); }
-  };
   // ヘッダー中央より右寄り・文字/ボタンと重ならない位置を初期値にする
   const [floatPos,   setFloatPos]   = useState({ x: 1180, y: 8 });
   const [dragging,   setDragging]   = useState(false);
@@ -279,6 +257,29 @@ export default function McDetailPage() {
     } finally {
       setPgLoading(false);
     }
+  };
+
+  // [v070] pgViewerOpenが開いており複数ファイルある場合、一覧を取得する
+  useEffect(() => {
+    if (!pgViewerOpen || pgFileCount <= 1) { setPgFileList([]); return; }
+    setPgFileListLoading(true);
+    fetch(`/api/mc/${mcId}/pg-files-list`)
+      .then(r => r.json())
+      .then(d => { const list = (d as any).data ?? d ?? []; setPgFileList(Array.isArray(list) ? list : []); })
+      .catch(() => setPgFileList([]))
+      .finally(() => setPgFileListLoading(false));
+  }, [pgViewerOpen, pgFileCount, mcId]);
+
+  // [v070] ビューア内でファイルを切り替える(読取専用)
+  const switchPgViewerFile = async (f: any) => {
+    setPgLoading(true);
+    try {
+      const r = await fetch(`/api/mc/${mcId}/pg-files/${f.id}/content`);
+      const d = await r.json();
+      setPgContent((d as any).content ?? "");
+      setPgOrigName((d as any).original_name ?? f.original_name ?? "");
+    } catch { showToast("読み込みに失敗しました"); }
+    finally { setPgLoading(false); }
   };
 
   // ★旧式ブラウザ直接アップロード(handlePgUpload)は削除済み。
