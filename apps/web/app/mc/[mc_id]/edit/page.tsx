@@ -56,61 +56,31 @@ export default function McEditPage() {
   const isAuthenticatedRef = React.useRef(isAuthenticated);
   React.useEffect(() => { isAuthenticatedRef.current = isAuthenticated; }, [isAuthenticated]);
 
-  // ── [v066] ③複数ファイル対応PGエディタ ──
-  const [pgMultiOpen, setPgMultiOpen] = useState(false);
-  const [pgMultiList, setPgMultiList] = useState<any[]>([]);
-  const [pgMultiListLoading, setPgMultiListLoading] = useState(false);
-  const [pgMultiSelected, setPgMultiSelected] = useState<any | null>(null);
-  const [pgMultiContent, setPgMultiContent] = useState<string>("");
-  const [pgMultiContentLoading, setPgMultiContentLoading] = useState(false);
-  const [pgMultiSaving, setPgMultiSaving] = useState(false);
-  const [pgMultiDirty, setPgMultiDirty] = useState(false);
+  // ── [v070] 既存PGエディタのファイル切替(フォルダ単位=複数ファイル対応) ──
+  const [pgFileList, setPgFileList] = useState<any[]>([]);
+  const [pgFileListLoading, setPgFileListLoading] = useState(false);
+  const [pgActiveFileId, setPgActiveFileId] = useState<number | null>(null);
 
-  const openPgMultiEditor = React.useCallback(() => {
-    setPgMultiOpen(true);
-    setPgMultiListLoading(true);
-    setPgMultiSelected(null);
-    setPgMultiContent("");
+  const loadPgFileList = React.useCallback(() => {
+    setPgFileListLoading(true);
     fetch(`/api/mc/${mcId}/pg-files-list`)
       .then(r => r.json())
-      .then(d => {
-        const list = (d as any).data ?? d ?? [];
-        setPgMultiList(Array.isArray(list) ? list : []);
-        if (Array.isArray(list) && list.length === 1) selectPgMultiFile(list[0]);
-      })
-      .catch(() => setPgMultiList([]))
-      .finally(() => setPgMultiListLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      .then(d => { const list = (d as any).data ?? d ?? []; setPgFileList(Array.isArray(list) ? list : []); })
+      .catch(() => setPgFileList([]))
+      .finally(() => setPgFileListLoading(false));
   }, [mcId]);
 
-  const selectPgMultiFile = React.useCallback((f: any) => {
-    if (pgMultiDirty && !window.confirm("編集中の内容が破棄されます。よろしいですか？")) return;
-    setPgMultiSelected(f);
-    setPgMultiDirty(false);
-    setPgMultiContentLoading(true);
-    fetch(`/api/mc/${mcId}/pg-files/${f.id}/content`)
-      .then(r => r.json())
-      .then(d => setPgMultiContent((d as any).content ?? ""))
-      .catch(() => setPgMultiContent("(読み込みに失敗しました)"))
-      .finally(() => setPgMultiContentLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mcId, pgMultiDirty]);
-
-  const savePgMultiFile = async () => {
-    if (!pgMultiSelected || !token) return;
-    setPgMultiSaving(true);
+  const switchPgEditorFile = React.useCallback(async (f: any) => {
+    setPgLoading(true);
     try {
-      const res = await fetch(`/api/mc/${mcId}/pg-files/${pgMultiSelected.id}/content`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ content: pgMultiContent }),
-      });
-      if (!res.ok) throw new Error("save failed");
-      setPgMultiDirty(false);
-      showToast("✅ 保存しました: " + pgMultiSelected.original_name);
-    } catch { showToast("❌ 保存に失敗しました"); }
-    finally { setPgMultiSaving(false); }
-  };
+      const r = await fetch(`/api/mc/${mcId}/pg-files/${f.id}/content`);
+      const d = await r.json();
+      pgFullReset(d.content ?? "", d.original_name ?? f.original_name ?? "");
+      setPgActiveFileId(f.id);
+    } catch { showToast("❌ 読み込みに失敗しました"); }
+    finally { setPgLoading(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mcId]);
 
   // ── 離脱警告（useAuth後に配置必須）────────────────────────────
   React.useEffect(() => {
@@ -1339,6 +1309,8 @@ export default function McEditPage() {
                         const data = (r as any).data ?? r;
                         pgFullReset(data.content ?? "", data.originalName ?? "");
         setPgFilePath(data.filePath ?? "");
+                        setPgActiveFileId(null);
+                        loadPgFileList();
                         setPgEditorOpen(true);
                       } catch { showToast("PGファイルが見つかりません"); }
                       finally { setPgLoading(false); }
@@ -1353,13 +1325,6 @@ export default function McEditPage() {
                     }} disabled={pgUploading}
                       className="px-3 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50">
                       {pgUploading ? "⏳ 登録中..." : "📥 USBから登録"}
-                    </button>
-                    <button onClick={() => {
-                      if (!token) { showToast("❌ 認証が必要です"); return; }
-                      openPgMultiEditor();
-                    }}
-                      className="px-3 py-1 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
-                      🗂 ファイル一覧/編集
                     </button>
                   </div>
                   <div className="px-4 py-2 border-b border-slate-100 bg-white">
@@ -2152,51 +2117,6 @@ export default function McEditPage() {
         </div>
       )}
 
-      {/* [v066] 複数ファイル対応PGエディタモーダル */}
-      {pgMultiOpen && (
-        <div className="fixed inset-0 z-[75] bg-black/80 flex items-center justify-center p-3">
-          <div style={{width:"90vw", height:"90vh", maxWidth:"1400px"}} className="bg-slate-900 rounded-xl shadow-2xl flex flex-col overflow-hidden">
-            <div className="px-4 py-2.5 bg-slate-800 flex items-center justify-between shrink-0">
-              <h3 className="text-sm font-bold text-slate-200">🗂 プログラムファイル編集（複数ファイル対応）</h3>
-              <button onClick={() => { if (!pgMultiDirty || window.confirm("編集中の内容が破棄されます。よろしいですか？")) setPgMultiOpen(false); }}
-                className="text-slate-400 hover:text-white text-lg font-bold">✕</button>
-            </div>
-            <div className="flex flex-1 min-h-0">
-              <div className="w-64 shrink-0 border-r border-slate-700 overflow-y-auto bg-slate-800">
-                {pgMultiListLoading ? (
-                  <div className="p-4 text-xs text-slate-400 text-center">読込中...</div>
-                ) : pgMultiList.length === 0 ? (
-                  <div className="p-4 text-xs text-slate-400 text-center">ファイルがありません</div>
-                ) : pgMultiList.map((f: any) => (
-                  <button key={f.id} onClick={() => selectPgMultiFile(f)}
-                    className={"w-full text-left px-3 py-2 text-xs border-b border-slate-700 truncate " +
-                      (pgMultiSelected?.id === f.id ? "bg-teal-700 text-white font-bold" : "hover:bg-slate-700 text-slate-300")}>
-                    📄 {f.original_name}
-                  </button>
-                ))}
-              </div>
-              <div className="flex-1 flex flex-col min-w-0">
-                <div className="px-4 py-2 bg-slate-800 border-b border-slate-700 flex items-center justify-between shrink-0">
-                  <span className="text-xs text-slate-300 font-mono truncate">{pgMultiSelected?.original_name ?? "ファイル未選択"}</span>
-                  <button onClick={savePgMultiFile} disabled={!pgMultiSelected || pgMultiSaving}
-                    className="px-3 py-1 text-xs font-bold bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white rounded-lg">
-                    {pgMultiSaving ? "保存中..." : "💾 サーバーへ保存"}
-                  </button>
-                </div>
-                {pgMultiContentLoading ? (
-                  <div className="flex-1 flex items-center justify-center text-xs text-slate-400">読込中...</div>
-                ) : (
-                  <textarea value={pgMultiContent}
-                    onChange={e => { setPgMultiContent(e.target.value); setPgMultiDirty(true); }}
-                    disabled={!pgMultiSelected}
-                    className="flex-1 w-full bg-slate-900 text-emerald-300 font-mono text-xs p-4 resize-none outline-none" />
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* PGエディタモーダル */}
       {pgEditorOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-2">
@@ -2216,6 +2136,19 @@ export default function McEditPage() {
                 <span className="text-xs text-slate-400">{pgContent.split('\n').length}行 / {pgContent.length}文字</span>
               </div>
               <div className="flex items-center gap-2">
+                {pgFileList.length > 1 && (
+                  <select
+                    value={pgActiveFileId ?? ""}
+                    onChange={e => {
+                      const f = pgFileList.find((x: any) => String(x.id) === e.target.value);
+                      if (f) switchPgEditorFile(f);
+                    }}
+                    className={`text-xs font-mono px-2 py-1.5 rounded-lg border ${pgDarkMode ? "bg-slate-700 text-slate-200 border-slate-600" : "bg-white text-slate-700 border-slate-300"}`}>
+                    {pgFileList.map((f: any) => (
+                      <option key={f.id} value={f.id}>📄 {f.original_name}</option>
+                    ))}
+                  </select>
+                )}
                 <button onClick={async () => {
                   try {
                     const [fileHandle] = await (window as any).showOpenFilePicker({ multiple: false });
@@ -2254,10 +2187,16 @@ export default function McEditPage() {
                   if (!token) { showToast("❌ 認証が必要です"); return; }
                   setPgSaving(true);
                   try {
-                    const res = await fetch(`/api/mc/${mcId}/pg-content`, {
+                    const saveUrl = pgActiveFileId != null
+                      ? `/api/mc/${mcId}/pg-files/${pgActiveFileId}/content`
+                      : `/api/mc/${mcId}/pg-content`;
+                    const saveBody = pgActiveFileId != null
+                      ? { content: pgContentRef.current }
+                      : { content: pgContentRef.current, original_name: pgOrigName };
+                    const res = await fetch(saveUrl, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ content: pgContentRef.current, original_name: pgOrigName }),
+                      body: JSON.stringify(saveBody),
                     });
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
@@ -2414,10 +2353,16 @@ export default function McEditPage() {
                     e.preventDefault();
                     if (!token || pgSaving) return;
                     setPgSaving(true);
-                    fetch(`/api/mc/${mcId}/pg-content`, {
+                    const ctrlSUrl = pgActiveFileId != null
+                      ? `/api/mc/${mcId}/pg-files/${pgActiveFileId}/content`
+                      : `/api/mc/${mcId}/pg-content`;
+                    const ctrlSBody = pgActiveFileId != null
+                      ? { content: pgContentRef.current }
+                      : { content: pgContentRef.current, original_name: pgOrigName };
+                    fetch(ctrlSUrl, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ content: pgContentRef.current, original_name: pgOrigName }),
+                      body: JSON.stringify(ctrlSBody),
                     }).then(r => {
                       if (!r.ok) throw new Error();
                       setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
