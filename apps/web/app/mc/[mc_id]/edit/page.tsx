@@ -52,6 +52,62 @@ export default function McEditPage() {
   const isAuthenticatedRef = React.useRef(isAuthenticated);
   React.useEffect(() => { isAuthenticatedRef.current = isAuthenticated; }, [isAuthenticated]);
 
+  // ── [v066] ③複数ファイル対応PGエディタ ──
+  const [pgMultiOpen, setPgMultiOpen] = useState(false);
+  const [pgMultiList, setPgMultiList] = useState<any[]>([]);
+  const [pgMultiListLoading, setPgMultiListLoading] = useState(false);
+  const [pgMultiSelected, setPgMultiSelected] = useState<any | null>(null);
+  const [pgMultiContent, setPgMultiContent] = useState<string>("");
+  const [pgMultiContentLoading, setPgMultiContentLoading] = useState(false);
+  const [pgMultiSaving, setPgMultiSaving] = useState(false);
+  const [pgMultiDirty, setPgMultiDirty] = useState(false);
+
+  const openPgMultiEditor = React.useCallback(() => {
+    setPgMultiOpen(true);
+    setPgMultiListLoading(true);
+    setPgMultiSelected(null);
+    setPgMultiContent("");
+    fetch(`/api/mc/${mcId}/pg-files-list`)
+      .then(r => r.json())
+      .then(d => {
+        const list = (d as any).data ?? d ?? [];
+        setPgMultiList(Array.isArray(list) ? list : []);
+        if (Array.isArray(list) && list.length === 1) selectPgMultiFile(list[0]);
+      })
+      .catch(() => setPgMultiList([]))
+      .finally(() => setPgMultiListLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mcId]);
+
+  const selectPgMultiFile = React.useCallback((f: any) => {
+    if (pgMultiDirty && !window.confirm("編集中の内容が破棄されます。よろしいですか？")) return;
+    setPgMultiSelected(f);
+    setPgMultiDirty(false);
+    setPgMultiContentLoading(true);
+    fetch(`/api/mc/${mcId}/pg-files/${f.id}/content`)
+      .then(r => r.json())
+      .then(d => setPgMultiContent((d as any).content ?? ""))
+      .catch(() => setPgMultiContent("(読み込みに失敗しました)"))
+      .finally(() => setPgMultiContentLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mcId, pgMultiDirty]);
+
+  const savePgMultiFile = async () => {
+    if (!pgMultiSelected || !token) return;
+    setPgMultiSaving(true);
+    try {
+      const res = await fetch(`/api/mc/${mcId}/pg-files/${pgMultiSelected.id}/content`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content: pgMultiContent }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      setPgMultiDirty(false);
+      showToast("✅ 保存しました: " + pgMultiSelected.original_name);
+    } catch { showToast("❌ 保存に失敗しました"); }
+    finally { setPgMultiSaving(false); }
+  };
+
   // ── 離脱警告（useAuth後に配置必須）────────────────────────────
   React.useEffect(() => {
     if (!isAuthenticated) return;
@@ -2060,8 +2116,58 @@ export default function McEditPage() {
                 <div className="text-xs text-amber-600">メインPG + サブPGを含むフォルダを選択。加工IDのフォルダを作成し、フォルダ内の全ファイル名は変更せずそのまま保存します。</div>
                 <div className="text-[10px] text-amber-400 mt-1 font-mono">例: 1846.WPD/O1846 → {detail?.machiningId}/1846.WPD/O1846</div>
               </button>
+              <button onClick={() => { setPgUploadModalOpen(false); openPgMultiEditor(); }}
+                className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 border-2 border-slate-300 rounded-xl text-left transition-colors">
+                <div className="font-bold text-slate-700 mb-1">🗂 既存ファイルを選んで編集する</div>
+                <div className="text-xs text-slate-500">登録済みのプログラムファイル(複数可)から選択し、内容を編集して保存します。</div>
+              </button>
             </div>
             <p className="text-[10px] text-slate-400 text-center">Chrome / Edge のみ対応（HTTPS必須）</p>
+          </div>
+        </div>
+      )}
+
+      {/* [v066] 複数ファイル対応PGエディタモーダル */}
+      {pgMultiOpen && (
+        <div className="fixed inset-0 z-[75] bg-black/80 flex items-center justify-center p-3">
+          <div style={{width:"90vw", height:"90vh", maxWidth:"1400px"}} className="bg-slate-900 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="px-4 py-2.5 bg-slate-800 flex items-center justify-between shrink-0">
+              <h3 className="text-sm font-bold text-slate-200">🗂 プログラムファイル編集（複数ファイル対応）</h3>
+              <button onClick={() => { if (!pgMultiDirty || window.confirm("編集中の内容が破棄されます。よろしいですか？")) setPgMultiOpen(false); }}
+                className="text-slate-400 hover:text-white text-lg font-bold">✕</button>
+            </div>
+            <div className="flex flex-1 min-h-0">
+              <div className="w-64 shrink-0 border-r border-slate-700 overflow-y-auto bg-slate-800">
+                {pgMultiListLoading ? (
+                  <div className="p-4 text-xs text-slate-400 text-center">読込中...</div>
+                ) : pgMultiList.length === 0 ? (
+                  <div className="p-4 text-xs text-slate-400 text-center">ファイルがありません</div>
+                ) : pgMultiList.map((f: any) => (
+                  <button key={f.id} onClick={() => selectPgMultiFile(f)}
+                    className={"w-full text-left px-3 py-2 text-xs border-b border-slate-700 truncate " +
+                      (pgMultiSelected?.id === f.id ? "bg-teal-700 text-white font-bold" : "hover:bg-slate-700 text-slate-300")}>
+                    📄 {f.original_name}
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1 flex flex-col min-w-0">
+                <div className="px-4 py-2 bg-slate-800 border-b border-slate-700 flex items-center justify-between shrink-0">
+                  <span className="text-xs text-slate-300 font-mono truncate">{pgMultiSelected?.original_name ?? "ファイル未選択"}</span>
+                  <button onClick={savePgMultiFile} disabled={!pgMultiSelected || pgMultiSaving}
+                    className="px-3 py-1 text-xs font-bold bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white rounded-lg">
+                    {pgMultiSaving ? "保存中..." : "💾 サーバーへ保存"}
+                  </button>
+                </div>
+                {pgMultiContentLoading ? (
+                  <div className="flex-1 flex items-center justify-center text-xs text-slate-400">読込中...</div>
+                ) : (
+                  <textarea value={pgMultiContent}
+                    onChange={e => { setPgMultiContent(e.target.value); setPgMultiDirty(true); }}
+                    disabled={!pgMultiSelected}
+                    className="flex-1 w-full bg-slate-900 text-emerald-300 font-mono text-xs p-4 resize-none outline-none" />
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

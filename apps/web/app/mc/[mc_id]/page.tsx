@@ -43,6 +43,76 @@ export default function McDetailPage() {
 
   const [detail,    setDetail]    = useState<McDetail | null>(null);
   const [floatOpen,  setFloatOpen]  = useState(false);
+  const [pgPreviewOpen, setPgPreviewOpen] = useState(false);
+  const [pgPreviewMcId, setPgPreviewMcId] = useState<number | null>(null);
+  const [pgFileList,    setPgFileList]    = useState<any[]>([]);
+  const [pgFileListLoading, setPgFileListLoading] = useState(false);
+  const [pgSelectedFile, setPgSelectedFile] = useState<any | null>(null);
+  const [pgSelectedContent, setPgSelectedContent] = useState<string>("");
+  const [pgContentLoading, setPgContentLoading] = useState(false);
+
+  useEffect(() => {
+    if (!pgPreviewOpen || !pgPreviewMcId) return;
+    setPgFileListLoading(true);
+    setPgSelectedFile(null);
+    setPgSelectedContent("");
+    fetch(`/api/mc/${pgPreviewMcId}/pg-files-list`)
+      .then(r => r.json())
+      .then(d => {
+        const list = (d as any).data ?? d ?? [];
+        setPgFileList(Array.isArray(list) ? list : []);
+        if (Array.isArray(list) && list.length === 1) {
+          setPgSelectedFile(list[0]);
+        }
+      })
+      .catch(() => setPgFileList([]))
+      .finally(() => setPgFileListLoading(false));
+  }, [pgPreviewOpen, pgPreviewMcId]);
+
+  useEffect(() => {
+    if (!pgSelectedFile) return;
+    setPgContentLoading(true);
+    fetch(`/api/mc/${pgPreviewMcId}/pg-files/${pgSelectedFile.id}/content`)
+      .then(r => r.json())
+      .then(d => setPgSelectedContent((d as any).content ?? ""))
+      .catch(() => setPgSelectedContent("(読み込みに失敗しました)"))
+      .finally(() => setPgContentLoading(false));
+  }, [pgSelectedFile, pgPreviewMcId]);
+
+  const PgPreviewModal = pgPreviewOpen ? (
+    <div className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between shrink-0 bg-slate-50">
+          <h3 className="text-sm font-bold text-slate-800">📄 プログラムファイル プレビュー</h3>
+          <button onClick={() => setPgPreviewOpen(false)} className="text-slate-400 hover:text-slate-700 text-lg font-bold">✕</button>
+        </div>
+        <div className="flex flex-1 min-h-0">
+          <div className="w-64 shrink-0 border-r border-slate-200 overflow-y-auto bg-slate-50">
+            {pgFileListLoading ? (
+              <div className="p-4 text-xs text-slate-400 text-center">読込中...</div>
+            ) : pgFileList.length === 0 ? (
+              <div className="p-4 text-xs text-slate-400 text-center">ファイルがありません</div>
+            ) : pgFileList.map((f: any) => (
+              <button key={f.id} onClick={() => setPgSelectedFile(f)}
+                className={"w-full text-left px-3 py-2 text-xs border-b border-slate-100 truncate " +
+                  (pgSelectedFile?.id === f.id ? "bg-teal-100 text-teal-800 font-bold" : "hover:bg-slate-100 text-slate-600")}>
+                📄 {f.original_name}
+              </button>
+            ))}
+          </div>
+          <div className="flex-1 overflow-auto bg-slate-900">
+            {pgContentLoading ? (
+              <div className="p-6 text-xs text-slate-400">読込中...</div>
+            ) : pgSelectedFile ? (
+              <pre className="p-4 text-xs text-emerald-300 font-mono whitespace-pre-wrap">{pgSelectedContent}</pre>
+            ) : (
+              <div className="p-6 text-xs text-slate-400">左のリストからファイルを選択してください</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
   // ヘッダー中央より右寄り・文字/ボタンと重ならない位置を初期値にする
   const [floatPos,   setFloatPos]   = useState({ x: 1180, y: 8 });
   const [dragging,   setDragging]   = useState(false);
@@ -534,9 +604,10 @@ export default function McDetailPage() {
                                 </span>
                               )}
                             </div>
-                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            <button type="button" onClick={() => { setPgPreviewOpen(true); setPgPreviewMcId(d.id); }}
+                              className="text-[10px] text-teal-600 hover:text-teal-800 font-mono mt-0.5 underline decoration-dotted text-left">
                               📁 {pgFile.file_path?.replace(/^.*?MC\/files\//, "MC/files/") ?? `MC/files/Programs/${d.machiningId}/${pgFile.original_name}`}
-                            </div>
+                            </button>
                           </>
                         ) : (
                           <div className="text-slate-400 text-sm">未登録</div>

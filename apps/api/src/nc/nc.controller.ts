@@ -366,6 +366,28 @@ export class NcController {
     return this.nc.getPgFile(id);
   }
 
+  /** [v066] プログラムファイル一覧(nc_filesベース) */
+  @Get(":nc_id/pg-files-list")
+  listPgFilesNc(@Param("nc_id", ParseIntPipe) id: number) {
+    return this.nc.listPgFilesNc(id);
+  }
+
+  /** [v066] 個別プログラムファイルの内容取得(nc_filesベース) */
+  @Get(":nc_id/pg-files/:file_id/content")
+  getPgFileContentByIdNc(@Param("file_id", ParseIntPipe) fileId: number) {
+    return this.nc.getPgFileContentByIdNc(fileId);
+  }
+
+  /** [v066] 個別プログラムファイルへの保存(nc_filesベース) */
+  @UseGuards(AuthGuard("jwt"), ProgramSessionGuard)
+  @Put(":nc_id/pg-files/:file_id/content")
+  savePgFileContentByIdNc(
+    @Param("file_id", ParseIntPipe) fileId: number,
+    @Body() body: { content: string },
+  ) {
+    return this.nc.savePgFileContentByIdNc(fileId, body.content);
+  }
+
   /** NC-06b: PGファイル保存（JWT必須） */
   @UseGuards(AuthGuard("jwt"), ProgramSessionGuard)
   @Put(":nc_id/pg-file")

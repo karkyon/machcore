@@ -585,4 +585,52 @@ export class McFilesService {
     });
     return { message: '削除しました' };
   }
+
+  // ── [v066] ②③ プログラムファイル一覧・個別読み書き(参照プレビュー/複数ファイル編集用) ──
+  async listPgFiles(mcProgramId: number) {
+    const recs = await this.prisma.mcFile.findMany({
+      where:   { mcProgramId, fileType: 'PROGRAM', isDeleted: false },
+      orderBy: [{ pgRole: 'asc' }, { sortOrder: 'asc' }, { originalName: 'asc' }],
+    });
+    return recs.map(r => ({
+      id:            r.id,
+      original_name: r.originalName,
+      pg_role:       r.pgRole,
+      file_path:     r.filePath,
+      folder_name:   (r as any).folderName ?? null,
+      file_size:     r.fileSize,
+      uploaded_at:   r.uploadedAt,
+    }));
+  }
+
+  async getPgFileContentById(fileId: number): Promise<{ content: string; original_name: string }> {
+    const rec = await this.prisma.mcFile.findFirst({
+      where: { id: fileId, fileType: 'PROGRAM', isDeleted: false },
+    });
+    if (!rec || !fs.existsSync(rec.filePath)) {
+      throw new NotFoundException('ファイルが見つかりません');
+    }
+    const buf = fs.readFileSync(rec.filePath);
+    let content: string;
+    try {
+      const iconv = require('iconv-lite') as typeof import('iconv-lite');
+      content = iconv.decode(buf, 'Shift_JIS');
+    } catch {
+      content = buf.toString('utf8');
+    }
+    return { content, original_name: rec.originalName };
+  }
+
+  async savePgFileContentById(fileId: number, content: string, uploadedBy: number): Promise<{ message: string }> {
+    const rec = await this.prisma.mcFile.findFirst({
+      where: { id: fileId, fileType: 'PROGRAM', isDeleted: false },
+    });
+    if (!rec || !fs.existsSync(rec.filePath)) {
+      throw new NotFoundException('ファイルが見つかりません');
+    }
+    const iconv = require('iconv-lite') as typeof import('iconv-lite');
+    const buf = iconv.encode(content, 'Shift_JIS');
+    fs.writeFileSync(rec.filePath, buf);
+    return { message: '保存しました' };
+  }
 }

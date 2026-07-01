@@ -331,6 +331,30 @@ export class McController {
     return this.mcFiles.getPgFile(id);
   }
 
+  /** [v066] プログラムファイル一覧(複数ファイル対応の参照プレビュー/編集用) */
+  @Get(':mc_id/pg-files-list')
+  listPgFiles(@Param('mc_id', ParseIntPipe) id: number) {
+    return this.mcFiles.listPgFiles(id);
+  }
+
+  /** [v066] 個別プログラムファイルの内容取得 */
+  @Get(':mc_id/pg-files/:file_id/content')
+  getPgFileContentById(@Param('file_id', ParseIntPipe) fileId: number) {
+    return this.mcFiles.getPgFileContentById(fileId);
+  }
+
+  /** [v066] 個別プログラムファイルへの保存 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Put(':mc_id/pg-files/:file_id/content')
+  savePgFileContentById(
+    @Param('file_id', ParseIntPipe) fileId: number,
+    @Body() body: { content: string },
+    @Req() req: any,
+  ) {
+    return this.mcFiles.savePgFileContentById(fileId, body.content, req.user?.id ?? req.user?.sub);
+  }
+
   /** PGファイルをテキストで保存（エディタ保存用） */
   @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')

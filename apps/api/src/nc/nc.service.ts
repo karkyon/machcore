@@ -1140,4 +1140,48 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   }
 
 
+
+  // ── [v066] ②③ プログラムファイル一覧・個別読み書き(nc_filesテーブル利用) ──
+  // 既存のgetPgFile/savePgFile/downloadPgFileは旧resolvePgFilePath方式のまま維持し、
+  // こちらはPHASE5で投入済みのnc_filesレコードを直接使う新方式として追加する。
+  async listPgFilesNc(ncProgramId: number) {
+    const recs = await this.prisma.ncFile.findMany({
+      where:   { ncProgramId, fileType: 'PROGRAM' as any },
+      orderBy: [{ originalName: 'asc' }],
+    });
+    return recs.map(r => ({
+      id:            r.id,
+      original_name: r.originalName,
+      file_path:     r.filePath,
+      file_size:     r.fileSize,
+      uploaded_at:   r.uploadedAt,
+    }));
+  }
+
+  async getPgFileContentByIdNc(fileId: number): Promise<{ content: string; original_name: string }> {
+    const rec = await this.prisma.ncFile.findFirst({
+      where: { id: fileId, fileType: 'PROGRAM' as any },
+    });
+    if (!rec || !fs.existsSync(rec.filePath)) {
+      throw new NotFoundException('ファイルが見つかりません');
+    }
+    const buf = fs.readFileSync(rec.filePath);
+    const detected = chardet.detect(buf) ?? 'UTF-8';
+    const d = detected.toLowerCase();
+    const iconvEnc = (d.includes('shift') || d.includes('cp932')) ? 'CP932' : 'UTF-8';
+    const content = iconv.decode(buf, iconvEnc);
+    return { content, original_name: rec.originalName };
+  }
+
+  async savePgFileContentByIdNc(fileId: number, content: string): Promise<{ message: string }> {
+    const rec = await this.prisma.ncFile.findFirst({
+      where: { id: fileId, fileType: 'PROGRAM' as any },
+    });
+    if (!rec || !fs.existsSync(rec.filePath)) {
+      throw new NotFoundException('ファイルが見つかりません');
+    }
+    const buf = iconv.encode(content, 'CP932');
+    fs.writeFileSync(rec.filePath, buf);
+    return { message: '保存しました' };
+  }
 }
