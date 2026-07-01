@@ -32,7 +32,7 @@ export default function PrintPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // ── 認証 ──
-  const { operator, isAuthenticated, logout, token } = useAuth();
+  const { operator, isAuthenticated, logout, token, isSessionForNc } = useAuth();
   const [authModalOpen,    setAuthModalOpen]    = useState(false);
   const [authSessionType,  setAuthSessionType]  = useState("setup_print");
 
@@ -57,6 +57,18 @@ export default function PrintPage() {
       .then(r  => setNc(r.data))
       .catch(e => setLoadError(e.message));
   }, [ncId]);
+
+  // ── 別のnc_id向け認証セッションが残っていないか検証（MC側 edit/print/page.tsx と同ロジック）──
+  // 「変更・登録」等で認証した状態のまま別画面(段取シート/NC詳細等)へ遷移した場合に、
+  // 再認証なしで作業ができてしまうことを防ぐため、不一致を検知したら即座にログアウトする。
+  useEffect(() => {
+    if (!ncId) return;
+    if (isAuthenticated && !isSessionForNc(ncId)) {
+      console.warn("[NC-PRINT] 認証セッションが別のnc_id向けのため強制ログアウト", { ncId });
+      logout();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ncId, isAuthenticated]);
 
   // -- ページ離脱時（アンマウント）に確実にセッションをクリア --
   useEffect(() => {
