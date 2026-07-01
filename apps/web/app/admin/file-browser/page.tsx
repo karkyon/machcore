@@ -6,6 +6,7 @@ import { fbGetCache, fbSetCache, fbSearchCache, type FbIndexItem, type FbTab } f
 
 type FileNode = { name: string; path: string; type: "file" | "dir"; size?: number; mtime?: string; hasChildren?: boolean; children?: FileNode[]; loaded?: boolean };
 type TabType = "photos" | "drawings" | "programs" | "nc_photos" | "nc_drawings" | "nc_programs";
+type TrashItem = { id: string; originalPath: string; trashPath: string; name: string; type: "file" | "dir"; deletedAt: string; existsInTrash: boolean };
 
 const TAB_LABELS: Record<TabType, string> = {
   photos: "MC写真", drawings: "MC図", programs: "MCプログラム",
@@ -92,6 +93,7 @@ function TreeNode({ node, depth, onSelect, onExpand, selectedPath, searchKw, act
 export default function FileBrowserPage() {
   const router   = useRouter();
   const pathname = usePathname();
+  const [system, setSystem]       = useState<"MC" | "NC">("MC");
   const [tab, setTab]             = useState<TabType>("photos");
   const [trees, setTrees]         = useState<Record<TabType, FileNode[]>>({ photos: [], drawings: [], programs: [], nc_photos: [], nc_drawings: [], nc_programs: [] });
   const [rootPaths, setRootPaths] = useState<Record<TabType, string>>({ photos: "", drawings: "", programs: "", nc_photos: "", nc_drawings: "", nc_programs: "" });
@@ -114,6 +116,10 @@ export default function FileBrowserPage() {
   const [uploading, setUploading] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
   const [uploadDir, setUploadDir] = useState("");
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [trashBusyId, setTrashBusyId] = useState<string | null>(null);
 
   const getToken = () => sessionStorage.getItem("admin_token") ?? "";
   const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 4000); };
@@ -128,6 +134,41 @@ export default function FileBrowserPage() {
     if (!res.ok) throw new Error("HTTP " + res.status);
     return res.json();
   }, []);
+
+  const loadTrash = useCallback(async () => {
+    setTrashLoading(true);
+    try {
+      const data = await apiFetch("/api/admin/files/trash-list");
+      setTrashItems(data.items ?? []);
+    } catch (e: any) { showToast("ゴミ箱取得失敗: " + e.message, false); }
+    finally { setTrashLoading(false); }
+  }, [apiFetch]);
+
+  const handleRestoreTrash = async (id: string) => {
+    setTrashBusyId(id);
+    try {
+      await apiFetch("/api/admin/files/trash-restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      showToast("復元しました");
+      await loadTrash();
+      await loadRoots();
+    } catch (e: any) { showToast("復元失敗: " + e.message, false); }
+    finally { setTrashBusyId(null); }
+  };
+
+  const handlePurgeTrash = async (id: string) => {
+    if (!window.confirm("完全に削除します。元に戻せません。よろしいですか？")) return;
+    setTrashBusyId(id);
+    try {
+      await apiFetch(`/api/admin/files/trash-purge?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      showToast("完全に削除しました");
+      await loadTrash();
+    } catch (e: any) { showToast("完全削除失敗: " + e.message, false); }
+    finally { setTrashBusyId(null); }
+  };
 
   const loadRoots = async () => {
     setRootLoading(true);
@@ -337,10 +378,11 @@ export default function FileBrowserPage() {
   const handleDelete = async (node: FileNode) => {
     try {
       await apiFetch(`/api/admin/files/delete?path=${encodeURIComponent(node.path)}`, { method: "DELETE" });
-      showToast("削除しました: " + node.name);
+      showToast("ゴミ箱へ移動しました: " + node.name);
       setDelConfirm(null);
       if (selected?.path === node.path) { setSelected(null); setPreview(null); }
       await loadRoots();
+      await loadTrash();
     } catch (e: any) { showToast("削除失敗: " + e.message, false); }
   };
 
@@ -376,8 +418,24 @@ export default function FileBrowserPage() {
         <div className="px-5 py-3 border-b border-slate-200 bg-white flex items-center gap-3 shrink-0 flex-wrap">
           <h1 className="text-lg font-bold text-slate-800">ファイルブラウザ</h1>
           <div className="flex items-center gap-2">
+            {/* MC/NC トグル(デフォルト:MC) */}
+            <div className="flex items-center bg-slate-100 rounded-full p-0.5 border border-slate-200">
+              {(["MC", "NC"] as const).map(sys => (
+                <button key={sys} onClick={() => {
+                    setSystem(sys);
+                    const first = (sys === "MC" ? "photos" : "nc_photos") as TabType;
+                    setTab(first); setSelected(null); setPreview(null);
+                    setSearchKw(""); setSearchHits([]); setSearchHitIndex(0); setActiveHitPath("");
+                  }}
+                  className={"px-4 py-1 text-xs font-bold rounded-full transition-colors " +
+                    (system === sys ? "bg-white text-slate-800 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
+                  {sys}
+                </button>
+              ))}
+            </div>
+            <span className="text-slate-200">|</span>
             <div className="flex gap-1">
-              {(["photos", "drawings", "programs"] as TabType[]).map(t => (
+              {(system === "MC" ? (["photos", "drawings", "programs"] as TabType[]) : (["nc_photos", "nc_drawings", "nc_programs"] as TabType[])).map(t => (
                 <button key={t} onClick={() => { setTab(t); setSelected(null); setPreview(null); setSearchKw(""); setSearchHits([]); setSearchHitIndex(0); setActiveHitPath(""); }}
                   className={"px-3 py-1 text-xs font-bold rounded-full border transition-colors " +
                     (tab === t ? TAB_COLORS[t] : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200")}>
@@ -386,15 +444,11 @@ export default function FileBrowserPage() {
               ))}
             </div>
             <span className="text-slate-200">|</span>
-            <div className="flex gap-1">
-              {(["nc_photos", "nc_drawings", "nc_programs"] as TabType[]).map(t => (
-                <button key={t} onClick={() => { setTab(t); setSelected(null); setPreview(null); setSearchKw(""); setSearchHits([]); setSearchHitIndex(0); setActiveHitPath(""); }}
-                  className={"px-3 py-1 text-xs font-bold rounded-full border transition-colors " +
-                    (tab === t ? TAB_COLORS[t] : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200")}>
-                  {TAB_LABELS[t]}
-                </button>
-              ))}
-            </div>
+            <button onClick={() => { setTrashOpen(true); loadTrash(); }}
+              className={"px-3 py-1 text-xs font-bold rounded-full border transition-colors " +
+                (trashItems.length > 0 ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100" : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200")}>
+              🗑️ ゴミ箱{trashItems.length > 0 ? ` (${trashItems.length})` : ""}
+            </button>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
             <input value={searchKw} onChange={e => setSearchKw(e.target.value)} onKeyDown={handleSearchKeyDown}
@@ -426,12 +480,53 @@ export default function FileBrowserPage() {
         {delConfirm && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
             <div className="bg-white rounded-xl shadow-2xl p-6 w-96">
-              <h2 className="text-base font-bold text-red-700 mb-3">強制削除の確認</h2>
-              <p className="text-sm text-slate-600 mb-1">以下を完全に削除します（元に戻せません）:</p>
+              <h2 className="text-base font-bold text-red-700 mb-3">ゴミ箱へ移動の確認</h2>
+              <p className="text-sm text-slate-600 mb-1">以下をゴミ箱へ移動します（後で復元できます）:</p>
               <p className="text-xs font-mono bg-slate-50 rounded p-2 text-slate-800 break-all mb-4">{delConfirm.path}</p>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setDelConfirm(null)} className="px-4 py-2 bg-slate-100 text-slate-600 text-sm font-bold rounded-lg hover:bg-slate-200">キャンセル</button>
-                <button onClick={() => handleDelete(delConfirm)} className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700">削除実行</button>
+                <button onClick={() => handleDelete(delConfirm)} className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700">ゴミ箱へ移動</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {trashOpen && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+              <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between shrink-0">
+                <h2 className="text-base font-bold text-slate-800">🗑️ ゴミ箱</h2>
+                <button onClick={() => setTrashOpen(false)} className="text-slate-400 hover:text-slate-700 text-lg font-bold">✕</button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                {trashLoading ? (
+                  <div className="text-center text-slate-400 text-xs py-8">読込中…</div>
+                ) : trashItems.length === 0 ? (
+                  <div className="text-center text-slate-400 text-xs py-8">ゴミ箱は空です</div>
+                ) : (
+                  <div className="space-y-2">
+                    {trashItems.map(item => (
+                      <div key={item.id} className="flex items-center gap-3 border border-slate-200 rounded-lg px-3 py-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-slate-700 truncate">{item.type === "dir" ? "📁" : "📄"} {item.name}</p>
+                          <p className="text-[10px] text-slate-400 font-mono truncate">{item.originalPath}</p>
+                          <p className="text-[10px] text-slate-400">削除日時: {new Date(item.deletedAt).toLocaleString("ja-JP")}</p>
+                          {!item.existsInTrash && <p className="text-[10px] text-red-500 font-bold">⚠ ゴミ箱内の実体が見つかりません</p>}
+                        </div>
+                        <div className="flex gap-1.5 shrink-0">
+                          <button disabled={trashBusyId === item.id || !item.existsInTrash} onClick={() => handleRestoreTrash(item.id)}
+                            className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-lg hover:bg-emerald-100 disabled:opacity-40">
+                            ↺ 復元
+                          </button>
+                          <button disabled={trashBusyId === item.id} onClick={() => handlePurgeTrash(item.id)}
+                            className="px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 text-xs font-bold rounded-lg hover:bg-red-100 disabled:opacity-40">
+                            完全削除
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

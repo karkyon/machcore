@@ -1471,16 +1471,91 @@ export class AdminController {
     return reply.send(fs.createReadStream(filePath));
   }
 
-  /** FB-04: ファイル/ディレクトリ強制削除 */
+  /** FB-04: ファイル/ディレクトリをゴミ箱へ移動(論理削除)。
+   *  完全削除はFB-09(trash-purge)、復元はFB-08(trash-restore)で行う。 */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
   @Delete('files/delete')
   async deleteFileBrowser(@Query('path') filePath: string) {
     if (!filePath || !fs.existsSync(filePath)) throw new BadRequestException('パスが存在しません');
+    const setting = await this.prisma.companySetting.findFirst();
+    const basePath = setting?.uploadBasePath ?? '/mnt/mc_files';
+    const trashRoot = nodepath.join(basePath, '_trash');
+    if (!fs.existsSync(trashRoot)) fs.mkdirSync(trashRoot, { recursive: true });
+
     const st = fs.statSync(filePath);
-    if (st.isDirectory()) { fs.rmSync(filePath, { recursive: true, force: true }); }
-    else { fs.unlinkSync(filePath); }
-    return { message: '削除しました', path: filePath };
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const trashPath = nodepath.join(trashRoot, `${id}__${nodepath.basename(filePath)}`);
+    fs.renameSync(filePath, trashPath);
+
+    const indexPath = nodepath.join(trashRoot, '.trash-index.json');
+    let index: any[] = [];
+    try { if (fs.existsSync(indexPath)) index = JSON.parse(fs.readFileSync(indexPath, 'utf8')); } catch { index = []; }
+    index.unshift({
+      id, originalPath: filePath, trashPath, name: nodepath.basename(filePath),
+      type: st.isDirectory() ? 'dir' : 'file', deletedAt: new Date().toISOString(),
+    });
+    fs.writeFileSync(indexPath, JSON.stringify(index, null, 2), 'utf8');
+
+    return { message: 'ゴミ箱へ移動しました', path: filePath, trashId: id };
+  }
+
+  /** FB-07: ゴミ箱の一覧取得 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Get('files/trash-list')
+  async listTrash() {
+    const setting = await this.prisma.companySetting.findFirst();
+    const basePath = setting?.uploadBasePath ?? '/mnt/mc_files';
+    const indexPath = nodepath.join(basePath, '_trash', '.trash-index.json');
+    if (!fs.existsSync(indexPath)) return { items: [] };
+    let index: any[] = [];
+    try { index = JSON.parse(fs.readFileSync(indexPath, 'utf8')); } catch { index = []; }
+    const items = index.map((it) => ({ ...it, existsInTrash: fs.existsSync(it.trashPath) }));
+    return { items };
+  }
+
+  /** FB-08: ゴミ箱から元の場所へ復元 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('files/trash-restore')
+  async restoreTrash(@Body('id') id: string) {
+    const setting = await this.prisma.companySetting.findFirst();
+    const basePath = setting?.uploadBasePath ?? '/mnt/mc_files';
+    const indexPath = nodepath.join(basePath, '_trash', '.trash-index.json');
+    if (!fs.existsSync(indexPath)) throw new BadRequestException('ゴミ箱が空です');
+    let index: any[] = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+    const entry = index.find((it) => it.id === id);
+    if (!entry) throw new BadRequestException('ゴミ箱にアイテムが見つかりません');
+    if (!fs.existsSync(entry.trashPath)) throw new BadRequestException('ゴミ箱内の実体ファイルが見つかりません');
+    if (fs.existsSync(entry.originalPath)) throw new BadRequestException('復元先に同名のファイル/フォルダが既に存在します');
+    fs.mkdirSync(nodepath.dirname(entry.originalPath), { recursive: true });
+    fs.renameSync(entry.trashPath, entry.originalPath);
+    index = index.filter((it) => it.id !== id);
+    fs.writeFileSync(indexPath, JSON.stringify(index, null, 2), 'utf8');
+    return { message: '復元しました', path: entry.originalPath };
+  }
+
+  /** FB-09: ゴミ箱から完全削除 */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Delete('files/trash-purge')
+  async purgeTrash(@Query('id') id: string) {
+    const setting = await this.prisma.companySetting.findFirst();
+    const basePath = setting?.uploadBasePath ?? '/mnt/mc_files';
+    const indexPath = nodepath.join(basePath, '_trash', '.trash-index.json');
+    if (!fs.existsSync(indexPath)) throw new BadRequestException('ゴミ箱が空です');
+    let index: any[] = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+    const entry = index.find((it) => it.id === id);
+    if (!entry) throw new BadRequestException('ゴミ箱にアイテムが見つかりません');
+    if (fs.existsSync(entry.trashPath)) {
+      const st = fs.statSync(entry.trashPath);
+      if (st.isDirectory()) fs.rmSync(entry.trashPath, { recursive: true, force: true });
+      else fs.unlinkSync(entry.trashPath);
+    }
+    index = index.filter((it) => it.id !== id);
+    fs.writeFileSync(indexPath, JSON.stringify(index, null, 2), 'utf8');
+    return { message: '完全に削除しました' };
   }
 
   /** FB-06: ファイルブラウザの全件フラットインデックス取得。
