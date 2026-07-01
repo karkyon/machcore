@@ -1359,6 +1359,7 @@ export class AdminController {
       programs:   nodepath.join(basePath, 'MC', 'files', 'Programs'),
       nc_photos:   nodepath.join(basePath, 'NC', 'files', 'Pictures'),
       nc_drawings: nodepath.join(basePath, 'NC', 'files', 'Drawings'),
+      nc_programs:  nodepath.join(basePath, 'NC', 'files', 'Programs'),
     };
 
     // 1階層のみ読む・hasChildrenチェックなし（I/O最小化）
@@ -1503,6 +1504,7 @@ export class AdminController {
       programs:   nodepath.join(basePath, 'MC', 'files', 'Programs'),
       nc_photos:   nodepath.join(basePath, 'NC', 'files', 'Pictures'),
       nc_drawings: nodepath.join(basePath, 'NC', 'files', 'Drawings'),
+      nc_programs:  nodepath.join(basePath, 'NC', 'files', 'Programs'),
     };
     const rootPath = roots[tab];
     if (!rootPath) return { items: [], rootPath: '' };
