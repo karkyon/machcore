@@ -2,7 +2,7 @@
 // apps/web/app/nc/[nc_id]/print/page.tsx
 // SCR-04: 段取シート
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { printApi, PrintData, PrintOptions, NcTool, downloadApi} from "@/lib/api";
 import { NcPartHeader } from "@/components/nc/NcPartHeader";
@@ -61,7 +61,7 @@ export default function PrintPage() {
   // ── 別のnc_id向け認証セッションが残っていないか検証（MC側 edit/print/page.tsx と同ロジック）──
   // 「変更・登録」等で認証した状態のまま別画面(段取シート/NC詳細等)へ遷移した場合に、
   // 再認証なしで作業ができてしまうことを防ぐため、不一致を検知したら即座にログアウトする。
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!ncId) return;
     if (isAuthenticated && !isSessionForNc(ncId)) {
       console.warn("[NC-PRINT] 認証セッションが別のnc_id向けのため強制ログアウト", { ncId });
@@ -71,7 +71,7 @@ export default function PrintPage() {
   }, [ncId, isAuthenticated]);
 
   // -- ページ離脱時（アンマウント）に確実にセッションをクリア --
-  useEffect(() => {
+  useLayoutEffect(() => {
     return () => {
       logout();
     };

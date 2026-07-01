@@ -586,7 +586,7 @@ function McRecordPageInner() {
   const { operator, isAuthenticated, token, logout, isSessionForMc } = useAuth();
 
   // -- 別mc_id向けセッションが残っていれば強制ログアウト --
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (isAuthenticated && !isSessionForMc(mcId)) {
       console.warn("[MC-RECORD] 認証セッションが別のmc_id向けのため強制ログアウト", { mcId });
       logout();
@@ -607,7 +607,7 @@ function McRecordPageInner() {
   }, [sbMode, isAuthenticated]);
 
   // -- ページ離脱時（アンマウント）に確実にセッションをクリア --
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     return () => {
       logout();
     };

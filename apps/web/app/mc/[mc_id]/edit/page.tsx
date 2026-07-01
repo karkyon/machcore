@@ -52,7 +52,7 @@ export default function McEditPage() {
   // 段取シートバック等で他の mc_id の編集セッション(JWT)を取得した状態で
   // このページに遷移してきた場合、再認証なしで編集・段取シート発行が
   // できてしまうことを防ぐため、不一致を検知したら即座にログアウトする。
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!mcId) return;
     if (isAuthenticated && !isSessionForMc(mcId)) {
       console.warn("[EDIT] 認証セッションが別のmc_id向けのため強制ログアウト", { mcId });
@@ -74,7 +74,7 @@ export default function McEditPage() {
   React.useEffect(() => { tokenRef.current = token; }, [token]);
   const pendingBodyRef = React.useRef(pendingBody);
   React.useEffect(() => { pendingBodyRef.current = pendingBody; }, [pendingBody]);
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     return () => {
       if (isAuthenticated) {
         if (showKanryoModalRef.current && tokenRef.current && pendingBodyRef.current?.savedMcId) {

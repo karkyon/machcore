@@ -12,7 +12,7 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
 import {
   ncApi, NcDetail, NcTool, ChangeHistory, WorkRecord, SetupSheetLog,
   NcFile, filesApi, downloadApi, OperationLog, operationLogsApi,
@@ -72,7 +72,7 @@ export default function NcDetailPage() {
   // ── 別のnc_id向け認証セッションが残っていないか検証（MC側 edit/print/page.tsx と同ロジック）──
   // 「変更・登録」等で認証した状態のまま別画面(段取シート/NC詳細等)へ遷移した場合に、
   // 再認証なしで作業ができてしまうことを防ぐため、不一致を検知したら即座にログアウトする。
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!ncId) return;
     if (isAuthenticated && !isSessionForNc(ncId)) {
       console.warn("[NC-DETAIL] 認証セッションが別のnc_id向けのため強制ログアウト", { ncId });
@@ -84,7 +84,7 @@ export default function NcDetailPage() {
   // ── このページ自体がアンマウントされる(=他画面へ遷移する)際に、
   //    認証セッションが残っていれば必ず終了させる。タブ切り替えなど、明示的な
   //    「キャンセル」ボタンを経由しない遷移であっても、次の画面へ認証状態を持ち越さない。
-  useEffect(() => {
+  useLayoutEffect(() => {
     return () => {
       if (isAuthenticated) {
         console.warn("[NC-DETAIL] ページ離脱を検知 — 認証セッションを終了します");

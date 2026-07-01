@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, mcFilesApi, McDetail, McTooling, McWorkOffset, McIndexProgram,
          McFile, McChangeHistory, McSetupSheetLog, McWorkRecord, McCommonSearchResult } from "@/lib/api";
@@ -131,7 +131,7 @@ export default function McDetailPage() {
   }, [isAuthenticated]);
 
   // ── 別mc_id向けセッションが残っていれば強制ログアウト（edit/record/printと統一）──
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!mcId) return;
     if (isAuthenticated && !isSessionForMc(mcId)) {
       console.warn("[MC-DETAIL] 認証セッションが別のmc_id向けのため強制ログアウト", { mcId });
@@ -142,7 +142,7 @@ export default function McDetailPage() {
 
   // ── このページ自体がアンマウントされる(=他画面へ遷移する)際に、
   //    認証セッション（PG→USB等の参照モード認証）が残っていれば必ず終了させる。
-  useEffect(() => {
+  useLayoutEffect(() => {
     return () => {
       if (isAuthenticated) {
         console.warn("[MC-DETAIL] ページ離脱を検知 — 認証セッションを終了します");

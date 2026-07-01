@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { mcApi, McDetail, machinesApi, Machine } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
@@ -93,7 +93,7 @@ function McPrintPageInner() {
   }, [mcId, machines.length]);
 
   // -- 別mc_id向けセッションが残っていれば強制ログアウト --
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isAuthenticated && !isSessionForMc(mcId)) {
       console.warn("[MC-PRINT] 認証セッションが別のmc_id向けのため強制ログアウト", { mcId });
       logout();
@@ -102,7 +102,7 @@ function McPrintPageInner() {
   }, [mcId, isAuthenticated]);
 
   // -- ページ離脱時（アンマウント）に確実にセッションをクリア --
-  useEffect(() => {
+  useLayoutEffect(() => {
     return () => {
       logout();
     };
