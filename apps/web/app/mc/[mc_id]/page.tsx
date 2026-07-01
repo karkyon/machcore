@@ -42,8 +42,9 @@ export default function McDetailPage() {
   const router = useRouter();
 
   const [detail,    setDetail]    = useState<McDetail | null>(null);
-  const [floatOpen,  setFloatOpen]  = useState(true);
-  const [floatPos,   setFloatPos]   = useState({ x: 900, y: 120 });
+  const [floatOpen,  setFloatOpen]  = useState(false);
+  // ヘッダー中央より右寄り・文字/ボタンと重ならない位置を初期値にする
+  const [floatPos,   setFloatPos]   = useState({ x: 1180, y: 8 });
   const [dragging,   setDragging]   = useState(false);
   const dragStart    = useRef<{ mx: number; my: number; px: number; py: number } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -731,7 +732,6 @@ export default function McDetailPage() {
                       <th className="px-3 py-2 text-center font-bold border-b border-teal-100 whitespace-nowrap">Z</th>
                       <th className="px-3 py-2 text-center font-bold border-b border-teal-100 whitespace-nowrap">A / C</th>
                       <th className="px-3 py-2 text-center font-bold border-b border-teal-100 whitespace-nowrap">R / B</th>
-                      <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">備考</th>
                     </tr>
                   </thead>
                   <tbody>

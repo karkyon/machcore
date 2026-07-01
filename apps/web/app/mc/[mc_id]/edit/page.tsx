@@ -1582,7 +1582,7 @@ export default function McEditPage() {
                         className="px-3 py-1 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors">
                         ✓ ワークオフセットを保存
                       </button>
-                      <button onClick={() => setOffsetRows(prev => [...prev, { g_code: `G${54 + prev.length}` }])}
+                      <button onClick={() => setOffsetRows(prev => (() => { const n = prev.length; const gc = n === 0 ? "EXT" : `G${Math.min(54 + (n - 1), 59)}`; return [...prev, { g_code: gc }]; })())}
                         className="text-xs text-teal-600 font-bold">+ 追加</button>
                     </div>
                   </div>
@@ -1596,7 +1596,6 @@ export default function McEditPage() {
                         <col style={{width:"100px"}}/>
                         <col style={{width:"100px"}}/>
                         <col style={{width:"100px"}}/>
-                        <col style={{width:"120px"}}/>
                         <col style={{width:"54px"}}/>
                       </colgroup>
                       <thead className="bg-teal-50 sticky top-0 z-10">
@@ -1608,7 +1607,6 @@ export default function McEditPage() {
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">Z</th>
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">A / C</th>
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">R / B</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">備考</th>
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
                         </tr>
                       </thead>
@@ -1646,8 +1644,6 @@ export default function McEditPage() {
                                 onChange={e => setOffsetRows(r => r.map((x,j) => j===i ? {...x, [k]: e.target.value} : x))}
                                 className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-center" /></td>
                             ))}
-                            <td className="px-1 py-1"><input value={o.note ?? ""} onChange={e => setOffsetRows(r => r.map((x,j) => j===i ? {...x, note: e.target.value} : x))}
-                              className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
                             <td className="px-1 py-1 text-center">
                               <button onClick={() => setOffsetRows(r => r.filter((_,j) => j !== i))}
                                 className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">
@@ -1708,7 +1704,6 @@ export default function McEditPage() {
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">第0軸</th>
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">第1軸</th>
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">第2軸</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">備考</th>
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
                         </tr>
                       </thead>
