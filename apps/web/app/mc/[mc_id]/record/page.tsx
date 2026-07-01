@@ -746,8 +746,12 @@ function McRecordPageInner() {
     if (dates.length === 0) return;
 
     // machineCodeを特定
-    const mCode = typeof mId === "string" ? mId
-      : machines.find(m => m.id === mId)?.machineCode ?? "";
+    // ★[v067] machineId state は常に文字列型のため typeof での判定は無効。
+    //    数値としてパースできる場合は machines一覧からmachineCodeを正しく引き当てる。
+    const mIdNum = typeof mId === "number" ? mId : parseInt(String(mId), 10);
+    const mCode = !isNaN(mIdNum)
+      ? (machines.find(m => m.id === mIdNum)?.machineCode ?? "")
+      : String(mId);
     if (!mCode) return;
 
     try {

@@ -249,11 +249,6 @@ export default function McDashboard() {
                   const prog = sbResult.programs.find((p: any) => p.mc_id === sheet.mc_id);
                   const isSel = sbSelectedSheet?.id === sheet.id;
                   return (
-                  <div key={sheet.id} className="relative">
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setLostModalSheet(sheet); }}
-                      className="absolute top-2 right-2 z-10 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 hover:bg-red-100">
-                      ⚠ 行方不明にする
-                    </button>
                     <button
                       key={"btn-" + sheet.id}
                       onClick={() => setSbSelectedSheet(isSel ? null : sheet)}
@@ -292,9 +287,15 @@ export default function McDashboard() {
                         >
                           📄 原本確認
                         </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); setLostModalSheet(sheet); }}
+                          className="shrink-0 px-2 py-1 text-[10px] font-bold rounded border bg-red-50 hover:bg-red-100 text-red-600 border-red-200 transition-colors"
+                          title="行方不明にする"
+                        >
+                          🗑️
+                        </button>
                       </div>
                     </button>
-                  </div>
                   );
                 })}
               </div>
