@@ -30,6 +30,10 @@ export default function McEditPage() {
       if (r && parseInt(r) === parseInt(mc_id)) setSbRepeatMode(true);
     }
   }, [mc_id]);
+  // ── [v068] 段取シートバックが正規にSTEP2(作業記録)へ引き継がれたかを追跡する。
+  //    trueにならないままこの画面を離れた場合は異常終了とみなし、
+  //    sessionStorageのsb_*フラグを必ずクリアして次回アクセスへ漏れないようにする。
+  const sbFlowCompletedRef = React.useRef(false);
 
   const [detail, setDetail]   = useState<McDetail | null>(null);
   const [machines, setMachines] = useState<Machine[]>([]);
@@ -194,7 +198,20 @@ export default function McEditPage() {
         sbRepeatMode_live_ref_value: sbRepeatModeRef.current,
       });
       if (sbModeRef.current || sbRepeatModeRef.current) {
-        console.log("%c[MC-EDIT][unmount-effect] 段取シートバック中のためlogout()をスキップ", "color:#0d9488;font-weight:bold");
+        if (sbFlowCompletedRef.current) {
+          console.log("%c[MC-EDIT][unmount-effect] 段取シートバック正規完了(STEP2引き継ぎ)のためlogout()をスキップ", "color:#0d9488;font-weight:bold");
+          return;
+        }
+        // [v068] STEP2への正規完了を経ずに段取シートバック中の画面を離れた
+        //   場合は、sessionStorageのsb_*フラグが残存すると次回以降の
+        //   通常アクセスに誤って引き継がれてしまうため、必ずクリアしてログアウトする。
+        console.warn("%c[MC-EDIT][unmount-effect] 段取シートバックが未完了のまま離脱 — sessionStorageをクリアしlogoutします", "color:#dc2626;font-weight:bold");
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("sb_next_record");
+          sessionStorage.removeItem("sb_sheet_log_id");
+          sessionStorage.removeItem("sb_repeat_edit");
+        }
+        logout();
         return;
       }
       if (isAuthenticatedRef.current) {
@@ -977,6 +994,7 @@ export default function McEditPage() {
           sessionStorage.setItem("sb_next_record", String(savedId));
         }
       }
+      sbFlowCompletedRef.current = true; // [v068] 正規のSTEP2引き継ぎとして記録
       setTimeout(() => router.push(`/mc/${savedId}/record`), 800);
     } catch (e: any) {
       const errMsg = e?.response?.data?.message ?? e?.message ?? "バージョン更新に失敗";

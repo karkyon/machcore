@@ -95,8 +95,8 @@ export class DashboardService {
       this.prisma.mcProgram.count(),
       this.prisma.ncProgram.count({ where: { status: 'PENDING_APPROVAL' } }),
       this.prisma.mcProgram.count({ where: { status: 'PENDING_APPROVAL' } }),
-      this.prisma.setupSheetLog.count({ where: { workCollected: false } }),
-      this.prisma.mcSetupSheetLog.count({ where: { workCollected: false } }),
+      this.prisma.setupSheetLog.count({ where: { workCollected: false, isLost: false } }),
+      this.prisma.mcSetupSheetLog.count({ where: { workCollected: false, isLost: false } }),
     ]);
     return {
       nc_total: ncTotal, mc_total: mcTotal,
