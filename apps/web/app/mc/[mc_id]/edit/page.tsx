@@ -1372,7 +1372,7 @@ export default function McEditPage() {
                     </div>
                   </div>
                   <div className="overflow-y-auto max-h-[55vh]">
-                    <table className="text-xs w-full border-collapse">
+                    <table className="text-xs w-full border-collapse" onKeyDown={handleEnterMoveNext}>
                       <colgroup>
                         <col style={{width:"72px"}}/>
                         <col style={{width:"90px"}}/>
@@ -1724,7 +1724,7 @@ export default function McEditPage() {
                     </div>
                   </div>
                   <div className="overflow-y-auto max-h-[55vh]">
-                    <table className="text-xs w-full border-collapse">
+                    <table className="text-xs w-full border-collapse" onKeyDown={handleEnterMoveNext}>
                       <colgroup>
                         <col style={{width:"72px"}}/>
                         <col style={{width:"90px"}}/>
