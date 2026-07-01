@@ -86,6 +86,10 @@ export default function McDashboard() {
   const [sbRepeatAuthOpen, setSbRepeatAuthOpen] = useState(false);
   const [sbRepeatMcId,     setSbRepeatMcId]     = useState<number>(0);
   const [newRegModalOpen,  setNewRegModalOpen]  = useState(false);
+  const [lostModalSheet,   setLostModalSheet]   = useState<any | null>(null);
+  const [lostReason,       setLostReason]       = useState("紛失");
+  const [lostDetail,       setLostDetail]       = useState("");
+  const [lostSubmitting,   setLostSubmitting]   = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,6 +107,25 @@ export default function McDashboard() {
   }, []);
 
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
+
+  // ── 段取シートを行方不明として処理 ──
+  const handleMarkLost = async () => {
+    if (!lostModalSheet) return;
+    setLostSubmitting(true);
+    try {
+      await fetch(`${API_URL}/dashboard/mc-setup-sheet-logs/${lostModalSheet.id}/mark-lost`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: lostReason, detail: lostDetail || undefined }),
+      });
+      setLostModalSheet(null);
+      setLostDetail("");
+      setLostReason("紛失");
+      setSbModalOpen(false);
+      load();
+    } catch { /* ignore */ }
+    finally { setLostSubmitting(false); }
+  };
 
   // ── ダッシュボード行クリック: そのシートを選択済みでモーダルを開く ──
   const handleSheetRowClick = async (item: McSheet) => {
@@ -131,6 +154,30 @@ export default function McDashboard() {
 
   const filtered = filterPeriod(sheets, period);
   const grouped  = groupByMachine(filtered);
+
+  const LostReasonModal = lostModalSheet ? (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h3 className="text-base font-bold text-red-700 mb-1">⚠ 行方不明として処理</h3>
+        <p className="text-xs text-slate-500 mb-4">この段取シートを未回収一覧から除外します(削除ではなく理由付きで記録されます)。</p>
+        <label className="block text-xs font-bold text-slate-600 mb-1">理由</label>
+        <select value={lostReason} onChange={e => setLostReason(e.target.value)}
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3">
+          {["紛失", "作業者未回収のまま長期経過", "機械移設・廃却", "その他"].map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <label className="block text-xs font-bold text-slate-600 mb-1">詳細(任意)</label>
+        <textarea value={lostDetail} onChange={e => setLostDetail(e.target.value)} rows={3}
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4" placeholder="詳細な状況があれば入力してください" />
+        <div className="flex gap-2 justify-end">
+          <button onClick={() => setLostModalSheet(null)} className="px-4 py-2 bg-slate-100 text-slate-600 text-sm font-bold rounded-lg hover:bg-slate-200">キャンセル</button>
+          <button onClick={handleMarkLost} disabled={lostSubmitting}
+            className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 disabled:opacity-50">
+            {lostSubmitting ? "処理中..." : "行方不明として記録"}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   const handleSbSearch = async () => {
     const legacyId = parseInt(sbMcId);
@@ -172,6 +219,7 @@ export default function McDashboard() {
 
   return (
     <>
+      {LostReasonModal}
       {/* 段取シートバック 選択モーダル */}
       {sbModalOpen && sbResult?.found && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -201,8 +249,13 @@ export default function McDashboard() {
                   const prog = sbResult.programs.find((p: any) => p.mc_id === sheet.mc_id);
                   const isSel = sbSelectedSheet?.id === sheet.id;
                   return (
+                  <div key={sheet.id} className="relative">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setLostModalSheet(sheet); }}
+                      className="absolute top-2 right-2 z-10 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 hover:bg-red-100">
+                      ⚠ 行方不明にする
+                    </button>
                     <button
-                      key={sheet.id}
+                      key={"btn-" + sheet.id}
                       onClick={() => setSbSelectedSheet(isSel ? null : sheet)}
                       className={`w-full text-left rounded-xl border-2 px-4 py-3 transition-all ${isSel ? "border-teal-500 bg-teal-50" : "border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50/40"}`}
                     >
@@ -241,6 +294,7 @@ export default function McDashboard() {
                         </button>
                       </div>
                     </button>
+                  </div>
                   );
                 })}
               </div>

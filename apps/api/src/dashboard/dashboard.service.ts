@@ -7,7 +7,7 @@ export class DashboardService {
 
   async uncollectedNc() {
     const rows = await this.prisma.setupSheetLog.findMany({
-      where: { workCollected: false },
+      where: { workCollected: false, isLost: false },
       orderBy: [
         { ncProgram: { machining: { machine: { sortOrder: 'asc' } } } },
         { printedAt: 'asc' },
@@ -47,7 +47,7 @@ export class DashboardService {
 
   async uncollectedMc() {
     const rows = await this.prisma.mcSetupSheetLog.findMany({
-      where: { workCollected: false },
+      where: { workCollected: false, isLost: false },
       orderBy: [
         // machine_id_log（変更履歴の印刷時機械）でソート
         // machiningの機械ではなく印刷時に実際に使った機械で並べる
@@ -103,5 +103,23 @@ export class DashboardService {
       nc_pending: ncPending, mc_pending: mcPending,
       nc_uncollected: ncUncollected, mc_uncollected: mcUncollected,
     };
+  }
+
+  /** ⑦段取シート行方不明処理(論理削除・理由記録) — MC */
+  async markMcSetupSheetLost(id: number, reason: string, detail: string | null, userId: number | null) {
+    await this.prisma.mcSetupSheetLog.update({
+      where: { id },
+      data: { isLost: true, lostReason: reason, lostDetail: detail, lostAt: new Date(), lostBy: userId },
+    });
+    return { message: '行方不明として処理しました' };
+  }
+
+  /** ⑦段取シート行方不明処理(論理削除・理由記録) — NC */
+  async markNcSetupSheetLost(id: number, reason: string, detail: string | null, userId: number | null) {
+    await this.prisma.setupSheetLog.update({
+      where: { id },
+      data: { isLost: true, lostReason: reason, lostDetail: detail, lostAt: new Date(), lostBy: userId },
+    });
+    return { message: '行方不明として処理しました' };
   }
 }

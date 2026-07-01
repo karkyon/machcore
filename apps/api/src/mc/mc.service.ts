@@ -1380,6 +1380,10 @@ export class McService {
         is_reference:   (s as any).isReference ?? false,
         sheet_type:     (s as any).sheetType ?? null,
         has_pdf:        !!(s.pdfPath && require('fs').existsSync(s.pdfPath)),
+        is_lost:        (s as any).isLost ?? false,
+        lost_reason:    (s as any).lostReason ?? null,
+        lost_detail:    (s as any).lostDetail ?? null,
+        lost_at:        (s as any).lostAt ?? null,
       })),
     };
   }

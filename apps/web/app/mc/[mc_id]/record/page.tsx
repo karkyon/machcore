@@ -813,6 +813,16 @@ function McRecordPageInner() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isAuthenticated]);
 
+  // ── [v065] タイムカード自動反映: 日時/機械が変わるたびに自動的に再計算する(MC) ──
+  useEffect(() => {
+    if (!isAuthenticated || !startedAt) return;
+    const t = setTimeout(() => {
+      fetchKadouFromTimecards(startedAt, checkedAt, finishedAt, machineId);
+    }, 500);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startedAt, checkedAt, finishedAt, machineId, isAuthenticated]);
+
   // ── Enter/Shift+EnterでFW/BW移動（data-fi属性付き要素が対象） ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
