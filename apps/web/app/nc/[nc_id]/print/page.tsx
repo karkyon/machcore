@@ -8,6 +8,7 @@ import { printApi, PrintData, PrintOptions, NcTool, downloadApi} from "@/lib/api
 import { NcPartHeader } from "@/components/nc/NcPartHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
+import ApprovalModal from "@/components/shared/ApprovalModal";
 
 const STATUS_LABEL: Record<string, string> = {
   NEW:              "新規",
@@ -29,6 +30,7 @@ export default function PrintPage() {
 
   // ── データ ──
   const [nc,        setNc]        = useState<PrintData | null>(null);
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false); // [v095]
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // ── 認証 ──
@@ -233,7 +235,7 @@ export default function PrintPage() {
         </header>
 
       {/* 部品情報エリア（共通コンポーネント） */}
-      <NcPartHeader data={nc} />
+      <NcPartHeader data={nc} showApprove onApproveClick={() => setApprovalModalOpen(true)} />
 
       {/* タブナビ（MC側準拠: ブラウザタブ風） */}
       <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
@@ -402,6 +404,18 @@ export default function PrintPage() {
       ncProgramId={ncId}
       onSuccess={() => setAuthModalOpen(false)}
       onCancel={() => setAuthModalOpen(false)}
+    />
+
+    {/* [v095] 承認モーダル */}
+    <ApprovalModal
+      isOpen={approvalModalOpen}
+      system="NC"
+      programId={ncId}
+      onSuccess={() => {
+        setApprovalModalOpen(false);
+        printApi.getData(ncId).then(r => setNc(r.data));
+      }}
+      onCancel={() => setApprovalModalOpen(false)}
     />
     </>
   );

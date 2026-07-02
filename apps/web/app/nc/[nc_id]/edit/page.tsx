@@ -8,6 +8,7 @@ import { ProcessBadge } from "@/components/nc/ProcessBadge";
 import { NcPartHeader } from "@/components/nc/NcPartHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
+import ApprovalModal from "@/components/shared/ApprovalModal";
 import ProgramFileViewer from "@/components/shared/ProgramFileViewer";
 
 export default function NcEditPage() {
@@ -16,6 +17,7 @@ export default function NcEditPage() {
   const ncId      = Number(nc_id);
 
   const [detail,    setDetail]    = useState<NcDetail | null>(null);
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false); // [v095]
   const [machines,  setMachines]  = useState<Machine[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving,    setSaving]    = useState(false);
@@ -265,7 +267,7 @@ export default function NcEditPage() {
         </header>
 
         {/* 部品情報エリア（共通コンポーネント） */}
-        {d && <NcPartHeader data={d} />}
+        {d && <NcPartHeader data={d} showApprove onApproveClick={() => setApprovalModalOpen(true)} />}
 
         {/* タブナビ（MC側準拠: ブラウザタブ風） */}
         <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
@@ -549,6 +551,18 @@ export default function NcEditPage() {
           onCancel={() => setAuthOpen(false)}
         />
       )}
+
+      {/* [v095] 承認モーダル */}
+      <ApprovalModal
+        isOpen={approvalModalOpen}
+        system="NC"
+        programId={ncId}
+        onSuccess={() => {
+          setApprovalModalOpen(false);
+          ncApi.findOne(ncId).then(r => setDetail(r.data));
+        }}
+        onCancel={() => setApprovalModalOpen(false)}
+      />
 
       {/* Toast */}
       {uploadMsg && (

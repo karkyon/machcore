@@ -8,6 +8,7 @@ import {
   CreateWorkRecordBody, UpdateWorkRecordBody,
 } from "@/lib/api";
 import { NcPartHeader } from "@/components/nc/NcPartHeader";
+import ApprovalModal from "@/components/shared/ApprovalModal";
 
 // ─── 時間入力コンポーネント ─────────────────────────────────────
 function NumInput({ value, onChange, min=0, max=999, className="" }: {
@@ -96,6 +97,7 @@ function RecordPageInner() {
   const searchParams = useSearchParams();
 
   const [nc,       setNc]       = useState<NcDetail | null>(null);
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false); // [v095]
   const [setupSheets, setSetupSheets] = useState<SetupSheetLog[]>([]);
   const [selectedSheet, setSelectedSheet] = useState<SetupSheetLog | null>(null);
   const [machines, setMachines] = useState<Machine[]>([]);
@@ -344,7 +346,7 @@ function RecordPageInner() {
       </header>
 
       {/* 部品情報エリア（共通コンポーネント） */}
-      <NcPartHeader data={nc} />
+      <NcPartHeader data={nc} showApprove onApproveClick={() => setApprovalModalOpen(true)} />
 
       {/* タブナビ（MC側準拠: ブラウザタブ風） */}
       <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
@@ -673,6 +675,18 @@ function RecordPageInner() {
           {toast}
         </div>
       )}
+
+      {/* [v095] 承認モーダル */}
+      <ApprovalModal
+        isOpen={approvalModalOpen}
+        system="NC"
+        programId={ncId}
+        onSuccess={() => {
+          setApprovalModalOpen(false);
+          loadData();
+        }}
+        onCancel={() => setApprovalModalOpen(false)}
+      />
     </div>
   </div>
   );

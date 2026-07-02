@@ -7,6 +7,7 @@ import ProgramFileViewer from "@/components/shared/ProgramFileViewer";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
+import ApprovalModal from "@/components/shared/ApprovalModal";
 
 const STATUS_LABEL: Record<string, string> = {
   NEW: "新規", PENDING_APPROVAL: "未承認", APPROVED: "承認済", CHANGING: "変更中",
@@ -40,6 +41,7 @@ export default function McEditPage() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const { operator, isAuthenticated, token, logout, isSessionForMc } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false); // [v095]
 
   // ── [DEBUG] このページの毎レンダー時点の認証関連フィールドを完全ダンプ ──
   console.log("%c[MC-EDIT][RENDER]", "color:#0d9488;font-weight:bold", {
@@ -1059,6 +1061,15 @@ export default function McEditPage() {
               {d.machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{d.machine.machineCode}</span>}
               <StatusBadge status={d.status} />
               <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
+              {/* [v095] 承認資格を持つユーザのみが承認できる。編集セッションの有無やロールとは無関係。 */}
+              {d.status !== "APPROVED" && (
+                <button
+                  onClick={() => setApprovalModalOpen(true)}
+                  className="text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+                >
+                  ✓ 承認
+                </button>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
@@ -2075,6 +2086,18 @@ export default function McEditPage() {
       {authOpen && (
         <AuthModal isOpen={true} ncProgramId={mcId} mcProgramId={mcId} sessionType="edit" onSuccess={() => setAuthOpen(false)} onCancel={() => setAuthOpen(false)} />
       )}
+
+      {/* [v095] 承認モーダル */}
+      <ApprovalModal
+        isOpen={approvalModalOpen}
+        system="MC"
+        programId={mcId}
+        onSuccess={() => {
+          setApprovalModalOpen(false);
+          mcApi.findOne(mcId).then(r => setDetail((r as any).data ?? r));
+        }}
+        onCancel={() => setApprovalModalOpen(false)}
+      />
 
       {/* [v079] 新共通コンポーネント(MC編集モード) */}
       {newPgViewerOpen && (
