@@ -13,6 +13,10 @@ type NcPartHeaderPart = {
 
 type NcPartHeaderData = {
   id: number | string;
+  // [v086] 旧ACC_NC.NC_id(部品×加工の対応行ID)。idではなくこちらを「NC_id」表示に使う。
+  legacyNcId?: number | null;
+  // [v086] 加工データ本体(NcMachiningDetail)のPK = 旧K_id。「加工ID」表示に使う。
+  machiningId?: number | null;
   processL: number;
   status: "NEW" | "PENDING_APPROVAL" | "APPROVED" | "CHANGING";
   version: string;
@@ -35,10 +39,10 @@ export function NcPartHeader({ data }: { data: NcPartHeaderData }) {
         </div>
       </div>
       <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
-        <span>NC_id: <span className="text-slate-700">{d.id}</span></span>
+        <span>NC_id: <span className="text-slate-700">{d.legacyNcId ?? d.id}</span></span>
         {d.part.partId != null && <><span className="text-slate-400">|</span><span>部品ID: <span className="text-slate-700">{d.part.partId}</span></span></>}
         {d.part.clientName && <><span className="text-slate-400">|</span><span>納入先: <span className="text-slate-700">{d.part.clientName}</span></span></>}
-        {d.processingId && <><span className="text-slate-400">|</span><span>加工ID: <span className="text-slate-700">{d.processingId}</span></span></>}
+        {d.machiningId != null && <><span className="text-slate-400">|</span><span>加工ID: <span className="text-slate-700">{d.machiningId}</span></span></>}
       </div>
     </div>
   );

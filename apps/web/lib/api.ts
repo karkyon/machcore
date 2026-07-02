@@ -81,6 +81,13 @@ export type Status = "NEW" | "PENDING_APPROVAL" | "APPROVED" | "CHANGING";
 export type NcDetail = {
   id: number;
   partId: number;
+  // [v086] 旧ACC_NC.NC_id(部品×加工の対応行ID、業務的な意味を持つ値)。
+  //   idはPrisma自動採番の内部PKであり、旧システムのNC_idとは異なる値のため、
+  //   画面表示(NcPartHeader「NC_id」ラベル)にはこちらを使う。
+  legacyNcId: number | null;
+  // [v086] 加工データ本体(NcMachiningDetail)のPK = 旧K_id。NcPartHeader「加工ID」
+  //   ラベルにはこちらを使う(processingIdは別の未設定フィールドのため使わない)。
+  machiningId: number;
   processL: number;
   machineId: number | null;
   machiningTime: number | null;
