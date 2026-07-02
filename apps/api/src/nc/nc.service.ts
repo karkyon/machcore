@@ -1184,4 +1184,14 @@ private buildSetupSheetHtml(data: any, opts: any): string {
     fs.writeFileSync(rec.filePath, buf);
     return { message: '保存しました' };
   }
+
+  // ── [v076] PG→USBチケット発行用のファイル情報取得(listPgFilesNcを利用) ──
+  async getPgFileInfoNc(ncProgramId: number) {
+    const files = await this.listPgFilesNc(ncProgramId);
+    if (!files || files.length === 0) return null;
+    return {
+      files: files.map(f => ({ id: f.id, original_name: f.original_name, file_path: f.file_path })),
+      fileCount: files.length,
+    };
+  }
 }

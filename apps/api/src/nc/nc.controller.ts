@@ -372,6 +372,48 @@ export class NcController {
     return this.nc.listPgFilesNc(id);
   }
 
+  /** [v076] UploadAgent連携: PG→USB専用チケット発行(MC側と同方式) */
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
+  @Roles("OPERATOR", "ADMIN")
+  @Post(":nc_id/pg-to-usb-ticket")
+  async issuePgToUsbTicketNc(
+    @Param("nc_id", ParseIntPipe) ncId: number,
+    @Req() req: any,
+  ) {
+    const info = await this.nc.getPgFileInfoNc(ncId);
+    if (!info || !info.files || info.files.length === 0) {
+      throw new BadRequestException("プログラムファイルが登録されていません");
+    }
+    const ticket = this.tickets.issue({
+      mcId: ncId,
+      machiningId: ncId,
+      userId: req.user.id,
+      isPgToUsb: true,
+      system: "NC",
+    });
+    return { ticket: ticket.ticket, expires_in_sec: 60, nc_id: ncId };
+  }
+
+  /** [v076] UploadAgent連携: PG→USB専用 ファイル情報取得(チケット認証・NC) */
+  @Get("files/pg-info-by-ticket")
+  async getPgInfoByTicketNc(@Query("ticket") ticketId: string) {
+    if (!ticketId) throw new BadRequestException("ticket が必要です");
+    const payload = this.tickets.peek(ticketId);
+    if (!payload || !payload.isPgToUsb) {
+      throw new UnauthorizedException("チケットが無効、または期限切れです");
+    }
+    const info = await this.nc.getPgFileInfoNc(payload.mcId);
+    return { ...info, nc_id: payload.mcId };
+  }
+
+  /** [v076] UploadAgent連携: PG→USB完了通知(チケット破棄・NC) */
+  @Post("files/pg-to-usb-complete")
+  async completePgToUsbNc(@Body() body: { ticket: string }) {
+    if (!body?.ticket) throw new BadRequestException("ticket が必要です");
+    this.tickets.invalidate(body.ticket);
+    return { ok: true };
+  }
+
   /** [v066] 個別プログラムファイルの内容取得(nc_filesベース) */
   @Get(":nc_id/pg-files/:file_id/content")
   getPgFileContentByIdNc(@Param("file_id", ParseIntPipe) fileId: number) {
