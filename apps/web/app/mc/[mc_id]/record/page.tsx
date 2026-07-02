@@ -5,6 +5,7 @@ import { mcApi, machinesApi, usersApi, McDetail, McSetupSheetLog, McWorkRecord, 
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
+import { calcKadouMinutes, fmtKadouMinutes } from "@/lib/kadouTime";
 
 // ── 共通コンポーネント ──────────────────────────────────────────
 function NumInput({ value, onChange, min=0, max=999, className="" }: {
@@ -378,26 +379,9 @@ function TimecardModal({
     return dates;
   }, [startedAt, checkedAt, finishedAt]);
 
+  // [v083] 稼働時間計算ロジックを共通化（apps/web/lib/kadouTime.ts に一本化）
   const calcKadou = React.useCallback((wsD: Date, weD: Date, tcRows: TcRow[]): number => {
-    let total = 0;
-    for (const row of tcRows) {
-      if (row.id === null && !row.dirty) continue;
-      const tcS = new Date(row.date + "T" + row.startTime + ":00");
-      const tcE = new Date(row.date + "T" + row.endTime   + ":00");
-      const ovS = tcS > wsD ? tcS : wsD;
-      const ovE = tcE < weD ? tcE : weD;
-      let diff = Math.round((ovE.getTime() - ovS.getTime()) / 60000);
-      if (diff <= 0) continue;
-      // 昼休み(12:00-13:00)との重複を正確に計算（sh<12判定バグを修正）
-      const lS = new Date(row.date + "T12:00:00");
-      const lE = new Date(row.date + "T13:00:00");
-      const loS = ovS > lS ? ovS : lS;
-      const loE = ovE < lE ? ovE : lE;
-      const lunchOverlap = Math.round((loE.getTime() - loS.getTime()) / 60000);
-      if (lunchOverlap > 0) diff -= lunchOverlap;
-      if (diff > 0) total += diff;
-    }
-    return total;
+    return calcKadouMinutes(wsD, weD, tcRows);
   }, []);
 
   const loadCards = React.useCallback(async () => {
@@ -462,7 +446,7 @@ function TimecardModal({
     }
   };
 
-  const fmtK = (min: number) => Math.floor(min/60) + "H " + (min%60) + "M";
+  const fmtK = (min: number) => fmtKadouMinutes(min);
   const summaryK = (wsStr: string, weStr: string): string => {
     if (!wsStr || !weStr || rows.length === 0) return "—";
     const w = new Date(wsStr), e = new Date(weStr);
@@ -765,27 +749,8 @@ function McRecordPageInner() {
         else rows.push({ id: null, date: dt, startTime: "08:00", endTime: "17:00" });
       }
 
-      const calcK = (wsD: Date, weD: Date): number => {
-        let total = 0;
-        for (const row of rows) {
-          // id===null = タイムカード未登録(休日)→ 稼働0として扱う（continueしない=0加算）
-          if (row.id === null) continue; // 休日は稼働なし: 0加算のためskip(合計に影響なし)
-          const tcS = new Date(row.date + "T" + row.startTime + ":00");
-          const tcE = new Date(row.date + "T" + row.endTime + ":00");
-          const ovS = tcS > wsD ? tcS : wsD;
-          const ovE = tcE < weD ? tcE : weD;
-          let diff = Math.round((ovE.getTime() - ovS.getTime()) / 60000);
-          if (diff <= 0) continue;
-          const lS = new Date(row.date + "T12:00:00");
-          const lE = new Date(row.date + "T13:00:00");
-          const loS = ovS > lS ? ovS : lS;
-          const loE = ovE < lE ? ovE : lE;
-          const lo = Math.round((loE.getTime() - loS.getTime()) / 60000);
-          if (lo > 0) diff -= lo;
-          if (diff > 0) total += diff;
-        }
-        return total;
-      };
+      // [v083] 稼働時間計算ロジックを共通化（apps/web/lib/kadouTime.ts に一本化）
+      const calcK = (wsD: Date, weD: Date): number => calcKadouMinutes(wsD, weD, rows);
 
       const wsD = new Date(sa), ckD = ca ? new Date(ca) : null, weD = fa ? new Date(fa) : null;
       // タイムカード取得完了: 休日=id null=稼働0として計算済み。必ず値をセット（フォールバック計算を使わない）
@@ -1381,21 +1346,13 @@ function McRecordPageInner() {
                       </div>
                     </div>
                     {startedAt && checkedAt && (() => {
-                      const sv2 = new Date(startedAt); const cv2 = new Date(checkedAt);
-                      let lunch2 = 0;
-                      if (!isNaN(sv2.getTime()) && !isNaN(cv2.getTime())) {
-                        const c2 = new Date(sv2); c2.setHours(0,0,0,0);
-                        const e2 = new Date(cv2); e2.setHours(0,0,0,0);
-                        while (c2 <= e2) {
-                          const ls = new Date(c2); ls.setHours(12,0,0,0);
-                          const le = new Date(c2); le.setHours(13,0,0,0);
-                          const os = sv2 > ls ? sv2 : ls; const oe = cv2 < le ? cv2 : le;
-                          if (oe > os) lunch2 += Math.round((oe.getTime()-os.getTime())/60000);
-                          c2.setDate(c2.getDate()+1);
-                        }
+                      // [v083] 独自の日付差分計算を廃止し、機械タイムカードの実稼働時間(setupKadouMin)に一本化
+                      const dStopMin = dStopH * 60 + dStopM;
+                      if (setupKadouMin === null) {
+                        return <p className="text-xs text-slate-400">→ 段取時間: タイムカード集計中…</p>;
                       }
-                      const mins = Math.max(0, Math.round((cv2.getTime()-sv2.getTime())/60000) - lunch2 - (dStopH*60+dStopM));
-                      return mins > 0 ? <p className="text-xs text-blue-600 font-bold">→ 段取時間: {Math.floor(mins/60)}H {mins%60}M</p> : null;
+                      const mins = Math.max(0, setupKadouMin - dStopMin);
+                      return mins > 0 ? <p className="text-xs text-blue-600 font-bold">→ 段取時間: {Math.floor(mins/60)}H {mins%60}M（実稼働ベース）</p> : null;
                     })()}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -1468,21 +1425,13 @@ function McRecordPageInner() {
                       <div />
                     </div>
                     {checkedAt && finishedAt && (() => {
-                      const cv3 = new Date(checkedAt); const fv3 = new Date(finishedAt);
-                      let lunch3 = 0;
-                      if (!isNaN(cv3.getTime()) && !isNaN(fv3.getTime())) {
-                        const c3 = new Date(cv3); c3.setHours(0,0,0,0);
-                        const e3 = new Date(fv3); e3.setHours(0,0,0,0);
-                        while (c3 <= e3) {
-                          const ls = new Date(c3); ls.setHours(12,0,0,0);
-                          const le = new Date(c3); le.setHours(13,0,0,0);
-                          const os = cv3 > ls ? cv3 : ls; const oe = fv3 < le ? fv3 : le;
-                          if (oe > os) lunch3 += Math.round((oe.getTime()-os.getTime())/60000);
-                          c3.setDate(c3.getDate()+1);
-                        }
+                      // [v083] 独自の日付差分計算を廃止し、機械タイムカードの実稼働時間(machKadouMin)に一本化
+                      const yStopMin = yStopH * 60 + yStopM;
+                      if (machKadouMin === null) {
+                        return <p className="text-xs text-slate-400">→ 加工時間: タイムカード集計中…</p>;
                       }
-                      const mins = Math.max(0, Math.round((fv3.getTime()-cv3.getTime())/60000) - lunch3 - (yStopH*60+yStopM));
-                      return mins > 0 ? <p className="text-xs text-green-600 font-bold">→ 加工時間: {Math.floor(mins/60)}H {mins%60}M</p> : null;
+                      const mins = Math.max(0, machKadouMin - yStopMin);
+                      return mins > 0 ? <p className="text-xs text-green-600 font-bold">→ 加工時間: {Math.floor(mins/60)}H {mins%60}M（実稼働ベース）</p> : null;
                     })()}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
