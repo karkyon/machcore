@@ -104,15 +104,33 @@ export class NcFilesService {
     return { id: record.id, message: 'アップロード完了', stored_name: storedName };
   }
 
+  // [v085] 共通部品(同一K_idを複数のNcProgram行が共有するケース)対応の
+  //   sibling ncProgramId解決ヘルパー。詳細は nc.service.ts の同名メソッド参照。
+  private async resolveSiblingNcProgramIds(ncProgramId: number): Promise<number[]> {
+    const prog = await this.prisma.ncProgram.findUnique({
+      where:  { id: ncProgramId },
+      select: { machiningId: true },
+    });
+    if (!prog) return [ncProgramId];
+    const siblings = await this.prisma.ncProgram.findMany({
+      where:  { machiningId: prog.machiningId },
+      select: { id: true },
+    });
+    return siblings.map(s => s.id);
+  }
+
+  // [v085] 共通部品で件数が特定のncProgramIdだけに基づいて上書きされ、他の行からの
+  //   アップロード分が消えたように見える不具合を修正。
   private async updateFileCounts(ncProgramId: number) {
     const prog = await this.prisma.ncProgram.findUnique({
       where:  { id: ncProgramId },
       select: { machiningId: true },
     });
     if (!prog) return;
+    const ids = await this.resolveSiblingNcProgramIds(ncProgramId);
     const [photoCount, drawingCount] = await Promise.all([
-      this.prisma.ncFile.count({ where: { ncProgramId, fileType: 'PHOTO' } }),
-      this.prisma.ncFile.count({ where: { ncProgramId, fileType: 'DRAWING' } }),
+      this.prisma.ncFile.count({ where: { ncProgramId: { in: ids }, fileType: 'PHOTO' } }),
+      this.prisma.ncFile.count({ where: { ncProgramId: { in: ids }, fileType: 'DRAWING' } }),
     ]);
     await this.prisma.ncMachiningDetail.update({
       where: { kId: prog.machiningId },

@@ -489,9 +489,28 @@ export class NcService {
   }
 
   /** FIL-01: ファイル一覧 */
+  // [v085] 加工ID(machiningId/K_id)を共有する「共通部品」の全ncProgramIdを解決する。
+  //   1つのK_idに複数のNcProgram行が存在しうる(共通部品)ため、写真・図面ファイルの
+  //   一覧・件数は特定のncProgramIdだけでなく、同じK_idを共有する全ncProgramIdを
+  //   またいで扱う必要がある。これを怠ると、共通部品の一部の行からアップロードした
+  //   写真・図面が、別の行を開いたときに見えない(＝消えたように見える)不具合が発生する。
+  private async resolveSiblingNcProgramIds(ncProgramId: number): Promise<number[]> {
+    const prog = await this.prisma.ncProgram.findUnique({
+      where:  { id: ncProgramId },
+      select: { machiningId: true },
+    });
+    if (!prog) return [ncProgramId];
+    const siblings = await this.prisma.ncProgram.findMany({
+      where:  { machiningId: prog.machiningId },
+      select: { id: true },
+    });
+    return siblings.map(s => s.id);
+  }
+
   async listFiles(ncProgramId: number) {
+    const ids = await this.resolveSiblingNcProgramIds(ncProgramId);
     const rows = await this.prisma.ncFile.findMany({
-      where:   { ncProgramId },
+      where:   { ncProgramId: { in: ids } },
       orderBy: { uploadedAt: 'desc' },
       include: { uploader: { select: { name: true } } },
     });
