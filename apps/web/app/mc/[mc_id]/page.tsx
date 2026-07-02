@@ -1292,8 +1292,18 @@ export default function McDetailPage() {
                       )}
                       {p.version && <span className="font-mono text-slate-400">Ver.{p.version}</span>}
                       {p.is_lost ? (
-                        <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-white border border-slate-800" title={p.lost_detail ?? ""}>
-                          紛失: {p.lost_reason ?? "理由未記載"}
+                        // [v089] 詳細コメント(lost_detail)がtitle属性(ホバー時のみ)にしか
+                        //   表示されておらず、入力しても画面上は見えなかった不具合を修正。
+                        //   常時見えるテキストとして表示する(理由バッジ＋詳細コメント)。
+                        <span className="ml-auto flex items-center gap-1.5 flex-wrap justify-end">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-white border border-slate-800">
+                            紛失: {p.lost_reason ?? "理由未記載"}
+                          </span>
+                          {p.lost_detail && (
+                            <span className="text-[10px] text-slate-500 max-w-[280px] truncate" title={p.lost_detail}>
+                              {p.lost_detail}
+                            </span>
+                          )}
                         </span>
                       ) : !p.work_collected && (
                         <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">未回収</span>
