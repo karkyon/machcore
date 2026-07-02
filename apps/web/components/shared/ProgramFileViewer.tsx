@@ -47,6 +47,8 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
   const [darkMode, setDarkMode] = useState(false); // デフォルトLight
   const [search, setSearch] = useState("");
   const [replace, setReplace] = useState("");
+  const [matchPositions, setMatchPositions] = useState<number[]>([]);
+  const [currentMatchIdx, setCurrentMatchIdx] = useState(-1);
   const [toast, setToast] = useState<string | null>(null);
 
   const undoStack = useRef<string[]>([]);
@@ -156,6 +158,63 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
     setDirty(true);
   };
 
+  // ── 検索(マッチ箇所へジャンプ・選択・循環移動) ──
+  const selectMatch = useCallback((idx: number, positions: number[]) => {
+    if (idx < 0 || idx >= positions.length || !search) return;
+    const start = positions[idx];
+    const end = start + search.length;
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.focus();
+      ta.setSelectionRange(start, end);
+      const before = content.slice(0, start);
+      const lineNo = before.split("\n").length;
+      const lineHeight = 20;
+      ta.scrollTop = Math.max(0, (lineNo - 5) * lineHeight);
+    }
+    setCurrentMatchIdx(idx);
+  }, [search, content]);
+
+  const handleSearch = useCallback(() => {
+    if (!search) { showToast("検索キーワードを入力してください"); return; }
+    const positions: number[] = [];
+    let idx = content.indexOf(search);
+    while (idx !== -1) {
+      positions.push(idx);
+      idx = content.indexOf(search, idx + search.length);
+    }
+    if (positions.length === 0) {
+      setMatchPositions([]);
+      setCurrentMatchIdx(-1);
+      showToast("見つかりません");
+      return;
+    }
+    const sameSearch = positions.length === matchPositions.length &&
+      positions.every((p, i) => p === matchPositions[i]);
+    const nextIdx = sameSearch && currentMatchIdx >= 0
+      ? (currentMatchIdx + 1) % positions.length
+      : 0;
+    setMatchPositions(positions);
+    selectMatch(nextIdx, positions);
+  }, [search, content, matchPositions, currentMatchIdx, selectMatch, showToast]);
+
+  const handleReplaceOne = () => {
+    if (mode !== "edit") return;
+    if (currentMatchIdx < 0 || matchPositions.length === 0) {
+      showToast("先に検索してください");
+      return;
+    }
+    const start = matchPositions[currentMatchIdx];
+    const end = start + search.length;
+    pushUndo(content);
+    const newContent = content.slice(0, start) + replace + content.slice(end);
+    setContent(newContent);
+    setDirty(true);
+    showToast("1件置換しました");
+    setMatchPositions([]);
+    setCurrentMatchIdx(-1);
+  };
+
   // ── 全置換(簡易) ──
   const handleReplaceAll = () => {
     if (mode !== "edit" || !search) return;
@@ -164,6 +223,8 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
     pushUndo(content);
     setContent(content.split(search).join(replace));
     setDirty(true);
+    setMatchPositions([]);
+    setCurrentMatchIdx(-1);
     showToast(`${count}件を全置換しました`);
   };
 
@@ -270,17 +331,25 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
 
         {/* 検索・置換バー(editモードのみ全置換可) */}
         <div className={`flex items-center gap-2 px-5 py-2 border-b shrink-0 ${darkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-slate-50"}`}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="検索"
+          <input value={search}
+            onChange={e => { setSearch(e.target.value); setMatchPositions([]); setCurrentMatchIdx(-1); }}
+            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSearch(); } }}
+            placeholder="検索"
             className={`text-xs font-mono px-2 py-1 rounded border w-40 ${darkMode ? "bg-slate-900 text-slate-200 border-slate-600" : "bg-white text-slate-700 border-slate-300"}`} />
+          <button onClick={handleSearch} className="px-3 py-1 text-xs bg-slate-500 hover:bg-slate-600 text-white rounded-lg font-bold">検索</button>
+          {matchPositions.length > 0 && (
+            <span className="text-[10px] text-slate-400 whitespace-nowrap">{currentMatchIdx + 1} / {matchPositions.length}件</span>
+          )}
           {mode === "edit" && (
             <>
               <input value={replace} onChange={e => setReplace(e.target.value)} placeholder="置換後"
                 className={`text-xs font-mono px-2 py-1 rounded border w-40 ${darkMode ? "bg-slate-900 text-slate-200 border-slate-600" : "bg-white text-slate-700 border-slate-300"}`} />
+              <button onClick={handleReplaceOne} className="px-3 py-1 text-xs bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-bold">置換</button>
               <button onClick={handleReplaceAll} className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold">全置換</button>
             </>
           )}
           <div className="ml-auto text-[10px] text-slate-400">
-            {mode === "edit" ? "Ctrl+S: 保存" : "参照専用（編集はできません）"}
+            {mode === "edit" ? "Ctrl+S: 保存 / Enter: 検索" : "参照専用（編集はできません）"}
           </div>
         </div>
 
