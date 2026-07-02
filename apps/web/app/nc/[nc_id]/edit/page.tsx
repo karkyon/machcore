@@ -1,14 +1,14 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react";
-import { ncApi, machinesApi, filesApi, NcDetail, Machine, UpdateNcBody, downloadApi } from "@/lib/api";
+import { ncApi, machinesApi, filesApi, NcDetail, Machine, UpdateNcBody } from "@/lib/api";
 import { isAgentOnline, agentPickAndUpload } from "@/lib/upload-agent";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
 import { NcPartHeader } from "@/components/nc/NcPartHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
-import GCodeEditor from "@/components/nc/GCodeEditor";
+import ProgramFileViewer from "@/components/shared/ProgramFileViewer";
 
 export default function NcEditPage() {
   const { nc_id } = useParams();
@@ -121,55 +121,9 @@ export default function NcEditPage() {
   }, [token, ncId, uploading]);
 
   // PG エディタ
-  const [pgOpen,       setPgOpen]       = useState(false);
-  const [pgLoading,    setPgLoading]    = useState(false);
-  const [pgContent,    setPgContent]    = useState("");
-  const [pgEncoding,   setPgEncoding]   = useState("UTF-8");
-  const [pgLineEnding, setPgLineEnding] = useState("LF");
-  const [pgDirty,      setPgDirty]      = useState(false);
-  const [pgSaving,     setPgSaving]     = useState(false);
-  const [pgError,      setPgError]      = useState<string | null>(null);
-
-  const handlePgOpen = useCallback(async () => {
-    if (!token) { setAuthOpen(true); return; }
-    if (pgOpen) { setPgOpen(false); return; }
-    setPgLoading(true);
-    setPgError(null);
-    try {
-      const { default: axios } = await import("axios");
-      const res = await axios.get(`/api/nc/${ncId}/pg-file`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setPgContent(res.data.content);
-      setPgEncoding(res.data.encoding);
-      setPgLineEnding(res.data.lineEnding);
-      setPgDirty(false);
-      setPgOpen(true);
-    } catch (e: any) {
-      setPgError(e?.response?.data?.message ?? "PGファイルの読込に失敗しました");
-    } finally {
-      setPgLoading(false);
-    }
-  }, [token, ncId, pgOpen]);
-
-  const handlePgSave = useCallback(async () => {
-    if (!token) return;
-    setPgSaving(true);
-    setPgError(null);
-    try {
-      const { default: axios } = await import("axios");
-      await axios.put(
-        `/api/nc/${ncId}/pg-file`,
-        { content: pgContent, encoding: pgEncoding, lineEnding: pgLineEnding },
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      setPgDirty(false);
-    } catch (e: any) {
-      setPgError(e?.response?.data?.message ?? "PGファイルの保存に失敗しました");
-    } finally {
-      setPgSaving(false);
-    }
-  }, [token, ncId, pgContent, pgEncoding, pgLineEnding]);
+  // [v084] 単一ファイルのみ対応の旧実装を廃止。MC側と同じ共通コンポーネント(ProgramFileViewer)に一本化。
+  //   フォルダ単位(メインPG+サブPG)の複数ファイルにも対応する。
+  const [newPgViewerOpen, setNewPgViewerOpen] = useState(false);
 
   const [authOpen, setAuthOpen] = useState(false);
 
@@ -253,16 +207,6 @@ export default function NcEditPage() {
       setSaving(false);
     }
   }, [isAuthenticated, token, dirty, machineId, machiningTime, folderName, fileName, version, clampNote, ncId, logout, router]);
-
-  const handleDownload = async () => {
-    try {
-      const t = localStorage.getItem("work_token");
-      if (!t) { alert("先に作業を開始してください"); return; }
-      await downloadApi.pgFile(ncId, t);
-    } catch {
-      alert("ダウンロードに失敗しました");
-    }
-  };
 
   const handleCancel = useCallback(() => {
     if (isAuthenticated) {
@@ -538,49 +482,36 @@ export default function NcEditPage() {
                       )}
                       <p className="text-[10px] text-slate-400 text-center">UploadAgentでファイル選択ダイアログが開きます</p>
                     </div>
-                    {/* NCプログラム操作パネル */}
+                    {/* NCプログラム操作パネル [v084] MC側と同じ共通コンポーネント(ProgramFileViewer)に接続 */}
                     <div className="rounded-xl p-2.5 space-y-1.5" style={{background:"#0f172a", border:"1.5px solid #1e40af"}}>
                       <div className="text-[10px] text-sky-400 font-bold text-center tracking-wide mb-1">NCプログラム</div>
                       <button
-                        onClick={handleDownload}
-                        className="w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg font-medium transition-colors"
-                        style={{background:"#1d4ed8", color:"#fff"}}
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        USB へ書き出し
-                      </button>
-                      <button
-                        onClick={() => handlePgOpen()}
+                        onClick={() => {
+                          if (!token) { setAuthOpen(true); return; }
+                          setNewPgViewerOpen(true);
+                        }}
                         className="w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg font-medium transition-colors"
                         style={{background:"#164e63", color:"#67e8f9"}}
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                        テキストエディタで編集
+                        📄 PGエディタを開く
                       </button>
+                      <p className="text-[9px] text-slate-500 text-center">保存 / USBへ書き出し(UA経由)はエディタ内で行えます</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* PGテキストエディタ */}
-              {pgOpen && (
-                <div className="rounded-xl overflow-hidden" style={{border:"2px solid #1e40af", background:"#0f172a"}}>
-                  <div className="flex items-center gap-2 px-3 py-2" style={{background:"#1e3a5f"}}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#67e8f9" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                    <span className="text-sky-300 font-bold text-sm">NCプログラム テキストエディタ</span>
-                    {pgDirty && <span className="text-amber-400 text-xs ml-1">● 未保存</span>}
-                    <div className="flex-1"></div>
-                    <button onClick={() => setPgOpen(false)} className="text-slate-500 hover:text-white text-xs px-2">✕ 閉じる</button>
-                  </div>
-                  <GCodeEditor
-                    content={pgContent}
-                    encoding={pgEncoding}
-                    lineEnding={pgLineEnding}
-                    readOnly={!isAuthenticated}
-                    onChange={v => { setPgContent(v); setPgDirty(true); }}
-                    onSave={handlePgSave}
-                  />
-                </div>
+              {/* [v084] 新共通コンポーネント(NC編集モード) — MC側 mc/[mc_id]/edit/page.tsx と同一 */}
+              {newPgViewerOpen && (
+                <ProgramFileViewer
+                  system="nc"
+                  programId={ncId}
+                  mode="edit"
+                  token={token}
+                  onClose={() => setNewPgViewerOpen(false)}
+                  onAuthRequired={() => setAuthOpen(true)}
+                />
               )}
 
               {/* ── 完了ボタンバー ── */}

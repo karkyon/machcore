@@ -23,6 +23,7 @@ import { NcPartHeader } from "@/components/nc/NcPartHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProcessEntry } from "@/lib/api";
 import AuthModal from "@/components/auth/AuthModal";
+import ProgramFileViewer from "@/components/shared/ProgramFileViewer";
 
 type MainTab = "lathe" | "history" | "files";
 type HistorySubTab = "change" | "work" | "print" | "oplog";
@@ -100,6 +101,9 @@ export default function NcDetailPage() {
   }, []);
   const [authModalOpen,   setAuthModalOpen]   = useState(false);
   const [authSessionType, setAuthSessionType] = useState("edit");
+
+  // [v084] NC側プログラムファイル共通ビューア(MC側 mc/[mc_id]/page.tsx と同一コンポーネント)
+  const [pgViewerOpen, setPgViewerOpen] = useState(false);
 
   // 写真・図プレビュー（MC側準拠: ズーム/前後ナビ）
   const [previewZoom, setPreviewZoom] = useState<"fit" | "real" | number>("fit");
@@ -437,7 +441,14 @@ export default function NcDetailPage() {
                 <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100">
                   <div className="p-3">
                     <div className="text-[10px] text-slate-400 mb-1">ファイル名</div>
-                    <div className="text-sm font-mono font-medium text-slate-800">{d.fileName ?? "—"}</div>
+                    <div className="text-sm font-mono font-medium text-slate-800 flex items-center gap-2 flex-wrap">
+                      {d.fileName ?? "—"}
+                      {/* [v084] MC側と同じ共通コンポーネントでプログラムファイルを参照できるようにする */}
+                      <button type="button" onClick={() => setPgViewerOpen(true)}
+                        className="text-[10px] text-sky-600 hover:text-sky-800 font-bold underline decoration-dotted">
+                        📄 プログラムファイルを参照
+                      </button>
+                    </div>
                   </div>
                   <div className="p-3">
                     <div className="text-[10px] text-slate-400 mb-1">O番号</div>
@@ -1021,6 +1032,18 @@ export default function NcDetailPage() {
 
         </div>
       </div>
+
+      {/* [v084] 新共通コンポーネント(NC参照モード) — MC側 mc/[mc_id]/page.tsx と同一 */}
+      {pgViewerOpen && (
+        <ProgramFileViewer
+          system="nc"
+          programId={ncId}
+          mode="view"
+          token={token}
+          onClose={() => setPgViewerOpen(false)}
+          onAuthRequired={() => openAuth("edit")}
+        />
+      )}
 
       <AuthModal
         isOpen={authModalOpen}
