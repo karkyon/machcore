@@ -10,6 +10,7 @@ import { SaveToolingDto } from './dto/save-tooling.dto';
 import { SaveWorkOffsetsDto } from './dto/save-work-offsets.dto';
 import { SaveIndexProgramsDto } from './dto/save-index-programs.dto';
 import { PrintMcDto } from './dto/print-mc.dto';
+import { calcProgramFileName, calcProgramFolderName } from './program-file-naming.util';
 
 /** ツーリング解析: 行パース中間型 */
 type McParsedLine = {
@@ -359,10 +360,9 @@ export class McService {
       pgIsFolder = !!machine?.pgIsFolder;
     }
     if (pgIsFolder) {
-      return { fileName: null, pgIsFolder: true, pgFolderName: `${machiningId}.pwd` };
+      return { fileName: null, pgIsFolder: true, pgFolderName: calcProgramFolderName(machiningId) };
     }
-    const s = String(machiningId);
-    return { fileName: s.length <= 4 ? s : s.slice(-4), pgIsFolder: false, pgFolderName: null };
+    return { fileName: calcProgramFileName(machiningId), pgIsFolder: false, pgFolderName: null };
   }
 
   // ══════════════════════════════════════════
@@ -602,12 +602,15 @@ export class McService {
   }
 
   // ══════════════════════════════════════════
-  // PGメタ更新
+  // PGメタ更新(作成者/更新日時のみ)
   // ══════════════════════════════════════════
-  // ★根本対応: 「フォルダ単位アップロードだったか」(pgIsFolder)と「元のフォルダ名」(pgFolderName)を
-  //   ここで初めて正しく更新する。両フィールドはスキーマ・型定義は既に存在していたが、
-  //   実際に書き込む処理が一度も実装されておらず常にfalse/nullのままだった。
-  async updatePgMeta(id: number, pgCreatedBy: number, isFolderUpload?: boolean, folderName?: string) {
+  // ★v092根本対応: 以前はここでpgIsFolder/pgFolderNameをアップロード時の実績値で
+  //   上書きしていたが、v090以降これらは機械マスタ(Machine.pgIsFolder)に基づき
+  //   新規登録時にresolveProgramNaming()で一度だけ確定する「唯一の真実」になった。
+  //   アップロードの都度ここで上書きすると登録時の確定値と二重管理になり不整合の
+  //   原因になるため、pgIsFolder/pgFolderNameの書き込みは廃止し、作成者/更新日時
+  //   の記録のみを行う。
+  async updatePgMeta(id: number, pgCreatedBy: number) {
     const mc = await this.prisma.mcProgram.findUnique({ where: { id }, select: { machiningId: true } });
     if (!mc) return;
     return this.prisma.mcMachiningDetail.update({
@@ -615,8 +618,6 @@ export class McService {
       data:  {
         pgCreatedBy,
         pgUpdatedAt: new Date(),
-        pgIsFolder:   !!isFolderUpload,
-        pgFolderName: isFolderUpload ? (folderName ?? null) : null,
       },
     });
   }

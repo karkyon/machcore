@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import sharp from 'sharp';
+import { calcProgramFileName, calcProgramFolderName } from './program-file-naming.util';
 
 const PROGRAM_EXTS = new Set(['.mpf', '.spf', '.nc', '.cnc', '.min', '.prg', '']);
 
@@ -16,10 +17,15 @@ type PgRole = 'MAIN' | 'SUB' | null;
 //   uploadBasePath = /mnt/mc_files (admin設定値)
 //   MCファイル格納先: {base}/MC/files/{Programs,Pictures,Drawings,thumbnails,others}
 //
-//   PG 単体ファイルアップロード:
-//     {base}/MC/files/Programs/{machining_id}/{filename}
-//   PG フォルダアップロード:
-//     {base}/MC/files/Programs/{machining_id}/{元フォルダ名}/{filename}
+//   ★v092: PGファイルの配置名は機械マスタ(Machine.pgIsFolder)＋登録時に確定した
+//   McMachiningDetail.fileName/pgFolderNameに厳密に従う(=インポート時に強制変換する)。
+//   アップロード元(ブラウザ/UploadAgent)から送られてくるisFolderUpload/folderNameは
+//   信用せず、常にresolveUploadNaming()で解決した権威値を使用する。
+//   PG 単体ファイル:
+//     {base}/MC/files/Programs/{machining_id}/{加工IDの下4桁}(拡張子無・元ファイル名は破棄)
+//   PG フォルダ:
+//     {base}/MC/files/Programs/{machining_id}/{machining_id}.pwd/{元ファイル名}
+//     (フォルダ内の個別ファイル名はメインPG/サブPGの実名のため維持する)
 //   写真:    {base}/MC/files/Pictures/{machining_id}-{n}.jpg
 //   図:      {base}/MC/files/Drawings/{machining_id}-{n}.*
 //   サムネ:  {base}/MC/files/thumbnails/thumb_{name}.jpg
@@ -39,6 +45,26 @@ export class McFilesService {
 
   private ensureDir(p: string) {
     if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+  }
+
+  /**
+   * ★v092新設: PGインポート(アップロード)時のファイル名/フォルダ名を、
+   * クライアント(ブラウザ/UploadAgent)からの申告ではなく、機械マスタ
+   * (Machine.pgIsFolder)＋登録時にresolveProgramNaming()で確定済みの
+   * McMachiningDetail.fileName/pgFolderNameから権威的に解決する。
+   * v090以前に登録された(これらが未設定の)レコードに対しては、その場で
+   * program-file-naming.util の算出ロジックにフォールバックする。
+   */
+  private async resolveUploadNaming(machId: number): Promise<{ isFolder: boolean; fileName: string; folderName: string | null }> {
+    const detail = await this.prisma.mcMachiningDetail.findUnique({
+      where:  { machiningId: machId },
+      select: { pgIsFolder: true, fileName: true, pgFolderName: true },
+    });
+    const isFolder = !!detail?.pgIsFolder;
+    if (isFolder) {
+      return { isFolder: true, fileName: '', folderName: detail?.pgFolderName || calcProgramFolderName(machId) };
+    }
+    return { isFolder: false, fileName: detail?.fileName || calcProgramFileName(machId), folderName: null };
   }
 
   /**
@@ -198,6 +224,10 @@ export class McFilesService {
     }));
   }
 
+  // ★v092: isFolderUpload/folderNameはPHOTO/DRAWING/OTHER種別では引き続き無視される
+  //   (これらに folder 概念は無い)。PROGRAM種別についても、v092以降は呼び出し元からの
+  //   申告値ではなく resolveUploadNaming() による権威的な値を必ず使用するため、実質的に
+  //   無視される。呼び出し元(mc.controller.ts)との互換性のため引数自体は残している。
   async upload(
     mcProgramId:    number,
     uploadedBy:     number,
@@ -232,13 +262,23 @@ export class McFilesService {
     let flatDir: string;
     let storedName: string;
     let sortOrder = 0;
+    // PROGRAM種別の場合のみ使用。folderNameToSave算出時に再利用するためここで保持。
+    let programNaming: { isFolder: boolean; fileName: string; folderName: string | null } | null = null;
 
     if (fileTypeEnum === 'PROGRAM') {
-      const useFolderSubdir = isFolderUpload && !!folderName;
-      flatDir    = useFolderSubdir
-        ? path.join(basePath, 'MC', 'files', 'Programs', String(machId), folderName as string)
-        : path.join(basePath, 'MC', 'files', 'Programs', String(machId));
-      storedName = file.filename;
+      // ★v092根本対応: クライアント(ブラウザ/UploadAgent)からの申告(isFolderUpload/folderName)は
+      //   信用せず、機械マスタ(Machine.pgIsFolder)＋登録時に確定済みのMcMachiningDetailから
+      //   権威的にファイル名/フォルダ名を解決し、それに強制変換(コンバート)してインポートする。
+      programNaming = await this.resolveUploadNaming(machId);
+      if (programNaming.isFolder) {
+        flatDir    = path.join(basePath, 'MC', 'files', 'Programs', String(machId), programNaming.folderName as string);
+        // フォルダ内の個別ファイルはメインPG/サブPGの実名のため、ファイル名は維持する
+        storedName = file.filename;
+      } else {
+        flatDir    = path.join(basePath, 'MC', 'files', 'Programs', String(machId));
+        // 単体ファイルは加工IDの下4桁に強制変換する(元ファイル名・拡張子は使用しない)
+        storedName = programNaming.fileName;
+      }
 
       const dest = path.join(flatDir, storedName);
       this.ensureDir(flatDir);
@@ -283,7 +323,7 @@ export class McFilesService {
       } catch { /* ignore */ }
     }
 
-    const folderNameToSave = (fileTypeEnum === 'PROGRAM' && isFolderUpload && folderName) ? folderName : null;
+    const folderNameToSave = programNaming?.isFolder ? programNaming.folderName : null;
 
     const record = await this.prisma.mcFile.create({
       data: {

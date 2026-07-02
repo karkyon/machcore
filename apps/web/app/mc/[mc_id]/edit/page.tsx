@@ -317,7 +317,6 @@ export default function McEditPage() {
   const [pgEditorReplace, setPgEditorReplace] = useState("");
   const [pgCreatedBy,     setPgCreatedBy]     = useState<string>("");
   const [pgUpdatedAtDisp, setPgUpdatedAtDisp] = useState<string>("");
-  const [pgUploadModalOpen, setPgUploadModalOpen] = useState(false);
   const [pgUploading, setPgUploading] = useState(false);
   const [pgFileInfo, setPgFileInfo] = useState<{ originalName: string; fileCount: number; content: string } | null>(null);
   const [toolingPgLoaded, setToolingPgLoaded] = useState(false);
@@ -812,15 +811,15 @@ export default function McEditPage() {
     requestAnimationFrame(() => { pgTextareaRef.current?.focus(); });
   };
 
-  // PGファイルをUSBから登録（単体 or フォルダ）
-  // アップロード完了後、将来の UploadAgent.exe へ削除依頼を送信（現時点はメッセージのみ）
-
-  // PGファイルをUSBから登録（単体 or フォルダ）
+  // PGファイルをUSBから登録
+  // ★v092: 単体/フォルダの選択は機械マスタ(Machine.pgIsFolder、登録時に確定)から自動判定する。
+  //   ユーザーに毎回選択させず、選択を誤って命名規則から外れることを防ぐ。
+  //   ファイル名/フォルダ名はサーバー側で加工IDに基づく統一名へ自動変換(コンバート)される。
   const MAX_PG_BYTES = 10 * 1024 * 1024; // PG上限10MB
 
-  const handlePgUploadFromUSB = async (mode: "file" | "folder") => {
+  const handlePgUploadFromUSB = async () => {
     if (!token) { showToast("❌ 認証が必要です"); return; }
-    setPgUploadModalOpen(false);
+    const isFolderMode = !!(detail as any)?.pgIsFolder;
     const pgAgentOnline = await isAgentOnline();
     if (!pgAgentOnline) {
       const msg = "❌ UploadAgentが起動していません。PGファイルのアップロードには UploadAgent の起動が必要です。";
@@ -830,14 +829,16 @@ export default function McEditPage() {
     }
     const ok = window.confirm(
       `【PGファイルアップロード - 元ファイル削除確認】\n` +
+      `この機械(${isFolderMode ? "📁 フォルダ単位" : "📄 単体ファイル"})の命名規則に従い、` +
+      `ファイル名/フォルダ名は加工IDに基づく統一名へ自動変換されます。\n` +
       `アップロード完了後、元ファイルはゴミ箱(.machcore_trash)へ自動移動されます。\n続行しますか？`
     );
     if (!ok) { return; }
     setPgUploading(true);
     try {
-      const ticket = await issueUploadTicket({ fileType: "PROGRAM", isFolderUpload: mode === "folder" });
+      const ticket = await issueUploadTicket({ fileType: "PROGRAM", isFolderUpload: isFolderMode });
 
-      const result = mode === "folder"
+      const result = isFolderMode
         ? await agentPickFolderAndUpload(ticket, "PROGRAM")
         : await agentPickAndUpload(ticket, "PROGRAM");
 
@@ -1314,10 +1315,10 @@ export default function McEditPage() {
                     <button onClick={() => {
                       if (!token) { showToast("❌ 認証が必要です"); return; }
                       if (!("showOpenFilePicker" in window)) { showToast("❌ Chrome/Edgeが必要です"); return; }
-                      setPgUploadModalOpen(true);
+                      handlePgUploadFromUSB();
                     }} disabled={pgUploading}
                       className="px-3 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50">
-                      {pgUploading ? "⏳ 登録中..." : "📥 USBから登録"}
+                      {pgUploading ? "⏳ 登録中..." : `📥 USBから登録${(detail as any)?.pgIsFolder ? "（📁フォルダ単位）" : "（📄単体ファイル）"}`}
                     </button>
                   </div>
                   <div className="px-4 py-2 border-b border-slate-100 bg-white">
@@ -2073,36 +2074,6 @@ export default function McEditPage() {
       {/* 認証モーダル */}
       {authOpen && (
         <AuthModal isOpen={true} ncProgramId={mcId} mcProgramId={mcId} sessionType="edit" onSuccess={() => setAuthOpen(false)} onCancel={() => setAuthOpen(false)} />
-      )}
-
-      {/* PGアップロードモーダル（単体 or フォルダ） */}
-      {pgUploadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-800 text-base">📥 PGファイル登録方法を選択</h3>
-              <button onClick={() => setPgUploadModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
-            </div>
-            <p className="text-xs text-slate-500">
-              加工ID: <span className="font-mono font-bold text-teal-700">{detail?.machiningId}</span> として登録します
-            </p>
-            <div className="space-y-3">
-              <button onClick={() => handlePgUploadFromUSB("file")}
-                className="w-full px-4 py-4 bg-teal-50 hover:bg-teal-100 border-2 border-teal-300 rounded-xl text-left transition-colors">
-                <div className="font-bold text-teal-800 mb-1">📄 単体ファイル</div>
-                <div className="text-xs text-teal-600">プログラムファイルを1つ選択。加工IDのフォルダを作成し、ファイル名は変更せずそのまま保存します。</div>
-                <div className="text-[10px] text-teal-400 mt-1 font-mono">例: O6000 → {detail?.machiningId}/O6000</div>
-              </button>
-              <button onClick={() => handlePgUploadFromUSB("folder")}
-                className="w-full px-4 py-4 bg-amber-50 hover:bg-amber-100 border-2 border-amber-300 rounded-xl text-left transition-colors">
-                <div className="font-bold text-amber-800 mb-1">📁 フォルダ単位</div>
-                <div className="text-xs text-amber-600">メインPG + サブPGを含むフォルダを選択。加工IDのフォルダを作成し、フォルダ内の全ファイル名は変更せずそのまま保存します。</div>
-                <div className="text-[10px] text-amber-400 mt-1 font-mono">例: 1846.WPD/O1846 → {detail?.machiningId}/1846.WPD/O1846</div>
-              </button>
-            </div>
-            <p className="text-[10px] text-slate-400 text-center">Chrome / Edge のみ対応（HTTPS必須）</p>
-          </div>
-        </div>
       )}
 
       {/* [v079] 新共通コンポーネント(MC編集モード) */}
