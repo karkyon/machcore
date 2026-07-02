@@ -342,11 +342,36 @@ export class McService {
   }
 
   // ══════════════════════════════════════════
+  // プログラムファイル名/フォルダ名の自動算出(唯一の実装)
+  // 機械マスタ(Machine.pgIsFolder)に基づき、単体ファイルなら加工IDの下4桁を
+  // fileNameに、フォルダ単位なら "{加工ID}.pwd" をpgFolderNameに設定する。
+  // create()/previewNew()/createAndPrint()の3箇所で重複実装しないこと。
+  // (フロント側の同等ロジックは apps/web/lib/programFileNaming.ts)
+  // ══════════════════════════════════════════
+  private async resolveProgramNaming(machineId: number | null | undefined, machiningId: number): Promise<{
+    fileName: string | null;
+    pgIsFolder: boolean;
+    pgFolderName: string | null;
+  }> {
+    let pgIsFolder = false;
+    if (machineId) {
+      const machine = await this.prisma.machine.findUnique({ where: { id: machineId }, select: { pgIsFolder: true } });
+      pgIsFolder = !!machine?.pgIsFolder;
+    }
+    if (pgIsFolder) {
+      return { fileName: null, pgIsFolder: true, pgFolderName: `${machiningId}.pwd` };
+    }
+    const s = String(machiningId);
+    return { fileName: s.length <= 4 ? s : s.slice(-4), pgIsFolder: false, pgFolderName: null };
+  }
+
+  // ══════════════════════════════════════════
   // MC-04: 新規登録
   // ══════════════════════════════════════════
   async create(dto: CreateMcDto, operatorId: number) {
     const part = await this.prisma.part.findUnique({ where: { id: dto.part_id } });
     if (!part) throw new NotFoundException(`part_id ${dto.part_id} が存在しません`);
+    const naming = await this.resolveProgramNaming(dto.machine_id, dto.machining_id);
 
     return this.prisma.$transaction(async (tx) => {
       // McMachiningDetail が既存かチェック（共通部品登録時は作らない）
@@ -361,7 +386,9 @@ export class McService {
             clampNote:     dto.clamp_note      ?? null,
             cycleTimeSec:  dto.cycle_time_sec  ?? null,
             mcProcessNo:   dto.mc_process_no   ?? null,
-            fileName:      dto.file_name       ?? null,
+            fileName:      dto.file_name       ?? naming.fileName,
+            pgIsFolder:    naming.pgIsFolder,
+            pgFolderName:  naming.pgFolderName,
             commonPartCode: dto.common_part_code ?? null,
             creatorId:     operatorId,
           },
@@ -1463,6 +1490,17 @@ export class McService {
       workOffsets:      r.machining?.workOffsets      ?? [],
       indexPrograms:    r.machining?.indexPrograms    ?? [],
       version:          r.machining?.version          ?? '1.0001',
+      // ★根本対応: 段取シートPDFの「フォルダ名」「ファイル名」欄が常に空欄になる不具合の修正。
+      //   findOne()(MC詳細画面用)では既に平坦化されていたが、getPrintData()(PDF生成用)では
+      //   一度も平坦化されておらず、PDFテンプレートのdata_source解決(dot path)が必ず失敗していた。
+      fileName:         r.machining?.fileName         ?? null,
+      folder1:          r.machining?.folder1          ?? null,
+      folder2:          r.machining?.folder2          ?? null,
+      pgIsFolder:       r.machining?.pgIsFolder        ?? false,
+      pgFolderName:     r.machining?.pgFolderName      ?? null,
+      // PDFフィールド定義のdata_source="folderName"用のエイリアス
+      // (実カラムはpgFolderName優先、無ければ旧folder1にフォールバック)
+      folderName:       r.machining?.pgFolderName ?? r.machining?.folder1 ?? null,
       commonGroup,
     };
   }
@@ -2127,6 +2165,7 @@ export class McService {
     const prevMachId = dto.machining_id ?? 999999999;
     const existingPrevMach = await this.prisma.mcMachiningDetail.findUnique({ where: { machiningId: prevMachId } });
     if (!existingPrevMach) {
+      const naming = await this.resolveProgramNaming(dto.machine_id, prevMachId);
       await this.prisma.mcMachiningDetail.create({
         data: {
           machiningId:   prevMachId,
@@ -2136,7 +2175,9 @@ export class McService {
           clampNote:     dto.clamp_note      ?? null,
           cycleTimeSec:  dto.cycle_time_sec  ?? null,
           mcProcessNo:   dto.mc_process_no   ?? null,
-          fileName:      dto.file_name       ?? null,
+          fileName:      dto.file_name       ?? naming.fileName,
+          pgIsFolder:    naming.pgIsFolder,
+          pgFolderName:  naming.pgFolderName,
           commonPartCode: dto.common_part_code ?? null,
           creatorId:     operatorId,
         },
@@ -2200,6 +2241,7 @@ export class McService {
           // McMachiningDetail が既存かチェック（共通部品登録時は作らない）
           const existingMach = await tx.mcMachiningDetail.findUnique({ where: { machiningId } });
           if (!existingMach) {
+            const naming = await this.resolveProgramNaming(dto.machine_id, machiningId);
             await tx.mcMachiningDetail.create({
               data: {
                 machiningId,
@@ -2209,7 +2251,9 @@ export class McService {
                 clampNote:     dto.clamp_note      ?? null,
                 cycleTimeSec:  dto.cycle_time_sec  ?? null,
                 mcProcessNo:   dto.mc_process_no   ?? null,
-                fileName:      dto.file_name       ?? null,
+                fileName:      dto.file_name       ?? naming.fileName,
+                pgIsFolder:    naming.pgIsFolder,
+                pgFolderName:  naming.pgFolderName,
                 commonPartCode: dto.common_part_code ?? null,
                 creatorId:     operatorId,
               },
