@@ -1319,6 +1319,13 @@ export class McService {
         quantity:       (r as any).quantity    ?? null,
         machine_id_log: (r as any).machineIdLog ?? null,
         purpose:        (r as any).purpose     ?? null,
+        // [v088] 「行方不明にする(mark as lost)」情報がMC詳細画面の印刷履歴に
+        //   反映されておらず、削除済み扱いにした段取シートがずっと「未回収」の
+        //   ままに見えてしまっていた不具合を修正。理由・詳細も返す。
+        is_lost:        r.isLost,
+        lost_reason:    r.lostReason ?? null,
+        lost_detail:    r.lostDetail ?? null,
+        lost_at:        r.lostAt     ?? null,
       };
     });
   }

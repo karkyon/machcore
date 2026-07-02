@@ -1291,9 +1291,9 @@ export default function McDetailPage() {
                         <span className="text-slate-500">W数: <span className="font-bold text-slate-700">{p.quantity}</span></span>
                       )}
                       {p.version && <span className="font-mono text-slate-400">Ver.{p.version}</span>}
-                      {(p as any).is_lost ? (
-                        <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-white border border-slate-800" title={(p as any).lost_detail ?? ""}>
-                          紛失: {(p as any).lost_reason ?? "理由未記載"}
+                      {p.is_lost ? (
+                        <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-white border border-slate-800" title={p.lost_detail ?? ""}>
+                          紛失: {p.lost_reason ?? "理由未記載"}
                         </span>
                       ) : !p.work_collected && (
                         <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">未回収</span>

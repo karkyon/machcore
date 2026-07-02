@@ -709,6 +709,11 @@ export type McSetupSheetLog = {
   quantity:       number | null;
   machine_id_log: number | null;
   purpose:        string | null;
+  // [v088] 「行方不明にする(mark as lost)」情報
+  is_lost:        boolean;
+  lost_reason:    string | null;
+  lost_detail:    string | null;
+  lost_at:        string | null;
 };
 
 export type CreateMcWorkRecordBody = {

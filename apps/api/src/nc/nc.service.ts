@@ -659,6 +659,13 @@ export class NcService {
       id: r.id, printed_at: r.printedAt, version: r.version ?? null,
       operator_name: r.operator?.name ?? null,
       work_collected: r.workCollected,
+      // [v088] MC側と同様、「行方不明にする(mark as lost)」情報を返す。
+      //   NC詳細画面側の表示対応は別途(現時点ではNC印刷履歴テーブルに
+      //   未回収/紛失バッジ自体がまだ実装されていないため)。
+      is_lost:     (r as any).isLost,
+      lost_reason: (r as any).lostReason ?? null,
+      lost_detail: (r as any).lostDetail ?? null,
+      lost_at:     (r as any).lostAt     ?? null,
     }));
   }
 
