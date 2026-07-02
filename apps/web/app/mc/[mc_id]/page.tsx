@@ -46,6 +46,7 @@ export default function McDetailPage() {
   // [v070] 複数ファイル切替用(既存pgViewerOpenモーダルで使用)
   const [pgFileList, setPgFileList] = useState<any[]>([]);
   const [pgFileListLoading, setPgFileListLoading] = useState(false);
+  const [pgUsbBusy, setPgUsbBusy] = useState(false); // [v075]
 
   // ヘッダー中央より右寄り・文字/ボタンと重ならない位置を初期値にする
   const [floatPos,   setFloatPos]   = useState({ x: 1180, y: 8 });
@@ -1286,7 +1287,11 @@ export default function McDetailPage() {
                         <span className="text-slate-500">W数: <span className="font-bold text-slate-700">{p.quantity}</span></span>
                       )}
                       {p.version && <span className="font-mono text-slate-400">Ver.{p.version}</span>}
-                      {!p.work_collected && (
+                      {(p as any).is_lost ? (
+                        <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-white border border-slate-800" title={(p as any).lost_detail ?? ""}>
+                          紛失: {(p as any).lost_reason ?? "理由未記載"}
+                        </span>
+                      ) : !p.work_collected && (
                         <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">未回収</span>
                       )}
                     </div>
@@ -1412,54 +1417,97 @@ export default function McDetailPage() {
       {/* PGビューアモーダル */}
       {pgViewerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-white rounded-xl shadow-2xl w-[90vw] max-w-5xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 shrink-0">
+          <div className="bg-slate-900 rounded-xl shadow-2xl w-[90vw] max-w-5xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700 bg-slate-800 shrink-0 rounded-t-xl">
               <div className="flex items-center gap-3">
-                <span className="font-bold text-slate-800">加工プログラム</span>
+                <span className="text-slate-400 text-lg">📄</span>
+                <span className="font-bold text-slate-100">PGビューア（参照専用）</span>
                 {pgOrigName && (
-                  <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded">
+                  <span className="text-xs text-slate-300 font-mono bg-slate-700 px-2.5 py-1 rounded-lg border border-slate-600">
                     {pgOrigName}
                   </span>
                 )}
                 {pgFileCount > 1 && (
-                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
-                    計{pgFileCount}ファイル（MAINを表示中）
+                  <span className="text-xs text-amber-300 bg-amber-900/40 px-2 py-0.5 rounded border border-amber-700">
+                    計{pgFileCount}ファイル
                   </span>
                 )}
+                <span className="text-xs text-slate-500">{(pgContent ?? "").split('\n').length}行 / {(pgContent ?? "").length}文字</span>
               </div>
               <div className="flex items-center gap-2">
-                <a
-                  href={`/api/mc/${mcId}/pg-download`}
-                  download
-                  className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition-colors"
+                <button
+                  onClick={async () => {
+                    if (!isAuthenticated) { openAuth("edit"); return; }
+                    setPgUsbBusy(true);
+                    try {
+                      const online = await isAgentOnline();
+                      if (!online) {
+                        window.alert("UploadAgentが起動していません。タスクトレイを確認し、UploadAgentを起動してください。");
+                        return;
+                      }
+                      const res = await fetch(`/api/mc/${mcId}/pg-to-usb-ticket`, {
+                        method: "POST",
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      if (!res.ok) throw new Error(`チケット発行失敗: HTTP ${res.status}`);
+                      const { ticket } = await res.json();
+                      const apiBaseUrl = window.location.origin + "/api";
+                      const result = await agentPgToUsb(ticket, apiBaseUrl);
+                      if (!result.success) {
+                        showToast(`❌ ${result.error ?? "USBへの書き出しに失敗しました"}`);
+                        return;
+                      }
+                      showToast(`✅ USBへ書き出しました（${result.copiedFiles.length}件）`);
+                    } catch (e: any) {
+                      showToast(`❌ ${e?.message ?? "USBへの書き出しに失敗しました"}`);
+                    } finally { setPgUsbBusy(false); }
+                  }}
+                  disabled={pgUsbBusy}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50"
                 >
-                  💾 USBへ書き出し{pgFileCount > 1 ? "（ZIP）" : ""}
-                </a>
+                  {pgUsbBusy ? "⏳ 書き出し中..." : `💾 USBへ書き出し(UA経由)${pgFileCount > 1 ? "（全ファイル）" : ""}`}
+                </button>
                 <button
                   onClick={() => setPgViewerOpen(false)}
-                  className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg transition-colors"
+                  className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-lg transition-colors"
                 >
                   閉じる
                 </button>
               </div>
             </div>
-            {pgFileList.length > 1 && (
-              <div className="flex items-center gap-1.5 px-4 py-2 border-b border-slate-700 bg-slate-800 overflow-x-auto shrink-0">
-                {pgFileListLoading ? (
-                  <span className="text-[11px] text-slate-400">読込中...</span>
-                ) : pgFileList.map((f: any) => (
-                  <button key={f.id} onClick={() => switchPgViewerFile(f)}
-                    className={"px-2.5 py-1 text-[11px] font-mono rounded whitespace-nowrap " +
-                      (f.original_name === pgOrigName ? "bg-teal-600 text-white font-bold" : "bg-slate-700 text-slate-300 hover:bg-slate-600")}>
-                    📄 {f.original_name}
-                  </button>
-                ))}
+            <div className="flex flex-1 min-h-0">
+              {pgFileList.length > 1 && (
+                <div className="w-60 shrink-0 border-r border-slate-700 bg-slate-800 overflow-y-auto py-1">
+                  {pgFileListLoading ? (
+                    <div className="p-3 text-[11px] text-slate-400">読込中...</div>
+                  ) : (() => {
+                    const groups: Record<string, any[]> = {};
+                    pgFileList.forEach((f: any) => {
+                      const parts = String(f.file_path ?? "").split("/").filter(Boolean);
+                      const dir = parts.length > 2 ? parts[parts.length - 2] : "";
+                      const key = dir || "（ルート）";
+                      (groups[key] = groups[key] ?? []).push(f);
+                    });
+                    return Object.entries(groups).map(([dir, fs]) => (
+                      <div key={dir} className="mb-1">
+                        <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wide">📁 {dir}</div>
+                        {fs.map((f: any) => (
+                          <button key={f.id} onClick={() => switchPgViewerFile(f)}
+                            className={"w-full text-left pl-6 pr-3 py-1.5 text-[11px] font-mono truncate " +
+                              (f.original_name === pgOrigName ? "bg-teal-700 text-white font-bold" : "text-slate-300 hover:bg-slate-700")}>
+                            📄 {f.original_name}
+                          </button>
+                        ))}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+              <div className="flex-1 overflow-auto p-4 bg-slate-900 rounded-b-xl">
+                <pre className="font-mono text-xs text-green-300 whitespace-pre leading-relaxed select-all">
+                  {pgContent ?? ""}
+                </pre>
               </div>
-            )}
-            <div className="flex-1 overflow-auto p-4 bg-slate-900 rounded-b-xl">
-              <pre className="font-mono text-xs text-green-300 whitespace-pre leading-relaxed select-all">
-                {pgContent ?? ""}
-              </pre>
             </div>
           </div>
         </div>
