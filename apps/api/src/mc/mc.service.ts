@@ -452,9 +452,11 @@ export class McService {
         where: { machiningId: mc.machiningId },
         data:  { version: newVersion },
       });
+      // [v093] 編集内容選択(終了確認)完了時は必ず承認待ちに戻す。
+      // 旧承認情報は無効化し、再承認を必須とする(旧ACCESS「終了確認」仕様準拠)。
       await tx.mcProgram.update({
         where: { id },
-        data:  { status: 'CHANGING' },
+        data:  { status: 'PENDING_APPROVAL', approvedBy: null, approvedAt: null },
       });
       await tx.mcChangeHistory.create({
         data: {
@@ -466,7 +468,7 @@ export class McService {
           content,
         },
       });
-      return { mc_id: id, version: newVersion, message: `${changeType}として登録しました` };
+      return { mc_id: id, version: newVersion, message: `${changeType}として登録しました(承認待ち)` };
     });
   }
 
