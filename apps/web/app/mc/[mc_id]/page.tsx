@@ -3,6 +3,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, mcFilesApi, McDetail, McTooling, McWorkOffset, McIndexProgram,
          McFile, McChangeHistory, McSetupSheetLog, McWorkRecord, McCommonSearchResult } from "@/lib/api";
+import ProgramFileViewer from "@/components/shared/ProgramFileViewer";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
@@ -259,6 +260,9 @@ export default function McDetailPage() {
       setPgLoading(false);
     }
   };
+
+  // [v081] 新共通コンポーネント用state
+  const [newPgViewerOpen, setNewPgViewerOpen] = useState(false);
 
   // [v070] pgViewerOpenが開いており複数ファイルある場合、一覧を取得する
   useEffect(() => {
@@ -562,7 +566,7 @@ export default function McDetailPage() {
                                 </span>
                               )}
                             </div>
-                            <button type="button" onClick={() => openPgViewer()}
+                            <button type="button" onClick={() => setNewPgViewerOpen(true)}
                               className="text-[10px] text-teal-600 hover:text-teal-800 font-mono mt-0.5 underline decoration-dotted text-left">
                               📁 {pgFile.file_path?.replace(/^.*?MC\/files\//, "MC/files/") ?? `MC/files/Programs/${d.machiningId}/${pgFile.original_name}`}
                             </button>
@@ -1414,7 +1418,19 @@ export default function McDetailPage() {
 
       </div>
 
-      {/* PGビューアモーダル */}
+      {/* [v081] 新共通コンポーネント(MC参照モード) */}
+      {newPgViewerOpen && (
+        <ProgramFileViewer
+          system="mc"
+          programId={mcId}
+          mode="view"
+          token={token}
+          onClose={() => setNewPgViewerOpen(false)}
+          onAuthRequired={() => openAuth("edit")}
+        />
+      )}
+
+      {/* PGビューアモーダル(旧・未使用) */}
       {pgViewerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-slate-900 rounded-xl shadow-2xl w-[90vw] max-w-5xl max-h-[90vh] flex flex-col">
