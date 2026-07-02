@@ -238,6 +238,200 @@ export class NcService {
     return { nc_id: nc.id, message: "新規登録が完了しました" };
   }
 
+  // ══════════════════════════════════════════
+  // [v087] 共通部品: 加工グループ取得 (MC側 getCommonGroup と同等)
+  // ══════════════════════════════════════════
+  async getCommonGroup(machiningId: number) {
+    return this.prisma.ncProgram.findMany({
+      where:   { machiningId },
+      orderBy: { id: 'asc' },
+      include: {
+        part:      { select: { drawingNo: true, name: true, clientName: true } },
+        machining: { select: { version: true, machine: { select: { machineCode: true } } } },
+      },
+    });
+  }
+
+  // ══════════════════════════════════════════
+  // [v087] 共通部品: 検索 (MC側 searchCommonParts と同等)
+  // ══════════════════════════════════════════
+  async searchCommonParts(params: {
+    drawing_no?:   string;
+    name?:         string;
+    main_model?:   string;
+    client_id?:    number;
+    part_id_str?:  string;
+    nc_id?:        number;
+    machining_id?: number;
+    page?:         number;
+    limit?:        number;
+  }) {
+    const { page = 1, limit = 50 } = params;
+    const offset = (page - 1) * limit;
+
+    // 同一machining_id(K_id)に複数のNcProgram行が存在するもの(共通部品)を抽出
+    const dupeRaw = await this.prisma.$queryRaw<Array<{ machining_id: bigint }>>`
+      SELECT machining_id FROM nc_programs
+      GROUP BY machining_id HAVING COUNT(*) > 1
+    `;
+    const dupeMachiningIds = dupeRaw.map((r: any) => Number(r.machining_id));
+
+    const where: any = {
+      OR: [
+        { machining: { commonPartCode: { not: null } } },
+        { machiningId: { in: dupeMachiningIds.length ? dupeMachiningIds : [-1] } },
+      ],
+    };
+    if (params.drawing_no)
+      where.part = { ...where.part, drawingNo: { contains: params.drawing_no, mode: 'insensitive' } };
+    if (params.name)
+      where.part = { ...where.part, name: { contains: params.name, mode: 'insensitive' } };
+    if (params.main_model)
+      where.part = { ...where.part, mainModel: { contains: params.main_model, mode: 'insensitive' } };
+    if (params.client_id)
+      where.part = { ...where.part, clientId: params.client_id };
+    if (params.part_id_str)
+      where.part = { ...where.part, partId: params.part_id_str };
+    if (params.nc_id)
+      where.id = params.nc_id;
+    if (params.machining_id)
+      where.machiningId = params.machining_id;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.ncProgram.findMany({
+        where, skip: offset, take: limit,
+        orderBy: { machiningId: 'asc' },
+        include: {
+          part:      { select: { partId: true, drawingNo: true, name: true, mainModel: true, clientName: true } },
+          machining: { select: { version: true, commonPartCode: true } },
+        },
+      }),
+      this.prisma.ncProgram.count({ where }),
+    ]);
+
+    // グループ件数付与
+    const mIds = [...new Set(rows.map(r => r.machiningId))];
+    const groupCounts = mIds.length
+      ? await this.prisma.ncProgram.groupBy({ by: ['machiningId'], where: { machiningId: { in: mIds } }, _count: true })
+      : [];
+    const cntMap: Record<number, number> = {};
+    groupCounts.forEach((g: any) => { cntMap[g.machiningId] = g._count; });
+
+    return {
+      total, page, limit,
+      data: rows.map(r => ({
+        ncProgramId:    r.id,
+        machiningId:    r.machiningId,
+        legacyNcId:     r.legacyNcId  ?? null,
+        partId:         r.part.partId ?? null,
+        drawingNo:      r.part.drawingNo,
+        name:           r.part.name,
+        mainModel:      r.part.mainModel  ?? null,
+        clientName:     r.part.clientName ?? null,
+        version:        r.machining?.version        ?? '1.0001',
+        status:         r.status,
+        commonPartCode: r.machining?.commonPartCode ?? null,
+        groupCount:     cntMap[r.machiningId] ?? 1,
+      })),
+    };
+  }
+
+  // ══════════════════════════════════════════
+  // [v087] 共通部品: 登録（供用） (MC側 registerCommonPart と同等)
+  // ══════════════════════════════════════════
+  async registerCommonPart(dto: {
+    target_part_id:      number;
+    source_machining_id: number;
+    note?:               string;
+  }, operatorId: number) {
+    const { target_part_id, source_machining_id, note } = dto;
+
+    const mach = await this.prisma.ncMachiningDetail.findUnique({ where: { kId: source_machining_id } });
+    if (!mach) throw new NotFoundException(`machining_id ${source_machining_id} が存在しません`);
+
+    const part = await this.prisma.part.findUnique({ where: { id: target_part_id } });
+    if (!part) throw new NotFoundException(`part_id ${target_part_id} が存在しません`);
+
+    // 自己参照チェック
+    const srcProg = await this.prisma.ncProgram.findFirst({ where: { machiningId: source_machining_id } });
+    if (srcProg?.partId === target_part_id)
+      throw new Error('供用元と供用先の部品IDが同じです');
+
+    // 重複チェック
+    const dup = await this.prisma.ncProgram.findFirst({ where: { partId: target_part_id, machiningId: source_machining_id } });
+    if (dup) throw new Error(`部品ID:${target_part_id} にはすでに加工ID:${source_machining_id} が登録されています`);
+
+    const version = mach.version ?? '1.0001';
+
+    return this.prisma.$transaction(async (tx) => {
+      // [v087] NC-04(新規登録)と同様、legacyNcId(旧ACC_NC.NC_id)は新規に採番せず
+      //   nullのままとする。旧システムのNC_id体系を新規継続する仕様は既存の
+      //   NC-04(新規登録)にも存在しないため、既存実装との一貫性を優先した。
+      const newProg = await tx.ncProgram.create({
+        data: {
+          partId:       target_part_id,
+          machiningId:  source_machining_id,
+          status:       'APPROVED',
+          registeredBy: operatorId,
+        },
+      });
+
+      // common_part_code 未設定なら付与 (MC側と同じ採番規則: CP + K_id 6桁ゼロ埋め)
+      if (!mach.commonPartCode) {
+        const code = `CP${String(source_machining_id).padStart(6, '0')}`;
+        await tx.ncMachiningDetail.update({
+          where: { kId: source_machining_id },
+          data:  { commonPartCode: code },
+        });
+      }
+
+      // NcProgramにはnoteカラムが無いため、変更履歴のcontentに含める
+      await tx.changeHistory.create({
+        data: {
+          ncProgramId:   newProg.id,
+          changeType:    'CHANGE',
+          operatorId,
+          versionBefore: null,
+          versionAfter:  version,
+          content:       `共通登録: 部品ID=${target_part_id} に machining_id=${source_machining_id} を供用${note ? ` (${note})` : ''}`,
+        },
+      });
+
+      return {
+        ncProgramId:    newProg.id,
+        machiningId:    source_machining_id,
+        targetPartId:   target_part_id,
+        version,
+        commonPartCode: mach.commonPartCode ?? `CP${String(source_machining_id).padStart(6, '0')}`,
+      };
+    });
+  }
+
+  // ══════════════════════════════════════════
+  // [v087] 共通部品: 解除 (MC側 unregisterCommonPart と同等)
+  // ══════════════════════════════════════════
+  async unregisterCommonPart(ncProgramId: number, operatorId: number) {
+    const prog = await this.prisma.ncProgram.findUnique({ where: { id: ncProgramId } });
+    if (!prog) throw new NotFoundException(`nc_program_id ${ncProgramId} が存在しません`);
+
+    const groupCount = await this.prisma.ncProgram.count({ where: { machiningId: prog.machiningId } });
+    if (groupCount <= 1)
+      throw new Error('共通グループの最後の1件は解除できません');
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.changeHistory.create({
+        data: {
+          ncProgramId,
+          changeType:  'CHANGE',
+          operatorId,
+          content:     `共通登録解除: nc_program_id=${ncProgramId}`,
+        },
+      });
+      await tx.ncProgram.delete({ where: { id: ncProgramId } });
+      return { message: '共通登録を解除しました', ncProgramId };
+    });
+  }
+
   /** NC-05: 更新（MC方式: ステータスをCHANGINGにするのみ。履歴登録はfinalize()で行う） */
   async update(id: number, dto: UpdateNcDto, operatorId: number) {
     const existing = await this.prisma.ncProgram.findUnique({ where: { id } });

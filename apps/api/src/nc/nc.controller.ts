@@ -19,6 +19,7 @@ import { FinalizeNcDto } from "./dto/finalize-nc.dto";
 import { SaveNcToolingDto } from "./dto/save-nc-tooling.dto";
 import { NcFilesService } from "./nc-files.service";
 import { UploadTicketService } from "../mc/upload-ticket.service";
+import { RegisterCommonNcPartDto } from "./dto/register-common-nc-part.dto";
 
 @Controller("nc")
 export class NcController {
@@ -39,6 +40,62 @@ export class NcController {
     @Query("machine_id") machineId: string,
   ) {
     return this.nc.search(key, q, parseInt(limit) || 50, parseInt(offset) || 0, clientName, machineId ? parseInt(machineId) : undefined);
+  }
+
+  // [v087] 共通部品(MC側 common-group/common-parts と同等機能のNC版)
+  // ── 共通加工グループ ────────────────────────
+  @Get("common-group/:machining_id")
+  commonGroupNc(@Param("machining_id", ParseIntPipe) machiningId: number) {
+    return this.nc.getCommonGroup(machiningId);
+  }
+
+  // ── 共通部品検索 ─────────────────────────────
+  @Get("common-parts/search")
+  searchCommonPartsNc(
+    @Query("drawing_no")   drawingNo?:    string,
+    @Query("name")         name?:         string,
+    @Query("main_model")   mainModel?:    string,
+    @Query("client_id")    clientId?:     string,
+    @Query("part_id")      partIdStr?:    string,
+    @Query("nc_id")        ncIdQ?:        string,
+    @Query("machining_id") machiningIdQ?: string,
+    @Query("page")         page?:         string,
+    @Query("limit")        limit?:        string,
+  ) {
+    return this.nc.searchCommonParts({
+      drawing_no:   drawingNo   || undefined,
+      name:         name        || undefined,
+      main_model:   mainModel   || undefined,
+      client_id:    clientId    ? parseInt(clientId)    : undefined,
+      part_id_str:  partIdStr   || undefined,
+      nc_id:        ncIdQ       ? parseInt(ncIdQ)        : undefined,
+      machining_id: machiningIdQ? parseInt(machiningIdQ): undefined,
+      page:         page        ? parseInt(page)        : 1,
+      limit:        limit       ? parseInt(limit)       : 50,
+    });
+  }
+
+  // ── 共通部品登録（供用） ─────────────────────
+  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
+  @Post("common-parts/register")
+  registerCommonPartNc(@Body() dto: RegisterCommonNcPartDto, @Req() req: any) {
+    return this.nc.registerCommonPart({
+      target_part_id:      dto.target_part_id,
+      source_machining_id: dto.source_machining_id,
+      note:                dto.note,
+    }, req.user.id);
+  }
+
+  // ── 共通部品登録解除 ─────────────────────────
+  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
+  @Delete("common-parts/:nc_program_id")
+  unregisterCommonPartNc(
+    @Param("nc_program_id", ParseIntPipe) ncProgramId: number,
+    @Req() req: any,
+  ) {
+    return this.nc.unregisterCommonPart(ncProgramId, req.user.id);
   }
 
   @Get("client-names")
