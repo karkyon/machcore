@@ -216,6 +216,8 @@ export type Machine = {
   machineName: string;
   isActive: boolean;
   sortOrder: number;
+  // プログラムファイル形式マスタ設定: false=単体ファイル, true=フォルダ単位(メインPG+サブPG)
+  pgIsFolder?: boolean;
 };
 
 export const machinesApi = {

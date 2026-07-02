@@ -24,6 +24,7 @@ export default function AdminMachinesPage() {
   const [fType,  setFType]  = useState("MC");
   const [fMaker, setFMaker] = useState("");
   const [fSort,  setFSort]  = useState("0");
+  const [fPgIsFolder, setFPgIsFolder] = useState(false);
   const [fError, setFError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [fltName,   setFltName]   = useState("");
@@ -78,8 +79,8 @@ export default function AdminMachinesPage() {
     <span className="ml-1 opacity-50">{sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : "⇅"}</span>
   );
 
-  const openCreate = () => { setFCode(""); setFName(""); setFType("MC"); setFMaker(""); setFSort("0"); setFError(null); setEditTarget(null); setDialogMode("create"); };
-  const openEdit   = (m: Machine) => { setFCode(m.machineCode); setFName(m.machineName ?? ""); setFType((m as any).machineType ?? "MC"); setFMaker((m as any).maker ?? ""); setFSort(String(m.sortOrder ?? 0)); setFError(null); setEditTarget(m); setDialogMode("edit"); };
+  const openCreate = () => { setFCode(""); setFName(""); setFType("MC"); setFMaker(""); setFSort("0"); setFPgIsFolder(false); setFError(null); setEditTarget(null); setDialogMode("create"); };
+  const openEdit   = (m: Machine) => { setFCode(m.machineCode); setFName(m.machineName ?? ""); setFType((m as any).machineType ?? "MC"); setFMaker((m as any).maker ?? ""); setFSort(String(m.sortOrder ?? 0)); setFPgIsFolder(!!(m as any).pgIsFolder); setFError(null); setEditTarget(m); setDialogMode("edit"); };
 
   const handleSave = async () => {
     if (!fCode || !fName) { setFError("機械コードと機械名は必須です"); return; }
@@ -89,13 +90,13 @@ export default function AdminMachinesPage() {
         await adminFetch("/admin/machines", {
           method: "POST",
           headers: { Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ machine_code: fCode, machine_name: fName, machine_type: fType, maker: fMaker, sort_order: parseInt(fSort)||0, is_active: true }),
+          body: JSON.stringify({ machine_code: fCode, machine_name: fName, machine_type: fType, maker: fMaker, sort_order: parseInt(fSort)||0, is_active: true, pg_is_folder: fPgIsFolder }),
         });
       } else if (editTarget) {
         await adminFetch(`/admin/machines/${editTarget.id}`, {
           method: "PUT",
           headers: { Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ machine_code: fCode, machine_name: fName, machine_type: fType, maker: fMaker, sort_order: parseInt(fSort)||0 }),
+          body: JSON.stringify({ machine_code: fCode, machine_name: fName, machine_type: fType, maker: fMaker, sort_order: parseInt(fSort)||0, pg_is_folder: fPgIsFolder }),
         });
       }
       showToast(dialogMode === "edit" ? "更新しました" : "登録しました", true);
@@ -149,7 +150,7 @@ export default function AdminMachinesPage() {
                 <table className="w-full text-sm table-fixed">
                   <colgroup>
                     <col className="w-12"/><col className="w-40"/><col className="w-24"/><col className="w-28"/>
-                    <col className="w-16"/><col className="w-16"/><col className="w-40"/>
+                    <col className="w-24"/><col className="w-16"/><col className="w-16"/><col className="w-40"/>
                   </colgroup>
                   <thead>
                     <tr className="bg-slate-50 text-slate-600 text-xs uppercase">
@@ -157,6 +158,7 @@ export default function AdminMachinesPage() {
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("machineName")}>機械名<SortIcon k="machineName"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("machineType")}>種別<SortIcon k="machineType"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("maker")}>メーカー<SortIcon k="maker"/></th>
+                      <th className="px-3 py-3 text-left">PG形式</th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("sortOrder")}>順序<SortIcon k="sortOrder"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("isActive")}>状態<SortIcon k="isActive"/></th>
                       <th className="px-3 py-3 text-right">操作</th>
@@ -168,7 +170,7 @@ export default function AdminMachinesPage() {
                 <table className="w-full text-sm table-fixed">
                   <colgroup>
                     <col className="w-12"/><col className="w-40"/><col className="w-24"/><col className="w-28"/>
-                    <col className="w-16"/><col className="w-16"/><col className="w-40"/>
+                    <col className="w-24"/><col className="w-16"/><col className="w-16"/><col className="w-40"/>
                   </colgroup>
                   <tbody className="divide-y divide-slate-100">
                     {filtered.map((m, i) => (
@@ -177,6 +179,11 @@ export default function AdminMachinesPage() {
                         <td className="px-3 py-2.5 font-bold text-slate-800 text-xs truncate">{m.machineName}</td>
                         <td className="px-3 py-2.5 text-slate-500 text-xs">{(m as any).machineType ?? "—"}</td>
                         <td className="px-3 py-2.5 text-slate-500 text-xs truncate">{(m as any).maker ?? "—"}</td>
+                        <td className="px-3 py-2.5 text-xs">
+                          {(m as any).pgIsFolder
+                            ? <span className="text-amber-700">📁 フォルダ単位</span>
+                            : <span className="text-teal-700">📄 単体ファイル</span>}
+                        </td>
                         <td className="px-3 py-2.5 text-slate-500 text-xs">{m.sortOrder ?? 0}</td>
                         <td className="px-3 py-2.5">
                           <span className={`text-xs font-bold ${m.isActive ? "text-green-600" : "text-slate-400"}`}>{m.isActive ? "有効" : "無効"}</span>
@@ -191,7 +198,7 @@ export default function AdminMachinesPage() {
                         </td>
                       </tr>
                     ))}
-                    {filtered.length === 0 && <tr><td colSpan={7} className="text-center py-12 text-slate-400">該当する機械がありません</td></tr>}
+                    {filtered.length === 0 && <tr><td colSpan={8} className="text-center py-12 text-slate-400">該当する機械がありません</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -220,6 +227,20 @@ export default function AdminMachinesPage() {
               <div><label className="text-xs font-bold text-slate-500 block mb-1">順序</label>
                 <input type="number" value={fSort} onChange={e => setFSort(e.target.value)}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none" /></div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">プログラムファイル形式</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setFPgIsFolder(false)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold border ${!fPgIsFolder ? "bg-teal-600 text-white border-teal-600" : "bg-white text-slate-500 border-slate-300"}`}>
+                    📄 単体ファイル
+                  </button>
+                  <button type="button" onClick={() => setFPgIsFolder(true)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold border ${fPgIsFolder ? "bg-amber-600 text-white border-amber-600" : "bg-white text-slate-500 border-slate-300"}`}>
+                    📁 フォルダ単位
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">MC新規登録画面で機械選択時のファイル名/フォルダ名自動設定に使用されます</p>
+              </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setDialogMode(null)} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">キャンセル</button>

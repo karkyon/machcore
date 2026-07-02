@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { mcApi, machinesApi, Machine } from "@/lib/api";
+import { calcProgramFileNaming } from "@/lib/programFileNaming";
 import AuthModal from "@/components/auth/AuthModal";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -111,6 +112,12 @@ export default function McNewPage() {
   const actuallyAuthenticated = !!(authToken && authOperator);
   const canSubmit = !!mcProcessNo.trim() && !!machineId && !!(actuallyAuthenticated && selectedPart && machiningId);
 
+  // 選択した機械のマスタ設定(pgIsFolder)から、プログラムファイルが単体ファイルか
+  // フォルダ単位(メインPG+サブPG)かを判定し、ファイル名/フォルダ名を自動算出する。
+  // 命名ロジックは programFileNaming.ts に一本化(重複実装しない)。
+  const selectedMachine = machineId ? machines.find(m => String(m.id) === machineId) ?? null : null;
+  const programNaming = selectedMachine ? calcProgramFileNaming(machiningId, !!selectedMachine.pgIsFolder) : null;
+
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="bg-slate-800 text-white px-5 py-2.5 flex items-center gap-3 shrink-0">
@@ -207,10 +214,13 @@ export default function McNewPage() {
               </div>
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">ファイル名 <span className="text-slate-400 font-normal">（加工IDと同じ・自動設定）</span></label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                {programNaming ? programNaming.label : "ファイル名／フォルダ名"}
+                <span className="text-slate-400 font-normal">（機械選択後に自動設定）</span>
+              </label>
               <div className="flex items-center gap-2 h-9">
                 <span className="font-mono text-base font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 select-none">
-                  {machiningId ?? "—"}
+                  {programNaming ? programNaming.value : "—"}
                 </span>
               </div>
             </div>
@@ -229,6 +239,13 @@ export default function McNewPage() {
                   <option key={m.id} value={String(m.id)}>{m.machineName ?? m.machineCode}</option>
                 ))}
               </select>
+              {programNaming && (
+                <div className={`mt-1.5 flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border ${programNaming.isFolder ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-teal-50 border-teal-200 text-teal-700"}`}>
+                  <span>{programNaming.isFolder ? "📁 フォルダ単位" : "📄 単体ファイル"}</span>
+                  <span className="text-slate-400">|</span>
+                  <span className="font-mono font-bold">{programNaming.value}</span>
+                </div>
+              )}
             </div>
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">メインOナンバ</label>

@@ -118,6 +118,9 @@ model Machine {
   updatedAt   DateTime @updatedAt              @map("updated_at")
   systemType  SystemType  @default(NC)  @map("system_type")
   mcSpecs     Json?                     @map("mc_specs")
+  // プログラムファイル形式マスタ設定: false=単体ファイル, true=フォルダ単位(メインPG+サブPG)。
+  // 新規登録(仮登録)画面で機械選択時にこの値を参照し、ファイル名/フォルダ名を自動決定する。
+  pgIsFolder  Boolean  @default(false)  @map("pg_is_folder")
   ncMachiningDetails NcMachiningDetail[]
   workRecords WorkRecord[]
   mcMachiningDetails McMachiningDetail[]

@@ -526,6 +526,7 @@ export class AdminController {
     machine_type?: string;
     maker?: string;
     sort_order?: number;
+    pg_is_folder?: boolean;
   }) {
     return this.prisma.machine.create({
       data: {
@@ -535,6 +536,7 @@ export class AdminController {
         maker:       body.maker,
         sortOrder:   body.sort_order ?? 0,
         isActive:    true,
+        pgIsFolder:  body.pg_is_folder ?? false,
       },
     });
   }
@@ -551,6 +553,7 @@ export class AdminController {
       maker?: string;
       sort_order?: number;
       is_active?: boolean;
+      pg_is_folder?: boolean;
     },
   ) {
     return this.prisma.machine.update({
@@ -562,6 +565,7 @@ export class AdminController {
         ...(body.maker        != null && { maker: body.maker }),
         ...(body.sort_order   != null && { sortOrder: body.sort_order }),
         ...(body.is_active    != null && { isActive: body.is_active }),
+        ...(body.pg_is_folder != null && { pgIsFolder: body.pg_is_folder }),
       },
     });
   }

@@ -16,7 +16,7 @@ export class MachinesController {
     }
     return this.prisma.machine.findMany({
       where,
-      select: { id: true, machineCode: true, machineName: true, sortOrder: true, isActive: true },
+      select: { id: true, machineCode: true, machineName: true, sortOrder: true, isActive: true, pgIsFolder: true },
       orderBy: { sortOrder: 'asc' },
     });
   }
