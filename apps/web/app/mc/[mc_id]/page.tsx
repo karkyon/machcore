@@ -7,6 +7,7 @@ import ProgramFileViewer from "@/components/shared/ProgramFileViewer";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
+import ApprovalModal from "@/components/shared/ApprovalModal";
 import { isAgentOnline, agentPgToUsb } from "@/lib/upload-agent";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -43,6 +44,7 @@ export default function McDetailPage() {
   const router = useRouter();
 
   const [detail,    setDetail]    = useState<McDetail | null>(null);
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false); // [v094]
   const [floatOpen,  setFloatOpen]  = useState(false);
   // [v070] 複数ファイル切替用(既存pgViewerOpenモーダルで使用)
   const [pgFileList, setPgFileList] = useState<any[]>([]);
@@ -441,17 +443,10 @@ export default function McDetailPage() {
                 ⚠️ SP
               </span>
             )}
-            {isAuthenticated && operator?.role === "ADMIN" && d.status !== "APPROVED" && (
+            {/* [v094] 承認資格を持つユーザのみが承認できる。編集セッションの有無やロールとは無関係。 */}
+            {d.status !== "APPROVED" && (
               <button
-                onClick={async () => {
-                  if (!token) return;
-                  if (!window.confirm(`承認しますか？\nMCID: ${d.legacyMcid ?? "—"}  Ver. ${d.version}`)) return;
-                  try {
-                    await mcApi.approve(d.id, token);
-                    const r = await mcApi.findOne(d.id);
-                    setDetail((r as any).data ?? r);
-                  } catch { alert("承認に失敗しました"); }
-                }}
+                onClick={() => setApprovalModalOpen(true)}
                 className="text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
               >
                 ✓ 承認
@@ -1545,6 +1540,18 @@ export default function McDetailPage() {
           onSuccess={() => setAuthOpen(false)}
           onCancel={() => setAuthOpen(false)} />
       )}
+
+      {/* [v094] 承認モーダル */}
+      <ApprovalModal
+        isOpen={approvalModalOpen}
+        system="MC"
+        programId={mcId}
+        onSuccess={() => {
+          setApprovalModalOpen(false);
+          mcApi.findOne(mcId).then(r => setDetail((r as any).data ?? r));
+        }}
+        onCancel={() => setApprovalModalOpen(false)}
+      />
 
       {/* 📋 Ridoc図面 認証モーダル */}
       {drawingAuthOpen && (

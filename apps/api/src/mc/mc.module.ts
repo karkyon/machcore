@@ -4,8 +4,10 @@ import { McController } from './mc.controller';
 import { McService } from './mc.service';
 import { McFilesService } from './mc-files.service';
 import { UploadTicketService } from './upload-ticket.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
+  imports:     [AuthModule],
   controllers: [McController],
   providers:   [McService, McFilesService, UploadTicketService, AppLoggerService],
   exports:     [McService, UploadTicketService],

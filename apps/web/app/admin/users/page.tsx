@@ -28,6 +28,7 @@ export default function AdminUsersPage() {
   const [fRole2,  setFRole2]  = useState("");
   const [fActive2, setFActive2] = useState("");
   const [fSys2,   setFSys2]   = useState("NC");
+  const [fCanApprove2, setFCanApprove2] = useState(false); // [v094] 承認資格
   const [fPW,     setFPW]     = useState("");
   const [fError,  setFError]  = useState<string|null>(null);
   const [saving,  setSaving]  = useState(false);
@@ -87,11 +88,12 @@ export default function AdminUsersPage() {
   );
 
   const openCreate = () => {
-    setFName2(""); setFKana2(""); setFRole2("OPERATOR"); setFActive2(""); setFSys2("NC"); setFPW(""); setFError(null); setEditTarget(null); setDialogMode("create");
+    setFName2(""); setFKana2(""); setFRole2("OPERATOR"); setFActive2(""); setFSys2("NC"); setFCanApprove2(false); setFPW(""); setFError(null); setEditTarget(null); setDialogMode("create");
   };
   const openEdit = (u: AdminUserInfo) => {
     setFName2(u.name); setFKana2(u.nameKana ?? ""); setFRole2(u.role);
     setFActive2(u.isActive ? "active" : "inactive"); setFSys2(u.systemType ?? "NC");
+    setFCanApprove2(u.canApprove ?? false);
     setFPW(""); setFError(null); setEditTarget(u); setDialogMode("edit");
   };
   const openPassword = (u: AdminUserInfo) => { setFPW(""); setFError(null); setEditTarget(u); setDialogMode("password"); };
@@ -103,10 +105,10 @@ export default function AdminUsersPage() {
     try {
       if (dialogMode === "create") {
         if (!fPW) { setFError("パスワードは必須です"); setSaving(false); return; }
-        await adminUsersApi.create({ employee_code: `STAFF${Date.now()}`, name: fName2, name_kana: fKana2 || undefined, password: fPW, role: fRole2 as any }, token);
+        await adminUsersApi.create({ employee_code: `STAFF${Date.now()}`, name: fName2, name_kana: fKana2 || undefined, password: fPW, role: fRole2 as any, can_approve: fCanApprove2 }, token);
         showToast("ユーザを登録しました", true);
       } else if (dialogMode === "edit" && editTarget) {
-        await adminUsersApi.update(editTarget.id, { name: fName2, name_kana: fKana2 || undefined, role: fRole2 as any, is_active: fActive2 !== "inactive", system_type: fSys2 as any }, token);
+        await adminUsersApi.update(editTarget.id, { name: fName2, name_kana: fKana2 || undefined, role: fRole2 as any, is_active: fActive2 !== "inactive", system_type: fSys2 as any, can_approve: fCanApprove2 }, token);
         showToast("更新しました", true);
       }
       setDialogMode(null); fetchUsers();
@@ -173,7 +175,7 @@ export default function AdminUsersPage() {
                 <table className="w-full text-sm table-fixed">
                   <colgroup>
                     <col className="w-10"/><col className="w-28"/><col className="w-32"/><col className="w-24"/>
-                    <col className="w-16"/><col className="w-24"/><col className="w-14"/><col className="w-52"/>
+                    <col className="w-16"/><col className="w-24"/><col className="w-14"/><col className="w-16"/><col className="w-52"/>
                   </colgroup>
                   <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
                     <tr>
@@ -184,6 +186,7 @@ export default function AdminUsersPage() {
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("systemType")}>区分<SortIcon k="systemType"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("role")}>ロール<SortIcon k="role"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("isActive")}>状態<SortIcon k="isActive"/></th>
+                      <th className="px-3 py-3 text-left">承認資格</th>
                       <th className="px-3 py-3 text-right">操作</th>
                     </tr>
                   </thead>
@@ -193,7 +196,7 @@ export default function AdminUsersPage() {
                 <table className="w-full text-sm table-fixed">
                   <colgroup>
                     <col className="w-10"/><col className="w-28"/><col className="w-32"/><col className="w-24"/>
-                    <col className="w-16"/><col className="w-24"/><col className="w-14"/><col className="w-52"/>
+                    <col className="w-16"/><col className="w-24"/><col className="w-14"/><col className="w-16"/><col className="w-52"/>
                   </colgroup>
                   <tbody className="divide-y divide-slate-100">
                     {filteredUsers.map(u => (
@@ -212,6 +215,11 @@ export default function AdminUsersPage() {
                           <span className={`text-xs font-bold ${u.isActive ? "text-green-600" : "text-slate-400"}`}>{u.isActive ? "有効" : "無効"}</span>
                         </td>
                         <td className="px-3 py-2.5">
+                          {u.canApprove
+                            ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">承認可</span>
+                            : <span className="text-[10px] text-slate-300">—</span>}
+                        </td>
+                        <td className="px-3 py-2.5">
                           <div className="flex items-center justify-end gap-1 flex-nowrap">
                             <button onClick={() => openEdit(u)} className="px-2 py-1 text-xs bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded font-bold whitespace-nowrap">編集</button>
                             <button onClick={() => openPassword(u)} className="px-2 py-1 text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded font-bold whitespace-nowrap">PW変更</button>
@@ -222,7 +230,7 @@ export default function AdminUsersPage() {
                         </td>
                       </tr>
                     ))}
-                    {filteredUsers.length === 0 && <tr><td colSpan={8} className="text-center py-12 text-slate-400">該当するユーザがありません</td></tr>}
+                    {filteredUsers.length === 0 && <tr><td colSpan={9} className="text-center py-12 text-slate-400">該当するユーザがありません</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -257,6 +265,13 @@ export default function AdminUsersPage() {
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
                     <option value="OPERATOR">作業者</option><option value="VIEWER">閲覧者</option><option value="ADMIN">管理者</option>
                   </select></div>
+                <div className="flex items-center gap-2">
+                  <input id="fCanApprove2" type="checkbox" checked={fCanApprove2} onChange={e => setFCanApprove2(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-400" />
+                  <label htmlFor="fCanApprove2" className="text-xs font-bold text-slate-600">
+                    承認資格（MC/NC情報の承認操作を許可する）
+                  </label>
+                </div>
                 {dialogMode === "edit" && (
                   <div><label className="text-xs font-bold text-slate-500 block mb-1">状態</label>
                     <select value={fActive2} onChange={e => setFActive2(e.target.value)}

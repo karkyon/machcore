@@ -23,6 +23,7 @@ import { NcPartHeader } from "@/components/nc/NcPartHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProcessEntry } from "@/lib/api";
 import AuthModal from "@/components/auth/AuthModal";
+import ApprovalModal from "@/components/shared/ApprovalModal";
 import ProgramFileViewer from "@/components/shared/ProgramFileViewer";
 
 type MainTab = "lathe" | "history" | "files";
@@ -41,6 +42,7 @@ export default function NcDetailPage() {
   const ncId      = Number(nc_id);
 
   const [detail,      setDetail]      = useState<NcDetail | null>(null);
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false); // [v094]
   const [loadError,   setLoadError]   = useState<string | null>(null);
   const [processes,   setProcesses]   = useState<ProcessEntry[]>([]);
   const [floatOpen,   setFloatOpen]   = useState(true);
@@ -355,7 +357,7 @@ export default function NcDetailPage() {
         )}
 
         {/* ── 部品ヘッダーエリア（共通コンポーネント） ── */}
-        <NcPartHeader data={d} />
+        <NcPartHeader data={d} showApprove onApproveClick={() => setApprovalModalOpen(true)} />
 
         {/* ── 画面ナビゲーションタブ（MC側準拠: ブラウザタブ風） ── */}
         <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
@@ -1051,6 +1053,18 @@ export default function NcDetailPage() {
         ncProgramId={ncId}
         onSuccess={() => setAuthModalOpen(false)}
         onCancel={() => setAuthModalOpen(false)}
+      />
+
+      {/* [v094] 承認モーダル */}
+      <ApprovalModal
+        isOpen={approvalModalOpen}
+        system="NC"
+        programId={ncId}
+        onSuccess={() => {
+          setApprovalModalOpen(false);
+          ncApi.findOne(ncId).then(r => setDetail(r.data));
+        }}
+        onCancel={() => setApprovalModalOpen(false)}
       />
     </>
   );

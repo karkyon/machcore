@@ -21,6 +21,7 @@ import { SaveWorkOffsetsDto } from './dto/save-work-offsets.dto';
 import { SaveIndexProgramsDto } from './dto/save-index-programs.dto';
 import { PrintMcDto } from './dto/print-mc.dto';
 import { RegisterCommonPartDto } from './dto/register-common-part.dto';
+import { ApproveMcDto } from './dto/approve-mc.dto';
 
 @Controller('mc')
 export class McController {
@@ -184,14 +185,15 @@ export class McController {
   }
 
   // ── 承認 ─────────────────────────────────────
-  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
-  @Roles('ADMIN')
+  // [v094] 承認は編集セッション(JWT)とは切り離し、承認者自身のID+パスワードを
+  // その場で検証する(旧ACCESS「承認します」フォーム相当)。承認資格(canApprove)を
+  // 持たないユーザは McService.approve() 内の検証で拒否される。
   @Post(':mc_id/approve')
   approve(
     @Param('mc_id', ParseIntPipe) id: number,
-    @Req() req: any,
+    @Body() dto: ApproveMcDto,
   ) {
-    return this.mc.approve(id, req.user.id);
+    return this.mc.approve(id, dto.operator_id, dto.password);
   }
 
   // ── 更新 ────────────────────────────────────

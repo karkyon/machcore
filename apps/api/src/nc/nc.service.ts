@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { CreateWorkRecordDto } from './dto/create-work-record.dto';
 import { PrismaService } from "../prisma/prisma.service";
+import { AuthService } from "../auth/auth.service";
 import { CreateNcDto } from "./dto/create-nc.dto";
 import { UpdateNcDto } from "./dto/update-nc.dto";
 import { SaveNcToolingDto } from "./dto/save-nc-tooling.dto";
@@ -13,7 +14,10 @@ import * as iconv from 'iconv-lite';
 import { UpdateWorkRecordDto } from "./dto/update-work-record.dto";
 @Injectable()
 export class NcService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService,
+  ) {}
 
   /** NC-01: 部品検索 */
   async search(key: string, q: string, limit = 50, offset = 0, clientName?: string, machineId?: number) {
@@ -543,7 +547,9 @@ export class NcService {
   // ══════════════════════════════════════════
   // NC-06: 承認 — MC approve()のロジックを移植
   // ══════════════════════════════════════════
-  async approve(id: number, operatorId: number) {
+  async approve(id: number, operatorId: number, password: string) {
+    // [v094] 承認資格(canApprove)を持つ本人のパスワードをその場で検証する(MCと統一)。
+    await this.authService.verifyApprover(operatorId, password);
     const ncApprove = await this.prisma.ncProgram.findUnique({
       where:   { id },
       include: { machining: { select: { version: true } } },

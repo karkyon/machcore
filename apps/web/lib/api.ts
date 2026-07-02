@@ -175,6 +175,11 @@ export const ncApi = {
   setupSheetLogs: (nc_id: number) => api.get<SetupSheetLog[]>(`/nc/${nc_id}/setup-sheet-logs`),
   operationLogs:  (nc_id: number) => api.get<OperationLog[]>(`/nc/${nc_id}/operation-logs`),
   update: (nc_id: number, body: UpdateNcBody) => api.put<{ nc_id: number; message: string }>(`/nc/${nc_id}`, body),
+  // [v094] 承認は編集セッションのtokenに依存しない。承認者自身のID+パスワードを送る(MCと統一)。
+  approve: (ncId: number, operatorId: number, password: string) =>
+    api.post<{ nc_id: number; message: string; version: string }>(
+      `/nc/${ncId}/approve`, { operator_id: operatorId, password }
+    ),
 };
 
 export type UserInfo = {
@@ -183,6 +188,7 @@ export type UserInfo = {
   role: "OPERATOR" | "ADMIN";
   avatarPath: string | null;
   isActive: boolean;
+  canApprove: boolean;
 };
 
 export type WorkSessionResponse = {
@@ -193,7 +199,14 @@ export type WorkSessionResponse = {
 };
 
 export const usersApi = {
-  list: (system?: "NC" | "MC") => api.get<UserInfo[]>("/users", { params: system ? { system } : undefined }),
+  // [v094] approverOnly=true で承認資格(canApprove=true)を持つユーザのみに絞る。
+  list: (system?: "NC" | "MC", approverOnly?: boolean) =>
+    api.get<UserInfo[]>("/users", {
+      params: {
+        ...(system ? { system } : {}),
+        ...(approverOnly ? { approver: "true" } : {}),
+      },
+    }),
 };
 
 export const authApi = {
@@ -368,6 +381,7 @@ export type AdminUserInfo = {
   role: 'VIEWER' | 'OPERATOR' | 'ADMIN';
   isActive: boolean;
   systemType: 'NC' | 'MC' | 'BOTH';
+  canApprove: boolean;
   createdAt: string;
 };
 
@@ -377,6 +391,7 @@ export type CreateAdminUserBody = {
   name_kana?: string;
   password: string;
   role?: 'VIEWER' | 'OPERATOR' | 'ADMIN';
+  can_approve?: boolean;
 };
 
 export type UpdateAdminUserBody = {
@@ -385,6 +400,7 @@ export type UpdateAdminUserBody = {
   role?: 'VIEWER' | 'OPERATOR' | 'ADMIN';
   is_active?: boolean;
   system_type?: 'NC' | 'MC' | 'BOTH';
+  can_approve?: boolean;
 };
 
 export const adminUsersApi = {
@@ -775,9 +791,10 @@ export const mcApi = {
     ),
   create:       (body: any, token: string) =>
     api.post<{ mc_id: number; message: string }>('/mc', body, { headers: { Authorization: `Bearer ${token}` } }),
-  approve:      (mcId: number, token: string) =>
+  // [v094] 承認は編集セッションのtokenに依存しない。承認者自身のID+パスワードを送る。
+  approve:      (mcId: number, operatorId: number, password: string) =>
     api.post<{ mc_id: number; message: string; version: string }>(
-      `/mc/${mcId}/approve`, {}, { headers: { Authorization: `Bearer ${token}` } }
+      `/mc/${mcId}/approve`, { operator_id: operatorId, password }
     ),
   update:       (mcId: number, body: any, token: string) =>
     api.put<{ mc_id: number; message: string }>(`/mc/${mcId}`, body, { headers: { Authorization: `Bearer ${token}` } }),

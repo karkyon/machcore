@@ -3,6 +3,7 @@ import { AppLoggerService } from '../common/app-logger.service';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuthService } from '../auth/auth.service';
 import { CreateMcDto } from './dto/create-mc.dto';
 import { UpdateMcDto } from './dto/update-mc.dto';
 import { CreateMcWorkRecordDto } from './dto/create-mc-work-record.dto';
@@ -39,6 +40,7 @@ export class McService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: AppLoggerService,
+    private readonly authService: AuthService,
   ) {}
 
   private cronTimer: NodeJS.Timeout | null = null;
@@ -562,7 +564,9 @@ export class McService {
   // ══════════════════════════════════════════
   // MC-06: 承認
   // ══════════════════════════════════════════
-  async approve(id: number, operatorId: number) {
+  async approve(id: number, operatorId: number, password: string) {
+    // [v094] 承認資格(canApprove)を持つ本人のパスワードをその場で検証する。
+    await this.authService.verifyApprover(operatorId, password);
     const mc = await this.prisma.mcProgram.findUnique({
       where: { id },
       include: { machining: true },

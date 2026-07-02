@@ -24,7 +24,14 @@ type NcPartHeaderData = {
   part: NcPartHeaderPart;
 };
 
-export function NcPartHeader({ data }: { data: NcPartHeaderData }) {
+type NcPartHeaderProps = {
+  data: NcPartHeaderData;
+  /** [v094] trueかつステータスがAPPROVED以外の場合のみ承認ボタンを表示する。 */
+  showApprove?: boolean;
+  onApproveClick?: () => void;
+};
+
+export function NcPartHeader({ data, showApprove, onApproveClick }: NcPartHeaderProps) {
   const d = data;
   return (
     <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
@@ -36,6 +43,15 @@ export function NcPartHeader({ data }: { data: NcPartHeaderData }) {
           <ProcessBadge level={d.processL} />
           <StatusBadge status={d.status} />
           <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
+          {/* [v094] 承認資格を持つユーザのみが承認できる。編集セッションの有無やロールとは無関係。 */}
+          {showApprove && d.status !== "APPROVED" && onApproveClick && (
+            <button
+              onClick={onApproveClick}
+              className="text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+            >
+              ✓ 承認
+            </button>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">

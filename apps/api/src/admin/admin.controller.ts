@@ -315,7 +315,7 @@ export class AdminController {
     return this.prisma.user.findMany({
       select: {
         id: true, employeeCode: true, name: true, nameKana: true,
-        role: true, isActive: true, systemType: true, createdAt: true,
+        role: true, isActive: true, systemType: true, canApprove: true, createdAt: true,
       },
       orderBy: { id: 'asc' },
     });
@@ -331,6 +331,7 @@ export class AdminController {
     name_kana?: string;
     password: string;
     role?: 'VIEWER' | 'OPERATOR' | 'ADMIN';
+    can_approve?: boolean;
   }) {
     const hash = await bcrypt.hash(body.password, 10);
     return this.prisma.user.create({
@@ -341,10 +342,11 @@ export class AdminController {
         passwordHash: hash,
         role:         body.role ?? 'OPERATOR',
         isActive:     true,
+        canApprove:   body.can_approve ?? false,
       },
       select: {
         id: true, employeeCode: true, name: true, nameKana: true,
-        role: true, isActive: true, systemType: true, createdAt: true,
+        role: true, isActive: true, systemType: true, canApprove: true, createdAt: true,
       },
     });
   }
@@ -361,6 +363,7 @@ export class AdminController {
       role?: 'VIEWER' | 'OPERATOR' | 'ADMIN';
       is_active?: boolean;
       system_type?: 'NC' | 'MC' | 'BOTH';
+      can_approve?: boolean;
     },
   ) {
     const data: any = {};
@@ -369,12 +372,13 @@ export class AdminController {
     if (body.role        !== undefined) data.role       = body.role;
     if (body.is_active   !== undefined) data.isActive   = body.is_active;
     if (body.system_type !== undefined) data.systemType = body.system_type;
+    if (body.can_approve !== undefined) data.canApprove = body.can_approve;
     return this.prisma.user.update({
       where:  { id },
       data,
       select: {
         id: true, employeeCode: true, name: true, nameKana: true,
-        role: true, isActive: true, systemType: true, createdAt: true,
+        role: true, isActive: true, systemType: true, canApprove: true, createdAt: true,
       },
     });
   }

@@ -83,6 +83,8 @@ model User {
   passwordHash String   @db.VarChar(255)        @map("password_hash")
   role         UserRole @default(OPERATOR)
   isActive     Boolean  @default(true)          @map("is_active")
+  // [v094] 承認資格(旧ACCESS 社員.MC承認資格 相当)。trueのユーザのみ承認操作を実行できる。
+  canApprove   Boolean  @default(false)         @map("can_approve")
   avatarPath   String?  @db.VarChar(500)        @map("avatar_path")
   systemType   SystemType @default(NC)          @map("system_type")
   createdAt    DateTime @default(now())         @map("created_at")

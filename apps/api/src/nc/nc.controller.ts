@@ -20,6 +20,7 @@ import { SaveNcToolingDto } from "./dto/save-nc-tooling.dto";
 import { NcFilesService } from "./nc-files.service";
 import { UploadTicketService } from "../mc/upload-ticket.service";
 import { RegisterCommonNcPartDto } from "./dto/register-common-nc-part.dto";
+import { ApproveNcDto } from "./dto/approve-nc.dto";
 
 @Controller("nc")
 export class NcController {
@@ -346,15 +347,14 @@ export class NcController {
     return this.nc.revert(id);
   }
 
-  /** NC-06: 承認 */
-  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
-  @Roles("ADMIN")
+  /** NC-06: 承認
+   * [v094] MC同様、編集セッションと切り離し承認者本人のID+パスワードをその場で検証する。 */
   @Post(":nc_id/approve")
   approve(
     @Param("nc_id", ParseIntPipe) id: number,
-    @Req() req: any,
+    @Body() dto: ApproveNcDto,
   ) {
-    return this.nc.approve(id, req.user.id);
+    return this.nc.approve(id, dto.operator_id, dto.password);
   }
 
   // ── ツーリング ──────────────────────────────

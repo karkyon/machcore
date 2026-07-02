@@ -107,6 +107,21 @@ export class AuthService {
     return { access_token: token, user: { id: user.id, name: user.name, role: user.role } };
   }
 
+  /**
+   * [v094] 承認者認証(旧ACCESS「承認します」フォーム相当)
+   * 現在ログイン中のセッションとは無関係に、承認を行う本人のID+パスワードを
+   * その場で検証する。承認資格(canApprove)を持たないユーザは承認できない。
+   */
+  async verifyApprover(operatorId: number, password: string) {
+    const user = await this.prisma.user.findFirst({ where: { id: operatorId } });
+    if (!user)          throw new UnauthorizedException('承認者が存在しません');
+    if (!user.isActive) throw new ForbiddenException('アカウントが無効です');
+    if (!user.canApprove) throw new ForbiddenException('承認資格がありません');
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) throw new UnauthorizedException('パスワードが違います');
+    return user;
+  }
+
   async endWorkSession(sessionId: string) {
     await this.prisma.workSession.updateMany({
       where: { id: sessionId },
