@@ -3,6 +3,7 @@ import { isAgentOnline, agentPickAndUpload, agentPickFolderAndUpload } from "@/l
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, mcFilesApi, machinesApi, usersApi, clampMasterApi, McDetail, Machine, UserInfo } from "@/lib/api";
+import ProgramFileViewer from "@/components/shared/ProgramFileViewer";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
@@ -302,6 +303,7 @@ export default function McEditPage() {
   const pgRedoStack      = React.useRef<string[]>([]);
   const pgLastPush       = React.useRef<number>(0);
   const [pgEditorOpen,    setPgEditorOpen]    = useState(false);
+  const [newPgViewerOpen, setNewPgViewerOpen] = useState(false); // [v079] 共通コンポーネント用
   const [pgMatchCount,    setPgMatchCount]    = useState(0);
   const [pgMatchIndex,    setPgMatchIndex]    = useState(0);
   const [pgMatchPositions, setPgMatchPositions] = useState<number[]>([]);
@@ -1302,21 +1304,12 @@ export default function McEditPage() {
                 <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                   <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-600">プログラム情報</span>
-                    <button onClick={async () => {
-                      setPgLoading(true);
-                      try {
-                        const r = await mcApi.getPgFile(mcId);
-                        const data = (r as any).data ?? r;
-                        pgFullReset(data.content ?? "", data.originalName ?? "");
-        setPgFilePath(data.filePath ?? "");
-                        setPgActiveFileId(null);
-                        loadPgFileList();
-                        setPgEditorOpen(true);
-                      } catch { showToast("PGファイルが見つかりません"); }
-                      finally { setPgLoading(false); }
-                    }} disabled={pgLoading}
-                      className="px-3 py-1 text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white rounded-lg transition-colors disabled:opacity-50">
-                      {pgLoading ? "読込中..." : "📄 PGエディタを開く"}
+                    <button onClick={() => {
+                      if (!token) { showToast("❌ 認証が必要です"); return; }
+                      setNewPgViewerOpen(true); // [v079] 新共通コンポーネントを開く
+                    }}
+                      className="px-3 py-1 text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white rounded-lg transition-colors">
+                      📄 PGエディタを開く
                     </button>
                     <button onClick={() => {
                       if (!token) { showToast("❌ 認証が必要です"); return; }
@@ -2112,7 +2105,25 @@ export default function McEditPage() {
         </div>
       )}
 
-      {/* PGエディタモーダル */}
+      {/* [v079] 新共通コンポーネント(MC編集モード) */}
+      {newPgViewerOpen && (
+        <ProgramFileViewer
+          system="mc"
+          programId={mcId}
+          mode="edit"
+          token={token}
+          onClose={() => setNewPgViewerOpen(false)}
+          onAuthRequired={() => setAuthOpen(true)}
+          onSaved={() => {
+            mcApi.getPgFile(mcId).then(r => {
+              const d2 = (r as any).data ?? r;
+              setPgFileInfo({ originalName: d2.originalName ?? "", fileCount: d2.fileCount ?? 1, content: d2.content ?? "" });
+            }).catch(() => {});
+          }}
+        />
+      )}
+
+      {/* PGエディタモーダル(旧・未使用) */}
       {pgEditorOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-2">
           <div style={{width:"90vw", height:"95vh", maxWidth:"1400px"}} className={`${pgDarkMode ? "bg-slate-900" : "bg-white"} rounded-2xl shadow-2xl flex flex-col`}>
