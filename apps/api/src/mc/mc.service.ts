@@ -180,6 +180,47 @@ export class McService {
   }
 
   // ══════════════════════════════════════════
+  // MC-01c: 部品マスタ検索（新規登録用）
+  // [v098] mc_programsとのJOINを行わず、部品マスタ(Part)を直接検索する。
+  // これにより、まだ一度もMC情報が登録されていない部品(新規登録の対象と
+  // なる部品)も検索結果に含まれる。部品マスタは外部システム
+  // (scripts/sync_parts.pyにより同期)からの参照専用であり、本メソッドも
+  // 読み取り専用(findMany)のみで一切書き込みを行わない。
+  // ══════════════════════════════════════════
+  async searchParts(key: string, q: string, limit = 50, offset = 0) {
+    const where: any = { isActive: true };
+    const kw = (q ?? '').trim();
+    if (kw) {
+      if (key === 'part_id') {
+        where.partId = { contains: kw, mode: 'insensitive' };
+      } else if (key === 'part_name') {
+        where.name = { contains: kw, mode: 'insensitive' };
+      } else {
+        // drawing_no（デフォルト）
+        where.drawingNo = { contains: kw, mode: 'insensitive' };
+      }
+    }
+    const [rows, total] = await Promise.all([
+      this.prisma.part.findMany({
+        where, skip: offset, take: limit,
+        orderBy: { drawingNo: 'asc' },
+        select: { id: true, partId: true, drawingNo: true, name: true, clientName: true },
+      }),
+      this.prisma.part.count({ where }),
+    ]);
+    return {
+      total, limit, offset,
+      rows: rows.map(r => ({
+        id:          r.id,
+        part_id:     r.partId,
+        drawing_no:  r.drawingNo,
+        name:        r.name,
+        client_name: r.clientName,
+      })),
+    };
+  }
+
+  // ══════════════════════════════════════════
   // 内部ヘルパ: 次の採番値を取得
   // 旧システム準拠: MCIDが唯一の採番源
   //   MAX(legacy_mcid, machiningId) + 1 が次番

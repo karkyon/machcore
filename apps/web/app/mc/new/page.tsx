@@ -54,26 +54,22 @@ export default function McNewPage() {
       .finally(() => setNextIdLoading(false));
   }, []);
 
+  // [v098] 部品マスタ(Part)を直接検索する。MC情報が未登録の部品(=新規登録
+  // すべき部品)も検索対象になる(mc_programsとのJOINは行わない)。
   const handlePartSearch = useCallback(async () => {
     if (!searchQ.trim()) return;
     setPartLoading(true);
     try {
-      const res = await mcApi.search(searchType, searchQ.trim(), {});
+      const res = await mcApi.searchParts(searchType, searchQ.trim());
       const d = (res as any).data ?? res;
       const rows: any[] = d.rows ?? [];
-      const map = new Map<string, PartResult>();
-      for (const r of rows) {
-        if (!map.has(r.drawing_no)) {
-          map.set(r.drawing_no, {
-            id:          r.part_db_id ?? 0,
-            part_id:     (r as any).part_id ?? "",
-            drawing_no:  r.drawing_no,
-            name:        r.part_name,
-            client_name: r.client_name ?? null,
-          });
-        }
-      }
-      setParts(Array.from(map.values()));
+      setParts(rows.map(r => ({
+        id:          r.id,
+        part_id:     r.part_id ?? "",
+        drawing_no:  r.drawing_no,
+        name:        r.name,
+        client_name: r.client_name ?? null,
+      })));
     } catch { setParts([]); }
     finally { setPartLoading(false); }
   }, [searchQ, searchType]);
@@ -168,7 +164,7 @@ export default function McNewPage() {
               <p className="text-xs text-slate-400 text-center mt-10">検索結果がありません</p>
             )}
             {parts.map(p => (
-              <button key={p.drawing_no} onClick={() => setSelectedPart(p)}
+              <button key={p.id} onClick={() => setSelectedPart(p)}
                 className={`w-full text-left px-3 py-2.5 border-b border-slate-100 hover:bg-teal-50 transition-colors ${selectedPart?.drawing_no === p.drawing_no ? "bg-teal-50 border-l-4 border-l-teal-500" : ""}`}>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs font-bold text-teal-700">{p.drawing_no}</span>

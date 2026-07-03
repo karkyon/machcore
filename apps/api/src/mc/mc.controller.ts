@@ -47,6 +47,18 @@ export class McController {
       clientName, machineId ? parseInt(machineId) : undefined, machineCode || undefined);
   }
 
+  // [v098] 部品マスタ直接検索（新規登録用）。mc_programsとのJOINを行わないため、
+  // MC情報が未登録の部品も検索対象になる。
+  @Get('parts-search')
+  searchParts(
+    @Query('key')    key:    string,
+    @Query('q')      q:      string,
+    @Query('limit')  limit:  string,
+    @Query('offset') offset: string,
+  ) {
+    return this.mc.searchParts(key, q, parseInt(limit) || 50, parseInt(offset) || 0);
+  }
+
   @Get('recent')
   recent() { return this.mc.recent(); }
 

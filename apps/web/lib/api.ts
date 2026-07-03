@@ -775,6 +775,11 @@ export const mcApi = {
     api.get<{ total: number; rows: McSearchResult[] }>('/mc/search', {
       params: { key, q, limit: 100, ...params },
     }),
+  // [v098] 部品マスタ直接検索（新規登録用）。MC情報の有無に関わらず全部品が対象。
+  searchParts:  (key: string, q: string) =>
+    api.get<{ total: number; rows: { id: number; part_id: string; drawing_no: string; name: string; client_name: string | null }[] }>(
+      '/mc/parts-search', { params: { key, q, limit: 100 } }
+    ),
   recent:       () => api.get<any[]>('/mc/recent'),
   findOne:      (mcId: number) => api.get<McDetail>(`/mc/${mcId}`),
   commonGroup:  (machiningId: number) => api.get<McCommonGroupItem[]>(`/mc/common-group/${machiningId}`),
