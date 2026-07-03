@@ -168,6 +168,7 @@ export class NcService {
           include: {
             machine: true,
             tools:   { orderBy: { sortOrder: "asc" } },
+            creator: { select: { id: true, name: true } },
           },
         },
         registrar: { select: { id: true, name: true } },
@@ -191,6 +192,10 @@ export class NcService {
       drawingCount:  r.machining?.drawingCount  ?? 0,
       photoCount:    r.machining?.photoCount    ?? 0,
       processingId:  r.machining?.processingId  ?? null,
+      // [v096] MC側findOne()との機能パリティのため追加。
+      creatorId:      r.machining?.creatorId      ?? null,
+      sheetCreatedAt: r.machining?.sheetCreatedAt  ?? null,
+      creator:        r.machining?.creator         ?? null,
     };
   }
 
@@ -459,12 +464,19 @@ export class NcService {
           folderName:   dto.folder_name    ?? existingM.folderName,
           fileName:     dto.file_name      ?? existingM.fileName,
           clampNote:    dto.clamp_note     !== undefined ? dto.clamp_note     : existingM.clampNote,
+          // [v096] MC側update()との機能パリティのため追加。
+          creatorId:      dto.creator_id      !== undefined ? dto.creator_id      : existingM.creatorId,
+          sheetCreatedAt: dto.sheet_created_at !== undefined
+            ? (dto.sheet_created_at ? new Date(dto.sheet_created_at) : null)
+            : existingM.sheetCreatedAt,
         },
       });
-      // NcProgramのステータスのみ更新
+      // NcProgramのステータスを更新。
+      // [v096] 「入力日」「オペレーター」は実際にこの保存操作を行った
+      // 認証済みユーザー・時刻を都度反映する(旧ACCESS仕様準拠、MCと統一)。
       const result = await tx.ncProgram.update({
         where: { id },
-        data: { status: "CHANGING" },
+        data: { status: "CHANGING", registeredBy: operatorId, registeredAt: new Date() },
       });
       // 変更履歴はfinalize()で登録するためupdateでは登録しない（MC方式）
       await tx.operationLog.create({
@@ -509,9 +521,14 @@ export class NcService {
       });
       // [v093] 編集内容選択(終了確認)完了時は必ず承認待ちに戻す。
       // 旧承認情報は無効化し、再承認を必須とする(旧ACCESS「終了確認」仕様準拠、MC finalize()と統一)。
+      // [v096] 「入力日」「オペレーター」も、この終了確認操作を行った
+      // 認証済みユーザー・時刻を都度反映する。
       await tx.ncProgram.update({
         where: { id },
-        data:  { status: "PENDING_APPROVAL", approvedBy: null, approvedAt: null },
+        data:  {
+          status: "PENDING_APPROVAL", approvedBy: null, approvedAt: null,
+          registeredBy: operatorId, registeredAt: new Date(),
+        },
       });
       await tx.changeHistory.create({
         data: {

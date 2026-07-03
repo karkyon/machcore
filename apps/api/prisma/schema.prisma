@@ -104,6 +104,7 @@ model User {
   mcUploadedFiles      McFile[]
   mcPgCreatedDetails   McMachiningDetail[]  @relation("McPgCreatedBy")
   mcCreatedDetails      McMachiningDetail[]  @relation("McCreatedBy")
+  ncCreatedDetails      NcMachiningDetail[]  @relation("NcCreatedBy")
   timecards            MachineTimecard[]
   @@map("users")
 }
@@ -183,6 +184,10 @@ model NcMachiningDetail {
   // 将来のNC側「共通部品追加」機能のために列を用意(MC側commonPartCodeと同形)。
   // 今回のデータ移行(nc_full_import.py)では設定しない。
   commonPartCode String?   @db.VarChar(20)                  @map("common_part_code")
+  // [v096] MC側McMachiningDetail.creatorId/sheetCreatedAtとの機能パリティのため追加。
+  // 段取りシートバック時に手入力される「作成者（段取シート作成者）」「作成日（シート作成日）」。
+  creatorId      Int?                                       @map("creator_id")
+  sheetCreatedAt DateTime? @db.Date                         @map("sheet_created_at")
   // 画像編集機能(ImageEditor.tsx/files.service.ts saveEditedFile)のファイル名
   // プレフィックスとして使われる加工ID識別文字列。旧NcProgramから移設。
   // nc_full_import.pyでは未設定(常にNULL)、files.service.ts側でmachiningIdへの
@@ -193,6 +198,7 @@ model NcMachiningDetail {
   updatedAt      DateTime  @updatedAt                       @map("updated_at")
 
   machine  Machine?    @relation(fields: [machineId], references: [id])
+  creator  User?       @relation("NcCreatedBy", fields: [creatorId], references: [id])
   programs NcProgram[]
   tools    NcTool[]
 

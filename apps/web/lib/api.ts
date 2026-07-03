@@ -107,6 +107,10 @@ export type NcDetail = {
   updatedAt: string;
   registrar: { id: number; name: string };
   approver: { id: number; name: string } | null;
+  // [v096] MC側McDetailとの機能パリティのため追加。
+  creatorId: number | null;
+  sheetCreatedAt: string | null;
+  creator: { id: number; name: string } | null;
   part: {
     id: number;
     partId: string;
@@ -336,6 +340,9 @@ export type UpdateNcBody = {
   file_name?: string;
   version?: string;
   clamp_note?: string;
+  // [v096] MC側UpdateMcBodyとの機能パリティのため追加。
+  creator_id?: number | null;
+  sheet_created_at?: string | null;
 };
 
 // ── 段取シート ──────────────────────────────────────────────────

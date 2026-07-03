@@ -456,9 +456,14 @@ export class McService {
       });
       // [v093] 編集内容選択(終了確認)完了時は必ず承認待ちに戻す。
       // 旧承認情報は無効化し、再承認を必須とする(旧ACCESS「終了確認」仕様準拠)。
+      // [v096] 「入力日」「オペレーター」も、この終了確認操作を行った
+      // 認証済みユーザー・時刻を都度反映する。
       await tx.mcProgram.update({
         where: { id },
-        data:  { status: 'PENDING_APPROVAL', approvedBy: null, approvedAt: null },
+        data:  {
+          status: 'PENDING_APPROVAL', approvedBy: null, approvedAt: null,
+          registeredBy: operatorId, registeredAt: new Date(),
+        },
       });
       await tx.mcChangeHistory.create({
         data: {
@@ -517,6 +522,10 @@ export class McService {
           machiningQty: dto.machining_qty !== undefined ? dto.machining_qty : mc.machiningQty,
           note:         dto.note         !== undefined ? dto.note         : mc.note,
           status:       'CHANGING',
+          // [v096] 「入力日」「オペレーター」は実際にこの保存操作を行った
+          // 認証済みユーザー・時刻を都度反映する(旧ACCESS仕様準拠)。
+          registeredBy: operatorId,
+          registeredAt: new Date(),
         },
       });
       // 変更履歴はfinalize()で登録するためupdateでは登録しない

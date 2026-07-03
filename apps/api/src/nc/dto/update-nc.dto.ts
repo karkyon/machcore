@@ -21,4 +21,11 @@ export class UpdateNcDto {
 
   @IsOptional() @IsString() @MaxLength(2000)
   clamp_note?: string;
+
+  // [v096] MC側UpdateMcDtoとの機能パリティのため追加。
+  @IsOptional() @IsInt()
+  creator_id?: number | null;
+
+  @IsOptional() @IsString()
+  sheet_created_at?: string | null;
 }

@@ -1,7 +1,7 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react";
-import { ncApi, machinesApi, filesApi, NcDetail, Machine, UpdateNcBody } from "@/lib/api";
+import { ncApi, machinesApi, filesApi, usersApi, NcDetail, Machine, UpdateNcBody, UserInfo } from "@/lib/api";
 import { isAgentOnline, agentPickAndUpload } from "@/lib/upload-agent";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
@@ -19,6 +19,9 @@ export default function NcEditPage() {
   const [detail,    setDetail]    = useState<NcDetail | null>(null);
   const [approvalModalOpen, setApprovalModalOpen] = useState(false); // [v095]
   const [machines,  setMachines]  = useState<Machine[]>([]);
+  const [users,     setUsers]     = useState<UserInfo[]>([]); // [v096]
+  const [creatorId, setCreatorId] = useState<string>(""); // [v096]
+  const [sheetCreatedAt, setSheetCreatedAt] = useState<string>(""); // [v096]
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving,    setSaving]    = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -156,16 +159,20 @@ export default function NcEditPage() {
     Promise.all([
       ncApi.findOne(ncId),
       machinesApi.list("NC"),
-    ]).then(([ncRes, machRes]) => {
+      usersApi.list("NC"),
+    ]).then(([ncRes, machRes, userRes]) => {
       const d = ncRes.data;
       setDetail(d);
       setMachines(machRes.data.filter(m => m.isActive));
+      setUsers((userRes as any).data ?? userRes);
       setMachineId(d.machine?.id ?? "");
       setMachiningTime(String(d.machiningTime ?? ""));
       setFolderName(d.folderName ?? "");
       setFileName(d.fileName ?? "");
       setVersion(d.version ?? "A");
       setClampNote(d.clampNote ?? "");
+      setCreatorId(d.creatorId ? String(d.creatorId) : ""); // [v096]
+      setSheetCreatedAt(d.sheetCreatedAt ? d.sheetCreatedAt.slice(0, 10) : ""); // [v096]
     }).catch(e => setLoadError(e.message));
   }, [ncId]);
 
@@ -190,6 +197,8 @@ export default function NcEditPage() {
       if (dirty.has("fileName"))      body.file_name      = fileName;
       if (dirty.has("version"))       body.version        = version;
       if (dirty.has("clampNote"))     body.clamp_note     = clampNote;
+      if (dirty.has("creatorId"))     body.creator_id     = creatorId === "" ? null : Number(creatorId);
+      if (dirty.has("sheetCreatedAt")) body.sheet_created_at = sheetCreatedAt === "" ? null : sheetCreatedAt;
 
       if (Object.keys(body).length === 0) {
         setSaveError("変更項目がありません");
@@ -208,7 +217,7 @@ export default function NcEditPage() {
     } finally {
       setSaving(false);
     }
-  }, [isAuthenticated, token, dirty, machineId, machiningTime, folderName, fileName, version, clampNote, ncId, logout, router]);
+  }, [isAuthenticated, token, dirty, machineId, machiningTime, folderName, fileName, version, clampNote, creatorId, sheetCreatedAt, ncId, logout, router]);
 
   const handleCancel = useCallback(() => {
     if (isAuthenticated) {
@@ -445,6 +454,70 @@ export default function NcEditPage() {
                         placeholder="クランプ条件・注意事項など"
                       />
                       <p className="text-[10px] text-slate-400 mt-0.5 text-right">{clampNote.length} / 2000</p>
+                    </div>
+
+                    {/* [v096] 作成者・作成日(MC側と同一構成) */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-1">
+                          作成者（段取シート作成者）
+                          {dirty.has("creatorId") && <span className="text-orange-500 ml-1">●</span>}
+                        </label>
+                        <select
+                          value={creatorId}
+                          onChange={e => { setCreatorId(e.target.value); markDirty("creatorId"); }}
+                          className={fieldCls("creatorId")}
+                        >
+                          <option value="">— 選択 —</option>
+                          {users
+                            .filter(u => u.isActive || String(u.id) === creatorId)
+                            .map(u => (
+                              <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（無効）" : ""}</option>
+                            ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-1">
+                          作成日（シート作成日）
+                          {dirty.has("sheetCreatedAt") && <span className="text-orange-500 ml-1">●</span>}
+                        </label>
+                        <input
+                          type="date"
+                          value={sheetCreatedAt}
+                          onChange={e => { setSheetCreatedAt(e.target.value); markDirty("sheetCreatedAt"); }}
+                          className={fieldCls("sheetCreatedAt")}
+                        />
+                      </div>
+                    </div>
+
+                    {/* [v096] 入力日・オペレーター・承認日・承認者(読み取り専用、MC側と同一構成) */}
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-1">入力日</label>
+                        <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded font-mono">
+                          {detail?.registeredAt ? detail.registeredAt.slice(0, 10) : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-1">オペレーター</label>
+                        <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded">
+                          {detail?.registrar?.name ?? "—"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-1">承認日</label>
+                        <div className={`px-3 py-2 text-sm border rounded font-mono ${detail?.approvedAt ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+                          {detail?.approvedAt ? detail.approvedAt.slice(0, 10) : "未承認"}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-1">承認者</label>
+                        <div className={`px-3 py-2 text-sm border rounded ${detail?.approver ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-bold" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+                          {detail?.approver?.name ?? "未承認"}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
