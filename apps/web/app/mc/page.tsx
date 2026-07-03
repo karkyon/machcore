@@ -163,7 +163,7 @@ export default function McDashboard() {
         <label className="block text-xs font-bold text-slate-600 mb-1">理由</label>
         <select value={lostReason} onChange={e => setLostReason(e.target.value)}
           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3">
-          {["紛失", "作業者未回収のまま長期経過", "機械移設・廃却", "その他"].map(r => <option key={r} value={r}>{r}</option>)}
+          {["紛失", "作業者未回収のまま長期経過", "その他"].map(r => <option key={r} value={r}>{r}</option>)}
         </select>
         <label className="block text-xs font-bold text-slate-600 mb-1">詳細(任意)</label>
         <textarea value={lostDetail} onChange={e => setLostDetail(e.target.value)} rows={3}

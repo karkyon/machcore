@@ -18,8 +18,8 @@ echo "[2/4] Web TypeCheck..."
 cd "$ROOT/apps/web" && $PNPX tsc --noEmit
 echo "✅ Web OK"
 
-echo "[3/4] pm2 restart machcore-api..."
-$PM2 restart machcore-api machcore-web
+echo "[3/4] pm2 restart machcore-api (--update-env)..."
+$PM2 restart machcore-api machcore-web --update-env
 sleep 5
 
 echo "[4/4] 疎通確認..."
