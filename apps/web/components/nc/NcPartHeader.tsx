@@ -43,8 +43,9 @@ export function NcPartHeader({ data, showApprove, onApproveClick }: NcPartHeader
           <ProcessBadge level={d.processL} />
           <StatusBadge status={d.status} />
           <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
-          {/* [v094] 承認資格を持つユーザのみが承認できる。編集セッションの有無やロールとは無関係。 */}
-          {showApprove && d.status !== "APPROVED" && onApproveClick && (
+          {/* [v097] 承認ボタンは「未承認(PENDING_APPROVAL)」の時のみ表示する。
+              新規(入力中)・変更中・承認済の時は表示しない。 */}
+          {showApprove && d.status === "PENDING_APPROVAL" && onApproveClick && (
             <button
               onClick={onApproveClick}
               className="text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"

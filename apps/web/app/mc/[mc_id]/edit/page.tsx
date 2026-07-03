@@ -1061,8 +1061,9 @@ export default function McEditPage() {
               {d.machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{d.machine.machineCode}</span>}
               <StatusBadge status={d.status} />
               <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
-              {/* [v095] 承認資格を持つユーザのみが承認できる。編集セッションの有無やロールとは無関係。 */}
-              {d.status !== "APPROVED" && (
+              {/* [v097] 承認ボタンは「未承認(PENDING_APPROVAL)」の時のみ表示する。
+                  新規(入力中)・変更中・承認済の時は表示しない。 */}
+              {d.status === "PENDING_APPROVAL" && (
                 <button
                   onClick={() => setApprovalModalOpen(true)}
                   className="text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"

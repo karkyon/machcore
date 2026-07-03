@@ -5,7 +5,6 @@ import { mcApi, machinesApi, usersApi, McDetail, McSetupSheetLog, McWorkRecord, 
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
-import ApprovalModal from "@/components/shared/ApprovalModal";
 import { calcKadouMinutes, fmtKadouMinutes } from "@/lib/kadouTime";
 
 // ── 共通コンポーネント ──────────────────────────────────────────
@@ -603,7 +602,6 @@ function McRecordPageInner() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [detail, setDetail] = useState<McDetail | null>(null);
-  const [approvalModalOpen, setApprovalModalOpen] = useState(false); // [v095]
   const [setupSheets, setSetupSheets] = useState<McSetupSheetLog[]>([]);
   const [selectedSheet, setSelectedSheet] = useState<McSetupSheetLog | null>(null);
   const [records, setRecords] = useState<McWorkRecord[]>([]);
@@ -1108,15 +1106,6 @@ function McRecordPageInner() {
               {(detail as any).machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{(detail as any).machine.machineCode}</span>}
               <StatusBadge status={detail.status} />
               <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {detail.version}</span>
-              {/* [v095] 承認資格を持つユーザのみが承認できる。編集セッションの有無やロールとは無関係。 */}
-              {detail.status !== "APPROVED" && (
-                <button
-                  onClick={() => setApprovalModalOpen(true)}
-                  className="text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
-                >
-                  ✓ 承認
-                </button>
-              )}
             </div>
           </div>
           <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
@@ -1629,18 +1618,6 @@ function McRecordPageInner() {
           onSuccess={() => setAuthOpen(false)}
           onCancel={() => setAuthOpen(false)} />
       )}
-
-      {/* [v095] 承認モーダル */}
-      <ApprovalModal
-        isOpen={approvalModalOpen}
-        system="MC"
-        programId={mcId}
-        onSuccess={() => {
-          setApprovalModalOpen(false);
-          mcApi.findOne(mcId).then(r => setDetail((r as any).data ?? r));
-        }}
-        onCancel={() => setApprovalModalOpen(false)}
-      />
 
       {/* Toast */}
       {toast && (

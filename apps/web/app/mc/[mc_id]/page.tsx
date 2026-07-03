@@ -443,8 +443,9 @@ export default function McDetailPage() {
                 ⚠️ SP
               </span>
             )}
-            {/* [v094] 承認資格を持つユーザのみが承認できる。編集セッションの有無やロールとは無関係。 */}
-            {d.status !== "APPROVED" && (
+            {/* [v097] 承認ボタンは「未承認(PENDING_APPROVAL)」の時のみ表示する。
+                新規(入力中)・変更中・承認済の時は表示しない。 */}
+            {d.status === "PENDING_APPROVAL" && (
               <button
                 onClick={() => setApprovalModalOpen(true)}
                 className="text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"

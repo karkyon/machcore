@@ -5,7 +5,6 @@ import { mcApi, McDetail, machinesApi, Machine } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
-import ApprovalModal from "@/components/shared/ApprovalModal";
 
 const STATUS_LABEL: Record<string, string> = {
   NEW: "新規", PENDING_APPROVAL: "未承認", APPROVED: "承認済", CHANGING: "変更中",
@@ -25,7 +24,6 @@ function McPrintPageInner() {
   const [nc, setNc]   = useState<McDetail | null>(null);
   const { operator, isAuthenticated, logout, token, isSessionForMc } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
-  const [approvalModalOpen, setApprovalModalOpen] = useState(false); // [v095]
 
   // ── [DEBUG] このページの毎レンダー時点の認証関連フィールドを完全ダンプ ──
   console.log("%c[MC-PRINT][RENDER]", "color:#0d9488;font-weight:bold", {
@@ -364,15 +362,6 @@ function McPrintPageInner() {
             {d.machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{d.machine.machineCode}</span>}
             <StatusBadge status={d.status} />
             <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
-            {/* [v095] 承認資格を持つユーザのみが承認できる。編集セッションの有無やロールとは無関係。 */}
-            {d.status !== "APPROVED" && (
-              <button
-                onClick={() => setApprovalModalOpen(true)}
-                className="text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
-              >
-                ✓ 承認
-              </button>
-            )}
             {spSheets.length > 0 && (
               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-red-600 text-white animate-pulse">
                 ⚠️ SP
@@ -589,18 +578,6 @@ function McPrintPageInner() {
       {authOpen && (
         <AuthModal isOpen={true} ncProgramId={mcId} mcProgramId={mcId} sessionType="setup_print" onSuccess={() => setAuthOpen(false)} onCancel={() => setAuthOpen(false)} />
       )}
-
-      {/* [v095] 承認モーダル */}
-      <ApprovalModal
-        isOpen={approvalModalOpen}
-        system="MC"
-        programId={mcId}
-        onSuccess={() => {
-          setApprovalModalOpen(false);
-          mcApi.findOne(mcId).then(r => setNc((r as any).data ?? r));
-        }}
-        onCancel={() => setApprovalModalOpen(false)}
-      />
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-bold z-50">{toast}</div>
