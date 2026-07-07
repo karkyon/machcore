@@ -256,13 +256,19 @@ export class NcService {
       const machine = await this.prisma.machine.findUnique({ where: { id: machineId }, select: { pgIsFolder: true } });
       pgIsFolder = !!machine?.pgIsFolder;
     }
-    // ★旧システム(ACC_Lathe.FD_name)は新規登録時、常に固定値"USB"を設定していた。
-    //   folder_nameカラムはNOT NULL制約があるため、フォルダ単位機械であっても
-    //   folder_name自体は"USB"のまま(意味は媒体種別のレガシー値であり、
-    //   PGファイルの実際の格納フォルダ名とは無関係)とし、file_nameに
-    //   単体ファイル/フォルダ単位いずれの場合の権威的な値を設定する。
-    const fileName = pgIsFolder ? calcProgramFolderName(newKid) : calcProgramFileName(newKid);
-    return { folderName: "USB", fileName };
+    // ★MC側McMachiningDetail.resolveProgramNamingと完全に同一の命名規則
+    //   (calcProgramFileName/calcProgramFolderName)を適用する。
+    //   folder_name/file_nameいずれもNOT NULL制約があるため:
+    //     - フォルダ単位機械: folder_nameに実際のフォルダ名({K_id}.pwd)を設定
+    //       (MC側pgFolderNameと同じ意味)。file_nameはNOT NULL制約を満たす
+    //       ためのフォールバック値としてcalcProgramFileNameを設定(実運用では
+    //       PGアップロード機能から参照されない)。
+    //     - 単体ファイル機械: folder_nameは旧システム互換の固定値"USB"
+    //       (媒体種別のレガシー値、実運用では不使用)。file_nameに
+    //       calcProgramFileNameの値(MC側fileNameと同じ意味)を設定。
+    const fileName = calcProgramFileName(newKid);
+    const folderName = pgIsFolder ? calcProgramFolderName(newKid) : "USB";
+    return { folderName, fileName };
   }
 
   /** NC-04: 新規登録 */
