@@ -2,7 +2,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react";
 import { ncApi, machinesApi, filesApi, usersApi, NcDetail, Machine, UpdateNcBody, UserInfo } from "@/lib/api";
-import { isAgentOnline, agentPickAndUpload } from "@/lib/upload-agent";
+import { isAgentOnline, agentPickAndUpload, agentCheckUsbTarget, agentAutoUpload } from "@/lib/upload-agent";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
 import { NcPartHeader } from "@/components/nc/NcPartHeader";
@@ -124,6 +124,91 @@ export default function NcEditPage() {
       setTimeout(() => setUploadMsg(null), 5000);
     }
   }, [token, ncId, uploading]);
+
+  // ── PGファイル(PROGRAM)をUSBから登録(MC側 handlePgUploadFromUSB と同方式) ──
+  // 選択ダイアログは一切表示しない。機械マスタ(Machine.pgIsFolder)に基づき
+  // サーバー側で解決した権威的なファイル名/フォルダ名がUSB取込元フォルダ内に
+  // 実在するかを確認し、存在すれば確認メッセージの後、無条件にアップロードする。
+  const [pgUploading, setPgUploading] = useState(false);
+
+  const handlePgUploadFromUSB = useCallback(async () => {
+    if (!token) { setAuthOpen(true); return; }
+    if (pgUploading) return;
+
+    setPgUploading(true);
+    setUploadMsg("⏳ UploadAgentに接続中...");
+
+    const agentOnline = await isAgentOnline();
+    if (!agentOnline) {
+      const msg = "❌ UploadAgentが起動していません。PGファイルのアップロードには UploadAgent の起動が必要です。";
+      setUploadMsg(msg);
+      setPgUploading(false);
+      window.alert(msg);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/nc/${ncId}/files/upload-ticket`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ file_type: "PROGRAM" }),
+      });
+      if (!res.ok) throw new Error(`チケット発行失敗: HTTP ${res.status}`);
+      const ticketJson = await res.json();
+      const ticket = ticketJson.ticket as string;
+      const uploadPath = ticketJson.upload_path as string | undefined;
+      const isFolderMode = !!ticketJson.is_folder;
+      const expectedName: string | null = isFolderMode ? ticketJson.expected_folder_name : ticketJson.expected_file_name;
+
+      if (!expectedName) {
+        setUploadMsg("❌ 対象ファイル名/フォルダ名の解決に失敗しました");
+        setPgUploading(false);
+        return;
+      }
+
+      setUploadMsg("⏳ USB内のファイルを確認しています...");
+      const check = await agentCheckUsbTarget(expectedName, isFolderMode);
+      if (!check.success || !check.exists) {
+        const msg = check.error ?? `USBフォルダ内に「${expectedName}」が見つかりません`;
+        setUploadMsg(`❌ ${msg}`);
+        setPgUploading(false);
+        return;
+      }
+
+      const ok = window.confirm(
+        `【PGファイルアップロード - 元ファイル削除確認】\n` +
+        `USB内に${isFolderMode ? "フォルダ" : "ファイル"}「${expectedName}」を検出しました。\n` +
+        `この機械(${isFolderMode ? "📁 フォルダ単位" : "📄 単体ファイル"})の命名規則に従い、そのままアップロードします。\n` +
+        `アップロード完了後、元ファイルはゴミ箱(.machcore_trash)へ自動移動されます。\n続行しますか？`
+      );
+      if (!ok) { setPgUploading(false); setUploadMsg(null); return; }
+
+      setUploadMsg("⏳ アップロード中...");
+      const result = await agentAutoUpload(ticket, "PROGRAM", expectedName, isFolderMode, uploadPath);
+
+      if (result.cancelled) { setUploadMsg(null); return; }
+      if (!result.success) {
+        setUploadMsg(`❌ ${result.error ?? "アップロードに失敗しました"}`);
+        return;
+      }
+
+      const res2 = await ncApi.findOne(ncId);
+      setDetail(res2.data);
+
+      const n2 = result.files.length;
+      const delFailCount = result.files.filter((f: any) => !f.localDeleted).length;
+      let msg = `✅ ${n2}件登録完了`;
+      if (delFailCount > 0) msg += ` ⚠️ ${delFailCount}件は元ファイルの削除に失敗 - 手動削除してください`;
+      else msg += "。元ファイルをゴミ箱に移動しました";
+      setUploadMsg(msg);
+    } catch (e: any) {
+      console.error("[NC_PG_UPLOAD] エラー:", e);
+      setUploadMsg("❌ アップロード失敗: " + (e.message ?? "不明なエラー"));
+    } finally {
+      setPgUploading(false);
+      setTimeout(() => setUploadMsg(null), 6000);
+    }
+  }, [token, ncId, pgUploading]);
 
   // PG エディタ
   // [v084] 単一ファイルのみ対応の旧実装を廃止。MC側と同じ共通コンポーネント(ProgramFileViewer)に一本化。
@@ -570,6 +655,15 @@ export default function NcEditPage() {
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
                         📄 PGエディタを開く
+                      </button>
+                      <button
+                        onClick={handlePgUploadFromUSB}
+                        disabled={pgUploading}
+                        className="w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+                        style={{background:"#065f46", color:"#6ee7b7"}}
+                      >
+                        {pgUploading && <span className="inline-block w-3 h-3 border-2 border-emerald-300 border-t-transparent rounded-full animate-spin" />}
+                        {pgUploading ? "⏳ 登録中..." : "📥 USBから登録"}
                       </button>
                       <p className="text-[9px] text-slate-500 text-center">保存 / USBへ書き出し(UA経由)はエディタ内で行えます</p>
                     </div>

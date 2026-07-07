@@ -198,19 +198,39 @@ export class NcController {
   @Post(":nc_id/files/upload-ticket")
   async issueUploadTicket(
     @Param("nc_id", ParseIntPipe) ncId: number,
-    @Body() body: { file_type?: "PHOTO" | "DRAWING"; replace_file_id?: number; is_folder_upload?: boolean },
+    @Body() body: { file_type?: "PHOTO" | "DRAWING" | "PROGRAM"; replace_file_id?: number },
     @Req() req: any,
   ) {
+    // ★USB自動アップロード対応(MC側と同方式): PROGRAM種別の場合のみ、機械マスタ
+    //   (Machine.pgIsFolder)に基づく権威的なファイル名/フォルダ名をここで解決し、
+    //   レスポンスに含める。UploadAgent側はこの名前でUSB取込元フォルダ内の実在確認
+    //   のみを行い、OSのファイル/フォルダ選択ダイアログは表示しない。
+    let expectedFileName: string | null = null;
+    let expectedFolderName: string | null = null;
+    let isFolderTarget = false;
+    if (body.file_type === "PROGRAM") {
+      const detail = await this.nc.findOne(ncId);
+      const machiningId = (detail as any)?.machiningId;
+      if (!machiningId) throw new BadRequestException("machiningId が取得できません");
+      const naming = await this.ncFiles.getExpectedUploadTarget(machiningId);
+      isFolderTarget = naming.isFolder;
+      expectedFileName = naming.isFolder ? null : naming.fileName;
+      expectedFolderName = naming.isFolder ? naming.folderName : null;
+    }
+
     const ticket = this.tickets.issue({
       mcId: ncId,
       machiningId: ncId,
       userId: req.user.id,
       fileType: body.file_type,
       replaceFileId: body.replace_file_id,
-      isFolderUpload: body.is_folder_upload,
+      isFolderUpload: isFolderTarget,
       system: "NC",
     });
-    return { ticket: ticket.ticket, expires_in_sec: 60, nc_id: ncId, upload_path: "/api/nc/files/upload-by-ticket" };
+    return {
+      ticket: ticket.ticket, expires_in_sec: 60, nc_id: ncId, upload_path: "/api/nc/files/upload-by-ticket",
+      expected_file_name: expectedFileName, expected_folder_name: expectedFolderName, is_folder: isFolderTarget,
+    };
   }
 
   // ── UploadAgent連携: チケット式アップロード受理（MC側と同方式） ──
@@ -220,6 +240,7 @@ export class NcController {
     let fileFilename = "";
     let fileMimetype = "application/octet-stream";
     let ticketId     = "";
+    let folderNameField = "";
 
     for await (const part of req.parts()) {
       if ("file" in part && (part as any).file) {
@@ -230,6 +251,8 @@ export class NcController {
         fileMimetype = (part as any).mimetype ?? "application/octet-stream";
       } else if ((part as any).fieldname === "ticket") {
         ticketId = (part as any).value ?? "";
+      } else if ((part as any).fieldname === "folder_name") {
+        folderNameField = (part as any).value ?? "";
       }
     }
 
@@ -239,11 +262,24 @@ export class NcController {
     const payload = this.tickets.consume(ticketId);
     if (!payload || payload.system !== "NC") throw new UnauthorizedException("チケットが無効、または期限切れです");
 
+    // ★重複登録バグ防止(MC側と同方式): PROGRAM種別のアップロードでは、このチケットで
+    //   まだ既存ファイルのpurgeを行っていない場合のみpurgeExisting=trueを渡す。
+    //   フォルダアップロード用チケットは同一チケットを使い回して複数ファイルを順次
+    //   アップロードするため、1回目でpurgeした後は2回目以降purgeしない。
+    const isFolderUpload = payload.isFolderUpload === true;
+    const purgeExisting  = payload.fileType === "PROGRAM" && !payload.programPurged;
+
     const result = await this.ncFiles.upload(
       payload.mcId, payload.userId,
       { filename: fileFilename, mimetype: fileMimetype, data: fileBuffer },
       payload.fileType as any,
+      isFolderUpload,
+      folderNameField || undefined,
+      purgeExisting,
     );
+
+    if (purgeExisting) payload.programPurged = true;
+
     return { ...result, nc_id: payload.mcId, mode: "create" };
   }
 

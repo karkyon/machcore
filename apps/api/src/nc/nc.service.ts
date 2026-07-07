@@ -736,7 +736,9 @@ export class NcService {
   async listFiles(ncProgramId: number) {
     const ids = await this.resolveSiblingNcProgramIds(ncProgramId);
     const rows = await this.prisma.ncFile.findMany({
-      where:   { ncProgramId: { in: ids } },
+      // ★重複登録バグ防止(MC側と同方式): purgeExistingProgramFilesでisDeleted化された
+      //   古いPROGRAM系レコードを一覧から除外する。
+      where:   { ncProgramId: { in: ids }, isDeleted: false },
       orderBy: { uploadedAt: 'desc' },
       include: { uploader: { select: { name: true } } },
     });
@@ -1391,7 +1393,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   // こちらはPHASE5で投入済みのnc_filesレコードを直接使う新方式として追加する。
   async listPgFilesNc(ncProgramId: number) {
     const recs = await this.prisma.ncFile.findMany({
-      where:   { ncProgramId, fileType: 'PROGRAM' as any },
+      where:   { ncProgramId, fileType: 'PROGRAM' as any, isDeleted: false },
       orderBy: [{ originalName: 'asc' }],
     });
     return recs.map(r => ({
@@ -1405,7 +1407,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
 
   async getPgFileContentByIdNc(fileId: number): Promise<{ content: string; original_name: string }> {
     const rec = await this.prisma.ncFile.findFirst({
-      where: { id: fileId, fileType: 'PROGRAM' as any },
+      where: { id: fileId, fileType: 'PROGRAM' as any, isDeleted: false },
     });
     if (!rec || !fs.existsSync(rec.filePath)) {
       throw new NotFoundException('ファイルが見つかりません');
@@ -1420,7 +1422,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
 
   async savePgFileContentByIdNc(fileId: number, content: string): Promise<{ message: string }> {
     const rec = await this.prisma.ncFile.findFirst({
-      where: { id: fileId, fileType: 'PROGRAM' as any },
+      where: { id: fileId, fileType: 'PROGRAM' as any, isDeleted: false },
     });
     if (!rec || !fs.existsSync(rec.filePath)) {
       throw new NotFoundException('ファイルが見つかりません');
