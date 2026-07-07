@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import { calcKadouMinutes, fmtKadouMinutes } from "@/lib/kadouTime";
+import { toJstDateString, toJstMonthDayString } from "@/lib/dateUtils";
 
 // ── 共通コンポーネント ──────────────────────────────────────────
 function NumInput({ value, onChange, min=0, max=999, className="" }: {
@@ -302,7 +303,7 @@ function DateTimeInput({ value, onChange, hasError, onAfterMi, label="日時" }:
 
 function fmtDate(s: string | null) {
   if (!s) return "—";
-  try { return new Date(s).toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit" }); } catch { return s; }
+  return toJstMonthDayString(s) ?? s;
 }
 function fmtMin(min: number | null) {
   if (min == null || min < 0) return "—";
@@ -366,14 +367,14 @@ function TimecardModal({
   const showTcToast = (msg: string) => { setTcToast(msg); setTimeout(() => setTcToast(null), 3000); };
 
   const dateRange = React.useMemo((): string[] => {
-    const ws = startedAt ? startedAt.slice(0, 10) : null;
-    const we = finishedAt ? finishedAt.slice(0, 10) : checkedAt ? checkedAt.slice(0, 10) : null;
+    const ws = startedAt ? toJstDateString(startedAt) : null;
+    const we = finishedAt ? toJstDateString(finishedAt) : checkedAt ? toJstDateString(checkedAt) : null;
     if (!ws) return [];
     const dates: string[] = [];
     const cur = new Date(ws + "T12:00:00");
     const end = new Date((we ?? ws) + "T12:00:00");
     while (cur <= end) {
-      dates.push(cur.toISOString().slice(0, 10));
+      dates.push(toJstDateString(cur)!);
       cur.setDate(cur.getDate() + 1);
     }
     return dates;
@@ -721,12 +722,12 @@ function McRecordPageInner() {
   // タイムカードバックグラウンド取得 & kadouMin自動計算
   const fetchKadouFromTimecards = React.useCallback(async (sa: string, ca: string, fa: string, mId: number | string) => {
     if (!sa) return;
-    const ws = sa.slice(0, 10);
-    const we = fa ? fa.slice(0, 10) : ca ? ca.slice(0, 10) : ws;
+    const ws = toJstDateString(sa)!;
+    const we = fa ? toJstDateString(fa)! : ca ? toJstDateString(ca)! : ws;
     const dates: string[] = [];
     const cur = new Date(ws + "T12:00:00");
     const end = new Date(we + "T12:00:00");
-    while (cur <= end) { dates.push(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
+    while (cur <= end) { dates.push(toJstDateString(cur)!); cur.setDate(cur.getDate() + 1); }
     if (dates.length === 0) return;
 
     // machineCodeを特定
@@ -1205,7 +1206,7 @@ function McRecordPageInner() {
                   </div>
                   <div>
                     <span className="text-slate-400 block mb-0.5">登録・出力（段取シート）</span>
-                    <span className="font-bold text-slate-700">{selectedSheet ? new Date(selectedSheet.printed_at).toLocaleDateString("ja-JP") : "—"}</span>
+                    <span className="font-bold text-slate-700">{selectedSheet ? toJstDateString(selectedSheet.printed_at) : "—"}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block mb-0.5">回収日時</span>

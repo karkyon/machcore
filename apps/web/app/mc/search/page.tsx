@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { mcApi, machinesApi, McSearchResult, Machine } from "@/lib/api";
+import { toJstMonthDayTimeString } from "@/lib/dateUtils";
 
 const STATUS_LABEL: Record<string, string> = {
   NEW: "新規", PENDING_APPROVAL: "未承認", APPROVED: "承認済", CHANGING: "変更中",
@@ -172,7 +173,7 @@ export default function McSearchPage() {
                   </div>
                   <div className="text-right shrink-0">
                     {r.operator_name && <div className="text-[11px] text-slate-500">👤 {r.operator_name}</div>}
-                    {r.accessed_at && <div className="text-[10px] text-slate-400">{new Date(r.accessed_at).toLocaleString("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</div>}
+                    {r.accessed_at && <div className="text-[10px] text-slate-400">{toJstMonthDayTimeString(r.accessed_at)}</div>}
                   </div>
                 </div>
               ))}

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import { useRouter } from "next/navigation";
+import { toJstMonthDayTimeString, toJstTimeString } from "@/lib/dateUtils";
 
 const API_URL = "/api";  // Next.js rewrite経由 → サーバー側でlocalhost:3011にproxy
 
@@ -44,9 +45,7 @@ function elapsed(iso: string) {
   return m + "分前";
 }
 function fmtDt(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString("ja-JP",{month:"2-digit",day:"2-digit"}) + " " +
-         d.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"});
+  return toJstMonthDayTimeString(iso) ?? iso;
 }
 function groupByMachine(items: McSheet[]) {
   const map = new Map<string, McSheet[]>();
@@ -269,7 +268,7 @@ export default function McDashboard() {
                             {sheet.version && <span className="font-mono text-xs text-teal-600">v{sheet.version}</span>}
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-3">
-                            <span>発行日時: {new Date(sheet.printed_at).toLocaleString("ja-JP", {month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</span>
+                            <span>発行日時: {toJstMonthDayTimeString(sheet.printed_at)}</span>
                             {sheet.operator_name && <span>発行者: {sheet.operator_name}</span>}
                           </div>
                         </div>
@@ -459,7 +458,7 @@ export default function McDashboard() {
           <span className="text-sm font-medium">MC マシニング ダッシュボード</span>
           <div className="ml-auto flex items-center gap-2 text-xs">
             
-            {lastAt && <span className="text-slate-400">更新: {lastAt.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})}</span>}
+            {lastAt && <span className="text-slate-400">更新: {toJstTimeString(lastAt)}</span>}
             <button onClick={load} className="bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 rounded transition-colors text-slate-300">
               ↺ 更新
             </button>

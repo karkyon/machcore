@@ -2,6 +2,7 @@
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { toJstDateString } from "@/lib/dateUtils";
 
 const TABLES = [
   "users", "machines", "parts", "nc_programs",
@@ -62,9 +63,11 @@ export default function AdminRawPage() {
     // 日付範囲フィルタ（created_at / updated_at / work_date / changed_at）
     const dateField = ["created_at","updated_at","work_date","changed_at","accessed_at","printed_at"].find(f => row[f]);
     if (dateField && row[dateField]) {
-      const rowDate = String(row[dateField]).slice(0, 10);
-      if (dateFrom && rowDate < dateFrom) return false;
-      if (dateTo   && rowDate > dateTo)   return false;
+      const rowDate = toJstDateString(String(row[dateField]));
+      if (rowDate) {
+        if (dateFrom && rowDate < dateFrom) return false;
+        if (dateTo   && rowDate > dateTo)   return false;
+      }
     }
     return true;
   });

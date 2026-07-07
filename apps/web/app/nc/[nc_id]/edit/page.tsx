@@ -2,6 +2,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react";
 import { ncApi, machinesApi, filesApi, usersApi, NcDetail, Machine, UpdateNcBody, UserInfo } from "@/lib/api";
+import { toJstDateString } from "@/lib/dateUtils";
 import { isAgentOnline, agentPickAndUpload, agentCheckUsbTarget, agentAutoUpload } from "@/lib/upload-agent";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
@@ -643,7 +644,7 @@ export default function NcEditPage() {
                       <div>
                         <label className="text-xs text-slate-500 block mb-1">入力日</label>
                         <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded font-mono">
-                          {detail?.registeredAt ? detail.registeredAt.slice(0, 10) : "—"}
+                          {toJstDateString(detail?.registeredAt) ?? "—"}
                         </div>
                       </div>
                       <div>
@@ -657,7 +658,7 @@ export default function NcEditPage() {
                       <div>
                         <label className="text-xs text-slate-500 block mb-1">承認日</label>
                         <div className={`px-3 py-2 text-sm border rounded font-mono ${detail?.approvedAt ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-                          {detail?.approvedAt ? detail.approvedAt.slice(0, 10) : "未承認"}
+                          {toJstDateString(detail?.approvedAt) ?? "未承認"}
                         </div>
                       </div>
                       <div>

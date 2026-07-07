@@ -12,6 +12,7 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 import { useParams, useRouter } from "next/navigation";
+import { toJstDateTimeString } from "@/lib/dateUtils";
 import { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
 import {
   ncApi, NcDetail, NcTool, ChangeHistory, WorkRecord, SetupSheetLog,
@@ -253,11 +254,7 @@ export default function NcDetailPage() {
       .finally(() => setFilesLoading(false));
   }, [mainTab, ncId, files]);
 
-  const fmtDate = (s: string) =>
-    new Date(s).toLocaleString("ja-JP", {
-      year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit",
-    });
+  const fmtDate = (s: string) => toJstDateTimeString(s) ?? s;
 
   if (loadError) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -690,7 +687,7 @@ export default function NcDetailPage() {
                           return (
                             <tr key={log.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                               <td className="px-3 py-2 whitespace-nowrap text-slate-500">
-                                {new Date(log.created_at).toLocaleString("ja-JP")}
+                                {toJstDateTimeString(log.created_at)}
                               </td>
                               <td className="px-3 py-2">
                                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${badge.color}`}>{badge.label}</span>

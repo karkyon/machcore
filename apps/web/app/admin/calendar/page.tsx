@@ -2,6 +2,7 @@
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { nowJstDateString } from "@/lib/dateUtils";
 
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -136,7 +137,7 @@ export default function CalendarPage() {
                     const entry = entryMap[dt];
                     const isHoliday = entry?.is_holiday === true; // DBに登録済みの休日のみ赤
                     const isWeekend = dow === 0 || dow === 6;
-                    const isToday = dt === today.toISOString().slice(0, 10);
+                    const isToday = dt === nowJstDateString();
 
                     return (
                       <button key={d} onClick={() => setHoliday(dt, !isHoliday, entry?.note ?? undefined)}

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { adminLogsApi, type AdminLog } from "@/lib/api";
+import { toJstDateTimeString } from "@/lib/dateUtils";
 import axios from "axios";
 
 const ACTION_OPTIONS = [
@@ -149,7 +150,7 @@ export default function AdminLogsPage() {
                   return (
                     <tr key={log.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                       <td className="px-3 py-2 whitespace-nowrap text-slate-500">
-                        {new Date(log.created_at).toLocaleString("ja-JP")}
+                        {toJstDateTimeString(log.created_at)}
                       </td>
                       <td className="px-3 py-2">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${badgeCls}`}>{label}</span>

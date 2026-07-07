@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useParams, useRouter } from "next/navigation";
+import { toJstMonthDayString, toJstTimeString, toJstDateString } from "@/lib/dateUtils";
 import {
   ncApi, workRecordsApi, machinesApi, usersApi, authApi,
   NcDetail, WorkRecord, Machine, UserInfo, SetupSheetLog,
@@ -411,9 +412,9 @@ function RecordPageInner() {
               >
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-mono font-bold text-slate-600">
-                    {new Date(s.printed_at).toLocaleDateString("ja-JP", {month:"2-digit",day:"2-digit"})}
+                    {toJstMonthDayString(s.printed_at)}
                     {" "}
-                    {new Date(s.printed_at).toLocaleTimeString("ja-JP", {hour:"2-digit",minute:"2-digit"})}
+                    {toJstTimeString(s.printed_at)}
                   </span>
                   {s.version && (
                     <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-mono">
@@ -440,7 +441,7 @@ function RecordPageInner() {
               <div className="flex-1">
                 <div className="text-sm font-bold text-emerald-800">作業記録 — 作業開始前</div>
                 <div className="text-xs text-emerald-600 mt-0.5">
-                  {selectedSheet ? `段取シート（${new Date(selectedSheet.printed_at).toLocaleDateString("ja-JP")}）を選択中` : "左リストから段取シートを選択してください"}
+                  {selectedSheet ? `段取シート（${toJstDateString(selectedSheet.printed_at)}）を選択中` : "左リストから段取シートを選択してください"}
                 </div>
               </div>
               <button onClick={() => setShowAuth(true)}

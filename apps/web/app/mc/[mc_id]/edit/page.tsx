@@ -3,6 +3,7 @@ import { isAgentOnline, agentPickAndUpload, agentPickFolderAndUpload, agentCheck
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, mcFilesApi, machinesApi, usersApi, clampMasterApi, McDetail, Machine, UserInfo } from "@/lib/api";
+import { toJstDateString, toJstDateTimeString } from "@/lib/dateUtils";
 import ProgramFileViewer from "@/components/shared/ProgramFileViewer";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -460,7 +461,7 @@ export default function McEditPage() {
       })));
       // PG作成者・更新日時
       setPgCreatedBy(d.pgCreatedBy ? String(d.pgCreatedBy) : "");
-      setPgUpdatedAtDisp(d.pgUpdatedAt ? new Date(d.pgUpdatedAt).toLocaleString("ja-JP") : "");
+      setPgUpdatedAtDisp(d.pgUpdatedAt ? (toJstDateTimeString(d.pgUpdatedAt) ?? "") : "");
       setIndexRows((d.indexPrograms ?? []).map((p: any) => ({
         sort_order: p.sortOrder ?? p.sort_order ?? 0,
         axis_0:     p.axis0    ?? p.axis_0     ?? "",
@@ -878,7 +879,7 @@ export default function McEditPage() {
         return;
       }
 
-      setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
+      setPgUpdatedAtDisp(toJstDateTimeString(new Date()) ?? "");
       const refreshed = await mcApi.findOne(mcId);
       setDetail((refreshed as any).data ?? refreshed);
       setPgContent("");
@@ -1393,7 +1394,7 @@ export default function McEditPage() {
                 <div className="grid grid-cols-2 gap-4 pt-1">
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">入力日</label>
-                    <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-mono">{detail?.registeredAt ? detail.registeredAt.slice(0,10) : "—"}</div>
+                    <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-mono">{toJstDateString(detail?.registeredAt) ?? "—"}</div>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">オペレーター</label>
@@ -1403,7 +1404,7 @@ export default function McEditPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">承認日</label>
-                    <div className={`px-3 py-2 text-sm border rounded-lg font-mono ${detail?.approvedAt ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>{detail?.approvedAt ? detail.approvedAt.slice(0,10) : "未承認"}</div>
+                    <div className={`px-3 py-2 text-sm border rounded-lg font-mono ${detail?.approvedAt ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>{toJstDateString(detail?.approvedAt) ?? "未承認"}</div>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">承認者</label>
@@ -2227,7 +2228,7 @@ export default function McEditPage() {
                       body: JSON.stringify(saveBody),
                     });
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
+                    setPgUpdatedAtDisp(toJstDateTimeString(new Date()) ?? "");
                     showToast("✅ PGファイルをサーバに保存しました");
                   } catch (e: any) {
                     showToast("❌ サーバ保存に失敗: " + (e.message || ""));
@@ -2393,7 +2394,7 @@ export default function McEditPage() {
                       body: JSON.stringify(ctrlSBody),
                     }).then(r => {
                       if (!r.ok) throw new Error();
-                      setPgUpdatedAtDisp(new Date().toLocaleString("ja-JP"));
+                      setPgUpdatedAtDisp(toJstDateTimeString(new Date()) ?? "");
                       showToast("✅ Ctrl+S: 保存しました");
                     }).catch(() => showToast("❌ 保存失敗")).finally(() => setPgSaving(false));
                   }

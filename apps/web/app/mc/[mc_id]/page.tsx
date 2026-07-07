@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { toJstDateString, toJstMonthDayTimeString, toJstDateTimeString } from "@/lib/dateUtils";
 import { mcApi, mcFilesApi, McDetail, McTooling, McWorkOffset, McIndexProgram,
          McFile, McChangeHistory, McSetupSheetLog, McWorkRecord, McCommonSearchResult } from "@/lib/api";
 import ProgramFileViewer from "@/components/shared/ProgramFileViewer";
@@ -296,8 +297,8 @@ export default function McDetailPage() {
 
   const fmtDate = (s: string | null | undefined) => {
     if (!s) return "—";
-    try { return new Date(s).toLocaleString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" }); }
-    catch { return s; }
+    const d = toJstDateString(s);
+    return d ? d.replaceAll("-", "/") : s;
   };
 
   const fmtCycle = (sec: number | null) => {
@@ -578,7 +579,7 @@ export default function McDetailPage() {
                       <div className="px-4 py-3">
                         <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">SAVE DATE</div>
                         <div className="font-mono text-slate-800 text-sm">
-                          {d.pgUpdatedAt ? new Date(d.pgUpdatedAt).toLocaleString("ja-JP", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" }) : "—"}
+                          {d.pgUpdatedAt ? toJstDateTimeString(d.pgUpdatedAt) : "—"}
                         </div>
                       </div>
                     </div>
@@ -1186,7 +1187,7 @@ export default function McDetailPage() {
                     return `${sc}S`;
                   };
                   const fmtDT = (s: string | null) => s
-                    ? new Date(s).toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+                    ? toJstMonthDayTimeString(s)
                     : null;
                   const setupNames = ((r as any).setup_operator_names as string[] | undefined) ?? [];
                   const prodNames  = ((r as any).production_operator_names as string[] | undefined) ?? [];
@@ -1274,7 +1275,7 @@ export default function McDetailPage() {
                       {p.is_reference && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">参考</span>
                       )}
-                      <span className="text-slate-400">{new Date(p.printed_at).toLocaleString("ja-JP")}</span>
+                      <span className="text-slate-400">{toJstDateTimeString(p.printed_at)}</span>
                       <span className="text-slate-600">{p.operator_name ?? "—"}</span>
                       {(p as any).machine_code && <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 font-mono text-[10px]">{(p as any).machine_code}</span>}
                       {p.purpose === 'reference' && (

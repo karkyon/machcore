@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { fbGetCache, fbSetCache, fbSearchCache, type FbIndexItem, type FbTab } from "@/lib/file-browser-index";
+import { toJstDateTimeString, toJstMonthDayTimeString } from "@/lib/dateUtils";
 
 type FileNode = { name: string; path: string; type: "file" | "dir"; size?: number; mtime?: string; hasChildren?: boolean; children?: FileNode[]; loaded?: boolean };
 type TabType = "photos" | "drawings" | "programs" | "nc_photos" | "nc_drawings" | "nc_programs";
@@ -26,7 +27,7 @@ const PDF_EXTS   = new Set([".pdf"]);
 
 function extOf(n: string) { return n.includes(".") ? "." + n.split(".").pop()!.toLowerCase() : ""; }
 function fmtSize(b: number) { if (b < 1024) return b + " B"; if (b < 1024*1024) return (b/1024).toFixed(1) + " KB"; return (b/1024/1024).toFixed(1) + " MB"; }
-function fmtDate(s?: string) { if (!s) return ""; try { return new Date(s).toLocaleString("ja-JP"); } catch { return s ?? ""; } }
+function fmtDate(s?: string) { if (!s) return ""; return toJstDateTimeString(s) ?? s; }
 
 function TreeNode({ node, depth, onSelect, onExpand, selectedPath, searchKw, activeHitPath, onSearchEnterNext }: {
   node: FileNode; depth: number;
@@ -466,7 +467,7 @@ export default function FileBrowserPage() {
           </button>
           {indexCachedAt && !indexBuilding && (
             <span className="text-[10px] text-slate-300 whitespace-nowrap">
-              索引: {new Date(indexCachedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}更新
+              索引: {toJstMonthDayTimeString(indexCachedAt)}更新
             </span>
           )}
         </div>
@@ -510,7 +511,7 @@ export default function FileBrowserPage() {
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-bold text-slate-700 truncate">{item.type === "dir" ? "📁" : "📄"} {item.name}</p>
                           <p className="text-[10px] text-slate-400 font-mono truncate">{item.originalPath}</p>
-                          <p className="text-[10px] text-slate-400">削除日時: {new Date(item.deletedAt).toLocaleString("ja-JP")}</p>
+                          <p className="text-[10px] text-slate-400">削除日時: {toJstDateTimeString(item.deletedAt)}</p>
                           {!item.existsInTrash && <p className="text-[10px] text-red-500 font-bold">⚠ ゴミ箱内の実体が見つかりません</p>}
                         </div>
                         <div className="flex gap-1.5 shrink-0">

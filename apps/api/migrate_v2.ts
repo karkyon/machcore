@@ -440,7 +440,7 @@ async function verify(): Promise<void> {
 async function main() {
   console.log('════════════════════════════════════════════');
   console.log('  NC旋盤管理システム  データ移行スクリプト v2');
-  console.log(`  実行日時: ${new Date().toLocaleString('ja-JP')}`);
+  console.log(`  実行日時: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
   console.log('════════════════════════════════════════════');
 
   if (!fs.existsSync(DATA_DIR)) {

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { toJstMonthDayTimeString, toJstTimeString } from "@/lib/dateUtils";
 
 const API_URL = "/api";  // Next.js rewrite経由
 
@@ -40,9 +41,7 @@ function elapsed(iso: string) {
   return m + "分前";
 }
 function fmtDt(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString("ja-JP",{month:"2-digit",day:"2-digit"}) + " " +
-         d.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"});
+  return toJstMonthDayTimeString(iso) ?? iso;
 }
 function groupByMachine(items: NcSheet[]) {
   const map = new Map<string, NcSheet[]>();
@@ -94,7 +93,7 @@ export default function NcDashboard() {
         <span className="text-slate-400 text-xs">|</span>
         <span className="text-sm font-medium">NC 旋盤 ダッシュボード</span>
         <div className="ml-auto flex items-center gap-2 text-xs">
-          {lastAt && <span className="text-slate-400">更新: {lastAt.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})}</span>}
+          {lastAt && <span className="text-slate-400">更新: {toJstTimeString(lastAt)}</span>}
           <button onClick={load} className="bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 rounded transition-colors text-slate-300">
             ↺ 更新
           </button>
