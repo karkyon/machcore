@@ -43,6 +43,27 @@ export class NcController {
     return this.nc.search(key, q, parseInt(limit) || 50, parseInt(offset) || 0, clientName, machineId ? parseInt(machineId) : undefined);
   }
 
+  // ══════════════════════════════════════════
+  // [新規登録フロー実装] 部品マスタ直接検索 (MC側 GET /mc/parts-search と同方式)
+  // ══════════════════════════════════════════
+  @Get("parts-search")
+  searchPartsNc(
+    @Query("key") key: string,
+    @Query("q") q: string,
+    @Query("limit") limit: string,
+    @Query("offset") offset: string,
+  ) {
+    return this.nc.searchParts(key, q, parseInt(limit) || 50, parseInt(offset) || 0);
+  }
+
+  // ══════════════════════════════════════════
+  // [新規登録フロー実装] 次のK_id(加工ID)候補プレビュー (MC側 GET /mc/next-machining-id と同方式)
+  // ══════════════════════════════════════════
+  @Get("next-machining-id")
+  nextMachiningIdNc() {
+    return this.nc.nextMachiningId();
+  }
+
   // [v087] 共通部品(MC側 common-group/common-parts と同等機能のNC版)
   // ── 共通加工グループ ────────────────────────
   @Get("common-group/:machining_id")

@@ -12,6 +12,8 @@ import * as path from 'path';
 import * as chardet from 'chardet';
 import * as iconv from 'iconv-lite';
 import { UpdateWorkRecordDto } from "./dto/update-work-record.dto";
+// ★新規登録フロー実装: MC側program-file-naming.utilと同一ロジックを再利用する。
+import { calcProgramFileName, calcProgramFolderName } from "../mc/program-file-naming.util";
 @Injectable()
 export class NcService {
   constructor(
@@ -199,6 +201,70 @@ export class NcService {
     };
   }
 
+  // ══════════════════════════════════════════
+  // [新規登録フロー実装] 部品マスタ直接検索 (MC側 searchParts と同一ロジック)
+  // ══════════════════════════════════════════
+  async searchParts(key: string, q: string, limit = 50, offset = 0) {
+    const where: any = { isActive: true };
+    const kw = (q ?? '').trim();
+    if (kw) {
+      if (key === 'part_id') {
+        where.partId = { contains: kw, mode: 'insensitive' };
+      } else if (key === 'part_name') {
+        where.name = { contains: kw, mode: 'insensitive' };
+      } else {
+        where.drawingNo = { contains: kw, mode: 'insensitive' };
+      }
+    }
+    const [rows, total] = await Promise.all([
+      this.prisma.part.findMany({
+        where, skip: offset, take: limit,
+        orderBy: { drawingNo: 'asc' },
+        select: { id: true, partId: true, drawingNo: true, name: true, clientName: true },
+      }),
+      this.prisma.part.count({ where }),
+    ]);
+    return {
+      total, limit, offset,
+      rows: rows.map(r => ({
+        id:          r.id,
+        part_id:     r.partId,
+        drawing_no:  r.drawingNo,
+        name:        r.name,
+        client_name: r.clientName,
+      })),
+    };
+  }
+
+  // ══════════════════════════════════════════
+  // [新規登録フロー実装] 次のK_id(加工ID)候補のプレビュー
+  // ══════════════════════════════════════════
+  async nextMachiningId() {
+    const maxKid = await this.prisma.ncMachiningDetail.aggregate({ _max: { kId: true } });
+    return { next_machining_id: (maxKid._max.kId ?? 0) + 1 };
+  }
+
+  // ★新規登録フロー実装: MC側resolveProgramNamingと同じ考え方で、機械マスタ
+  //   (Machine.pgIsFolder)に基づきfolder_name/file_nameを自動算出する。
+  //   フロントエンドから明示指定があればそちらを優先する(将来の拡張余地を残す)。
+  private async resolveNewRegistrationNaming(
+    machineId: number | null | undefined,
+    newKid: number,
+  ): Promise<{ folderName: string; fileName: string }> {
+    let pgIsFolder = false;
+    if (machineId) {
+      const machine = await this.prisma.machine.findUnique({ where: { id: machineId }, select: { pgIsFolder: true } });
+      pgIsFolder = !!machine?.pgIsFolder;
+    }
+    // ★旧システム(ACC_Lathe.FD_name)は新規登録時、常に固定値"USB"を設定していた。
+    //   folder_nameカラムはNOT NULL制約があるため、フォルダ単位機械であっても
+    //   folder_name自体は"USB"のまま(意味は媒体種別のレガシー値であり、
+    //   PGファイルの実際の格納フォルダ名とは無関係)とし、file_nameに
+    //   単体ファイル/フォルダ単位いずれの場合の権威的な値を設定する。
+    const fileName = pgIsFolder ? calcProgramFolderName(newKid) : calcProgramFileName(newKid);
+    return { folderName: "USB", fileName };
+  }
+
   /** NC-04: 新規登録 */
   async create(dto: CreateNcDto, operatorId: number) {
     const part = await this.prisma.part.findUnique({ where: { id: dto.part_id } });
@@ -209,6 +275,17 @@ export class NcService {
       // 新規登録時のk_idは、既存最大値+1で採番する(旧K_id方式の踏襲)。
       const maxKid = await tx.ncMachiningDetail.aggregate({ _max: { kId: true } });
       const newKid = (maxKid._max.kId ?? 0) + 1;
+
+      // ★folder_name/file_nameが明示指定されていない場合、機械マスタに基づき
+      //   サーバー側で自動算出する。
+      let folderName = dto.folder_name;
+      let fileName = dto.file_name;
+      if (!folderName || !fileName) {
+        const naming = await this.resolveNewRegistrationNaming(dto.machine_id, newKid);
+        folderName = folderName ?? naming.folderName;
+        fileName = fileName ?? naming.fileName;
+      }
+
       await tx.ncMachiningDetail.upsert({
         where: { kId: newKid },
         update: {},
@@ -217,8 +294,8 @@ export class NcService {
           processL:     dto.process_l,
           machineId:    dto.machine_id     ?? null,
           machiningTime: dto.machining_time ?? null,
-          folderName:   dto.folder_name,
-          fileName:     dto.file_name,
+          folderName,
+          fileName,
           version:      dto.version ?? "1.0001",
           clampNote:    dto.clamp_note     ?? null,
         },

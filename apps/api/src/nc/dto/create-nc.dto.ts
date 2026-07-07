@@ -17,11 +17,14 @@ export class CreateNcDto {
   @IsOptional() @IsInt() @Min(0)
   machining_time?: number;
 
-  @IsNotEmpty() @IsString() @MaxLength(50)
-  folder_name: string;
+  // ★新規登録フロー実装: 機械マスタ(Machine.pgIsFolder)に基づきサーバー側で
+  //   権威的に自動算出するため、フロントエンドからの指定は任意とする
+  //   (MC側McMachiningDetail.fileName/pgFolderNameと同じ設計思想)。
+  @IsOptional() @IsString() @MaxLength(50)
+  folder_name?: string;
 
-  @IsNotEmpty() @IsString() @MaxLength(50)
-  file_name: string;
+  @IsOptional() @IsString() @MaxLength(50)
+  file_name?: string;
 
   @IsOptional() @IsString() @Matches(/^\d+\.\d{4}$/, { message: 'version は "1.0001" 形式の数値文字列' })
   version?: string;

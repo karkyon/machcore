@@ -163,10 +163,34 @@ export type SetupSheetLog = {
   version: string | null;
 };
 
+export type NcPartSearchResult = {
+  id: number;
+  part_id: string;
+  drawing_no: string;
+  name: string;
+  client_name: string | null;
+};
+
 export const ncApi = {
   search: (key: string, q: string) =>
     api.get<{ total: number; data: NcSearchResult[] }>("/nc/search", {
       params: { key, q, limit: 100 },
+    }),
+  // ★新規登録フロー実装: 部品マスタ直接検索(MC側 mcApi.searchParts と同方式)
+  searchParts: (key: string, q: string) =>
+    api.get<{ total: number; limit: number; offset: number; rows: NcPartSearchResult[] }>(
+      "/nc/parts-search", { params: { key, q } },
+    ),
+  // ★新規登録フロー実装: 次のK_id(加工ID)候補プレビュー
+  nextMachiningId: () =>
+    api.get<{ next_machining_id: number }>("/nc/next-machining-id"),
+  // ★新規登録フロー実装: NC-04新規登録
+  create: (body: {
+    part_id: number; process_l: number; machine_id?: number | null;
+    machining_time?: number | null; clamp_note?: string | null; version?: string;
+  }, token: string) =>
+    api.post<{ nc_id: number; message: string }>("/nc", body, {
+      headers: { Authorization: `Bearer ${token}` },
     }),
   recent: () => api.get<RecentAccess[]>("/nc/recent"),
   findOne: (nc_id: number) => api.get<NcDetail>(`/nc/${nc_id}`),
