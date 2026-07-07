@@ -135,3 +135,66 @@ export async function agentPickFolderAndUpload(ticket: string, fileType?: string
     return { agentAvailable: true, cancelled: false, success: false, files: [], error: e.message };
   }
 }
+
+export type CheckUsbTargetResult = {
+  agentAvailable: boolean;
+  success:        boolean;
+  configured:     boolean;
+  exists:         boolean;
+  path?:          string;
+  error?:         string;
+};
+
+/**
+ * Agentへ「USB取込元フォルダ内に指定名のファイル/フォルダが実在するか」を確認させる。
+ * ファイル/フォルダ選択ダイアログは表示しない。新規登録時に確定済みのファイル名/
+ * フォルダ名(DB由来)をnameに渡すことで、USB内の対象物の存在有無だけを問い合わせる。
+ */
+export async function agentCheckUsbTarget(name: string, isFolder: boolean): Promise<CheckUsbTargetResult> {
+  const token = await getAgentToken();
+  if (!token) return { agentAvailable: false, success: false, configured: false, exists: false, error: "Agent未起動" };
+
+  try {
+    const res = await fetch(`${AGENT_BASE}/check-usb-target`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", "X-Agent-Token": token },
+      body:    JSON.stringify({ name, isFolder }),
+      signal:  AbortSignal.timeout(TIMEOUT_MS * 2),
+    });
+    const json = await res.json();
+    return {
+      agentAvailable: true, success: json.success ?? false, configured: json.configured ?? false,
+      exists: json.exists ?? false, path: json.path, error: json.error,
+    };
+  } catch (e: any) {
+    console.error("[Agent] /check-usb-target エラー:", e);
+    return { agentAvailable: true, success: false, configured: false, exists: false, error: e.message };
+  }
+}
+
+/**
+ * Agentへ「USB取込元フォルダ内の既定名ファイル/フォルダをそのままアップロード」を依頼する。
+ * agentCheckUsbTargetで実在確認済みであることを前提とし、選択ダイアログは一切表示しない。
+ */
+export async function agentAutoUpload(ticket: string, fileType: string, name: string, isFolder: boolean, uploadPath?: string): Promise<PickAndUploadResult> {
+  const token = await getAgentToken();
+  if (!token) return { agentAvailable: false, cancelled: false, success: false, files: [], error: "Agent未起動" };
+
+  try {
+    const res = await fetch(`${AGENT_BASE}/auto-upload`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", "X-Agent-Token": token },
+      body:    JSON.stringify({ ticket, fileType, name, isFolder, uploadPath }),
+      signal:  AbortSignal.timeout(DIALOG_TIMEOUT_MS),
+    });
+    const json = await res.json();
+    if (!res.ok) return { agentAvailable: true, cancelled: false, success: false, files: [], error: json.error ?? `HTTP ${res.status}` };
+    return {
+      agentAvailable: true, cancelled: json.cancelled ?? false, success: json.success ?? false,
+      files: json.files ?? [], error: json.error,
+    };
+  } catch(e: any) {
+    console.error("[Agent] /auto-upload エラー:", e);
+    return { agentAvailable: true, cancelled: false, success: false, files: [], error: e.message };
+  }
+}

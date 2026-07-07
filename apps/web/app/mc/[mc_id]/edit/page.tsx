@@ -1,5 +1,5 @@
 "use client";
-import { isAgentOnline, agentPickAndUpload, agentPickFolderAndUpload } from "@/lib/upload-agent";
+import { isAgentOnline, agentPickAndUpload, agentPickFolderAndUpload, agentCheckUsbTarget, agentAutoUpload } from "@/lib/upload-agent";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, mcFilesApi, machinesApi, usersApi, clampMasterApi, McDetail, Machine, UserInfo } from "@/lib/api";
@@ -511,7 +511,12 @@ export default function McEditPage() {
     });
     if (!res.ok) throw new Error(`チケット発行失敗: HTTP ${res.status}`);
     const json = await res.json();
-    return json.ticket as string;
+    return json as {
+      ticket: string;
+      expected_file_name?: string | null;
+      expected_folder_name?: string | null;
+      is_folder?: boolean;
+    };
   };
 
   // ── 新規アップロード（Agent側でダイアログ表示〜アップロード〜削除まで完結） ──
@@ -542,7 +547,8 @@ export default function McEditPage() {
 
     setFileUploadMsg("⏳ UploadAgentでファイル選択ダイアログを開いています...");
     try {
-      const ticket = await issueUploadTicket({ fileType, isFolderUpload: mode === "folder" });
+      const ticketJson = await issueUploadTicket({ fileType, isFolderUpload: mode === "folder" });
+      const ticket = ticketJson.ticket;
 
       const result = mode === "folder"
         ? await agentPickFolderAndUpload(ticket, fileType)
@@ -603,7 +609,8 @@ export default function McEditPage() {
 
     showToast("⏳ UploadAgentでファイル選択ダイアログを開いています...");
     try {
-      const ticket = await issueUploadTicket({ fileType, replaceFileId: fileId });
+      const ticketJson = await issueUploadTicket({ fileType, replaceFileId: fileId });
+      const ticket = ticketJson.ticket;
 
       const result = await agentPickAndUpload(ticket, fileType);
 
@@ -829,20 +836,40 @@ export default function McEditPage() {
       window.alert(msg);
       return;
     }
-    const ok = window.confirm(
-      `【PGファイルアップロード - 元ファイル削除確認】\n` +
-      `この機械(${isFolderMode ? "📁 フォルダ単位" : "📄 単体ファイル"})の命名規則に従い、` +
-      `ファイル名/フォルダ名は加工IDに基づく統一名へ自動変換されます。\n` +
-      `アップロード完了後、元ファイルはゴミ箱(.machcore_trash)へ自動移動されます。\n続行しますか？`
-    );
-    if (!ok) { return; }
+
     setPgUploading(true);
     try {
-      const ticket = await issueUploadTicket({ fileType: "PROGRAM", isFolderUpload: isFolderMode });
+      // ★仕様変更: 新規登録時点で確定済みのファイル名/フォルダ名(DB由来)をサーバーから取得し、
+      //   UploadAgentにはOSのファイル/フォルダ選択ダイアログを一切表示させない。
+      //   USB取込元フォルダ内に対象ファイル/フォルダが実在するかどうかだけを確認し、
+      //   存在すれば確認メッセージの後、無条件にそのファイル/フォルダをアップロードする。
+      const ticketJson = await issueUploadTicket({ fileType: "PROGRAM", isFolderUpload: isFolderMode });
+      const ticket = ticketJson.ticket;
+      const expectedName = isFolderMode ? ticketJson.expected_folder_name : ticketJson.expected_file_name;
 
-      const result = isFolderMode
-        ? await agentPickFolderAndUpload(ticket, "PROGRAM")
-        : await agentPickAndUpload(ticket, "PROGRAM");
+      if (!expectedName) {
+        showToast("❌ 対象ファイル名/フォルダ名の解決に失敗しました");
+        setPgUploading(false);
+        return;
+      }
+
+      const check = await agentCheckUsbTarget(expectedName, isFolderMode);
+      if (!check.success || !check.exists) {
+        const msg = check.error ?? `USBフォルダ内に「${expectedName}」が見つかりません`;
+        showToast(`❌ ${msg}`);
+        setPgUploading(false);
+        return;
+      }
+
+      const ok = window.confirm(
+        `【PGファイルアップロード - 元ファイル削除確認】\n` +
+        `USB内に${isFolderMode ? "フォルダ" : "ファイル"}「${expectedName}」を検出しました。\n` +
+        `この機械(${isFolderMode ? "📁 フォルダ単位" : "📄 単体ファイル"})の命名規則に従い、そのままアップロードします。\n` +
+        `アップロード完了後、元ファイルはゴミ箱(.machcore_trash)へ自動移動されます。\n続行しますか？`
+      );
+      if (!ok) { setPgUploading(false); return; }
+
+      const result = await agentAutoUpload(ticket, "PROGRAM", expectedName, isFolderMode);
 
       if (result.cancelled) { setPgUploading(false); return; }
       if (!result.success) {

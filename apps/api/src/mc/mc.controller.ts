@@ -518,7 +518,25 @@ export class McController {
       replaceFileId: body.replace_file_id,
       isFolderUpload: body.is_folder_upload,
     });
-    return { ticket: ticket.ticket, expires_in_sec: 60, mc_id: mcId, machining_id: machiningId };
+
+    // ★USB自動アップロード対応: PROGRAM(PGファイル)の場合のみ、機械マスタ＋
+    //   登録済み実績値から確定した権威的なファイル名/フォルダ名をここで解決し、
+    //   レスポンスに含める。UploadAgent側はこの名前でUSB取込元フォルダ内の
+    //   実在確認のみを行い、OSのファイル/フォルダ選択ダイアログは表示しない。
+    let expectedFileName: string | null = null;
+    let expectedFolderName: string | null = null;
+    let isFolderTarget = false;
+    if (body.file_type === 'PROGRAM') {
+      const naming = await this.mcFiles.getExpectedUploadTarget(machiningId);
+      isFolderTarget = naming.isFolder;
+      expectedFileName = naming.isFolder ? null : naming.fileName;
+      expectedFolderName = naming.isFolder ? naming.folderName : null;
+    }
+
+    return {
+      ticket: ticket.ticket, expires_in_sec: 60, mc_id: mcId, machining_id: machiningId,
+      expected_file_name: expectedFileName, expected_folder_name: expectedFolderName, is_folder: isFolderTarget,
+    };
   }
 
   // ── UploadAgent連携: チケット式アップロード受理 ──

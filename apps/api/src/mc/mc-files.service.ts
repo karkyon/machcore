@@ -68,6 +68,16 @@ export class McFilesService {
   }
 
   /**
+   * ★USB自動アップロード対応: PGファイルのアップロード時にUploadAgent(C#)が
+   * ファイル/フォルダ選択ダイアログを表示せず、USB取込元フォルダ内の対象ファイル/
+   * フォルダの存在確認のみでアップロードできるよう、resolveUploadNaming()で解決した
+   * 権威的なファイル名/フォルダ名を外部(コントローラー層)へ公開する。
+   */
+  async getExpectedUploadTarget(machiningId: number): Promise<{ isFolder: boolean; fileName: string; folderName: string | null }> {
+    return this.resolveUploadNaming(machiningId);
+  }
+
+  /**
    * ファイルパス解決：DBに保存されたパスが存在しない場合、
    * 複数の代替パスを順番に試して実在するパスを返す。
    * SMBマウント失敗時や段取シート修正後のパス変化に対応。
