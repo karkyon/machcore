@@ -579,9 +579,19 @@ export class McController {
         { filename: fileFilename, mimetype: fileMimetype, data: buf });
       return { ...result, mc_id: payload.mcId, machining_id: payload.machiningId, mode: 'replace' };
     } else {
+      // ★重複登録バグ修正: PROGRAM種別のアップロードでは、このチケットにおいて
+      //   まだ既存ファイルのpurgeを行っていない場合のみpurgeExisting=trueを渡す。
+      //   フォルダアップロード用チケットは同一チケットを使い回して複数ファイルを
+      //   順次アップロードするため、1回目でpurgeした後は2回目以降purgeしない
+      //   (直前にアップロードしたファイル自身を誤ってpurgeする事故を防ぐ)。
+      const purgeExisting = payload.fileType === 'PROGRAM' && !payload.programPurged;
+
       const result: any = await this.mcFiles.upload(payload.mcId, payload.userId,
         { filename: fileFilename, mimetype: fileMimetype, data: buf },
-        undefined, isFolderUpload, payload.fileType as any, folderNameField || undefined);
+        undefined, isFolderUpload, payload.fileType as any, folderNameField || undefined,
+        purgeExisting);
+
+      if (purgeExisting) payload.programPurged = true;
 
       const PROGRAM_EXTS = new Set(['.min','.spf','.mpf','.nc','.cnc','.tap','.prg','.gcode','.g','.txt']);
       const fileExt = ('.' + (fileFilename.split('.').pop()?.toLowerCase() ?? ''));
@@ -640,7 +650,9 @@ export class McController {
                              : req.user.id;
     const pgRole = (data.fields?.pg_role?.value ?? undefined) as 'MAIN' | 'SUB' | undefined;
     const fileTypeOverride = (data.fields?.file_type?.value ?? undefined) as 'PHOTO' | 'DRAWING' | undefined;
-    const result = await this.mcFiles.upload(id, req.user.id, { filename: data.filename, mimetype: data.mimetype, data: buf }, pgRole, isFolderUpload, fileTypeOverride, folderNameField);
+    // ★重複登録バグ修正: 直接アップロードAPIもPROGRAM再アップロード時の重複防止のため
+    //   常にpurgeExisting=trueで既存の有効なPROGRAM系レコードをpurgeしてから書き込む。
+    const result = await this.mcFiles.upload(id, req.user.id, { filename: data.filename, mimetype: data.mimetype, data: buf }, pgRole, isFolderUpload, fileTypeOverride, folderNameField, true);
     // PROGRAMファイルの場合 pg_created_by / pg_updated_at を自動更新
     const PROGRAM_EXTS = new Set(['.min','.spf','.mpf','.nc','.cnc','.tap','.prg','.gcode','.g','.txt']);
     const fileExt = ('.' + (data.filename.split('.').pop()?.toLowerCase() ?? ''));

@@ -13,6 +13,13 @@ export interface UploadTicketPayload {
   expiresAt:      number;
   used:           boolean;
   system:         'MC' | 'NC'; // どちらのシステム宛のチケットか（既定は'MC'、後方互換のため）
+  // ★重複登録バグ修正: PROGRAM種別のアップロードで、このチケットにおいて既存の古い
+  //   PROGRAM系ファイル(DB行+実ファイル)を既にpurge済みかどうかを記録する。
+  //   フォルダアップロード用チケットは同一チケットで複数ファイルを順次アップロードする
+  //   ため(consume()は同一オブジェクト参照を返す)、最初の1回だけpurgeし、以降は
+  //   このフラグを見てスキップすることで、直前にアップロードしたファイル自身を
+  //   誤ってpurgeしてしまう事故を防ぐ。
+  programPurged?: boolean;
 }
 
 const TICKET_TTL_MS_SINGLE = 60_000;       // 単体アップロード: 60秒・1回限り

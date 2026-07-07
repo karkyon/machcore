@@ -234,6 +234,58 @@ export class McFilesService {
     }));
   }
 
+  /**
+   * ★重複登録バグ修正: PGファイル(PROGRAM)の新規アップロード時、既存の有効な
+   * PROGRAM系mc_filesレコードが残ったまま新しいレコードを作成すると、物理ファイルは
+   * 正しくtrashへ退避されるにもかかわらずDB側だけ古い行が残り、一覧に同名ファイルが
+   * 重複表示されてしまう。この関数で「既存のPROGRAM実体一式」を丸ごとtrashへ退避し、
+   * 対応するDB行を全てisDeleted=trueへ更新することで、常に「実ファイル1つ=有効DB行1つ」
+   * の状態を保つ。
+   *   - 単体ファイルモード: 決定済みファイル名のファイル1つをタイムスタンプ付きでtrashへ
+   *   - フォルダモード: {machId}.pwdフォルダを「フォルダごと」タイムスタンプ付きでtrashへ
+   *     (個別ファイル単位ではなく、フォルダ単位でまるごと退避する)
+   */
+  private async purgeExistingProgramFiles(
+    mcProgramId: number,
+    machId: number,
+    programNaming: { isFolder: boolean; fileName: string; folderName: string | null },
+  ): Promise<void> {
+    const basePath = await this.getBasePath();
+    const ts        = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+    const trashDir  = path.join(basePath, 'trash');
+
+    if (programNaming.isFolder) {
+      const folderPath = path.join(basePath, 'MC', 'files', 'Programs', String(machId), programNaming.folderName as string);
+      if (fs.existsSync(folderPath)) {
+        this.ensureDir(trashDir);
+        let dest = path.join(trashDir, `${programNaming.folderName}_${ts}`);
+        if (fs.existsSync(dest)) dest = path.join(trashDir, `${programNaming.folderName}_${ts}_${Date.now()}`);
+        fs.renameSync(folderPath, dest);
+      }
+    } else {
+      const filePath = path.join(basePath, 'MC', 'files', 'Programs', String(machId), programNaming.fileName);
+      if (fs.existsSync(filePath)) {
+        this.ensureDir(trashDir);
+        const ext  = path.extname(programNaming.fileName);
+        const base = path.basename(programNaming.fileName, ext);
+        let dest = path.join(trashDir, `${base}_${ts}${ext}`);
+        if (fs.existsSync(dest)) dest = path.join(trashDir, `${base}_${ts}_${Date.now()}${ext}`);
+        fs.renameSync(filePath, dest);
+      }
+    }
+
+    const olds = await this.prisma.mcFile.findMany({
+      where:  { mcProgramId, fileType: 'PROGRAM', isDeleted: false },
+      select: { id: true },
+    });
+    if (olds.length > 0) {
+      await this.prisma.mcFile.updateMany({
+        where: { id: { in: olds.map(o => o.id) } },
+        data:  { isDeleted: true, deletedAt: new Date() },
+      });
+    }
+  }
+
   // ★v092: isFolderUpload/folderNameはPHOTO/DRAWING/OTHER種別では引き続き無視される
   //   (これらに folder 概念は無い)。PROGRAM種別についても、v092以降は呼び出し元からの
   //   申告値ではなく resolveUploadNaming() による権威的な値を必ず使用するため、実質的に
@@ -246,6 +298,9 @@ export class McFilesService {
     isFolderUpload?: boolean,
     fileTypeOverride?: 'PHOTO' | 'DRAWING',
     folderName?:     string,
+    // ★重複登録バグ修正: PROGRAM種別かつtrueの場合、書き込み前に既存の有効な
+    //   PROGRAM系レコード(+実ファイル)をtrashへ退避してisDeleted化する。
+    purgeExisting?: boolean,
   ) {
     const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcProgramId } });
     if (!mc) throw new NotFoundException(`MC_id ${mcProgramId} が存在しません`);
@@ -280,6 +335,13 @@ export class McFilesService {
       //   信用せず、機械マスタ(Machine.pgIsFolder)＋登録時に確定済みのMcMachiningDetailから
       //   権威的にファイル名/フォルダ名を解決し、それに強制変換(コンバート)してインポートする。
       programNaming = await this.resolveUploadNaming(machId);
+
+      // ★重複登録バグ修正: 新規ファイルを書き込む前に、既存の有効なPROGRAM系
+      //   レコード(+実ファイル)を丸ごとtrashへ退避し、DB上に重複行を残さない。
+      if (purgeExisting) {
+        await this.purgeExistingProgramFiles(mcProgramId, machId, programNaming);
+      }
+
       if (programNaming.isFolder) {
         flatDir    = path.join(basePath, 'MC', 'files', 'Programs', String(machId), programNaming.folderName as string);
         // フォルダ内の個別ファイルはメインPG/サブPGの実名のため、ファイル名は維持する
