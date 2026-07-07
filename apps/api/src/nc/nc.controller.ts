@@ -364,6 +364,15 @@ export class NcController {
     return this.nc.create(dto, req.user.id);
   }
 
+  /** [仮登録破棄] 「作業完了（登録）」を経ずに新規登録(仮登録)画面を離脱した際に、
+   *  未確定(PROVISIONAL)の登録を破棄し採番したK_idを解放する。 */
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
+  @Roles("OPERATOR", "ADMIN")
+  @Delete(":nc_id/abandon-provisional")
+  abandonProvisional(@Param("nc_id", ParseIntPipe) id: number) {
+    return this.nc.abandonProvisional(id);
+  }
+
   /** NC-05: 更新 */
   @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
   @Roles("OPERATOR", "ADMIN")

@@ -15,6 +15,10 @@ enum UserRole {
 }
 
 enum NcProgramStatus {
+  // [仮登録] 新規登録(仮登録)の直後、STEP2(変更・登録)で「作業完了（登録）」が
+  // 行われるまでの未確定状態。この間は段取シート印刷・作業記録タブを非活性にし、
+  // 確定せず離脱した場合は破棄してK_idを解放する(nc.service.ts abandonProvisional参照)。
+  PROVISIONAL
   NEW
   PENDING_APPROVAL
   APPROVED

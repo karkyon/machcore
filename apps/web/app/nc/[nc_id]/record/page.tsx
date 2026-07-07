@@ -319,6 +319,22 @@ function RecordPageInner() {
   if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-400">読み込み中...</div>;
   if (!nc)     return <div className="min-h-screen flex items-center justify-center text-red-500">データが見つかりません</div>;
 
+  // [仮登録] 「作業完了（登録）」で確定するまでは作業記録に直接アクセスされても
+  // ブロックする(タブの非活性化に加え、URL直打ちに対する防御)。
+  if (nc.status === "PROVISIONAL") return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 max-w-md w-full text-center">
+        <div className="text-5xl mb-4">🔒</div>
+        <h2 className="text-slate-700 font-bold text-lg mb-2">作業記録はまだ利用できません</h2>
+        <p className="text-slate-400 text-sm mb-6">この新規登録はまだ確定していません。「変更・登録」で「✓ 作業完了（登録）」を行うと利用できるようになります。</p>
+        <button onClick={() => router.push(`/nc/${ncId}/edit`)}
+          className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl transition-colors">
+          変更・登録へ戻る
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* グローバルヘッダー */}

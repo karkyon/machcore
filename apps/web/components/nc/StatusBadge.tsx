@@ -1,6 +1,7 @@
-type Status = "NEW" | "PENDING_APPROVAL" | "APPROVED" | "CHANGING";
+type Status = "PROVISIONAL" | "NEW" | "PENDING_APPROVAL" | "APPROVED" | "CHANGING";
 
 const MAP: Record<Status, { label: string; cls: string }> = {
+  PROVISIONAL:      { label: "仮登録", cls: "bg-slate-200 text-slate-500" },
   NEW:              { label: "新規",  cls: "bg-blue-100 text-blue-700" },
   PENDING_APPROVAL: { label: "未承認", cls: "bg-amber-100 text-amber-700" },
   APPROVED:         { label: "承認済", cls: "bg-green-100 text-green-700" },

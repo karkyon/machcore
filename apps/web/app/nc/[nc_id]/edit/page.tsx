@@ -58,11 +58,31 @@ export default function NcEditPage() {
   const isAuthenticatedRef = useRef(isAuthenticated);
   useEffect(() => { isAuthenticatedRef.current = isAuthenticated; }, [isAuthenticated]);
 
+  // ── [仮登録破棄] アンマウント/離脱時クリーンアップから常に最新のtoken/detailを
+  //    参照できるようrefで追従させる。registrationCompletedRefは「作業完了（登録）」
+  //    (finalize)が正規に完了したことを示し、trueの間は離脱時破棄処理をスキップする。
+  const tokenRef = useRef(token);
+  useEffect(() => { tokenRef.current = token; }, [token]);
+  const detailRef = useRef(detail);
+  useEffect(() => { detailRef.current = detail; }, [detail]);
+  const registrationCompletedRef = useRef(false);
+
   // ── このページ自体がアンマウントされる(=他画面へ遷移する)際に、
   //    認証セッションが残っていれば必ず終了させる。タブ切り替えなど、明示的な
   //    「キャンセル」ボタンを経由しない遷移であっても、次の画面へ認証状態を持ち越さない。
   useLayoutEffect(() => {
     return () => {
+      // [仮登録破棄] 新規登録(仮登録=PROVISIONAL)のまま「作業完了（登録）」
+      // (finalize)を経由せずこの画面を離れた場合は、登録内容を破棄し
+      // 採番したK_idを解放する。既に確定済み(PROVISIONAL以外)なら何もしない。
+      if (detailRef.current?.status === "PROVISIONAL" && !registrationCompletedRef.current && tokenRef.current) {
+        console.warn("[NC-EDIT] 仮登録が未確定のまま離脱 — 仮登録を破棄しK_idを解放します", { ncId });
+        fetch(`/api/nc/${ncId}/abandon-provisional`, {
+          method:  "DELETE",
+          headers: { Authorization: `Bearer ${tokenRef.current}` },
+          keepalive: true,
+        }).catch(() => {});
+      }
       if (isAuthenticatedRef.current) {
         console.warn("[NC-EDIT] ページ離脱を検知 — 認証セッションを終了します");
         logout();
@@ -70,6 +90,23 @@ export default function NcEditPage() {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── [仮登録破棄] ブラウザを閉じる/リロードする場合はSPA遷移によるアンマウントが
+  //    発生しないため、beforeunloadでも同じ破棄処理を発火させる(keepalive:trueで
+  //    ページ離脱後もリクエストを継続させる)。
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (detailRef.current?.status === "PROVISIONAL" && !registrationCompletedRef.current && tokenRef.current) {
+        fetch(`/api/nc/${ncId}/abandon-provisional`, {
+          method:  "DELETE",
+          headers: { Authorization: `Bearer ${tokenRef.current}` },
+          keepalive: true,
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [ncId]);
 
   // ── ファイルアップロード（UploadAgent経由、MC側と同方式）──
   const [uploading, setUploading] = useState(false);
@@ -274,6 +311,9 @@ export default function NcEditPage() {
     if (!isAuthenticated || !token) return;
     setSaving(true);
     setSaveError(null);
+    // [仮登録確定] まだ未確定(PROVISIONAL)の新規登録は、項目を何も変更していなくても
+    // 「✓ 作業完了（登録）」で確定できるようにする(MC側の新規登録フローと同様)。
+    const isProvisionalCompletion = detail?.status === "PROVISIONAL";
     try {
       const body: UpdateNcBody = {};
       if (dirty.has("machineId"))     body.machine_id     = machineId === "" ? undefined : Number(machineId);
@@ -285,15 +325,24 @@ export default function NcEditPage() {
       if (dirty.has("creatorId"))     body.creator_id     = creatorId === "" ? null : Number(creatorId);
       if (dirty.has("sheetCreatedAt")) body.sheet_created_at = sheetCreatedAt === "" ? null : sheetCreatedAt;
 
-      if (Object.keys(body).length === 0) {
+      if (Object.keys(body).length === 0 && !isProvisionalCompletion) {
         setSaveError("変更項目がありません");
         return;
       }
 
       const { default: axios } = await import("axios");
-      await axios.put(`/api/nc/${ncId}`, body, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      if (Object.keys(body).length > 0) {
+        await axios.put(`/api/nc/${ncId}`, body, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+
+      if (isProvisionalCompletion) {
+        // [仮登録確定] finalize()でPENDING_APPROVALへ遷移させ、登録を確定する。
+        // これ以降、離脱時の仮登録破棄(abandon-provisional)は発火しない。
+        await ncApi.finalize(ncId, "新規登録", undefined, token);
+        registrationCompletedRef.current = true;
+      }
 
       logout();
       router.push(`/nc/${ncId}`);
@@ -302,7 +351,7 @@ export default function NcEditPage() {
     } finally {
       setSaving(false);
     }
-  }, [isAuthenticated, token, dirty, machineId, machiningTime, folderName, fileName, version, clampNote, creatorId, sheetCreatedAt, ncId, logout, router]);
+  }, [isAuthenticated, token, dirty, machineId, machiningTime, folderName, fileName, version, clampNote, creatorId, sheetCreatedAt, ncId, logout, router, detail]);
 
   const handleCancel = useCallback(() => {
     if (isAuthenticated) {
@@ -324,6 +373,8 @@ export default function NcEditPage() {
   );
 
   const d = detail;
+  // [仮登録] 「作業完了（登録）」で確定するまでは段取シート・作業記録タブを非活性にする。
+  const isProvisionalLocked = d.status === "PROVISIONAL";
 
 
   return (
@@ -363,6 +414,14 @@ export default function NcEditPage() {
         {/* 部品情報エリア（共通コンポーネント） */}
         {d && <NcPartHeader data={d} showApprove onApproveClick={() => setApprovalModalOpen(true)} />}
 
+        {/* [仮登録] 未確定状態の案内バナー */}
+        {isProvisionalLocked && (
+          <div className="bg-slate-100 border-b border-slate-200 px-4 py-2 text-xs text-slate-500 flex items-center gap-2 shrink-0">
+            <span className="font-bold text-slate-600">🔒 仮登録（未確定）</span>
+            この画面で「✓ 作業完了（登録）」を行うまで、段取シート・作業記録タブは利用できません。確定せずにこの画面を離れると登録内容は破棄されます。
+          </div>
+        )}
+
         {/* タブナビ（MC側準拠: ブラウザタブ風） */}
         <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
           <button onClick={() => router.push(`/nc/${ncId}`)}
@@ -374,12 +433,16 @@ export default function NcEditPage() {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
             {isAuthenticated && <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse ml-0.5" />}
           </button>
-          <button onClick={() => router.push(`/nc/${ncId}/print`)}
-            className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
+          <button onClick={() => { if (!isProvisionalLocked) router.push(`/nc/${ncId}/print`); }}
+            disabled={isProvisionalLocked}
+            title={isProvisionalLocked ? "登録確定後に利用できます" : undefined}
+            className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${isProvisionalLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
           </button>
-          <button onClick={() => router.push(`/nc/${ncId}/record`)}
-            className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
+          <button onClick={() => { if (!isProvisionalLocked) router.push(`/nc/${ncId}/record`); }}
+            disabled={isProvisionalLocked}
+            title={isProvisionalLocked ? "登録確定後に利用できます" : undefined}
+            className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${isProvisionalLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録
           </button>
         </nav>
@@ -687,7 +750,7 @@ export default function NcEditPage() {
               <div className="rounded-xl p-4 flex items-center gap-3 flex-wrap" style={{background:"#fff7ed", border:"1.5px solid #fed7aa"}}>
                 <button
                   onClick={handleSave}
-                  disabled={saving || dirty.size === 0}
+                  disabled={saving || (dirty.size === 0 && !isProvisionalLocked)}
                   className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-bold text-sm rounded-lg transition-colors"
                 >
                   ✓ 作業完了（登録）

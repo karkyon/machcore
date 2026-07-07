@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
 import { CreateWorkRecordDto } from './dto/create-work-record.dto';
 import { PrismaService } from "../prisma/prisma.service";
 import { AuthService } from "../auth/auth.service";
@@ -331,7 +331,8 @@ export class NcService {
           partId:       dto.part_id,
           machiningId:  newKid,
           legacyNcId:   newKid,
-          status:       "NEW",
+          // [仮登録] 「作業完了（登録）」(finalize)が行われるまではPROVISIONAL(未確定)。
+          status:       "PROVISIONAL",
           registeredBy: operatorId,
         },
       });
@@ -349,6 +350,53 @@ export class NcService {
     });
 
     return { nc_id: nc.id, message: "新規登録が完了しました" };
+  }
+
+  // ══════════════════════════════════════════
+  // [仮登録破棄] 新規登録(仮登録)が「作業完了（登録）」(finalize)を経由せずに
+  // 離脱された場合に呼ばれる。PROVISIONAL状態のNcProgramと、他に共有していなければ
+  // NcMachiningDetail(K_id)自体も削除し、採番したK_idを解放する。
+  // 既に確定済み(PROVISIONAL以外)の場合は何もしない(誤って確定済みデータを
+  // 消してしまわないための安全策)。
+  // ══════════════════════════════════════════
+  async abandonProvisional(ncId: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const nc = await tx.ncProgram.findUnique({
+        where:   { id: ncId },
+        include: { files: true },
+      });
+      if (!nc) return { nc_id: ncId, released: false, message: '既に破棄済みです' };
+      if (nc.status !== 'PROVISIONAL') {
+        // 確定済みデータの誤削除を防ぐ(絶対にthrowで止める。無条件削除は絶対にしない)。
+        throw new ForbiddenException('この登録は既に確定済みのため破棄できません。');
+      }
+
+      // アップロード済みの物理ファイル(PG/写真/図面等)があれば削除する。
+      // (DB行自体はNcProgram削除時にonDelete:Cascadeで自動的に削除される)
+      for (const f of nc.files) {
+        try { fs.unlinkSync(f.filePath); } catch { /* 既に無ければ無視 */ }
+        if (f.thumbnailPath) { try { fs.unlinkSync(f.thumbnailPath); } catch { /**/ } }
+      }
+
+      // NcFile以外の子テーブルはonDelete未設定(FK制約)のため、先に明示削除する。
+      await tx.changeHistory.deleteMany({ where: { ncProgramId: ncId } });
+      await tx.operationLog.deleteMany({ where: { ncProgramId: ncId } });
+      await tx.workRecord.deleteMany({ where: { ncProgramId: ncId } });
+      await tx.setupSheetLog.deleteMany({ where: { ncProgramId: ncId } });
+      await tx.workSession.deleteMany({ where: { ncProgramId: ncId } });
+
+      const kId = nc.machiningId;
+      await tx.ncProgram.delete({ where: { id: ncId } }); // NcFileはonDelete:Cascadeで自動削除
+
+      // 同じK_id(共通部品)を他のNcProgramが参照していなければ、
+      // NcMachiningDetail自体も削除しK_idを完全に解放する(NcToolはonDelete:Cascadeで自動削除)。
+      const remaining = await tx.ncProgram.count({ where: { machiningId: kId } });
+      if (remaining === 0) {
+        await tx.ncMachiningDetail.delete({ where: { kId } });
+      }
+
+      return { nc_id: ncId, released_k_id: kId, released: true, message: '仮登録を破棄し、加工ID(K_id)を解放しました' };
+    });
   }
 
   // ══════════════════════════════════════════
@@ -958,6 +1006,10 @@ export class NcService {
       where: { id: ncProgramId },
     });
     if (!nc) throw new NotFoundException(`NC_id ${ncProgramId} が存在しません`);
+    // [仮登録] 「作業完了（登録）」で確定するまで作業記録は登録させない。
+    if (nc.status === 'PROVISIONAL') {
+      throw new ForbiddenException('この新規登録はまだ確定していません。「変更・登録」で「作業完了（登録）」を行ってください。');
+    }
  
     // 使用機械: dto.machine_id → machining.machineId → null の優先順
     const ncWithMachiningForWR = await this.prisma.ncProgram.findUnique({
@@ -1075,6 +1127,10 @@ async getPrintData(ncProgramId: number) {
     },
   });
   if (!nc) throw new NotFoundException(`NC_id ${ncProgramId} が存在しません`);
+  // [仮登録] 「作業完了（登録）」で確定するまで段取シートは発行させない。
+  if (nc.status === 'PROVISIONAL') {
+    throw new ForbiddenException('この新規登録はまだ確定していません。「変更・登録」で「作業完了（登録）」を行ってください。');
+  }
   // buildSetupSheetHtmlとの互換性のためにフラット展開したオブジェクトを返す
   return {
     ...nc,

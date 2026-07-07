@@ -18,7 +18,7 @@ type NcPartHeaderData = {
   // [v086] 加工データ本体(NcMachiningDetail)のPK = 旧K_id。「加工ID」表示に使う。
   machiningId?: number | null;
   processL: number;
-  status: "NEW" | "PENDING_APPROVAL" | "APPROVED" | "CHANGING";
+  status: "PROVISIONAL" | "NEW" | "PENDING_APPROVAL" | "APPROVED" | "CHANGING";
   version: string;
   processingId?: string | null;
   part: NcPartHeaderPart;

@@ -76,7 +76,7 @@ export type RecentAccess = {
   accessed_at: string;
 };
 
-export type Status = "NEW" | "PENDING_APPROVAL" | "APPROVED" | "CHANGING";
+export type Status = "PROVISIONAL" | "NEW" | "PENDING_APPROVAL" | "APPROVED" | "CHANGING";
 
 export type NcDetail = {
   id: number;
@@ -208,6 +208,15 @@ export const ncApi = {
     api.post<{ nc_id: number; message: string; version: string }>(
       `/nc/${ncId}/approve`, { operator_id: operatorId, password }
     ),
+  // [仮登録確定] MC側mcApi.finalizeと同方式。新規登録(仮登録)の初回確定にも、
+  // 通常編集の終了確認にも使う。
+  finalize: (ncId: number, changeType: string, changeDetail: string | undefined, token: string) =>
+    api.post(`/nc/${ncId}/finalize`, { change_type: changeType, change_detail: changeDetail ?? undefined },
+      { headers: { Authorization: `Bearer ${token}` } }),
+  // [仮登録破棄] 「作業完了（登録）」を経ずに新規登録画面を離脱した際、
+  // 未確定の登録を破棄しK_idを解放する。
+  abandonProvisional: (ncId: number, token: string) =>
+    api.delete(`/nc/${ncId}/abandon-provisional`, { headers: { Authorization: `Bearer ${token}` } }),
 };
 
 export type UserInfo = {
