@@ -239,9 +239,20 @@ export class NcService {
   // ══════════════════════════════════════════
   // [新規登録フロー実装] 次のK_id(加工ID)候補のプレビュー
   // ══════════════════════════════════════════
+  // ★MC側calcNextIdと同じ設計: 旧システムのNC_id体系(nc_programs.legacy_nc_id)の
+  //   最大値と、現行システムのK_id(nc_machining_details.k_id)の最大値の両方を見て、
+  //   どちらの体系に対しても既存IDと衝突しない値を次の候補として返す。
+  private async calcNextKId(): Promise<number> {
+    const [aggLegacy, aggKid] = await Promise.all([
+      this.prisma.ncProgram.aggregate({ _max: { legacyNcId: true } }),
+      this.prisma.ncMachiningDetail.aggregate({ _max: { kId: true } }),
+    ]);
+    return Math.max(aggLegacy._max.legacyNcId ?? 0, aggKid._max.kId ?? 0) + 1;
+  }
+
   async nextMachiningId() {
-    const maxKid = await this.prisma.ncMachiningDetail.aggregate({ _max: { kId: true } });
-    return { next_machining_id: (maxKid._max.kId ?? 0) + 1 };
+    const next = await this.calcNextKId();
+    return { next_machining_id: next };
   }
 
   // ★新規登録フロー実装: MC側resolveProgramNamingと同じ考え方で、機械マスタ
@@ -277,10 +288,15 @@ export class NcService {
     if (!part) throw new NotFoundException(`part_id ${dto.part_id} が存在しません`);
 
     const nc = await this.prisma.$transaction(async (tx) => {
-      // NcMachiningDetail(加工データ本体)を先に作成。
-      // 新規登録時のk_idは、既存最大値+1で採番する(旧K_id方式の踏襲)。
-      const maxKid = await tx.ncMachiningDetail.aggregate({ _max: { kId: true } });
-      const newKid = (maxKid._max.kId ?? 0) + 1;
+      // ★MC側calcNextIdと同じ設計(旧システムのNC_id体系も考慮したMAXロジック)。
+      //   旧システム(access_NC_spec.html F_誰フォームOK_Click)でも、新規登録(仮登録)
+      //   時は Kakou_id = NCsen_id (採番したNC_idをそのままK_idに使う)という挙動
+      //   だったため、トランザクション内でも同じMAXロジックで再計算し衝突を防ぐ。
+      const [aggLegacyTx, aggKidTx] = await Promise.all([
+        tx.ncProgram.aggregate({ _max: { legacyNcId: true } }),
+        tx.ncMachiningDetail.aggregate({ _max: { kId: true } }),
+      ]);
+      const newKid = Math.max(aggLegacyTx._max.legacyNcId ?? 0, aggKidTx._max.kId ?? 0) + 1;
 
       // ★folder_name/file_nameが明示指定されていない場合、機械マスタに基づき
       //   サーバー側で自動算出する。
@@ -306,10 +322,15 @@ export class NcService {
           clampNote:    dto.clamp_note     ?? null,
         },
       });
+      // ★MC側 legacyMcid: dto.machining_id と同じ考え方、かつ旧システムの
+      //   Kakou_id = NCsen_id という実際の挙動とも一致させ、legacyNcIdに
+      //   採番したnewKid自身をセットする。これにより次回以降のcalcNextKId()が
+      //   このIDを正しく認識し、以降の採番と衝突しない。
       const created = await tx.ncProgram.create({
         data: {
           partId:       dto.part_id,
           machiningId:  newKid,
+          legacyNcId:   newKid,
           status:       "NEW",
           registeredBy: operatorId,
         },
