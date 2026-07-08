@@ -481,11 +481,11 @@ export default function NcDetailPage() {
                 <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100">
                   <div className="p-3">
                     <div className="text-[10px] text-slate-400 mb-1">NC_id</div>
-                    <div className="text-sm font-mono font-medium text-slate-800">{d.id}</div>
+                    <div className="text-sm font-mono font-medium text-slate-800">{d.legacyNcId ?? d.id}</div>
                   </div>
                   <div className="p-3">
                     <div className="text-[10px] text-slate-400 mb-1">加工ID</div>
-                    <div className="text-sm font-mono font-medium text-slate-800">{d.processingId ?? "—"}</div>
+                    <div className="text-sm font-mono font-medium text-slate-800">{d.machiningId}</div>
                   </div>
                 </div>
 

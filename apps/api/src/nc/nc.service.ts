@@ -360,6 +360,12 @@ export class NcService {
   // 消してしまわないための安全策)。
   // ══════════════════════════════════════════
   async abandonProvisional(ncId: number) {
+    // [FIX] アップロード済みの写真・図面等は、確定前に離脱してもいきなり削除せず、
+    // 他のPROGRAMファイル退避処理(purgeExistingProgramFiles等)と同じくtrash/へ
+    // タイムスタンプ付きで退避する。
+    const companySetting = await this.prisma.companySetting.findFirst();
+    const basePath = companySetting?.uploadBasePath ?? '/mnt/mc_files';
+
     return this.prisma.$transaction(async (tx) => {
       const nc = await tx.ncProgram.findUnique({
         where:   { id: ncId },
@@ -371,10 +377,22 @@ export class NcService {
         throw new ForbiddenException('この登録は既に確定済みのため破棄できません。');
       }
 
-      // アップロード済みの物理ファイル(PG/写真/図面等)があれば削除する。
+      // アップロード済みの物理ファイル(PG/写真/図面等)があればtrash/へ退避する。
       // (DB行自体はNcProgram削除時にonDelete:Cascadeで自動的に削除される)
+      const ts = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+      const trashDir = path.join(basePath, 'trash');
       for (const f of nc.files) {
-        try { fs.unlinkSync(f.filePath); } catch { /* 既に無ければ無視 */ }
+        try {
+          if (fs.existsSync(f.filePath)) {
+            if (!fs.existsSync(trashDir)) fs.mkdirSync(trashDir, { recursive: true });
+            const ext  = path.extname(f.filePath);
+            const base = path.basename(f.filePath, ext);
+            let dest = path.join(trashDir, `${base}_${ts}${ext}`);
+            if (fs.existsSync(dest)) dest = path.join(trashDir, `${base}_${ts}_${Date.now()}${ext}`);
+            fs.renameSync(f.filePath, dest);
+          }
+        } catch { /* 既に無ければ無視 */ }
+        // サムネイルは再生成可能なため退避せず削除のみでよい。
         if (f.thumbnailPath) { try { fs.unlinkSync(f.thumbnailPath); } catch { /**/ } }
       }
 

@@ -292,7 +292,10 @@ export default function NcEditPage() {
       setUsers((userRes as any).data ?? userRes);
       setMachineId(d.machine?.id ?? "");
       setMachiningTime(String(d.machiningTime ?? ""));
-      setFolderName(d.folderName ?? "");
+      // [FIX] 単体ファイル機械のfolder_nameは旧システム互換のための無意味な固定値
+      // "USB"(nc.service.ts resolveNewRegistrationNaming参照、実運用では不使用)が
+      // 入っているだけなので、画面上は空欄で表示する(未編集のままならDB値は変わらない)。
+      setFolderName(d.folderName === "USB" ? "" : (d.folderName ?? ""));
       setFileName(d.fileName ?? "");
       setVersion(d.version ?? "A");
       setClampNote(d.clampNote ?? "");
