@@ -358,8 +358,14 @@ export default function NcEditPage() {
       if (!confirm("変更を破棄して戻りますか？")) return;
       logout();
     }
-    router.push(`/nc/${ncId}`);
-  }, [isAuthenticated, logout, ncId, router]);
+    // [仮登録] 確定前(PROVISIONAL)はNC詳細画面自体がブロックされるため、
+    // キャンセル時はダッシュボードへ戻す(離脱により仮登録は自動破棄される)。
+    if (detail?.status === "PROVISIONAL") {
+      router.push("/nc");
+    } else {
+      router.push(`/nc/${ncId}`);
+    }
+  }, [isAuthenticated, logout, ncId, router, detail]);
 
   if (loadError) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -383,16 +389,20 @@ export default function NcEditPage() {
 
         {/* ── グローバルヘッダー ── */}
         <header className="bg-slate-800 text-white px-5 py-2.5 flex items-center gap-3 shrink-0">
-          <button
-            onClick={() => router.push(`/nc/${ncId}`)}
-            className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-white transition-colors shrink-0"
-          >
-            <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-            </span>
-            NC詳細
-          </button>
-          <span className="text-slate-600">|</span>
+          {!isProvisionalLocked && (
+            <>
+              <button
+                onClick={() => router.push(`/nc/${ncId}`)}
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-white transition-colors shrink-0"
+              >
+                <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+                </span>
+                NC詳細
+              </button>
+              <span className="text-slate-600">|</span>
+            </>
+          )}
           <button onClick={() => router.push("/nc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>ダッシュボードへ
           </button>
@@ -640,32 +650,32 @@ export default function NcEditPage() {
                       </div>
                     </div>
 
-                    {/* [v096] 入力日・オペレーター・承認日・承認者(読み取り専用、MC側と同一構成) */}
+                    {/* [v096] オペレーター・入力日・承認者・承認日(読み取り専用、MC側と同一構成) */}
                     <div className="grid grid-cols-2 gap-3 pt-1">
-                      <div>
-                        <label className="text-xs text-slate-500 block mb-1">入力日</label>
-                        <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded font-mono">
-                          {toJstDateString(detail?.registeredAt) ?? "—"}
-                        </div>
-                      </div>
                       <div>
                         <label className="text-xs text-slate-500 block mb-1">オペレーター</label>
                         <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded">
                           {detail?.registrar?.name ?? "—"}
                         </div>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs text-slate-500 block mb-1">承認日</label>
-                        <div className={`px-3 py-2 text-sm border rounded font-mono ${detail?.approvedAt ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-                          {toJstDateString(detail?.approvedAt) ?? "未承認"}
+                        <label className="text-xs text-slate-500 block mb-1">入力日</label>
+                        <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded font-mono">
+                          {toJstDateString(detail?.registeredAt) ?? "—"}
                         </div>
                       </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs text-slate-500 block mb-1">承認者</label>
                         <div className={`px-3 py-2 text-sm border rounded ${detail?.approver ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-bold" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
                           {detail?.approver?.name ?? "未承認"}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-1">承認日</label>
+                        <div className={`px-3 py-2 text-sm border rounded font-mono ${detail?.approvedAt ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+                          {toJstDateString(detail?.approvedAt) ?? "未承認"}
                         </div>
                       </div>
                     </div>
