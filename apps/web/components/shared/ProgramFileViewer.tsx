@@ -305,7 +305,7 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
           <div className="flex items-center gap-2">
             {mode === "edit" && (
               <>
-                <button onClick={handleSave} disabled={saving || !activeFile}
+                <button onClick={handleSave} disabled={saving || !activeFile || !dirty}
                   className="px-3 py-1.5 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg disabled:opacity-50">
                   {saving ? "⏳ 保存中..." : "✓ サーバに保存"}
                 </button>

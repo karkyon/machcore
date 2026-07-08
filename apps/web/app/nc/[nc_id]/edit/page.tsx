@@ -798,6 +798,17 @@ export default function NcEditPage() {
                       </div>
                       <div className="overflow-x-auto">
                         <table className="text-xs w-full border-collapse">
+                          <colgroup>
+                            <col style={{width:"72px"}}/>
+                            <col style={{width:"90px"}}/>
+                            <col style={{width:"110px"}}/>
+                            <col style={{width:"100px"}}/>
+                            <col style={{width:"70px"}}/>
+                            <col style={{width:"36px"}}/>
+                            <col style={{width:"320px"}}/>
+                            <col style={{width:"36px"}}/>
+                            <col style={{width:"54px"}}/>
+                          </colgroup>
                           <thead className="bg-teal-50">
                             <tr>
                               <th className="px-1 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
