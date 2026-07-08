@@ -34,6 +34,9 @@ export default function NcEditPage() {
   const [fileName,      setFileName]      = useState("");
   const [version,       setVersion]       = useState("");
   const [clampNote,     setClampNote]     = useState("");
+  // 加工リスト(MC側ツーリングと同等)
+  const [toolingRows, setToolingRows] = useState<any[]>([]);
+  const [toolingSaveMsg, setToolingSaveMsg] = useState<string | null>(null);
 
   // 変更検知（オレンジ枠用）
   const [dirty, setDirty] = useState<Set<string>>(new Set());
@@ -295,6 +298,15 @@ export default function NcEditPage() {
       setClampNote(d.clampNote ?? "");
       setCreatorId(d.creatorId ? String(d.creatorId) : ""); // [v096]
       setSheetCreatedAt(d.sheetCreatedAt ? d.sheetCreatedAt.slice(0, 10) : ""); // [v096]
+      setToolingRows((d.tools ?? []).map((t: any) => ({
+        sort_order:   t.sortOrder    ?? 0,
+        process_type: t.processType  ?? "",
+        chip_model:   t.chipModel    ?? "",
+        holder_model: t.holderModel  ?? "",
+        nose_r:       t.noseR        ?? "",
+        t_number:     t.tNumber      ?? "",
+        note:         t.note         ?? "",
+      })));
     }).catch(e => setLoadError(e.message));
   }, [ncId]);
 
@@ -614,6 +626,109 @@ export default function NcEditPage() {
                         placeholder="クランプ条件・注意事項など"
                       />
                       <p className="text-[10px] text-slate-400 mt-0.5 text-right">{clampNote.length} / 2000</p>
+                    </div>
+
+                    {/* 加工リスト(MC側ツーリングタブと同等: 行追加・削除・上下移動) */}
+                    <div className="bg-white rounded-xl border border-slate-200">
+                      <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-600">加工リスト ({toolingRows.length}レコード)</span>
+                        <div className="flex items-center gap-2">
+                          {toolingSaveMsg && <span className="text-[11px] text-slate-500">{toolingSaveMsg}</span>}
+                          <button
+                            onClick={async () => {
+                              if (!token) { setAuthOpen(true); return; }
+                              try {
+                                await ncApi.saveTooling(ncId, toolingRows.map((t, idx) => ({
+                                  sort_order:   t.sort_order   ?? idx,
+                                  process_type: t.process_type || undefined,
+                                  chip_model:   t.chip_model   || undefined,
+                                  holder_model: t.holder_model || undefined,
+                                  nose_r:       t.nose_r       || undefined,
+                                  t_number:     t.t_number     || undefined,
+                                  note:         t.note         || undefined,
+                                })), token);
+                                setToolingSaveMsg("✅ 加工リストを保存しました");
+                                setTimeout(() => setToolingSaveMsg(null), 3000);
+                              } catch { setToolingSaveMsg("❌ 保存に失敗しました"); setTimeout(() => setToolingSaveMsg(null), 3000); }
+                            }}
+                            className="px-3 py-1 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors">
+                            ✓ 加工リストを保存
+                          </button>
+                          <button onClick={() => setToolingRows(prev => [...prev, { sort_order: (prev.length + 1) * 10, process_type: "", chip_model: "", holder_model: "", nose_r: "", t_number: "", note: "" }])}
+                            className="text-xs text-teal-600 font-bold">+ 追加</button>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="text-xs w-full border-collapse">
+                          <thead className="bg-teal-50">
+                            <tr>
+                              <th className="px-1 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">加工</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">形状（チップ）</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">ホルダー</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">ノーズR</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">T NO</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">備考</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">順番</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                          {toolingRows.map((t, i) => (
+                            <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                              <td className="px-1 py-1 w-20">
+                                <div className="flex gap-0.5">
+                                  <button onClick={() => {
+                                    if (i === 0) return;
+                                    setToolingRows(r => {
+                                      const a = [...r];
+                                      const so1 = a[i-1].sort_order; const so2 = a[i].sort_order;
+                                      [a[i-1], a[i]] = [a[i], a[i-1]];
+                                      a[i-1] = {...a[i-1], sort_order: so1}; a[i] = {...a[i], sort_order: so2};
+                                      return a;
+                                    });
+                                  }} disabled={i===0} className="text-[10px] px-1 py-0.5 bg-slate-100 hover:bg-slate-200 rounded disabled:opacity-30">↑</button>
+                                  <button onClick={() => {
+                                    if (i === toolingRows.length - 1) return;
+                                    setToolingRows(r => {
+                                      const a = [...r];
+                                      const so1 = a[i].sort_order; const so2 = a[i+1].sort_order;
+                                      [a[i], a[i+1]] = [a[i+1], a[i]];
+                                      a[i] = {...a[i], sort_order: so1}; a[i+1] = {...a[i+1], sort_order: so2};
+                                      return a;
+                                    });
+                                  }} disabled={i===toolingRows.length-1} className="text-[10px] px-1 py-0.5 bg-slate-100 hover:bg-slate-200 rounded disabled:opacity-30">↓</button>
+                                  <button onClick={() => {
+                                    setToolingRows(r => {
+                                      const a = [...r];
+                                      const newSo = a[i].sort_order;
+                                      a.splice(i + 1, 0, { sort_order: newSo + 5, process_type: "", chip_model: "", holder_model: "", nose_r: "", t_number: "", note: "" });
+                                      return a;
+                                    });
+                                  }} className="text-[10px] px-1 py-0.5 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded">+</button>
+                                </div>
+                              </td>
+                              <td className="px-1 py-1"><input value={t.process_type ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, process_type: e.target.value} : x))}
+                                className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                              <td className="px-1 py-1"><input value={t.chip_model ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, chip_model: e.target.value} : x))}
+                                className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                              <td className="px-1 py-1"><input value={t.holder_model ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, holder_model: e.target.value} : x))}
+                                className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                              <td className="px-1 py-1"><input value={t.nose_r ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, nose_r: e.target.value} : x))}
+                                className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-center" /></td>
+                              <td className="px-1 py-1"><input value={t.t_number ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, t_number: e.target.value} : x))}
+                                className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-center" /></td>
+                              <td className="px-1 py-1"><input value={t.note ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, note: e.target.value} : x))}
+                                className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
+                              <td className="px-1 py-1"><input value={t.sort_order != null ? String(t.sort_order) : ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, sort_order: e.target.value === "" ? 0 : Number(e.target.value)} : x))}
+                                className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-right" type="number" /></td>
+                              <td className="px-1 py-1 text-center"><button onClick={() => setToolingRows(r => r.filter((_,j) => j !== i))}
+                                className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">削除</button></td>
+                            </tr>
+                          ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
 
                     {/* [v096] 作成者・作成日(MC側と同一構成) */}

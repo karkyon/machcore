@@ -217,6 +217,10 @@ export const ncApi = {
   // 未確定の登録を破棄しK_idを解放する。
   abandonProvisional: (ncId: number, token: string) =>
     api.delete(`/nc/${ncId}/abandon-provisional`, { headers: { Authorization: `Bearer ${token}` } }),
+  // 加工リスト(NcTool、MC側ツーリングと同等)
+  getTooling:  (ncId: number) => api.get<NcTool[]>(`/nc/${ncId}/tooling`),
+  saveTooling: (ncId: number, items: any[], token: string) =>
+    api.put(`/nc/${ncId}/tooling`, { items }, { headers: { Authorization: `Bearer ${token}` } }),
 };
 
 export type UserInfo = {
