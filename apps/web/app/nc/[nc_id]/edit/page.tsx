@@ -628,6 +628,144 @@ export default function NcEditPage() {
                       <p className="text-[10px] text-slate-400 mt-0.5 text-right">{clampNote.length} / 2000</p>
                     </div>
 
+                    {/* [v096] 作成者・作成日 + オペレーター/入力日 + 承認者/承認日 と、
+                        その右隣にNCプログラム操作パネルを配置(MC側と同一構成+レイアウト改善) */}
+                    <div className="grid grid-cols-[1fr_200px] gap-4">
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-slate-500 block mb-1">
+                              作成者（段取シート作成者）
+                              {dirty.has("creatorId") && <span className="text-orange-500 ml-1">●</span>}
+                            </label>
+                            <select
+                              value={creatorId}
+                              onChange={e => { setCreatorId(e.target.value); markDirty("creatorId"); }}
+                              className={fieldCls("creatorId")}
+                            >
+                              <option value="">— 選択 —</option>
+                              {users
+                                .filter(u => u.isActive || String(u.id) === creatorId)
+                                .map(u => (
+                                  <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（無効）" : ""}</option>
+                                ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-500 block mb-1">
+                              作成日（シート作成日）
+                              {dirty.has("sheetCreatedAt") && <span className="text-orange-500 ml-1">●</span>}
+                            </label>
+                            <input
+                              type="date"
+                              value={sheetCreatedAt}
+                              onChange={e => { setSheetCreatedAt(e.target.value); markDirty("sheetCreatedAt"); }}
+                              className={fieldCls("sheetCreatedAt")}
+                            />
+                          </div>
+                        </div>
+
+                        {/* [v096] オペレーター・入力日・承認者・承認日(読み取り専用、MC側と同一構成) */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-slate-500 block mb-1">オペレーター</label>
+                            <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded">
+                              {detail?.registrar?.name ?? "—"}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-500 block mb-1">入力日</label>
+                            <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded font-mono">
+                              {toJstDateString(detail?.registeredAt) ?? "—"}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-slate-500 block mb-1">承認者</label>
+                            <div className={`px-3 py-2 text-sm border rounded ${detail?.approver ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-bold" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+                              {detail?.approver?.name ?? "未承認"}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-500 block mb-1">承認日</label>
+                            <div className={`px-3 py-2 text-sm border rounded font-mono ${detail?.approvedAt ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+                              {toJstDateString(detail?.approvedAt) ?? "未承認"}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* NCプログラム操作パネル [v084] MC側と同じ共通コンポーネント(ProgramFileViewer)に接続 */}
+                      <div className="rounded-xl p-2.5 space-y-1.5 shrink-0" style={{background:"#0f172a", border:"1.5px solid #1e40af"}}>
+                        <div className="text-[10px] text-sky-400 font-bold text-center tracking-wide mb-1">NCプログラム</div>
+                        <button
+                          onClick={() => {
+                            if (!token) { setAuthOpen(true); return; }
+                            setNewPgViewerOpen(true);
+                          }}
+                          className="w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg font-medium transition-colors"
+                          style={{background:"#164e63", color:"#67e8f9"}}
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                          📄 PGエディタを開く
+                        </button>
+                        <button
+                          onClick={handlePgUploadFromUSB}
+                          disabled={pgUploading}
+                          className="w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+                          style={{background:"#065f46", color:"#6ee7b7"}}
+                        >
+                          {pgUploading && <span className="inline-block w-3 h-3 border-2 border-emerald-300 border-t-transparent rounded-full animate-spin" />}
+                          {pgUploading ? "⏳ 登録中..." : "📥 USBから登録"}
+                        </button>
+                        <p className="text-[9px] text-slate-500 text-center">保存 / USBへ書き出し(UA経由)はエディタ内で行えます</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 右カラム: ファイル操作 */}
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-slate-500 block mb-1">図枚数</label>
+                      <input type="number" readOnly value={d.drawingCount}
+                        className="border border-slate-200 rounded px-3 py-2 text-sm w-full bg-slate-50 text-slate-500" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 block mb-1">写真枚数</label>
+                      <input type="number" readOnly value={d.photoCount}
+                        className="border border-slate-200 rounded px-3 py-2 text-sm w-full bg-slate-50 text-slate-500" />
+                    </div>
+                    <div className="pt-1 space-y-2">
+                      <button
+                        onClick={() => requestNcUpload("PHOTO")}
+                        disabled={uploading}
+                        className="w-full border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
+                      >
+                        {uploading && <span className="inline-block w-3 h-3 border-2 border-teal-700 border-t-transparent rounded-full animate-spin" />}
+                        📷 写真を取り込む
+                      </button>
+                      <button
+                        onClick={() => requestNcUpload("DRAWING")}
+                        disabled={uploading}
+                        className="w-full border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
+                      >
+                        {uploading && <span className="inline-block w-3 h-3 border-2 border-purple-700 border-t-transparent rounded-full animate-spin" />}
+                        📄 図を取り込む
+                      </button>
+                      {uploadMsg && (
+                        <p className={`text-[11px] text-center font-bold ${uploadMsg.startsWith("⏳") ? "text-amber-600 animate-pulse" : uploadMsg.startsWith("❌") ? "text-red-600" : "text-teal-600"}`}>
+                          {uploadMsg}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-slate-400 text-center">UploadAgentでファイル選択ダイアログが開きます</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 加工リスト(MC側ツーリングタブと同等: 行追加・削除・上下移動)
+                  幅いっぱいに使えるよう、上のフォームカードとは別の全幅カードとして配置 */}
                     {/* 加工リスト(MC側ツーリングタブと同等: 行追加・削除・上下移動) */}
                     <div className="bg-white rounded-xl border border-slate-200">
                       <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
@@ -730,136 +868,6 @@ export default function NcEditPage() {
                         </table>
                       </div>
                     </div>
-
-                    {/* [v096] 作成者・作成日(MC側と同一構成) */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-slate-500 block mb-1">
-                          作成者（段取シート作成者）
-                          {dirty.has("creatorId") && <span className="text-orange-500 ml-1">●</span>}
-                        </label>
-                        <select
-                          value={creatorId}
-                          onChange={e => { setCreatorId(e.target.value); markDirty("creatorId"); }}
-                          className={fieldCls("creatorId")}
-                        >
-                          <option value="">— 選択 —</option>
-                          {users
-                            .filter(u => u.isActive || String(u.id) === creatorId)
-                            .map(u => (
-                              <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（無効）" : ""}</option>
-                            ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs text-slate-500 block mb-1">
-                          作成日（シート作成日）
-                          {dirty.has("sheetCreatedAt") && <span className="text-orange-500 ml-1">●</span>}
-                        </label>
-                        <input
-                          type="date"
-                          value={sheetCreatedAt}
-                          onChange={e => { setSheetCreatedAt(e.target.value); markDirty("sheetCreatedAt"); }}
-                          className={fieldCls("sheetCreatedAt")}
-                        />
-                      </div>
-                    </div>
-
-                    {/* [v096] オペレーター・入力日・承認者・承認日(読み取り専用、MC側と同一構成) */}
-                    <div className="grid grid-cols-2 gap-3 pt-1">
-                      <div>
-                        <label className="text-xs text-slate-500 block mb-1">オペレーター</label>
-                        <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded">
-                          {detail?.registrar?.name ?? "—"}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs text-slate-500 block mb-1">入力日</label>
-                        <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded font-mono">
-                          {toJstDateString(detail?.registeredAt) ?? "—"}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-slate-500 block mb-1">承認者</label>
-                        <div className={`px-3 py-2 text-sm border rounded ${detail?.approver ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-bold" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-                          {detail?.approver?.name ?? "未承認"}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs text-slate-500 block mb-1">承認日</label>
-                        <div className={`px-3 py-2 text-sm border rounded font-mono ${detail?.approvedAt ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-                          {toJstDateString(detail?.approvedAt) ?? "未承認"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 右カラム: ファイル操作 */}
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-xs text-slate-500 block mb-1">図枚数</label>
-                      <input type="number" readOnly value={d.drawingCount}
-                        className="border border-slate-200 rounded px-3 py-2 text-sm w-full bg-slate-50 text-slate-500" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-500 block mb-1">写真枚数</label>
-                      <input type="number" readOnly value={d.photoCount}
-                        className="border border-slate-200 rounded px-3 py-2 text-sm w-full bg-slate-50 text-slate-500" />
-                    </div>
-                    <div className="pt-1 space-y-2">
-                      <button
-                        onClick={() => requestNcUpload("PHOTO")}
-                        disabled={uploading}
-                        className="w-full border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
-                      >
-                        {uploading && <span className="inline-block w-3 h-3 border-2 border-teal-700 border-t-transparent rounded-full animate-spin" />}
-                        📷 写真を取り込む
-                      </button>
-                      <button
-                        onClick={() => requestNcUpload("DRAWING")}
-                        disabled={uploading}
-                        className="w-full border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
-                      >
-                        {uploading && <span className="inline-block w-3 h-3 border-2 border-purple-700 border-t-transparent rounded-full animate-spin" />}
-                        📄 図を取り込む
-                      </button>
-                      {uploadMsg && (
-                        <p className={`text-[11px] text-center font-bold ${uploadMsg.startsWith("⏳") ? "text-amber-600 animate-pulse" : uploadMsg.startsWith("❌") ? "text-red-600" : "text-teal-600"}`}>
-                          {uploadMsg}
-                        </p>
-                      )}
-                      <p className="text-[10px] text-slate-400 text-center">UploadAgentでファイル選択ダイアログが開きます</p>
-                    </div>
-                    {/* NCプログラム操作パネル [v084] MC側と同じ共通コンポーネント(ProgramFileViewer)に接続 */}
-                    <div className="rounded-xl p-2.5 space-y-1.5" style={{background:"#0f172a", border:"1.5px solid #1e40af"}}>
-                      <div className="text-[10px] text-sky-400 font-bold text-center tracking-wide mb-1">NCプログラム</div>
-                      <button
-                        onClick={() => {
-                          if (!token) { setAuthOpen(true); return; }
-                          setNewPgViewerOpen(true);
-                        }}
-                        className="w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg font-medium transition-colors"
-                        style={{background:"#164e63", color:"#67e8f9"}}
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                        📄 PGエディタを開く
-                      </button>
-                      <button
-                        onClick={handlePgUploadFromUSB}
-                        disabled={pgUploading}
-                        className="w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
-                        style={{background:"#065f46", color:"#6ee7b7"}}
-                      >
-                        {pgUploading && <span className="inline-block w-3 h-3 border-2 border-emerald-300 border-t-transparent rounded-full animate-spin" />}
-                        {pgUploading ? "⏳ 登録中..." : "📥 USBから登録"}
-                      </button>
-                      <p className="text-[9px] text-slate-500 text-center">保存 / USBへ書き出し(UA経由)はエディタ内で行えます</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
               {/* [v084] 新共通コンポーネント(NC編集モード) — MC側 mc/[mc_id]/edit/page.tsx と同一 */}
               {newPgViewerOpen && (
