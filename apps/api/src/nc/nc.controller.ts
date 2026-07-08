@@ -365,9 +365,10 @@ export class NcController {
   }
 
   /** [仮登録破棄] 「作業完了（登録）」を経ずに新規登録(仮登録)画面を離脱した際に、
-   *  未確定(PROVISIONAL)の登録を破棄し採番したK_idを解放する。 */
-  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
-  @Roles("OPERATOR", "ADMIN")
+   *  未確定(PROVISIONAL)の登録を破棄し採番したK_idを解放する。
+   *  [FIX] 「変更・登録」タブでの認証(パスワード入力)を行う前に離脱するケースが
+   *  あるため、あえて認証不要とする(nc.service.ts側でPROVISIONAL状態のものしか
+   *  削除できない安全策があるため、認証なしで公開しても実害がない)。 */
   @Delete(":nc_id/abandon-provisional")
   abandonProvisional(@Param("nc_id", ParseIntPipe) id: number) {
     return this.nc.abandonProvisional(id);

@@ -59,11 +59,9 @@ export default function NcEditPage() {
   const isAuthenticatedRef = useRef(isAuthenticated);
   useEffect(() => { isAuthenticatedRef.current = isAuthenticated; }, [isAuthenticated]);
 
-  // ── [仮登録破棄] アンマウント/離脱時クリーンアップから常に最新のtoken/detailを
+  // ── [仮登録破棄] アンマウント/離脱時クリーンアップから常に最新のdetailを
   //    参照できるようrefで追従させる。registrationCompletedRefは「作業完了（登録）」
   //    (finalize)が正規に完了したことを示し、trueの間は離脱時破棄処理をスキップする。
-  const tokenRef = useRef(token);
-  useEffect(() => { tokenRef.current = token; }, [token]);
   const detailRef = useRef(detail);
   useEffect(() => { detailRef.current = detail; }, [detail]);
   const registrationCompletedRef = useRef(false);
@@ -76,11 +74,13 @@ export default function NcEditPage() {
       // [仮登録破棄] 新規登録(仮登録=PROVISIONAL)のまま「作業完了（登録）」
       // (finalize)を経由せずこの画面を離れた場合は、登録内容を破棄し
       // 採番したK_idを解放する。既に確定済み(PROVISIONAL以外)なら何もしない。
-      if (detailRef.current?.status === "PROVISIONAL" && !registrationCompletedRef.current && tokenRef.current) {
+      // [FIX] 「変更・登録」タブ自体の認証(token)をまだ行っていない状態で離脱した
+      // 場合でも必ず破棄されるよう、token有無は条件にしない
+      // (abandon-provisionalエンドポイントは認証不要。PROVISIONAL状態のみ削除可能なため安全)。
+      if (detailRef.current?.status === "PROVISIONAL" && !registrationCompletedRef.current) {
         console.warn("[NC-EDIT] 仮登録が未確定のまま離脱 — 仮登録を破棄しK_idを解放します", { ncId });
         fetch(`/api/nc/${ncId}/abandon-provisional`, {
           method:  "DELETE",
-          headers: { Authorization: `Bearer ${tokenRef.current}` },
           keepalive: true,
         }).catch(() => {});
       }
@@ -97,10 +97,9 @@ export default function NcEditPage() {
   //    ページ離脱後もリクエストを継続させる)。
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (detailRef.current?.status === "PROVISIONAL" && !registrationCompletedRef.current && tokenRef.current) {
+      if (detailRef.current?.status === "PROVISIONAL" && !registrationCompletedRef.current) {
         fetch(`/api/nc/${ncId}/abandon-provisional`, {
           method:  "DELETE",
-          headers: { Authorization: `Bearer ${tokenRef.current}` },
           keepalive: true,
         }).catch(() => {});
       }
@@ -425,8 +424,10 @@ export default function NcEditPage() {
 
         {/* タブナビ（MC側準拠: ブラウザタブ風） */}
         <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
-          <button onClick={() => router.push(`/nc/${ncId}`)}
-            className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
+          <button onClick={() => { if (!isProvisionalLocked) router.push(`/nc/${ncId}`); }}
+            disabled={isProvisionalLocked}
+            title={isProvisionalLocked ? "登録確定後に利用できます" : undefined}
+            className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${isProvisionalLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>NC詳細
           </button>
           <button onClick={() => router.push(`/nc/${ncId}/edit`)}

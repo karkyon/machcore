@@ -271,6 +271,22 @@ export default function NcDetailPage() {
   // [仮登録] 「作業完了（登録）」で確定するまでは段取シート・作業記録タブを非活性にする。
   const isProvisionalLocked = d.status === "PROVISIONAL";
 
+  // [仮登録] NC詳細画面自体も、確定するまで直接アクセスされてもブロックする
+  // (edit画面のNC詳細タブ非活性化に加え、URL直打ちに対する防御)。
+  if (isProvisionalLocked) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 max-w-md w-full text-center">
+        <div className="text-5xl mb-4">🔒</div>
+        <h2 className="text-slate-700 font-bold text-lg mb-2">NC詳細はまだ利用できません</h2>
+        <p className="text-slate-400 text-sm mb-6">この新規登録はまだ確定していません。「変更・登録」で「✓ 作業完了（登録）」を行うと利用できるようになります。</p>
+        <button onClick={() => router.push(`/nc/${ncId}/edit`)}
+          className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl transition-colors">
+          変更・登録へ戻る
+        </button>
+      </div>
+    </div>
+  );
+
   const onMouseMove = (e: React.MouseEvent) => {
     if (!dragging || !dragStart.current) return;
     setFloatPos({
