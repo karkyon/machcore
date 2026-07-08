@@ -806,7 +806,7 @@ export default function NcEditPage() {
                             <col style={{width:"70px"}}/>
                             <col style={{width:"36px"}}/>
                             <col style={{width:"320px"}}/>
-                            <col style={{width:"36px"}}/>
+                            <col style={{width:"56px"}}/>
                             <col style={{width:"54px"}}/>
                           </colgroup>
                           <thead className="bg-teal-50">

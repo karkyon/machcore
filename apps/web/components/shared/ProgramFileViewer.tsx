@@ -41,7 +41,6 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
   const [activeFile, setActiveFile] = useState<PgFile | null>(null);
   const [content, setContent] = useState("");
   const [contentLoading, setContentLoading] = useState(false);
-  const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [usbBusy, setUsbBusy] = useState(false);
   const [darkMode, setDarkMode] = useState(false); // デフォルトLight
@@ -54,6 +53,11 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
   const undoStack = useRef<string[]>([]);
   const redoStack = useRef<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // [FIX] dirtyは「現在のcontentが最後に読み込み/保存した内容と異なるか」で
+  // 都度算出する。useStateで手動管理していた際は、Undoで編集前の内容に
+  // ちょうど戻した場合でもdirty=trueのまま残ってしまう不具合があった。
+  const savedContentRef = useRef<string>("");
+  const dirty = content !== savedContentRef.current;
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -95,15 +99,17 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
     setContentLoading(true);
     undoStack.current = [];
     redoStack.current = [];
-    setDirty(false);
     try {
       const res = await fetch(`${apiBase}/pg-files/${f.id}/content`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       const json = await res.json();
-      setContent((json as any).content ?? "");
+      const loaded = (json as any).content ?? "";
+      setContent(loaded);
+      savedContentRef.current = loaded;
     } catch {
       setContent("(読み込みに失敗しました)");
+      savedContentRef.current = "(読み込みに失敗しました)";
     } finally {
       setContentLoading(false);
     }
@@ -122,7 +128,7 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
         body: JSON.stringify({ content }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setDirty(false);
+      savedContentRef.current = content;
       showToast(`✅ 保存しました: ${activeFile.original_name}`);
       onSaved?.();
     } catch (e: any) {
@@ -155,7 +161,6 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
     if (mode !== "edit") return;
     pushUndo(content);
     setContent(v);
-    setDirty(true);
   };
 
   // ── 検索(マッチ箇所へジャンプ・選択・循環移動) ──
@@ -209,7 +214,6 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
     pushUndo(content);
     const newContent = content.slice(0, start) + replace + content.slice(end);
     setContent(newContent);
-    setDirty(true);
     showToast("1件置換しました");
     setMatchPositions([]);
     setCurrentMatchIdx(-1);
@@ -222,7 +226,6 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
     if (count === 0) { showToast("見つかりません"); return; }
     pushUndo(content);
     setContent(content.split(search).join(replace));
-    setDirty(true);
     setMatchPositions([]);
     setCurrentMatchIdx(-1);
     showToast(`${count}件を全置換しました`);
