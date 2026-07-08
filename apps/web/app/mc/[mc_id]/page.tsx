@@ -612,32 +612,32 @@ export default function McDetailPage() {
                 {/* ── 行4: 作成・承認情報 ── */}
                 <div className="grid grid-cols-2 divide-x divide-slate-100">
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">作成日（シート）</div>
-                    <div className="font-mono text-slate-800">{d.sheetCreatedAt ? fmtDate(d.sheetCreatedAt) : "—"}</div>
-                  </div>
-                  <div className="px-4 py-3">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">作成者（シート）</div>
                     <div className="text-slate-800">{d.creator?.name ?? "—"}</div>
                   </div>
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">作成日（シート）</div>
+                    <div className="font-mono text-slate-800">{d.sheetCreatedAt ? fmtDate(d.sheetCreatedAt) : "—"}</div>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 divide-x divide-slate-100">
-                  <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">入力日</div>
-                    <div className="font-mono text-slate-800">{fmtDate(d.registeredAt)}</div>
-                  </div>
                   <div className="px-4 py-3">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">オペレーター</div>
                     <div className="text-slate-800">{d.registrar?.name ?? "—"}</div>
                   </div>
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">入力日</div>
+                    <div className="font-mono text-slate-800">{fmtDate(d.registeredAt)}</div>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 divide-x divide-slate-100">
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">承認日</div>
-                    <div className="font-mono text-slate-800">{d.approvedAt ? fmtDate(d.approvedAt) : "—"}</div>
-                  </div>
-                  <div className="px-4 py-3">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">承認者</div>
                     <div className={d.approver ? "text-emerald-700 font-bold" : "text-slate-400"}>{d.approver?.name ?? "未承認"}</div>
+                  </div>
+                  <div className="px-4 py-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">承認日</div>
+                    <div className="font-mono text-slate-800">{d.approvedAt ? fmtDate(d.approvedAt) : "—"}</div>
                   </div>
                 </div>
                 {/* ── クランプ・備考 ── */}

@@ -482,7 +482,7 @@ export default function McDashboard() {
             </div>
             <div className="py-2 border-b border-slate-100">
               <div className="px-4 pb-1.5 pt-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">管理</div>
-              <button onClick={() => router.push("/admin/login")}
+              <button onClick={() => { sessionStorage.setItem("admin_origin", "mc"); router.push("/admin/login"); }}
                 className="mx-2 w-[calc(100%-16px)] px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors text-slate-600 hover:bg-slate-100 hover:text-slate-900">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
                 管理パネル

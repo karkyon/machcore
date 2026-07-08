@@ -12,7 +12,7 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 import { useParams, useRouter } from "next/navigation";
-import { toJstDateTimeString } from "@/lib/dateUtils";
+import { toJstDateTimeString, toJstDateString } from "@/lib/dateUtils";
 import { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
 import {
   ncApi, NcDetail, NcTool, ChangeHistory, WorkRecord, SetupSheetLog,
@@ -497,19 +497,39 @@ export default function NcDetailPage() {
                   </pre>
                 </div>
 
-                {/* ── 登録者 / 登録日 / 承認者 ── */}
-                <div className="grid grid-cols-3 divide-x divide-slate-100">
+                {/* ── 作成者（シート）/ 作成日（シート）── */}
+                <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100">
                   <div className="p-3">
-                    <div className="text-[10px] text-slate-400 mb-1">登録者</div>
+                    <div className="text-[10px] text-slate-400 mb-1">作成者（シート）</div>
+                    <div className="text-sm text-slate-700">{d.creator?.name ?? "—"}</div>
+                  </div>
+                  <div className="p-3">
+                    <div className="text-[10px] text-slate-400 mb-1">作成日（シート）</div>
+                    <div className="text-sm font-mono text-slate-700">{d.sheetCreatedAt ? toJstDateString(d.sheetCreatedAt) : "—"}</div>
+                  </div>
+                </div>
+
+                {/* ── オペレーター / 入力日 ── */}
+                <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100">
+                  <div className="p-3">
+                    <div className="text-[10px] text-slate-400 mb-1">オペレーター</div>
                     <div className="text-sm text-slate-700">{d.registrar.name}</div>
                   </div>
                   <div className="p-3">
-                    <div className="text-[10px] text-slate-400 mb-1">登録日</div>
-                    <div className="text-sm font-mono text-slate-700">{fmtDate(d.createdAt)}</div>
+                    <div className="text-[10px] text-slate-400 mb-1">入力日</div>
+                    <div className="text-sm font-mono text-slate-700">{toJstDateString(d.registeredAt)}</div>
                   </div>
+                </div>
+
+                {/* ── 承認者 / 承認日 ── */}
+                <div className="grid grid-cols-2 divide-x divide-slate-100">
                   <div className="p-3">
                     <div className="text-[10px] text-slate-400 mb-1">承認者</div>
                     <div className="text-sm text-slate-700">{d.approver?.name ?? "未承認"}</div>
+                  </div>
+                  <div className="p-3">
+                    <div className="text-[10px] text-slate-400 mb-1">承認日</div>
+                    <div className="text-sm font-mono text-slate-700">{d.approvedAt ? toJstDateString(d.approvedAt) : "—"}</div>
                   </div>
                 </div>
               </div>
