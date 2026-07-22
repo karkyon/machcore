@@ -532,10 +532,6 @@ export default function NcDetailPage() {
                       ))}
                     </div>
                   )}
-                  <button onClick={() => router.push("/nc/common-parts")}
-                    className="mt-2 px-2.5 py-1 bg-pink-100 text-pink-700 text-[10px] font-bold rounded hover:bg-pink-200 border border-pink-200">
-                    🔍 共通部品検索・管理
-                  </button>
                 </div>
 
                 {/* ── 作成者（シート）/ 作成日（シート）── */}

@@ -59,6 +59,7 @@ function filterPeriod(items: NcSheet[], p: Period) {
 
 export default function NcDashboard() {
   const router = useRouter();
+  const [newRegModalOpen, setNewRegModalOpen] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [sheets,  setSheets]  = useState<NcSheet[]>([]);
   const [total,   setTotal]   = useState(0);
@@ -110,21 +111,10 @@ export default function NcDashboard() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               部品検索
             </button>
-            <button onClick={() => router.push("/nc/new")}
+            <button onClick={() => setNewRegModalOpen(true)}
               className="mx-2 w-[calc(100%-16px)] px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors text-slate-600 hover:bg-sky-50 hover:text-sky-700">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
               新規登録
-            </button>
-            {/* [v104] MC側「共通加工として登録」と同機能 */}
-            <button onClick={() => router.push("/nc/new/common")}
-              className="mx-2 w-[calc(100%-16px)] px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors text-slate-600 hover:bg-violet-50 hover:text-violet-700">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12h6M9 16h6M9 8h6M5 21h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2z"/></svg>
-              共通加工として登録
-            </button>
-            <button onClick={() => router.push("/nc/common-parts")}
-              className="mx-2 w-[calc(100%-16px)] px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors text-slate-600 hover:bg-violet-50 hover:text-violet-700">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              共通部品検索・管理
             </button>
           </div>
           <div className="py-2 border-b border-slate-100">
@@ -240,6 +230,40 @@ export default function NcDashboard() {
           </section>
         </main>
       </div>
+
+      {/* 新規登録 選択モーダル(MC側 mc/page.tsx と同一構成) */}
+      {newRegModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h2 className="text-base font-bold text-slate-800 mb-1">登録方法を選択</h2>
+            <p className="text-xs text-slate-400 mb-5">新しい加工として登録するか、既存の加工データを流用するかを選択してください</p>
+            <div className="space-y-3">
+              <button
+                onClick={() => { setNewRegModalOpen(false); router.push("/nc/new"); }}
+                className="w-full flex items-start gap-4 p-4 border-2 border-sky-200 bg-sky-50 rounded-xl hover:border-sky-400 hover:bg-sky-100 transition-colors text-left">
+                <span className="text-2xl shrink-0">✅</span>
+                <div>
+                  <div className="font-bold text-sky-700 text-sm">仮登録（新規）</div>
+                  <div className="text-xs text-slate-500 mt-0.5">新しい加工ID(K_id)を採番して登録します</div>
+                </div>
+              </button>
+              <button
+                onClick={() => { setNewRegModalOpen(false); router.push("/nc/new/common"); }}
+                className="w-full flex items-start gap-4 p-4 border-2 border-violet-200 bg-violet-50 rounded-xl hover:border-violet-400 hover:bg-violet-100 transition-colors text-left">
+                <span className="text-2xl shrink-0">📋</span>
+                <div>
+                  <div className="font-bold text-violet-700 text-sm">共通加工として登録</div>
+                  <div className="text-xs text-slate-500 mt-0.5">既存の加工データを別の部品で供用使用し登録します</div>
+                </div>
+              </button>
+            </div>
+            <button onClick={() => setNewRegModalOpen(false)}
+              className="mt-4 w-full py-2 text-xs text-slate-400 hover:text-slate-600">
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
