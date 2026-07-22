@@ -62,7 +62,7 @@ export class NcService {
         take: limit,
         skip: offset,
         select: {
-          id: true, status: true,
+          id: true, status: true, machiningId: true,
           part:     { select: { id: true, partId: true, drawingNo: true, name: true, clientName: true } },
           machining: {
             select: {
