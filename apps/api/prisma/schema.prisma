@@ -183,10 +183,13 @@ model NcMachiningDetail {
   oNumber        String?   @db.VarChar(20)                  @map("o_number")
   version        String    @default("1.0001") @db.VarChar(10)
   clampNote      String?   @db.Text                         @map("clamp_note")
+  // [v101] 掴代(旧ACC_Lathe.Clamp)専用カラム。clampNote(汎用備考)とは別に、
+  // 段取シートの「掴代」欄に対応する値のみを独立して保持する。
+  // 値の例: "専用", "9~10", "汎用爪" など(旧システム同様、数値以外も許容する文字列)。
+  clampAllowance String?   @db.VarChar(50)                  @map("clamp_allowance")
   drawingCount   Int       @default(0)                      @map("drawing_count")
   photoCount     Int       @default(0)                      @map("photo_count")
-  // 将来のNC側「共通部品追加」機能のために列を用意(MC側commonPartCodeと同形)。
-  // 今回のデータ移行(nc_full_import.py)では設定しない。
+  // [v101] NC側「共通部品追加」機能で実際に使用を開始した(v087でバックエンド実装済み)。
   commonPartCode String?   @db.VarChar(20)                  @map("common_part_code")
   // [v096] MC側McMachiningDetail.creatorId/sheetCreatedAtとの機能パリティのため追加。
   // 段取りシートバック時に手入力される「作成者（段取シート作成者）」「作成日（シート作成日）」。

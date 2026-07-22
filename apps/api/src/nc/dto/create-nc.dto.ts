@@ -31,4 +31,8 @@ export class CreateNcDto {
 
   @IsOptional() @IsString() @MaxLength(2000)
   clamp_note?: string;
+
+  // [v101] 掴代(専用フィールド)
+  @IsOptional() @IsString() @MaxLength(50)
+  clamp_allowance?: string;
 }

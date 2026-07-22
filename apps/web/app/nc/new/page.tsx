@@ -27,6 +27,8 @@ export default function NcNewPage() {
   const [machineId,     setMachineId]     = useState("");
   const [machiningTime, setMachiningTime] = useState("");
   const [clampNote,     setClampNote]     = useState("");
+  // [v101] 掴代(専用フィールド。旧ACC_Lathe.Clamp。「専用」「9~10」等、数値以外も入力される)
+  const [clampAllowance, setClampAllowance] = useState("");
   const [machines,      setMachines]      = useState<Machine[]>([]);
 
   const [authOpen,  setAuthOpen]  = useState(false);
@@ -83,6 +85,7 @@ export default function NcNewPage() {
         machine_id:      machineId ? parseInt(machineId) : null,
         machining_time:  machiningTime ? parseInt(machiningTime, 10) : null,
         clamp_note:      clampNote || null,
+        clamp_allowance: clampAllowance || null,
       }, authToken);
       const d = (res as any).data ?? res;
       router.push(`/nc/${d.nc_id}/edit`);
@@ -238,11 +241,19 @@ export default function NcNewPage() {
             </div>
           </div>
 
-          <div className="mt-4 max-w-xl">
-            <label className="text-xs font-bold text-slate-700 block mb-1">掴み代・備考</label>
-            <textarea value={clampNote} onChange={e => setClampNote(e.target.value)} rows={2} maxLength={2000}
-              placeholder="特記事項・注意事項"
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none" />
+          <div className="mt-4 max-w-xl grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">掴代 <span className="text-slate-400 font-normal">(mm)</span></label>
+              <input value={clampAllowance} onChange={e => setClampAllowance(e.target.value)} maxLength={50}
+                placeholder="例: 専用 / 9~10"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs font-bold text-slate-700 block mb-1">備考</label>
+              <textarea value={clampNote} onChange={e => setClampNote(e.target.value)} rows={2} maxLength={2000}
+                placeholder="特記事項・注意事項"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none" />
+            </div>
           </div>
 
           {saveError && (

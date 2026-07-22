@@ -85,6 +85,8 @@ export class NcService {
         status: r.status, version: r.machining?.version ?? null,
         folder_name: r.machining?.folderName ?? null, file_name: r.machining?.fileName ?? null,
         machining_time: r.machining?.machiningTime ?? null,
+        // [v104] 共通加工登録(ncApi.registerCommonPart)のsource_machining_idに必要
+        machining_id: r.machiningId,
       })),
     };
   }
@@ -198,7 +200,33 @@ export class NcService {
       creatorId:      r.machining?.creatorId      ?? null,
       sheetCreatedAt: r.machining?.sheetCreatedAt  ?? null,
       creator:        r.machining?.creator         ?? null,
+      // [v101] 掴代(専用フィールド) + 共通部品情報(MC側findOne()と同等)
+      clampAllowance: r.machining?.clampAllowance ?? null,
+      commonPartCode: r.machining?.commonPartCode ?? null,
+      commonGroup:    await this.buildCommonGroup(r.machiningId, r.id),
     };
+  }
+
+  // [v101] 共通加工グループ(参照表示のみ、MC側 mc.service.ts の同名ロジックと同等)
+  private async buildCommonGroup(machiningId: number, currentNcProgramId: number) {
+    const rows = await this.prisma.ncProgram.findMany({
+      where:   { machiningId },
+      orderBy: { id: 'asc' },
+      select: {
+        id: true, legacyNcId: true, machiningId: true, status: true,
+        part:      { select: { drawingNo: true, name: true, clientName: true, partId: true } },
+        machining: { select: { version: true } },
+      },
+    });
+    return rows.map(g => ({
+      id:          g.id,
+      legacyNcId:  g.legacyNcId ?? null,
+      machiningId: g.machiningId,
+      status:      g.status,
+      version:     g.machining?.version ?? '1.0001',
+      part:        g.part,
+      isCurrent:   g.id === currentNcProgramId,
+    }));
   }
 
   // ══════════════════════════════════════════
@@ -320,6 +348,7 @@ export class NcService {
           fileName,
           version:      dto.version ?? "1.0001",
           clampNote:    dto.clamp_note     ?? null,
+          clampAllowance: dto.clamp_allowance ?? null,
         },
       });
       // ★MC側 legacyMcid: dto.machining_id と同じ考え方、かつ旧システムの
@@ -634,6 +663,7 @@ export class NcService {
           folderName:   dto.folder_name    ?? existingM.folderName,
           fileName:     dto.file_name      ?? existingM.fileName,
           clampNote:    dto.clamp_note     !== undefined ? dto.clamp_note     : existingM.clampNote,
+          clampAllowance: dto.clamp_allowance !== undefined ? dto.clamp_allowance : existingM.clampAllowance,
           // [v096] MC側update()との機能パリティのため追加。
           creatorId:      dto.creator_id      !== undefined ? dto.creator_id      : existingM.creatorId,
           sheetCreatedAt: dto.sheet_created_at !== undefined
@@ -1160,6 +1190,7 @@ async getPrintData(ncProgramId: number) {
     fileName:     nc.machining?.fileName  ?? '',
     oNumber:      nc.machining?.oNumber   ?? null,
     clampNote:    nc.machining?.clampNote ?? null,
+    clampAllowance: nc.machining?.clampAllowance ?? null,
     machiningTime: nc.machining?.machiningTime ?? null,
     processingId: nc.machining?.processingId ?? null,
   };
@@ -1360,6 +1391,10 @@ private buildSetupSheetHtml(data: any, opts: any): string {
       <td>${data.fileName ?? ''}</td>
       <td class="lbl">ｏﾅﾝﾊﾞｰ</td>
       <td><strong>${data.oNumber ?? ''}</strong></td>
+    </tr>
+    <tr>
+      <td class="lbl">掴　代</td>
+      <td colspan="3">${data.clampAllowance ? `${data.clampAllowance} mm` : ''}</td>
     </tr>
     <tr>
       <td class="lbl">FD名 / USB</td>

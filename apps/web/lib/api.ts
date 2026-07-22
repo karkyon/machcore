@@ -62,6 +62,8 @@ export type NcSearchResult = {
   folder_name: string;
   file_name: string;
   machining_time: number | null;
+  // [v104] 共通加工登録(ncApi.registerCommonPart)のsource_machining_idに必要
+  machining_id: number;
 };
 
 export type RecentAccess = {
@@ -96,6 +98,8 @@ export type NcDetail = {
   fileName: string;
   oNumber: string | null;
   clampNote: string | null;
+  // [v101] 掴代(専用フィールド。旧ACC_Lathe.Clamp)
+  clampAllowance: string | null;
   version: string;
   status: Status;
   processingId: string | null;
@@ -111,6 +115,9 @@ export type NcDetail = {
   creatorId: number | null;
   sheetCreatedAt: string | null;
   creator: { id: number; name: string } | null;
+  // [v101] MC側McDetail.commonPartCode/commonGroupとの機能パリティのため追加。
+  commonPartCode: string | null;
+  commonGroup: NcCommonGroupItem[];
   part: {
     id: number;
     partId: string;
@@ -124,6 +131,32 @@ export type NcDetail = {
     machineName: string;
   } | null;
   tools: NcTool[];
+};
+
+// [v101] MC側McCommonSearchResult/McCommonGroupItemと同構造のNC版
+export type NcCommonSearchResult = {
+  ncProgramId:    number;
+  machiningId:    number;
+  legacyNcId:     number | null;
+  partId:         string | null;
+  drawingNo:      string;
+  name:           string;
+  mainModel:      string | null;
+  clientName:     string | null;
+  version:        string;
+  status:         Status;
+  commonPartCode: string | null;
+  groupCount:     number;
+};
+
+export type NcCommonGroupItem = {
+  id:          number;
+  legacyNcId:  number | null;
+  machiningId: number;
+  version:     string;
+  status:      Status;
+  isCurrent?:  boolean;
+  part: { drawingNo: string; name: string; clientName: string | null; partId: string | null };
 };
 
 export type NcTool = {
@@ -187,7 +220,7 @@ export const ncApi = {
   // ★新規登録フロー実装: NC-04新規登録
   create: (body: {
     part_id: number; process_l: number; machine_id?: number | null;
-    machining_time?: number | null; clamp_note?: string | null; version?: string;
+    machining_time?: number | null; clamp_note?: string | null; clamp_allowance?: string | null; version?: string;
   }, token: string) =>
     api.post<{ nc_id: number; message: string }>("/nc", body, {
       headers: { Authorization: `Bearer ${token}` },
@@ -221,6 +254,26 @@ export const ncApi = {
   getTooling:  (ncId: number) => api.get<NcTool[]>(`/nc/${ncId}/tooling`),
   saveTooling: (ncId: number, items: any[], token: string) =>
     api.put(`/nc/${ncId}/tooling`, { items }, { headers: { Authorization: `Bearer ${token}` } }),
+  // [v101] 共通部品(MC側 mcApi.commonGroup/searchCommonParts/registerCommonPart/unregisterCommonPartと同構造)
+  commonGroup: (machiningId: number) => api.get<NcCommonGroupItem[]>(`/nc/common-group/${machiningId}`),
+  searchCommonParts: (params: {
+    drawing_no?: string; name?: string; main_model?: string; client_id?: number;
+    part_id?: string; nc_id?: number; machining_id?: number; page?: number; limit?: number;
+  }) => api.get<{ total: number; page: number; limit: number; data: NcCommonSearchResult[] }>(
+    '/nc/common-parts/search', { params: {
+      drawing_no: params.drawing_no, name: params.name, main_model: params.main_model,
+      client_id: params.client_id, part_id: params.part_id, nc_id: params.nc_id,
+      machining_id: params.machining_id, page: params.page ?? 1, limit: params.limit ?? 50,
+    }}
+  ),
+  registerCommonPart: (body: { target_part_id: number; source_machining_id: number; note?: string }, token: string) =>
+    api.post<{ ncProgramId: number; machiningId: number; targetPartId: number; version: string; commonPartCode: string }>(
+      '/nc/common-parts/register', body, { headers: { Authorization: `Bearer ${token}` } }
+    ),
+  unregisterCommonPart: (ncProgramId: number, token: string) =>
+    api.delete<{ message: string; ncProgramId: number }>(
+      `/nc/common-parts/${ncProgramId}`, { headers: { Authorization: `Bearer ${token}` } }
+    ),
 };
 
 export type UserInfo = {
@@ -377,6 +430,8 @@ export type UpdateNcBody = {
   file_name?: string;
   version?: string;
   clamp_note?: string;
+  // [v101] 掴代(専用フィールド)
+  clamp_allowance?: string;
   // [v096] MC側UpdateMcBodyとの機能パリティのため追加。
   creator_id?: number | null;
   sheet_created_at?: string | null;
@@ -393,6 +448,8 @@ export type PrintData = {
   oNumber:      string | null;
   machiningTime: number | null;
   clampNote:    string | null;
+  // [v101] 掴代(専用フィールド)
+  clampAllowance: string | null;
   part: {
     partId:     string;
     drawingNo:  string;

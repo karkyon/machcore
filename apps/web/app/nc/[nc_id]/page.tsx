@@ -489,12 +489,53 @@ export default function NcDetailPage() {
                   </div>
                 </div>
 
+                {/* [v101] 掴代(専用フィールド) */}
+                <div className="p-3 border-b border-slate-100">
+                  <div className="text-[10px] text-slate-400 mb-1">掴代 (mm)</div>
+                  <div className="text-sm font-mono font-medium text-slate-800">
+                    {d.clampAllowance ?? "—"}
+                  </div>
+                </div>
+
                 {/* ── クランプ/備考 ── */}
                 <div className="p-3 border-b border-slate-100">
                   <div className="text-[10px] text-slate-400 mb-1">クランプ / 備考</div>
                   <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">
                     {d.clampNote || "—"}
                   </pre>
+                </div>
+
+                {/* [v101] 共通部品コード + 共通加工グループ(MC側 mc/[mc_id]/page.tsx と同構造) */}
+                <div className="p-3 border-b border-slate-100">
+                  <div className="text-[10px] text-slate-400 mb-1">共通部品コード</div>
+                  <div className="text-sm font-mono font-medium text-slate-800">{d.commonPartCode ?? "—"}</div>
+                </div>
+                <div className="p-3 border-b border-slate-100 bg-pink-50/40">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[10px] font-bold text-pink-700 uppercase tracking-wide">共通加工グループ（加工ID: {d.machiningId}）</span>
+                    <span className="text-[10px] text-pink-500">{d.commonGroup.length}件</span>
+                  </div>
+                  {d.commonGroup.length === 0 ? (
+                    <div className="text-xs text-slate-400">共通登録はありません</div>
+                  ) : (
+                    <div className="space-y-1">
+                      {d.commonGroup.map(g => (
+                        <div key={g.id}
+                          className={`flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-xs ${
+                            g.id === d.id ? "bg-teal-50 border border-teal-200" : "bg-white border border-slate-100"}`}>
+                          <span className="font-mono text-teal-600 font-bold">NC_id:{g.legacyNcId ?? g.id}</span>
+                          {g.part.partId && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-mono shrink-0">部品ID:{g.part.partId}</span>}
+                          <span className="font-mono text-slate-700 font-bold">{g.part.drawingNo}</span>
+                          <span className="text-slate-600">{g.part.name}</span>
+                          {g.id === d.id && <span className="ml-auto text-[10px] text-teal-600 font-bold">← 現在</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button onClick={() => router.push("/nc/common-parts")}
+                    className="mt-2 px-2.5 py-1 bg-pink-100 text-pink-700 text-[10px] font-bold rounded hover:bg-pink-200 border border-pink-200">
+                    🔍 共通部品検索・管理
+                  </button>
                 </div>
 
                 {/* ── 作成者（シート）/ 作成日（シート）── */}

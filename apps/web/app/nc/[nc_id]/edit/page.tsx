@@ -34,6 +34,8 @@ export default function NcEditPage() {
   const [fileName,      setFileName]      = useState("");
   const [version,       setVersion]       = useState("");
   const [clampNote,     setClampNote]     = useState("");
+  // [v101] 掴代(専用フィールド)
+  const [clampAllowance, setClampAllowance] = useState("");
   // 加工リスト(MC側ツーリングと同等)
   const [toolingRows, setToolingRows] = useState<any[]>([]);
   const [toolingSaveMsg, setToolingSaveMsg] = useState<string | null>(null);
@@ -299,6 +301,7 @@ export default function NcEditPage() {
       setFileName(d.fileName ?? "");
       setVersion(d.version ?? "A");
       setClampNote(d.clampNote ?? "");
+      setClampAllowance(d.clampAllowance ?? "");
       setCreatorId(d.creatorId ? String(d.creatorId) : ""); // [v096]
       setSheetCreatedAt(d.sheetCreatedAt ? d.sheetCreatedAt.slice(0, 10) : ""); // [v096]
       setToolingRows((d.tools ?? []).map((t: any) => ({
@@ -337,6 +340,7 @@ export default function NcEditPage() {
       if (dirty.has("fileName"))      body.file_name      = fileName;
       if (dirty.has("version"))       body.version        = version;
       if (dirty.has("clampNote"))     body.clamp_note     = clampNote;
+      if (dirty.has("clampAllowance")) body.clamp_allowance = clampAllowance;
       if (dirty.has("creatorId"))     body.creator_id     = creatorId === "" ? null : Number(creatorId);
       if (dirty.has("sheetCreatedAt")) body.sheet_created_at = sheetCreatedAt === "" ? null : sheetCreatedAt;
 
@@ -612,6 +616,20 @@ export default function NcEditPage() {
                           placeholder="A"
                         />
                       </div>
+                    </div>
+
+                    {/* [v101] 掴代(専用フィールド。旧ACC_Lathe.Clamp) */}
+                    <div>
+                      <label className="text-xs text-slate-500 block mb-1">
+                        掴代 <span className="text-slate-400">(mm)</span>
+                        {dirty.has("clampAllowance") && <span className="text-orange-500 ml-1">●</span>}
+                      </label>
+                      <input
+                        value={clampAllowance}
+                        onChange={e => { setClampAllowance(e.target.value); markDirty("clampAllowance"); }}
+                        className={fieldCls("clampAllowance")}
+                        placeholder="例: 専用 / 9~10"
+                      />
                     </div>
 
                     {/* クランプ / 備考 */}

@@ -215,10 +215,11 @@ def phase1(pg, dry_run=False):
 
             clamp_str = str(clamp or "").strip() or None
             note_str = str(note or "").strip() or None
-            clamp_note = "\n".join([s for s in (
-                (f"クランプ: {clamp_str}" if clamp_str else None),
-                note_str,
-            ) if s]) or None
+            # [v101] 掴代は専用カラム(clamp_allowance)に保持する。
+            # clamp_noteには旧システムのNote列のみを入れ、「クランプ: xxx」という
+            # 重複表現は行わない(掴代欄が独立して表示されるようになったため)。
+            clamp_allowance = clamp_str
+            clamp_note = note_str
 
             machining_time = int(tm) if tm is not None else None
             setup_time_ref = int(ts) if ts is not None else None
@@ -233,20 +234,21 @@ def phase1(pg, dry_run=False):
             pgc.execute("""
                 INSERT INTO nc_machining_details (
                     k_id, process_l, machine_id, machining_time, setup_time_ref,
-                    folder_name, file_name, o_number, version, clamp_note,
+                    folder_name, file_name, o_number, version, clamp_note, clamp_allowance,
                     drawing_count, photo_count, legacy_ver, created_at, updated_at
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())
                 ON CONFLICT (k_id) DO UPDATE SET
                     process_l=EXCLUDED.process_l, machine_id=EXCLUDED.machine_id,
                     machining_time=EXCLUDED.machining_time, setup_time_ref=EXCLUDED.setup_time_ref,
                     folder_name=EXCLUDED.folder_name, file_name=EXCLUDED.file_name,
                     o_number=EXCLUDED.o_number, version=EXCLUDED.version,
-                    clamp_note=EXCLUDED.clamp_note, drawing_count=EXCLUDED.drawing_count,
+                    clamp_note=EXCLUDED.clamp_note, clamp_allowance=EXCLUDED.clamp_allowance,
+                    drawing_count=EXCLUDED.drawing_count,
                     photo_count=EXCLUDED.photo_count, legacy_ver=EXCLUDED.legacy_ver,
                     updated_at=NOW()
             """, (int(kid), process_l, machine_db_id, machining_time, setup_time_ref,
                   folder_name, str(f_name) if f_name is not None else "",
-                  str(ono) if ono is not None else None, ver_str, clamp_note,
+                  str(ono) if ono is not None else None, ver_str, clamp_note, clamp_allowance,
                   int(fig or 0), int(photo or 0), str(ver) if ver is not None else None))
             kid_set.add(int(kid))
             detail_ok += 1
@@ -413,6 +415,16 @@ def phase2(pg, dry_run=False, kid_to_dbid=None):
                 ok += 1
                 continue
 
+            # [v101] NorzRはSQL Server側でreal(浮動小数点)型のため、str()でそのまま
+            # 文字列化すると "0.800000011920929" のような誤差込みの桁数になる。
+            # 旧システムの段取シート・加工リスト表示は小数第1位までのため、それに合わせて丸める。
+            nose_r_str = None
+            if nose_r is not None:
+                try:
+                    nose_r_str = f"{round(float(nose_r), 1):g}"
+                except (TypeError, ValueError):
+                    nose_r_str = str(nose_r).strip() or None
+
             pgc.execute("""
                 INSERT INTO nc_tools (
                     machining_id, sort_order, process_type, chip_model,
@@ -421,7 +433,7 @@ def phase2(pg, dry_run=False, kid_to_dbid=None):
             """, (machining_id, sort_order, process_type,
                   str(chip).strip() if chip else None,
                   str(holder).strip() if holder else None,
-                  str(nose_r) if nose_r is not None else None,
+                  nose_r_str,
                   str(no).strip() if no is not None else None,
                   str(note).strip() if note else None))
             ok += 1

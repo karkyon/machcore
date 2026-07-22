@@ -452,6 +452,16 @@ function DataPreview({
         </InfoBox>
       </div>
 
+      {/* 掴代 */}
+      {showClamp && nc.clampAllowance && (
+        <div>
+          <p className="text-xs font-bold text-slate-500 mb-1">掴代</p>
+          <p className="text-xs text-slate-700 bg-sky-50 border border-sky-200 rounded-lg p-3 font-mono">
+            {nc.clampAllowance} mm
+          </p>
+        </div>
+      )}
+
       {/* クランプ・備考 */}
       {showClamp && nc.clampNote && (
         <div>
