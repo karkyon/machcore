@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>MachCore 新旧データ検証レポート</title>
+<style>
+  :root {
+    --teal-50:#f0fdfa; --teal-100:#ccfbf1; --teal-200:#99f6e4; --teal-600:#0d9488; --teal-700:#0f766e;
+    --slate-50:#f8fafc; --slate-100:#f1f5f9; --slate-200:#e2e8f0; --slate-300:#cbd5e1;
+    --slate-400:#94a3b8; --slate-500:#64748b; --slate-600:#475569; --slate-700:#334155; --slate-800:#1e293b;
+    --emerald-50:#ecfdf5; --emerald-100:#d1fae5; --emerald-500:#10b981; --emerald-600:#059669; --emerald-700:#047857;
+    --red-50:#fef2f2; --red-100:#fee2e2; --red-500:#ef4444; --red-600:#dc2626; --red-700:#b91c1c;
+    --amber-100:#fef3c7; --amber-500:#f59e0b; --amber-600:#d97706; --amber-700:#b45309;
+    --blue-100:#dbeafe; --blue-600:#2563eb; --blue-700:#1d4ed8;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: 'Hiragino Sans','Meiryo',system-ui,sans-serif; background: var(--slate-50); color: var(--slate-800); margin:0; }
+  table { border-collapse: collapse; width: 100%; }
+  header { background: linear-gradient(to right, var(--teal-700), var(--teal-600)); color: white; padding: 24px 32px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  header h1 { font-size: 24px; font-weight: 800; margin: 0; letter-spacing: -0.02em; }
+  header p { margin: 4px 0 0; color: #bdeee6; font-size: 13px; }
+  header p.meta { color: #d3f1ec; font-size: 12px; margin-top: 8px; }
+  nav { max-width:1280px; margin: 24px auto 0; padding: 0 32px; display:flex; gap:8px; }
+  .tab-btn { padding: 8px 20px; border-radius: 999px; font-size: 14px; font-weight: 700; border: 1px solid var(--slate-300); color: var(--slate-600); background: white; cursor: pointer; transition: all .15s; }
+  .tab-btn.active { background: var(--teal-600); color: white; border-color: var(--teal-600); }
+  .cat-filter-btn { padding:5px 14px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid var(--slate-300); color:var(--slate-600); background:white; cursor:pointer; transition: all .15s; }
+  .cat-filter-btn.active { background: var(--slate-700); color: white; border-color: var(--slate-700); }
+  tr.cat-hidden { display:none; }
+  main { max-width: 1280px; margin: 0 auto; padding: 24px 32px 48px; }
+  .tab-content.hidden { display: none; }
+  .cards { display:flex; flex-wrap:wrap; gap:16px; }
+  .card { background:white; border:1px solid var(--slate-200); border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,.04); padding:24px; flex:1; min-width:260px; }
+  .card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .card-head h3 { font-size:13px; font-weight:700; color:var(--slate-500); margin:0; }
+  .rate { font-size:24px; font-weight:800; }
+  .rate.high { color: var(--emerald-600); } .rate.mid { color: var(--amber-600); } .rate.low { color: var(--red-600); }
+  .bar-bg { width:100%; height:8px; background:var(--slate-100); border-radius:999px; overflow:hidden; margin-bottom:16px; }
+  .bar-fg { height:100%; border-radius:999px; }
+  .bar-fg.high { background: var(--emerald-500); } .bar-fg.mid { background: var(--amber-500); } .bar-fg.low { background: var(--red-500); }
+  .stats3 { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; text-align:center; }
+  .stats3 .num { font-size:18px; font-weight:700; color: var(--slate-800); }
+  .stats3 .num.green { color: var(--emerald-600); } .stats3 .num.red { color: var(--red-500); }
+  .stats3 .lbl { font-size:11px; color: var(--slate-400); }
+  .foot-row { display:flex; justify-content:space-between; font-size:12px; color:var(--slate-500); margin-top:12px; padding-top:12px; border-top:1px solid var(--slate-100); }
+  .panel { background:white; border:1px solid var(--slate-200); border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,.04); overflow:hidden; }
+  .panel-head { padding:16px 20px; border-bottom:1px solid var(--slate-100); display:flex; align-items:center; justify-content:space-between; }
+  .panel-head h2 { font-size:15px; font-weight:700; color:var(--slate-700); margin:0; }
+  .panel-head .note { font-size:12px; color:var(--slate-400); }
+  .scroll-x { overflow-x:auto; }
+  .scroll-y { max-height:70vh; overflow-y:auto; }
+  thead.sticky th { position:sticky; top:0; background:var(--slate-50); z-index:1; }
+  th { text-align:left; padding:8px 16px; font-size:11px; color:var(--slate-500); border-bottom:1px solid var(--slate-200); background: var(--slate-50); }
+  td { padding:8px 16px; font-size:13px; border-bottom:1px solid var(--slate-100); vertical-align:top; }
+  tr:hover td { background: var(--slate-50); }
+  .mono { font-family: 'SF Mono', Consolas, monospace; }
+  .badge { display:inline-flex; align-items:center; padding:2px 10px; border-radius:999px; font-size:11px; font-weight:700; }
+  .badge.danger { background: var(--red-100); color: var(--red-700); }
+  .badge.warn { background: var(--amber-100); color: var(--amber-700); }
+  .old-val { color: var(--red-500); }
+  .new-val { color: var(--emerald-600); font-weight:700; }
+  .count-pill { display:inline-flex; align-items:center; justify-content:center; width:48px; height:28px; border-radius:999px; background:var(--red-50); color:var(--red-600); font-weight:700; font-size:13px; }
+  select.status-select { font-size:12px; font-weight:700; border-radius:999px; padding:4px 12px; border:1px solid; cursor:pointer; }
+  .st-未着手 { background:var(--slate-100); color:var(--slate-600); border-color:var(--slate-300); }
+  .st-調査対象外 { background:var(--slate-100); color:var(--slate-400); border-color:var(--slate-300); text-decoration:line-through; }
+  .st-手入力対応 { background:var(--blue-100); color:var(--blue-700); border-color:var(--blue-600); }
+  .st-調査中 { background:var(--amber-100); color:var(--amber-700); border-color:var(--amber-500); }
+  .st-対応中 { background:var(--blue-100); color:var(--blue-700); border-color:var(--blue-600); }
+  .st-対応済,.st-対応済_表示側で整形_ { background:var(--emerald-100); color:var(--emerald-700); border-color:var(--emerald-500); }
+  .examples div { font-size:11px; color:var(--slate-500); margin-top:2px; }
+  .issue-name { font-weight:700; color:var(--slate-800); font-size:13px; }
+  .issue-cat { font-size:11px; color:var(--slate-400); margin-top:2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>MachCore 新旧データ検証レポート</h1>
+    <p>旧システム(Access/SQL Server) ⇔ 新システム(MachCore/PostgreSQL) 全件自動比較</p>
+    <p class="meta">生成日時: 2026-07-08T19:50:05.770450　/　検証総数: 24,119件　/　不一致: 1件　/　新システム未存在: 37件</p>
+  </div>
+</header>
+
+<nav>
+  <button class="tab-btn active" data-tab="summary">📊 サマリ</button>
+  <button class="tab-btn" data-tab="issues">🧩 課題管理</button>
+  <button class="tab-btn" data-tab="detail-basic">📋 詳細: 基本情報</button>
+  <button class="tab-btn" data-tab="detail-tooling">🔧 詳細: ツーリング</button>
+  <button class="tab-btn" data-tab="detail-wo">📐 詳細: ワークオフセット</button>
+  <button class="tab-btn" data-tab="detail-ip">🧭 詳細: インデックスプログラム</button>
+  <button class="tab-btn" data-tab="detail-history">🕘 詳細: 履歴(変更/印刷/作業記録)</button>
+</nav>
+
+<main>
+
+  <section id="tab-summary" class="tab-content">
+    <div class="cards">
+      
+        <div class="card">
+          <div class="card-head">
+            <h3>基本情報(NC)</h3>
+            <span class="rate high">100.0%</span>
+          </div>
+          <div class="bar-bg"><div class="bar-fg high" style="width:100.0%"></div></div>
+          <div class="stats3">
+            <div><div class="num">8,799</div><div class="lbl">検証総数</div></div>
+            <div><div class="num green">8,798</div><div class="lbl">一致</div></div>
+            <div><div class="num red">1</div><div class="lbl">不一致</div></div>
+          </div>
+          <div class="foot-row"><span>新システム未存在</span><span class="mono">0</span></div>
+          
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>ツーリング(NC)</h3>
+            <span class="rate high">99.8%</span>
+          </div>
+          <div class="bar-bg"><div class="bar-fg high" style="width:99.8%"></div></div>
+          <div class="stats3">
+            <div><div class="num">7,656</div><div class="lbl">検証総数</div></div>
+            <div><div class="num green">7,638</div><div class="lbl">一致</div></div>
+            <div><div class="num red">0</div><div class="lbl">不一致</div></div>
+          </div>
+          <div class="foot-row"><span>新システム未存在</span><span class="mono">18</span></div>
+          
+            <div class="foot-row"><span>行数不一致</span><span class="mono">0</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>履歴(NC: 変更/印刷/作業記録)</h3>
+            <span class="rate high">99.8%</span>
+          </div>
+          <div class="bar-bg"><div class="bar-fg high" style="width:99.8%"></div></div>
+          <div class="stats3">
+            <div><div class="num">7,664</div><div class="lbl">検証総数</div></div>
+            <div><div class="num green">7,645</div><div class="lbl">一致</div></div>
+            <div><div class="num red">0</div><div class="lbl">不一致</div></div>
+          </div>
+          <div class="foot-row"><span>新システム未存在</span><span class="mono">19</span></div>
+          
+        </div>
+    </div>
+  </section>
+
+  <section id="tab-issues" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-head" style="flex-wrap:wrap; gap:12px; align-items:center;">
+        <div>
+          <h2>不一致パターン別 課題管理</h2>
+          <span class="note">3 パターン検出 / ステータスはブラウザ内でのみ変更可（保存はされません）</span>
+        </div>
+        <div class="cat-filter" style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="cat-filter-btn active" data-cat-filter="__all__">すべて</button>
+          <button class="cat-filter-btn" data-cat-filter="ツーリング">ツーリング</button><button class="cat-filter-btn" data-cat-filter="基本情報(NC)">基本情報(NC)</button><button class="cat-filter-btn" data-cat-filter="履歴(NC: 変更/印刷/作業記録)">履歴(NC: 変更/印刷/作業記録)</button>
+        </div>
+      </div>
+      <div class="scroll-x">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>パターン名</th>
+              <th style="text-align:center">件数</th>
+              <th>原因仮説</th>
+              <th>対応状況</th>
+              <th>サンプル(最大5件)</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+        <tr data-cat="履歴(NC: 変更/印刷/作業記録)">
+          <td class="mono" style="color:var(--slate-400)">1</td>
+          <td>
+            <div class="issue-name">履歴_新システムにNCレコード無し</div>
+            <div class="issue-cat">履歴(NC: 変更/印刷/作業記録)</div>
+          </td>
+          <td style="text-align:center"><span class="count-pill">19</span></td>
+          <td style="max-width:320px">原因未分類。個別確認が必要。</td>
+          <td>
+            <select class="status-select st-未着手" data-issue="0">
+              <option value="未着手" selected>未着手</option><option value="調査中" >調査中</option><option value="対応中" >対応中</option><option value="対応済" >対応済</option><option value="対応済(表示側で整形)" >対応済(表示側で整形)</option><option value="調査対象外" >調査対象外</option><option value="手入力対応" >手入力対応</option>
+            </select>
+          </td>
+          <td class="examples" style="max-width:360px"><div><span class="mono">K_id:75</span>: <span class="old-val">(レコード存在)</span> → <span class="new-val">(レコード無し)</span></div><div><span class="mono">K_id:766</span>: <span class="old-val">(レコード存在)</span> → <span class="new-val">(レコード無し)</span></div><div><span class="mono">K_id:914</span>: <span class="old-val">(レコード存在)</span> → <span class="new-val">(レコード無し)</span></div><div><span class="mono">K_id:915</span>: <span class="old-val">(レコード存在)</span> → <span class="new-val">(レコード無し)</span></div><div><span class="mono">K_id:1052</span>: <span class="old-val">(レコード存在)</span> → <span class="new-val">(レコード無し)</span></div></td>
+        </tr>
+
+        <tr data-cat="ツーリング">
+          <td class="mono" style="color:var(--slate-400)">2</td>
+          <td>
+            <div class="issue-name">ツーリング_新システムにレコード無し</div>
+            <div class="issue-cat">ツーリング</div>
+          </td>
+          <td style="text-align:center"><span class="count-pill">18</span></td>
+          <td style="max-width:320px">原因未分類。個別確認が必要。</td>
+          <td>
+            <select class="status-select st-未着手" data-issue="1">
+              <option value="未着手" selected>未着手</option><option value="調査中" >調査中</option><option value="対応中" >対応中</option><option value="対応済" >対応済</option><option value="対応済(表示側で整形)" >対応済(表示側で整形)</option><option value="調査対象外" >調査対象外</option><option value="手入力対応" >手入力対応</option>
+            </select>
+          </td>
+          <td class="examples" style="max-width:360px"><div><span class="mono">加工ID:766</span>: <span class="old-val">(レコード存在)</span> → <span class="new-val">(レコード無し)</span></div><div><span class="mono">加工ID:914</span>: <span class="old-val">(レコード存在)</span> → <span class="new-val">(レコード無し)</span></div><div><span class="mono">加工ID:915</span>: <span class="old-val">(レコード存在)</span> → <span class="new-val">(レコード無し)</span></div><div><span class="mono">加工ID:1052</span>: <span class="old-val">(レコード存在)</span> → <span class="new-val">(レコード無し)</span></div><div><span class="mono">加工ID:1053</span>: <span class="old-val">(レコード存在)</span> → <span class="new-val">(レコード無し)</span></div></td>
+        </tr>
+
+        <tr data-cat="基本情報(NC)">
+          <td class="mono" style="color:var(--slate-400)">3</td>
+          <td>
+            <div class="issue-name">写真枚数_その他不一致</div>
+            <div class="issue-cat">基本情報(NC)</div>
+          </td>
+          <td style="text-align:center"><span class="count-pill">1</span></td>
+          <td style="max-width:320px">原因未分類。個別確認が必要。</td>
+          <td>
+            <select class="status-select st-未着手" data-issue="2">
+              <option value="未着手" selected>未着手</option><option value="調査中" >調査中</option><option value="対応中" >対応中</option><option value="対応済" >対応済</option><option value="対応済(表示側で整形)" >対応済(表示側で整形)</option><option value="調査対象外" >調査対象外</option><option value="手入力対応" >手入力対応</option>
+            </select>
+          </td>
+          <td class="examples" style="max-width:360px"><div><span class="mono">NC_id:7253 / K_id:7253 / 写真枚数</span>: <span class="old-val"></span> → <span class="new-val">0</span></div></td>
+        </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-detail-basic" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-head"><h2>基本情報(MC) 不一致詳細</h2></div>
+      <div class="scroll-x scroll-y">
+        <table>
+          <thead class="sticky">
+            <tr>
+              <th>MCID</th><th>加工ID</th><th>項目</th><th>旧値</th><th>新値</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">7253</td>
+              <td class="px-3 py-2 font-mono text-xs">7253</td>
+              <td class="px-3 py-2 text-xs font-bold text-slate-700">写真枚数</td>
+              <td class="px-3 py-2 text-xs text-red-500"></td>
+              <td class="px-3 py-2 text-xs text-emerald-600 font-bold">0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-detail-tooling" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-head"><h2>ツーリング 不一致詳細</h2></div>
+      <div class="scroll-x scroll-y">
+        <table>
+          <thead class="sticky">
+            <tr>
+              <th>加工ID</th><th>行</th><th>項目</th><th>旧値</th><th>新値</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">766</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">914</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">915</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">1052</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">1053</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">1211</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">2461</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">2462</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">2719</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">2720</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">2721</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">2935</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">3754</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">3755</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">3756</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">3757</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">8295</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">8297</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-detail-wo" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-head"><h2>ワークオフセット 不一致詳細</h2></div>
+      <div class="scroll-x scroll-y">
+        <table>
+          <thead class="sticky">
+            <tr>
+              <th>加工ID</th><th>#</th><th>項目</th><th>旧値</th><th>新値</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-detail-ip" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-head"><h2>インデックスプログラム 不一致詳細</h2></div>
+      <div class="scroll-x scroll-y">
+        <table>
+          <thead class="sticky">
+            <tr>
+              <th>加工ID</th><th>#</th><th>項目</th><th>旧値</th><th>新値</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-detail-history" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-head"><h2>履歴(変更履歴/印刷履歴/作業記録) 不一致詳細</h2></div>
+      <div class="scroll-x scroll-y">
+        <table>
+          <thead class="sticky">
+            <tr>
+              <th>MCID</th><th>#</th><th>項目</th><th>旧値</th><th>新値</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">75</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">766</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">914</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">915</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">1052</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">1053</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">1211</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">2461</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">2462</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">2719</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">2720</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">2721</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">2935</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">3754</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">3755</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">3756</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">3757</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">8295</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2 font-mono text-xs">8297</td>
+              <td class="px-3 py-2 text-xs" colspan="4"><span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">新システムに無し</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelectorAll(".tab-content").forEach(c => c.classList.add("hidden"));
+    document.getElementById("tab-" + btn.dataset.tab).classList.remove("hidden");
+  });
+});
+document.querySelectorAll(".status-select").forEach(sel => {
+  const applyClass = () => {
+    sel.className = "status-select st-" + sel.value.replace(/[()]/g, "_");
+  };
+  applyClass();
+  sel.addEventListener("change", applyClass);
+});
+document.querySelectorAll(".cat-filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".cat-filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const target = btn.dataset.catFilter;
+    document.querySelectorAll("#tab-issues tbody tr").forEach(tr => {
+      const cats = (tr.dataset.cat || "").split(", ");
+      const show = (target === "__all__") || cats.includes(target);
+      tr.classList.toggle("cat-hidden", !show);
+    });
+  });
+});
+</script>
+
+</body>
+</html>
