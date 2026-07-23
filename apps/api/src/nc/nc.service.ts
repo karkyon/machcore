@@ -884,6 +884,12 @@ export class NcService {
       id: r.id, printed_at: r.printedAt, version: r.version ?? null,
       operator_name: r.operator?.name ?? null,
       work_collected: r.workCollected,
+      // [v113] NC印刷画面MC同一仕様化: リピート発行(用途/数量/使用機械)対応
+      is_reference:   (r as any).isReference   ?? false,
+      sheet_type:     (r as any).sheetType      ?? null,
+      quantity:       (r as any).quantity       ?? null,
+      machine_id_log: (r as any).machineIdLog   ?? null,
+      purpose:        (r as any).purpose        ?? null,
       // [v088] MC側と同様、「行方不明にする(mark as lost)」情報を返す。
       //   NC詳細画面側の表示対応は別途(現時点ではNC印刷履歴テーブルに
       //   未回収/紛失バッジ自体がまだ実装されていないため)。
@@ -1200,7 +1206,11 @@ async getPrintData(ncProgramId: number) {
 async generateSetupSheetPdf(
   ncProgramId: number,
   operatorId:  number,
-  options:     { include_tools?: boolean; include_clamp?: boolean; include_drawings?: boolean },
+  options:     {
+    include_tools?: boolean; include_clamp?: boolean; include_drawings?: boolean;
+    is_preview?: boolean; force_watermark?: boolean; is_reference?: boolean;
+    sheet_type?: string; quantity?: number; machine_id?: number; purpose?: string;
+  },
 ): Promise<Buffer> {
   const data = await this.getPrintData(ncProgramId);
 
@@ -1256,10 +1266,20 @@ async generateSetupSheetPdf(
 
     const pdfBuffer = Buffer.from(pdfUint8);
 
-    // SetupSheetLog INSERT（エラーはログのみ）
-    await this.prisma.setupSheetLog.create({
-      data: { ncProgramId, operatorId, version: (data as any)?.machining?.version ?? (data as any)?.version ?? null },
-    }).catch(e => console.warn('SetupSheetLog insert failed:', e.message));
+    // SetupSheetLog INSERT（エラーはログのみ）。プレビューの場合はDB記録をスキップする(MC側と同一仕様)。
+    if (!(options as any).is_preview) {
+      await this.prisma.setupSheetLog.create({
+        data: {
+          ncProgramId, operatorId,
+          version: (data as any)?.machining?.version ?? (data as any)?.version ?? null,
+          ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}),
+          sheetType:    (options as any).sheet_type    ?? 'NEW',
+          quantity:     (options as any).quantity      ?? null,
+          machineIdLog: (options as any).machine_id    ?? null,
+          purpose:      (options as any).purpose       ?? null,
+        },
+      }).catch(e => console.warn('SetupSheetLog insert failed:', e.message));
+    }
 
     return pdfBuffer;
   } finally {
@@ -1336,9 +1356,18 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   .foot { margin-top: 8px; padding-top: 4px; border-top: 1px solid #ccc;
           display: flex; justify-content: space-between; font-size: 7.5pt; color: #666; }
   @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+  .watermark { position: fixed; font-size: 60pt; font-weight: 700; color: rgba(120,120,120,0.30);
+               transform: rotate(-35deg); z-index: 999; pointer-events: none; }
+  .watermark.w1 { top: 18%; left: 6%; }
+  .watermark.w2 { top: 45%; left: 32%; }
+  .watermark.w3 { top: 70%; left: 55%; }
 </style>
 </head>
 <body>
+  ${(opts.is_preview === true || opts.force_watermark === true) ? `
+  <div class="watermark w1">プレビュー</div>
+  <div class="watermark w2">プレビュー</div>
+  <div class="watermark w3">プレビュー</div>` : ''}
   <!-- タイトル行 -->
   <table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
     <tr>

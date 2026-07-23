@@ -459,7 +459,9 @@ export class NcController {
     return this.nc.directPrint(id, req.user.id, dto);
   }
 
-  /** NC-08: 段取シートPDF生成（JWT必須） */
+  /** NC-08: 段取シートPDF生成（ブラウザプレビュー、新規・JWT必須） */
+  //  [v113] MC側と同一パターン: ブラウザプレビューは常に透かし入り・DB記録なしとする
+  //  (is_preview常時true。クライアント指定値は信用せずサーバー側で強制する)。
   @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
   @Roles("OPERATOR", "ADMIN")
   @Post(":nc_id/print")
@@ -469,7 +471,7 @@ export class NcController {
     @Req() req: any,
     @Res() reply: FastifyReply,
   ) {
-    const pdf = await this.nc.generateSetupSheetPdf(id, req.user.id, dto);
+    const pdf = await this.nc.generateSetupSheetPdf(id, req.user.id, { ...dto, is_preview: true, sheet_type: 'NEW' } as any);
     this.opLog.log({
       actionType:  'SETUP_PRINT',
       userId:      req.user?.sub,
@@ -481,6 +483,38 @@ export class NcController {
     reply.header("Content-Disposition", `inline; filename="setup-sheet-${id}.pdf"`);
     reply.header("Content-Length",      String(pdf.length));
     return reply.send(pdf);
+  }
+
+  /** NC-08b: リピート段取シートPDF（プレビュー、JWT必須） — MC側repeat-printと同一パターン */
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
+  @Roles("OPERATOR", "ADMIN")
+  @Post(":nc_id/repeat-print")
+  async repeatPrint(
+    @Param("nc_id", ParseIntPipe) id: number,
+    @Body() dto: PrintNcDto,
+    @Req() req: any,
+    @Res() reply: FastifyReply,
+  ) {
+    // is_preview:false → ログ記録する（ブラウザプレビューだが発行履歴は残す）。
+    // ただし直接印刷ではないため、force_watermarkで透かしだけは常に描画する(MC側と同一パターン)。
+    const opts = { ...dto, is_preview: false, force_watermark: true, sheet_type: 'REPEAT' };
+    const pdf = await this.nc.generateSetupSheetPdf(id, req.user.id, opts as any);
+    reply.header("Content-Type",        "application/pdf");
+    reply.header("Content-Disposition", `inline; filename="nc-repeat-sheet-${id}.pdf"`);
+    reply.header("Content-Length",      String(pdf.length));
+    return reply.send(pdf);
+  }
+
+  /** NC-08c: リピート段取シート ダイレクト印刷（JWT必須） */
+  @UseGuards(AuthGuard("jwt"), RolesGuard, ProgramSessionGuard)
+  @Roles("OPERATOR", "ADMIN")
+  @Post(":nc_id/repeat-direct-print")
+  async repeatDirectPrint(
+    @Param("nc_id", ParseIntPipe) id: number,
+    @Body() dto: PrintNcDto,
+    @Req() req: any,
+  ) {
+    return this.nc.directPrint(id, req.user.id, { ...dto, sheet_type: 'REPEAT' } as any);
   }
 
   /** NC-06: PGファイル読込（JWT必須） */

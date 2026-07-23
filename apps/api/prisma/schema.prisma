@@ -377,6 +377,12 @@ model SetupSheetLog {
   lostDetail     String?  @db.Text          @map("lost_detail")
   lostAt         DateTime?                  @map("lost_at")
   lostBy         Int?                       @map("lost_by")
+  // [v113] NC印刷画面MC同一仕様化: リピート発行(用途/数量/使用機械)対応
+  isReference    Boolean  @default(false)   @map("is_reference")
+  sheetType      String?  @db.VarChar(10)  @map("sheet_type")
+  quantity       Int?                       @map("quantity")
+  machineIdLog   Int?                       @map("machine_id_log")
+  purpose        String?  @db.VarChar(20)  @map("purpose")
   ncProgram   NcProgram @relation(fields: [ncProgramId], references: [id])
   operator    User      @relation(fields: [operatorId],  references: [id])
   @@index([ncProgramId, printedAt])

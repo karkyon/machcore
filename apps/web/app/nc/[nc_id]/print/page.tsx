@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { printApi, PrintData, PrintOptions, NcTool, downloadApi} from "@/lib/api";
+import { printApi, ncApi, machinesApi, Machine, PrintData, PrintOptions, NcTool, downloadApi} from "@/lib/api";
 import { NcPartHeader } from "@/components/nc/NcPartHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
@@ -41,6 +41,13 @@ export default function PrintPage() {
   const [includeClamp,    setIncludeClamp]    = useState(true);
   const [includeDrawings, setIncludeDrawings] = useState(false);
 
+  // ── [v113] リピート確認ステップ(MC側 mc/[mc_id]/print/page.tsx と同一仕様) ──
+  const [repeatPurpose,   setRepeatPurpose]   = useState<'setup' | 'reference' | 'continuous'>('setup');
+  const [repeatQty,       setRepeatQty]       = useState<number>(1);
+  const [repeatMachineId, setRepeatMachineId] = useState<number | null>(null);
+  const [repeatConfirmed, setRepeatConfirmed] = useState(false);
+  const [machines,        setMachines]        = useState<Machine[]>([]);
+
   // ── 状態 ──
   const [printing,  setPrinting]  = useState(false);
   const [directPrinting, setDirectPrinting] = useState(false);
@@ -57,6 +64,41 @@ export default function PrintPage() {
       .then(r  => setNc(r.data))
       .catch(e => setLoadError(e?.response?.data?.message ?? e.message));
   }, [ncId]);
+
+  // ── [v113] 使用機械一覧取得(リピート確認用) ──
+  useEffect(() => {
+    machinesApi.list("NC").then(r => {
+      const list = Array.isArray((r as any).data) ? (r as any).data : (Array.isArray(r) ? r : []);
+      setMachines(list);
+    }).catch(() => {});
+  }, []);
+
+  // ── [v113] 前回発行時の機械・ワーク数・用途をデフォルト値としてセット(MC側と同一仕様) ──
+  useEffect(() => {
+    if (!machines.length) return;
+    ncApi.setupSheetLogs(ncId).then(r => {
+      const logs: any[] = Array.isArray((r as any).data) ? (r as any).data : (Array.isArray(r) ? r : []);
+      if (!logs.length) return;
+      const latest = logs.find(l => !l.work_collected && (l.sheet_type === 'REPEAT' || l.sheet_type === 'NEW'))
+        ?? logs.find(l => l.sheet_type === 'REPEAT' || l.sheet_type === 'NEW')
+        ?? logs[0];
+      if (!latest) return;
+      if (latest.machine_id_log) {
+        const found = machines.find((m: any) => m.id === latest.machine_id_log);
+        if (found) setRepeatMachineId(found.id);
+      }
+      if (latest.quantity != null && latest.quantity > 0) setRepeatQty(latest.quantity);
+      if (latest.purpose) {
+        const purposeMap: Record<string, 'setup' | 'reference' | 'continuous'> = {
+          setup: 'setup', reference: 'reference', continuous: 'continuous',
+          段取: 'setup', 参考資料: 'reference', 連続使用: 'continuous',
+        };
+        const mapped = purposeMap[latest.purpose];
+        if (mapped) setRepeatPurpose(mapped);
+      }
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ncId, machines.length]);
 
   // ── 別のnc_id向け認証セッションが残っていないか検証（MC側 edit/print/page.tsx と同ロジック）──
   // 「変更・登録」等で認証した状態のまま別画面(段取シート/NC詳細等)へ遷移した場合に、
@@ -109,6 +151,28 @@ export default function PrintPage() {
     }
   };
 
+  // [v113] NC印刷画面MC同一仕様化: 新規(NEW)/リピートの区別、用途選択、透かし対応
+  const isNew = nc?.status === "NEW";
+
+  const printBody = {
+    include_tools:    includeTools,
+    include_clamp:    includeClamp,
+    include_drawings: includeDrawings,
+    ...(!isNew && repeatConfirmed ? {
+      purpose:    repeatPurpose,
+      quantity:   repeatPurpose !== 'reference' ? repeatQty : undefined,
+      machine_id: repeatPurpose !== 'reference' ? repeatMachineId ?? undefined : undefined,
+    } : {}),
+  };
+
+  const validateRepeat = (): string | null => {
+    if (isNew) return null;
+    if (!repeatConfirmed) return '発行前の確認を完了してください';
+    if (repeatPurpose !== 'reference' && (!repeatQty || repeatQty < 1)) return 'ワーク数を入力してください';
+    if (repeatPurpose !== 'reference' && !repeatMachineId) return '使用機械を選択してください';
+    return null;
+  };
+
   const handlePrint = async () => {
     // token は useAuth() から取得（localStorage は使わない）
     if (!token) {
@@ -116,21 +180,20 @@ export default function PrintPage() {
       return;
     }
     if (!nc) return;
+    const vErr = validateRepeat();
+    if (vErr) { setPrintError(vErr); return; }
 
     setPrinting(true);
     setPrintError(null);
     try {
-      const res = await fetch(`/api/nc/${ncId}/print`, {
+      const endpoint = isNew ? `/api/nc/${ncId}/print` : `/api/nc/${ncId}/repeat-print`;
+      const res = await fetch(endpoint, {
         method:  "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type":  "application/json",
         },
-        body: JSON.stringify({
-          include_tools:    includeTools,
-          include_clamp:    includeClamp,
-          include_drawings: includeDrawings,
-        } satisfies PrintOptions),
+        body: JSON.stringify(printBody),
       });
 
       if (!res.ok) {
@@ -143,11 +206,9 @@ export default function PrintPage() {
       const pdfUrl = URL.createObjectURL(blob);
       window.open(pdfUrl, "_blank");
 
-      // Work Session 終了（logout が API呼び出し＋ステートクリアを担う）
-      logout();
-
-      showToast("✅ 段取シートを発行しました");
-      setTimeout(() => router.push(`/nc/${ncId}`), 1500);
+      // [v113] ブラウザプレビューは(新規・リピート問わず)作業セッションを終了しない。
+      //   MC側と同一仕様: 実際にセッションを終える操作は「🖨 ダイレクト印刷」のみ。
+      showToast(isNew ? "📄 プレビューを開きました（DBに記録されません）" : "📄 プレビューを開きました（発行履歴に記録されます）");
     } catch (e: any) {
       console.error("[print] error:", e);
       setPrintError(e.message ?? "PDF生成に失敗しました");
@@ -159,12 +220,15 @@ export default function PrintPage() {
   // ── ダイレクト印刷 ──
   const handleDirectPrint = async () => {
     if (!token) { setPrintError("認証が必要です"); return; }
+    const vErr = validateRepeat();
+    if (vErr) { setPrintError(vErr); return; }
     setDirectPrinting(true); setPrintError(null);
     try {
-      const res = await fetch(`/api/nc/${ncId}/direct-print`, {
+      const endpoint = isNew ? `/api/nc/${ncId}/direct-print` : `/api/nc/${ncId}/repeat-direct-print`;
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ include_tools: includeTools, include_clamp: includeClamp, include_drawings: includeDrawings }),
+        body: JSON.stringify(printBody),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -317,6 +381,71 @@ export default function PrintPage() {
 
           {/* ── アクティブ状態 ── */}
           {isAuthenticated && (
+            <div>
+              {/* [v113] リピート確認ブロック(MC側と同一仕様、新規(NEW)の場合は非表示) */}
+              {!isNew && (
+                repeatConfirmed ? (
+                  <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="font-bold text-emerald-700">✅ 発行前の確認完了</span>
+                      <span className="text-slate-600">用途: <span className="font-bold">{repeatPurpose === 'setup' ? '段取' : repeatPurpose === 'reference' ? '参考資料' : '連続使用'}</span></span>
+                      {repeatPurpose !== 'reference' && <span className="text-slate-600">W数: <span className="font-bold">{repeatQty}</span></span>}
+                      {repeatPurpose !== 'reference' && repeatMachineId && (
+                        <span className="text-slate-600">機械: <span className="font-bold">{machines.find(m => m.id === repeatMachineId)?.machineCode ?? '—'}</span></span>
+                      )}
+                    </div>
+                    <button onClick={() => setRepeatConfirmed(false)} className="text-xs text-slate-500 underline ml-4 shrink-0">変更</button>
+                  </div>
+                ) : (
+                  <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 space-y-3">
+                    <div className="text-sm font-bold text-amber-800">⚠️ 発行前の確認</div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-600 mb-1 block">用途</label>
+                      <div className="flex gap-3 flex-wrap">
+                        {([['setup','段取'],['reference','参考資料'],['continuous','連続使用']] as const).map(([val,label]) => (
+                          <label key={val} className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="repeatPurpose" value={val}
+                              checked={repeatPurpose === val}
+                              onChange={() => setRepeatPurpose(val)}
+                              className="accent-amber-600" />
+                            <span className="text-sm">{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    {repeatPurpose !== 'reference' && (
+                      <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1 block">ワーク数 <span className="text-red-500">*</span></label>
+                        <input type="number" min={1} value={repeatQty}
+                          onChange={e => setRepeatQty(Math.max(1, parseInt(e.target.value) || 1))}
+                          className="w-24 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                      </div>
+                    )}
+                    {repeatPurpose !== 'reference' && (
+                      <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1 block">使用機械 <span className="text-red-500">*</span></label>
+                        <select value={repeatMachineId ?? ""} onChange={e => setRepeatMachineId(e.target.value ? Number(e.target.value) : null)}
+                          className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                          <option value="">選択してください</option>
+                          {machines.map(m => <option key={m.id} value={m.id}>{m.machineCode}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => {
+                          if (repeatPurpose !== 'reference' && (!repeatQty || repeatQty < 1)) { setPrintError('ワーク数を入力してください'); return; }
+                          if (repeatPurpose !== 'reference' && !repeatMachineId) { setPrintError('使用機械を選択してください'); return; }
+                          setPrintError(null);
+                          setRepeatConfirmed(true);
+                        }}
+                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold rounded-lg transition-colors"
+                      >確認完了</button>
+                    </div>
+                  </div>
+                )
+              )}
+
             <div className="flex gap-5">
 
               {/* 左: データプレビュー */}
@@ -365,7 +494,7 @@ export default function PrintPage() {
                   >
                     {printing
                       ? <><span className="animate-spin">⏳</span> 生成中…</>
-                      : <><span>🖨</span> 作業完了（印刷実行）</>
+                      : <><span>📄</span> {isNew ? "プレビュー（透かし入り・記録なし）" : "PDFプレビュー（ブラウザで開く）"}</>
                     }
                   </button>
               <button
@@ -393,11 +522,11 @@ export default function PrintPage() {
 
                 {/* 注意書き */}
                 <div className="text-[10px] text-slate-400 space-y-1 px-1">
-                  <p>• 印刷実行後、PDFが新しいタブで開きます</p>
-                  <p>• 印刷完了で作業セッションが終了します</p>
-                  <p>• 発行履歴がDBに記録されます</p>
+                  <p>• プレビューはPDFが新しいタブで開きます{isNew ? "（透かし入り・DB記録なし）" : "（発行履歴に記録されます）"}</p>
+                  <p>• 「ダイレクト印刷」がプリンタへの実送信で、作業セッションを終了します</p>
                 </div>
               </div>
+            </div>
             </div>
           )}
         </div>
