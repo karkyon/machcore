@@ -962,10 +962,10 @@ export class NcService {
     operatorId: number,
     options: { include_tools?: boolean; include_clamp?: boolean; include_drawings?: boolean },
   ): Promise<{ message: string }> {
-    // プリンタ名取得
-    const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true } });
-    const printerName = setting?.printerName;
-    if (!printerName) throw new Error('プリンタが設定されていません。管理者設定で設定してください。');
+    // プリンタ名取得(NC専用プリンタ設定を優先し、未設定時は共通プリンタ設定にフォールバック。MC側directPrintと同一パターン)
+    const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true, ncPrinter: true } });
+    const printerName = setting?.ncPrinter || setting?.printerName;
+    if (!printerName) throw new Error('NCプリンタが設定されていません。管理画面のシステム設定でNCチーム用プリンタを設定してください。');
 
     // PDF生成
     const pdfBuffer = await this.generateSetupSheetPdf(ncProgramId, operatorId, options);
