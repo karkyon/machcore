@@ -56,6 +56,16 @@ export function toJstMonthDayTimeString(value: string | number | Date | null | u
          d.toLocaleTimeString("ja-JP", { timeZone: JST, hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
+/** ISO文字列 or Date を、JSTでの "YY/MM/DD HH:mm" (西暦下2桁付き)に変換する(一覧表示等の短縮表記用)。 */
+export function toJstYearMonthDayTimeString(value: string | number | Date | null | undefined): string | null {
+  const d = parse(value);
+  if (!d) return null;
+  const year2 = d.toLocaleDateString("ja-JP", { timeZone: JST, year: "2-digit" });
+  const monthDay = d.toLocaleDateString("ja-JP", { timeZone: JST, month: "2-digit", day: "2-digit" });
+  const time = d.toLocaleTimeString("ja-JP", { timeZone: JST, hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${year2}/${monthDay} ${time}`;
+}
+
 /** 現在時刻のJSTでの "YYYY-MM-DD" を返す(「今日」判定などに使用)。 */
 export function nowJstDateString(): string {
   return toJstDateString(new Date())!;

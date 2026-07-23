@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { toJstMonthDayTimeString, toJstTimeString } from "@/lib/dateUtils";
+import { toJstYearMonthDayTimeString, toJstTimeString } from "@/lib/dateUtils";
 
 const API_URL = "/api";  // Next.js rewrite経由
 
@@ -41,7 +41,7 @@ function elapsed(iso: string) {
   return m + "分前";
 }
 function fmtDt(iso: string) {
-  return toJstMonthDayTimeString(iso) ?? iso;
+  return toJstYearMonthDayTimeString(iso) ?? iso;
 }
 function groupByMachine(items: NcSheet[]) {
   const map = new Map<string, NcSheet[]>();

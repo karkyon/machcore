@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import { useRouter } from "next/navigation";
-import { toJstMonthDayTimeString, toJstTimeString } from "@/lib/dateUtils";
+import { toJstMonthDayTimeString, toJstYearMonthDayTimeString, toJstTimeString } from "@/lib/dateUtils";
 
 const API_URL = "/api";  // Next.js rewrite経由 → サーバー側でlocalhost:3011にproxy
 
@@ -45,7 +45,7 @@ function elapsed(iso: string) {
   return m + "分前";
 }
 function fmtDt(iso: string) {
-  return toJstMonthDayTimeString(iso) ?? iso;
+  return toJstYearMonthDayTimeString(iso) ?? iso;
 }
 function groupByMachine(items: McSheet[]) {
   const map = new Map<string, McSheet[]>();
