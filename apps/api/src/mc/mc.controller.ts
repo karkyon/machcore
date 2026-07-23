@@ -689,8 +689,9 @@ export class McController {
     @Req() req: any,
     @Res() reply: FastifyReply,
   ) {
-    // is_preview:false → ログ記録する（ブラウザプレビューだが発行履歴は残す）
-    const opts = { ...dto, is_preview: false };
+    // is_preview:false → ログ記録する（ブラウザプレビューだが発行履歴は残す）。
+    // ただし直接印刷ではないため、force_watermarkで透かしだけは常に描画する。
+    const opts = { ...dto, is_preview: false, force_watermark: true };
     const pdf = await this.mc.generateRepeatSetupSheetPdf(id, req.user.id, opts);
     reply.header('Content-Type',        'application/pdf');
     reply.header('Content-Disposition', `inline; filename="mc-repeat-sheet-${id}.pdf"`);
@@ -738,7 +739,8 @@ export class McController {
     @Req() req: any,
     @Res() reply: FastifyReply,
   ) {
-    const pdf = await this.mc.generateSetupSheetPdf(id, req.user.id, { ...dto, is_preview: false } as any);
+    // 「プレビュー」ボタン(新規)は常に透かし入り・DB記録なしとする(is_preview常時true)
+    const pdf = await this.mc.generateSetupSheetPdf(id, req.user.id, { ...dto, is_preview: true } as any);
     this.opLog.log({
       actionType:   'MC_SETUP_PRINT',
       userId:       req.user?.sub,

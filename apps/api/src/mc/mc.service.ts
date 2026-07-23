@@ -2415,6 +2415,7 @@ export class McService {
       include_index_programs?: boolean;
       is_reference?:           boolean;
       is_preview?:             boolean;
+      force_watermark?:        boolean;
     } = {},
   ): Promise<Buffer> {
     const data = await this.getPrintData(mcId) as any;
@@ -3163,7 +3164,9 @@ export class McService {
     }
 
     // ── プレビュー透かし ──
-    if ((options as any).is_preview === true) {
+    // is_preview(真の意味でのプレビュー)またはforce_watermark(記録は残すが
+    // 直接印刷ではないブラウザプレビュー)のいずれかがtrueなら必ず描画する。
+    if ((options as any).is_preview === true || (options as any).force_watermark === true) {
       try {
         const { degrees: degs } = await import('pdf-lib');
         for (const page of finalDoc.getPages()) {
