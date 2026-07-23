@@ -60,7 +60,11 @@ export function toJstMonthDayTimeString(value: string | number | Date | null | u
 export function toJstYearMonthDayTimeString(value: string | number | Date | null | undefined): string | null {
   const d = parse(value);
   if (!d) return null;
-  const year2 = d.toLocaleDateString("ja-JP", { timeZone: JST, year: "2-digit" });
+  // year:"2-digit"をja-JPロケールで単独指定すると「26年」のように単位文字が
+  // 付与されてしまうため、sv-SEロケールの "YYYY-MM-DD" から数字のみ抽出する
+  // (toJstDateString と同じ安全な取得方法)。
+  const isoDate = d.toLocaleDateString("sv-SE", { timeZone: JST }); // "YYYY-MM-DD"
+  const year2 = isoDate.slice(2, 4);
   const monthDay = d.toLocaleDateString("ja-JP", { timeZone: JST, month: "2-digit", day: "2-digit" });
   const time = d.toLocaleTimeString("ja-JP", { timeZone: JST, hour: "2-digit", minute: "2-digit", hour12: false });
   return `${year2}/${monthDay} ${time}`;
