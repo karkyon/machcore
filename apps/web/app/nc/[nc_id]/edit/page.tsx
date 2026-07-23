@@ -84,6 +84,15 @@ export default function NcEditPage() {
   useEffect(() => { detailRef.current = detail; }, [detail]);
   const registrationCompletedRef = useRef(false);
 
+  // ── [v115] 終了確認モーダル(showKanryoModal)が開いたまま=OK/一時保存/キャンセル
+  //    いずれも押さずに離脱した場合、DBのstatusがCHANGINGのまま固着してしまうため、
+  //    change_type="不明"で自動finalizeし、変更理由未入力のまま離脱したことを記録に残す
+  //    (MC側 mc/[mc_id]/edit/page.tsx と同一仕様)。
+  const showKanryoModalRef = useRef(false);
+  useEffect(() => { showKanryoModalRef.current = showKanryoModal; }, [showKanryoModal]);
+  const tokenRef = useRef(token);
+  useEffect(() => { tokenRef.current = token; }, [token]);
+
   // ── このページ自体がアンマウントされる(=他画面へ遷移する)際に、
   //    認証セッションが残っていれば必ず終了させる。タブ切り替えなど、明示的な
   //    「キャンセル」ボタンを経由しない遷移であっても、次の画面へ認証状態を持ち越さない。
@@ -99,6 +108,16 @@ export default function NcEditPage() {
         console.warn("[NC-EDIT] 仮登録が未確定のまま離脱 — 仮登録を破棄しK_idを解放します", { ncId });
         fetch(`/api/nc/${ncId}/abandon-provisional`, {
           method:  "DELETE",
+          keepalive: true,
+        }).catch(() => {});
+      }
+      // [v115] 終了確認モーダルが未完了のまま離脱 — 変更理由不明として自動finalizeします
+      if (showKanryoModalRef.current && tokenRef.current) {
+        console.warn("[NC-EDIT] 終了確認モーダルが未完了のまま離脱 — 変更理由不明として自動finalizeします", { ncId });
+        fetch(`/api/nc/${ncId}/finalize`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenRef.current}` },
+          body:    JSON.stringify({ change_type: "不明", change_detail: "変更理由未入力（モーダル入力途中で離脱）" }),
           keepalive: true,
         }).catch(() => {});
       }

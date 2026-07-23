@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { printApi, ncApi, machinesApi, Machine, PrintData, PrintOptions, NcTool, downloadApi} from "@/lib/api";
+import { printApi, ncApi, machinesApi, Machine, PrintData, NcTool, downloadApi} from "@/lib/api";
 import { NcPartHeader } from "@/components/nc/NcPartHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
