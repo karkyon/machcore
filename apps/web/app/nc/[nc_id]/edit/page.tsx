@@ -44,6 +44,14 @@ export default function NcEditPage() {
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const markDirty = (field: string) => setDirty(prev => new Set(prev).add(field));
 
+  // ── [離脱時未保存警告] 既存のdirty(Set)をそのまま「未保存変更あり」判定に利用する。
+  //    タブ切替・ダッシュボードへ等のSPA内遷移で、保存前に離脱しようとした場合に
+  //    確認ダイアログを出し、キャンセルされたら遷移を中止する。
+  const guardedNavigate = (path: string) => {
+    if (dirty.size > 0 && !window.confirm("保存されていない変更があります。このまま移動すると変更内容は失われます。よろしいですか？")) return;
+    router.push(path);
+  };
+
   // AUTH（必ずファイルアップロードより先に宣言）
   const { operator, isAuthenticated, logout, token, isSessionForNc } = useAuth();
 
@@ -101,17 +109,19 @@ export default function NcEditPage() {
   //    発生しないため、beforeunloadでも同じ破棄処理を発火させる(keepalive:trueで
   //    ページ離脱後もリクエストを継続させる)。
   useEffect(() => {
-    const handleBeforeUnload = () => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (detailRef.current?.status === "PROVISIONAL" && !registrationCompletedRef.current) {
         fetch(`/api/nc/${ncId}/abandon-provisional`, {
           method:  "DELETE",
           keepalive: true,
         }).catch(() => {});
       }
+      // [離脱時未保存警告] 未保存の変更(dirty)があればブラウザ標準の確認ダイアログを出す
+      if (dirty.size > 0) { e.preventDefault(); e.returnValue = ""; }
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [ncId]);
+  }, [ncId, dirty]);
 
   // ── ファイルアップロード（UploadAgent経由、MC側と同方式）──
   const [uploading, setUploading] = useState(false);
@@ -411,7 +421,7 @@ export default function NcEditPage() {
           {!isProvisionalLocked && (
             <>
               <button
-                onClick={() => router.push(`/nc/${ncId}`)}
+                onClick={() => guardedNavigate(`/nc/${ncId}`)}
                 className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-white transition-colors shrink-0"
               >
                 <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
@@ -422,7 +432,7 @@ export default function NcEditPage() {
               <span className="text-slate-600">|</span>
             </>
           )}
-          <button onClick={() => router.push("/nc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
+          <button onClick={() => guardedNavigate("/nc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>ダッシュボードへ
           </button>
           <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
@@ -453,7 +463,7 @@ export default function NcEditPage() {
 
         {/* タブナビ（MC側準拠: ブラウザタブ風） */}
         <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
-          <button onClick={() => { if (!isProvisionalLocked) router.push(`/nc/${ncId}`); }}
+          <button onClick={() => { if (!isProvisionalLocked) guardedNavigate(`/nc/${ncId}`); }}
             disabled={isProvisionalLocked}
             title={isProvisionalLocked ? "登録確定後に利用できます" : undefined}
             className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${isProvisionalLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
@@ -464,13 +474,13 @@ export default function NcEditPage() {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
             {isAuthenticated && <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse ml-0.5" />}
           </button>
-          <button onClick={() => { if (!isProvisionalLocked) router.push(`/nc/${ncId}/print`); }}
+          <button onClick={() => { if (!isProvisionalLocked) guardedNavigate(`/nc/${ncId}/print`); }}
             disabled={isProvisionalLocked}
             title={isProvisionalLocked ? "登録確定後に利用できます" : undefined}
             className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${isProvisionalLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
           </button>
-          <button onClick={() => { if (!isProvisionalLocked) router.push(`/nc/${ncId}/record`); }}
+          <button onClick={() => { if (!isProvisionalLocked) guardedNavigate(`/nc/${ncId}/record`); }}
             disabled={isProvisionalLocked}
             title={isProvisionalLocked ? "登録確定後に利用できます" : undefined}
             className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${isProvisionalLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
