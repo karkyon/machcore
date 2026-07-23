@@ -1039,6 +1039,20 @@ export default function McEditPage() {
     }
   };
 
+  // ── [一時保存] finalize()を呼ばず(=バージョン変更なし)、既に保存済みの内容を
+  //    そのままCHANGINGステータスで残して離脱する。段取シートバック(sbMode/
+  //    sbRepeatMode)は作業記録フローへの引き継ぎが前提のため対象外とし、
+  //    通常編集(部品照会等)のみで選択可能とする。
+  const handleKanryoTempSave = () => {
+    if (!pendingBody) return;
+    const savedId = pendingBody.savedMcId;
+    setShowKanryoModal(false);
+    setPendingBody(null);
+    showToast("💾 一時保存しました（バージョン変更なし）");
+    logout();
+    setTimeout(() => router.push(`/mc/${savedId}`), 600);
+  };
+
   const handleParseTooling = async () => {
     if (!token || !toolingText.trim()) return;
     try {
@@ -2111,6 +2125,13 @@ export default function McEditPage() {
                 className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm transition-colors">
                 {(pendingBody?.isSbMode || sbRepeatMode) ? "OK — 作業記録へ" : "OK — 登録する"}
               </button>
+              {!(pendingBody?.isSbMode || sbRepeatMode) && (
+                <button onClick={handleKanryoTempSave}
+                  title="バージョンを変更せず、入力内容だけを保存します"
+                  className="px-4 py-3 border border-teal-300 text-teal-700 bg-teal-50 hover:bg-teal-100 font-bold text-sm rounded-xl transition-colors whitespace-nowrap">
+                  💾 一時保存
+                </button>
+              )}
               <button onClick={async () => {
                   const isSb = pendingBody?.isSbMode || sbRepeatMode;
                   if (isSb) {

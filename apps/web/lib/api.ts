@@ -243,6 +243,8 @@ export const ncApi = {
     ),
   // [仮登録確定] MC側mcApi.finalizeと同方式。新規登録(仮登録)の初回確定にも、
   // 通常編集の終了確認にも使う。
+  revert: (ncId: number, token: string) =>
+    api.patch(`/nc/${ncId}/revert`, {}, { headers: { Authorization: `Bearer ${token}` } }),
   finalize: (ncId: number, changeType: string, changeDetail: string | undefined, token: string) =>
     api.post(`/nc/${ncId}/finalize`, { change_type: changeType, change_detail: changeDetail ?? undefined },
       { headers: { Authorization: `Bearer ${token}` } }),

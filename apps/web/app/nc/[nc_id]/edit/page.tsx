@@ -44,6 +44,11 @@ export default function NcEditPage() {
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const markDirty = (field: string) => setDirty(prev => new Set(prev).add(field));
 
+  // [v112] 終了確認モーダル(変更種別選択 + 一時保存) — MC側と同一仕様
+  const [showKanryoModal, setShowKanryoModal] = useState(false);
+  const [kanryoType,   setKanryoType]   = useState("小変更");
+  const [kanryoDetail, setKanryoDetail] = useState("");
+
   // ── [離脱時未保存警告] 既存のdirty(Set)をそのまま「未保存変更あり」判定に利用する。
   //    タブ切替・ダッシュボードへ等のSPA内遷移で、保存前に離脱しようとした場合に
   //    確認ダイアログを出し、キャンセルされたら遷移を中止する。
@@ -369,18 +374,58 @@ export default function NcEditPage() {
       if (isProvisionalCompletion) {
         // [仮登録確定] finalize()でPENDING_APPROVALへ遷移させ、登録を確定する。
         // これ以降、離脱時の仮登録破棄(abandon-provisional)は発火しない。
+        // 新規登録の確定は変更種別が一意("新規登録")のため、MC側sbModeと同様に
+        // モーダルを経由せず直接finalizeする。
         await ncApi.finalize(ncId, "新規登録", undefined, token);
         registrationCompletedRef.current = true;
+        logout();
+        router.push(`/nc/${ncId}`);
+        return;
       }
 
-      logout();
-      router.push(`/nc/${ncId}`);
+      // [v112] 通常編集(確定済みレコードの変更): MC側と同一仕様で、保存後に
+      // 「終了確認モーダル」(変更種別選択 + バージョンインクリ、または一時保存)を表示する。
+      setShowKanryoModal(true);
     } catch (e: any) {
       setSaveError(e?.response?.data?.message ?? "保存に失敗しました");
     } finally {
       setSaving(false);
     }
   }, [isAuthenticated, token, dirty, machineId, machiningTime, folderName, fileName, version, clampNote, creatorId, sheetCreatedAt, ncId, logout, router, detail]);
+
+  // ── 終了確認OK: change_type/detailを付けてfinalize()しバージョンインクリ ──
+  const handleKanryoOk = async () => {
+    if (!token) return;
+    try {
+      await ncApi.finalize(ncId, kanryoType, kanryoDetail || undefined, token);
+      setShowKanryoModal(false);
+      logout();
+      setTimeout(() => router.push(`/nc/${ncId}`), 400);
+    } catch (e: any) {
+      setSaveError(e?.response?.data?.message ?? "バージョン更新に失敗");
+      setShowKanryoModal(false);
+    }
+  };
+
+  // ── [一時保存] finalize()を呼ばず(=バージョン変更なし)、既に保存済みの内容を
+  //    そのままCHANGINGステータスで残して離脱する。
+  const handleKanryoTempSave = () => {
+    setShowKanryoModal(false);
+    logout();
+    setTimeout(() => router.push(`/nc/${ncId}`), 400);
+  };
+
+  // ── モーダルの「キャンセル（変更を取り消す）」: 保存済みのCHANGING状態を
+  //    revert()で元のステータスへ戻してから離脱する。
+  const handleKanryoCancel = async () => {
+    if (token) {
+      try { await ncApi.revert(ncId, token); }
+      catch (e) { console.warn("[NC-EDIT] キャンセル時revert失敗", e); }
+    }
+    setShowKanryoModal(false);
+    logout();
+    router.push(`/nc/${ncId}`);
+  };
 
   const handleCancel = useCallback(() => {
     if (isAuthenticated) {
@@ -947,6 +992,63 @@ export default function NcEditPage() {
 
         </div>
       </div>
+
+      {/* [v112] 終了確認モーダル(変更種別選択 + バージョンインクリ、または一時保存) — MC側と同一仕様 */}
+      {showKanryoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="bg-slate-800 px-5 py-3">
+              <h2 className="text-base font-bold text-white">終了確認 — 変更内容を記録</h2>
+              <p className="text-xs text-slate-400 mt-0.5">この変更をどの種類として登録しますか？バージョンが更新されます。</p>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-2">作業種別 *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {["大変更","小変更","追加","修正","削除","訂正"].map(t => (
+                    <button key={t} type="button"
+                      onClick={() => setKanryoType(t)}
+                      className={`py-2 rounded-lg text-sm font-bold border transition-colors ${
+                        kanryoType === t
+                          ? t === "大変更" ? "bg-red-600 text-white border-red-600"
+                            : "bg-sky-600 text-white border-sky-600"
+                          : "bg-white text-slate-600 border-slate-300 hover:border-sky-400"
+                      }`}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                {kanryoType === "大変更" ? (
+                  <p className="text-xs text-red-600 mt-1.5 font-bold">⚠️ 大変更: バージョンの整数部が+1（例: 1.0001 → 2.0001）</p>
+                ) : (
+                  <p className="text-xs text-sky-600 mt-1.5">小変更系: 100分の1位が+0.01（例: 1.0001 → 1.0101）</p>
+                )}
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1.5">内容（任意）</label>
+                <textarea value={kanryoDetail} onChange={e => setKanryoDetail(e.target.value)}
+                  rows={2} placeholder="変更の詳細内容を入力..."
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none" />
+              </div>
+            </div>
+            <div className="px-5 pb-5 flex gap-3">
+              <button onClick={handleKanryoOk}
+                className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl text-sm transition-colors">
+                OK — 登録する
+              </button>
+              <button onClick={handleKanryoTempSave}
+                title="バージョンを変更せず、入力内容だけを保存します"
+                className="px-4 py-3 border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 font-bold text-sm rounded-xl transition-colors whitespace-nowrap">
+                💾 一時保存
+              </button>
+              <button onClick={handleKanryoCancel}
+                className="px-5 py-3 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
+                キャンセル（変更を取り消す）
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 認証モーダル */}
       {authOpen && (
