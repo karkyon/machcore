@@ -154,8 +154,8 @@ export default function NcSearchPage() {
                   const proc = String(r.process_l ?? "");
                   const colorClass = Object.entries(PROCESS_COLOR).find(([k]) => proc.startsWith(k))?.[1] ?? "bg-slate-500 text-white";
                   return (
-                    <div key={r.nc_id} onClick={() => handleSelect(r.nc_id)}
-                      className={`px-4 py-2 flex items-center gap-3 cursor-pointer transition-colors border-b border-dashed border-slate-200 ${selected===r.nc_id ? "bg-sky-50" : "hover:bg-slate-50"}`}>
+                    <div key={r.id} onClick={() => handleSelect(r.id)}
+                      className={`px-4 py-2 flex items-center gap-3 cursor-pointer transition-colors border-b border-dashed border-slate-200 ${selected===r.id ? "bg-sky-50" : "hover:bg-slate-50"}`}>
                       <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold shrink-0 ${colorClass}`}>{ri+1}</span>
                       <span className="font-mono text-xs text-slate-600 shrink-0">NC ID : {r.nc_id}</span>
                       {r.machine_code && <span className="text-sm text-slate-700 font-medium shrink-0">{r.machine_code}</span>}

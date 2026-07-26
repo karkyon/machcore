@@ -29,7 +29,9 @@ export class NcService {
       switch (key) {
         case "nc_id":
           const ncId = parseInt(trimQ);
-          if (!isNaN(ncId)) where.id = ncId;
+          // [v116] 詳細画面の「NC_id」(legacy_nc_id)と「加工ID」(machining_id)の
+          // どちらで検索されても一致するようにする。内部PK(id)には一致させない。
+          if (!isNaN(ncId)) where.OR = [{ legacyNcId: ncId }, { machiningId: ncId }];
           break;
         case "part_id":
           where.part = { partId: trimQ };
@@ -62,7 +64,7 @@ export class NcService {
         take: limit,
         skip: offset,
         select: {
-          id: true, status: true, machiningId: true,
+          id: true, status: true, machiningId: true, legacyNcId: true,
           part:     { select: { id: true, partId: true, drawingNo: true, name: true, clientName: true } },
           machining: {
             select: {
@@ -78,7 +80,11 @@ export class NcService {
     return {
       total,
       data: data.map(r => ({
-        nc_id: r.id, part_db_id: r.part.id, part_id: r.part.partId,
+        // [v116] 一覧表示の「NC ID」は詳細画面(NcPartHeader)と同じ
+        // legacyNcId ?? machiningId ?? id のフォールバックで統一する。
+        // ルーティング/詳細取得には内部PKが必須のため id は別途そのまま返す。
+        id: r.id, nc_id: r.legacyNcId ?? r.machiningId ?? r.id,
+        part_db_id: r.part.id, part_id: r.part.partId,
         drawing_no: r.part.drawingNo, part_name: r.part.name,
         client_name: r.part.clientName, process_l: r.machining?.processL ?? null,
         machine_code: r.machining?.machine?.machineCode ?? null,

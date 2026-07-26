@@ -49,6 +49,9 @@ api.interceptors.response.use(
 );
 
 export type NcSearchResult = {
+  // [v116] ルーティング/詳細取得用の内部PK。nc_idは表示専用(legacy_nc_id等)のため
+  // 別フィールドとして保持する。
+  id: number;
   nc_id: number;
   part_db_id: number;
   part_id: string;
