@@ -1419,7 +1419,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   table.info td { border: 1px solid #999; padding: 2px 5px; font-size: 9pt; vertical-align: middle; }
   table.info td.lbl { background: #e8e8e8; font-weight: 700; width: 80px; white-space: nowrap; }
   table.info td.val { }
-  .備考box { background: #fffde7; border: 1px solid #ccc; padding: 4px 6px; font-size: 8.5pt;
+  .備考box { background: #f0f0f0; border: 1px solid #ccc; padding: 4px 6px; font-size: 8.5pt;
               white-space: pre-wrap; min-height: 28px; margin-bottom: 4px; }
   table.sign { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
   table.sign td { border: 1px solid #999; padding: 2px 5px; font-size: 8.5pt; }
@@ -1427,10 +1427,12 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   table.work { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
   table.work td { border: 1px solid #999; padding: 3px 5px; font-size: 8.5pt; height: 22px; }
   table.work td.lbl { background: #e8e8e8; font-weight: 700; white-space: nowrap; width: 70px; }
-  .sh { font-size: 8.5pt; font-weight: 700; background: #1e3a5f; color: #fff; padding: 2px 6px; margin-bottom: 1px; }
+  /* [モノクロ印刷対応] 濃紺(#1e3a5f)は白黒印刷/コピー時にムラや潰れの原因となるため、
+     完全な黒系グレースケールに変更する(カラーを一切使わない)。 */
+  .sh { font-size: 8.5pt; font-weight: 700; background: #333; color: #fff; padding: 2px 6px; margin-bottom: 1px; }
   table.tools { width: 100%; border-collapse: collapse; }
-  table.tools th { background: #1e3a5f; color: #fff; font-weight: 700; padding: 3px 5px;
-                   border: 1px solid #7a9cbf; font-size: 8.5pt; text-align: left; }
+  table.tools th { background: #333; color: #fff; font-weight: 700; padding: 3px 5px;
+                   border: 1px solid #888; font-size: 8.5pt; text-align: left; }
   table.tools td { border: 1px solid #ccc; padding: 2.5px 5px; font-size: 8.5pt; vertical-align: top; }
   table.tools tr:nth-child(even) td { background: #f5f5f5; }
   .c { text-align: center; }
@@ -1757,12 +1759,33 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   }
 
   // ── [v076] PG→USBチケット発行用のファイル情報取得(listPgFilesNcを利用) ──
-  async getPgFileInfoNc(ncProgramId: number) {
-    const files = await this.listPgFilesNc(ncProgramId);
-    if (!files || files.length === 0) return null;
-    return {
-      files: files.map(f => ({ id: f.id, original_name: f.original_name, file_path: f.file_path })),
-      fileCount: files.length,
-    };
+  /** UploadAgent連携: USBへPGファイルを書き出す際に渡す情報(MC側getPgFileInfoと完全に同一の
+   * 返却形状 { files: [{ name, folderName?, content(base64) }] } にする。
+   * [バグ修正] 旧実装は { files: [{id, original_name, file_path}], fileCount } という
+   * DBメタデータのみを返しており、file_pathはサーバー(Linux)側の絶対パスのため
+   * クライアントPC上で動作するUploadAgent(C#)からは一切アクセスできず、
+   * ファイル内容(content)も欠落していたため、USBへの書き出しが常に失敗していた。
+   * ファイル内容をbase64エンコードして直接埋め込み、フォルダ単位機械の場合は
+   * アップロード時にNcFileへ保存済みのfolderNameをそのまま使う(MC側と同一のフォルダ判定思想)。
+   */
+  async getPgFileInfoNc(ncProgramId: number): Promise<{ files: Array<{ name: string; folderName?: string; content: string }> } | null> {
+    const recs = await this.prisma.ncFile.findMany({
+      where:   { ncProgramId, fileType: 'PROGRAM' as any, isDeleted: false },
+      orderBy: [{ originalName: 'asc' }],
+    });
+    if (recs.length === 0) return null;
+
+    const files: Array<{ name: string; folderName?: string; content: string }> = [];
+    for (const rec of recs) {
+      if (!fs.existsSync(rec.filePath)) continue;
+      const buf = fs.readFileSync(rec.filePath);
+      if (rec.folderName) {
+        files.push({ name: rec.originalName, folderName: rec.folderName, content: buf.toString('base64') });
+      } else {
+        files.push({ name: rec.originalName, content: buf.toString('base64') });
+      }
+    }
+    if (files.length === 0) return null;
+    return { files };
   }
 }

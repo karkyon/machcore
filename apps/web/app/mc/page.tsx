@@ -157,7 +157,7 @@ export default function McDashboard() {
   const LostReasonModal = lostModalSheet ? (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <h3 className="text-base font-bold text-red-700 mb-1">⚠ 行方不明として処理</h3>
+        <h3 className="text-base font-bold text-red-700 mb-1">⚠ 回収済みとして処理</h3>
         <p className="text-xs text-slate-500 mb-4">この段取シートを未回収一覧から除外します(削除ではなく理由付きで記録されます)。</p>
         <label className="block text-xs font-bold text-slate-600 mb-1">理由</label>
         <select value={lostReason} onChange={e => setLostReason(e.target.value)}
@@ -171,7 +171,7 @@ export default function McDashboard() {
           <button onClick={() => setLostModalSheet(null)} className="px-4 py-2 bg-slate-100 text-slate-600 text-sm font-bold rounded-lg hover:bg-slate-200">キャンセル</button>
           <button onClick={handleMarkLost} disabled={lostSubmitting}
             className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 disabled:opacity-50">
-            {lostSubmitting ? "処理中..." : "行方不明として記録"}
+            {lostSubmitting ? "処理中..." : "回収済みとして記録"}
           </button>
         </div>
       </div>

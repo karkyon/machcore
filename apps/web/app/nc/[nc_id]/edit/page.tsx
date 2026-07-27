@@ -730,7 +730,7 @@ export default function NcEditPage() {
 
           {/* === ACTIVE STATE === */}
           {isAuthenticated && d && (
-            <div className="max-w-4xl mx-auto space-y-4">
+            <div className="max-w-6xl mx-auto space-y-4">
 
               {/* セッションバナー（赤） */}
               <div className="bg-red-600 rounded-xl px-5 py-3 flex items-center gap-3">
@@ -1036,7 +1036,7 @@ export default function NcEditPage() {
                         <table className="text-xs w-full border-collapse">
                           <colgroup>
                             <col style={{width:"72px"}}/>
-                            <col style={{width:"90px"}}/>
+                            <col style={{width:"230px"}}/>
                             <col style={{width:"110px"}}/>
                             <col style={{width:"100px"}}/>
                             <col style={{width:"70px"}}/>
