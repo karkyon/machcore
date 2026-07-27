@@ -258,7 +258,9 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
       if (!res.ok) throw new Error(`チケット発行失敗: HTTP ${res.status}`);
       const { ticket } = await res.json();
       const apiBaseUrl = window.location.origin + "/api";
-      const result = await agentPgToUsb(ticket, apiBaseUrl);
+      // [v116] system("mc"/"nc")を必ずAgentへ渡す。渡さないとNC側のPG→USBが
+      // 常にMC用エンドポイントへ問い合わせて404になるバグがあったため修正。
+      const result = await agentPgToUsb(ticket, apiBaseUrl, system);
       if (!result.success) {
         showToast(`❌ ${result.error ?? "USBへの書き出しに失敗しました"}`);
         return;

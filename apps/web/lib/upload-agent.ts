@@ -60,17 +60,21 @@ export type PgToUsbResult = {
 /**
  * Agentへ「PGファイルをチケットで取得し、設定済みUSBドライブへ直接コピー」を依頼する。
  * ダイアログは一切表示しない（USB保存先はAgent設定で事前固定済み）。
+ *
+ * [v116] system("mc"|"nc")を必ず渡すこと。Agent側はこれを見て
+ * `/mc/files/pg-info-by-ticket` または `/nc/files/pg-info-by-ticket` のどちらを
+ * 呼び出すか決定する。省略時はAgent側で"mc"として扱われる(後方互換)。
  */
-export async function agentPgToUsb(ticket: string, apiBaseUrl: string): Promise<PgToUsbResult> {
+export async function agentPgToUsb(ticket: string, apiBaseUrl: string, system: "mc" | "nc" = "mc"): Promise<PgToUsbResult> {
   const token = await getAgentToken();
   if (!token) return { agentAvailable: false, success: false, copiedFiles: [], error: "Agent未起動" };
 
   try {
-    console.log("[Agent] /pg-to-usb 依頼開始 ticket=", ticket);
+    console.log("[Agent] /pg-to-usb 依頼開始 ticket=", ticket, "system=", system);
     const res = await fetch(`${AGENT_BASE}/pg-to-usb`, {
       method:  "POST",
       headers: { "Content-Type": "application/json", "X-Agent-Token": token },
-      body:    JSON.stringify({ ticket, apiBaseUrl }),
+      body:    JSON.stringify({ ticket, apiBaseUrl, system }),
       signal:  AbortSignal.timeout(TIMEOUT_MS * 4),
     });
     const json = await res.json();

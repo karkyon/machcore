@@ -223,7 +223,7 @@ export default function McDetailPage() {
       }
 
       const apiBaseUrl = window.location.origin + '/api';
-      const result = await agentPgToUsb(ticket, apiBaseUrl);
+      const result = await agentPgToUsb(ticket, apiBaseUrl, "mc");
 
       fetch(`/api/mc/files/pg-to-usb-complete`, {
         method: 'POST',
@@ -1475,7 +1475,7 @@ export default function McDetailPage() {
                       if (!res.ok) throw new Error(`チケット発行失敗: HTTP ${res.status}`);
                       const { ticket } = await res.json();
                       const apiBaseUrl = window.location.origin + "/api";
-                      const result = await agentPgToUsb(ticket, apiBaseUrl);
+                      const result = await agentPgToUsb(ticket, apiBaseUrl, "mc");
                       if (!result.success) {
                         showToast(`❌ ${result.error ?? "USBへの書き出しに失敗しました"}`);
                         return;
