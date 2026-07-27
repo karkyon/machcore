@@ -29,6 +29,12 @@ export class DashboardService {
     const items = rows.map(s => ({
       id:            s.id,
       nc_id:         s.ncProgramId,
+      // [段取シートバック] 一覧表示・手動検索用に旧ACC_NC.NC_id(legacyNcId)と
+      // 加工ID(machiningId)、シート種別を追加(MC側uncollectedMcと同一仕様)。
+      legacy_nc_id:  s.ncProgram.legacyNcId ?? null,
+      machining_id:  s.ncProgram.machiningId,
+      sheet_type:    (s as any).sheetType ?? null,
+      is_reference:  (s as any).isReference ?? false,
       part_id:       s.ncProgram.part.partId,
       drawing_no:    s.ncProgram.part.drawingNo,
       part_name:     s.ncProgram.part.name,

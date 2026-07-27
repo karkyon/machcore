@@ -1002,6 +1002,82 @@ export class NcService {
     return { message: "段取シートを回収済みにしました" };
   }
 
+  /** 段取シートバック: legacy_nc_id で未回収シート一覧取得(MC側uncollectedByLegacyと同一仕様) */
+  async uncollectedByLegacy(legacyNcId: number) {
+    const programs = await this.prisma.ncProgram.findMany({
+      where: { legacyNcId },
+      select: {
+        id: true, machiningId: true,
+        part:      { select: { drawingNo: true, name: true } },
+        machining: { select: { processL: true } },
+      },
+    });
+    if (programs.length === 0) {
+      return { found: false, programs: [], sheets: [] };
+    }
+    const programIds = programs.map(p => p.id);
+    const sheets = await this.prisma.setupSheetLog.findMany({
+      where:   { ncProgramId: { in: programIds }, workCollected: false },
+      orderBy: { printedAt: "desc" },
+      include: { operator: { select: { name: true } } },
+    });
+    const allSheetCounts = await this.prisma.setupSheetLog.groupBy({
+      by: ["ncProgramId"],
+      where: { ncProgramId: { in: programIds } },
+      _count: { id: true },
+    });
+    const countMap = new Map(allSheetCounts.map(r => [r.ncProgramId, r._count.id]));
+    const sheetTypeMap = new Map<number, string>();
+    for (const s of sheets) {
+      const st = (s as any).sheetType;
+      if (!st) continue;
+      const existing = sheetTypeMap.get(s.ncProgramId);
+      if (!existing || st === "NEW") sheetTypeMap.set(s.ncProgramId, st);
+    }
+    return {
+      found:    true,
+      programs: programs.map(p => ({
+        nc_id:        p.id,
+        machining_id: p.machiningId,
+        process_l:    (p as any).machining?.processL ?? null,
+        drawing_no:   p.part.drawingNo,
+        part_name:    p.part.name,
+        total_sheets: countMap.get(p.id) ?? 0,
+        sheet_type:   (sheetTypeMap.get(p.id) ?? ((countMap.get(p.id) ?? 0) <= 1 ? "NEW" : "REPEAT")),
+      })),
+      sheets: sheets.map(s => ({
+        id:             s.id,
+        nc_id:          s.ncProgramId,
+        printed_at:     s.printedAt,
+        version:        s.version ?? null,
+        operator_name:  s.operator?.name ?? null,
+        work_collected: s.workCollected,
+        is_reference:   (s as any).isReference ?? false,
+        sheet_type:     (s as any).sheetType ?? null,
+        has_pdf:        !!(s.pdfPath && require("fs").existsSync(s.pdfPath)),
+        is_lost:        (s as any).isLost ?? false,
+        lost_reason:    (s as any).lostReason ?? null,
+        lost_detail:    (s as any).lostDetail ?? null,
+        lost_at:        (s as any).lostAt ?? null,
+      })),
+    };
+  }
+
+  /** 保存済み段取シートPDF取得（ログIDで原本を返す）(MC側getSetupSheetPdfと同一仕様) */
+  async getSetupSheetPdf(logId: number): Promise<{ buffer: Buffer; fileName: string }> {
+    const log = await this.prisma.setupSheetLog.findUnique({ where: { id: logId } });
+    if (!log) throw new NotFoundException(`setup_sheet_log ${logId} が存在しません`);
+    if (!log.pdfPath) {
+      throw new NotFoundException(`発行No.${logId} の原本PDFは保存されていません（この発行はシステム移行前のデータです）`);
+    }
+    if (!require("fs").existsSync(log.pdfPath)) {
+      throw new NotFoundException(`発行No.${logId} の原本PDFファイルが見つかりません（保存先: ${log.pdfPath}）`);
+    }
+    const buffer = require("fs").readFileSync(log.pdfPath) as Buffer;
+    const fileName = require("path").basename(log.pdfPath);
+    return { buffer, fileName };
+  }
+
   /** WR-01: 作業記録一覧 */
   async workRecords(ncProgramId: number) {
     const rows = await this.prisma.workRecord.findMany({

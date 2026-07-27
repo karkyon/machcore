@@ -96,6 +96,20 @@ function RecordPageInner() {
   const ncId      = Number(params.nc_id);
   const searchParams = useSearchParams();
 
+  // ── 段取シートバック(ダッシュボードからの回収フロー) — MC側と同一仕様 ──
+  const [sbMode, setSbMode] = useState(false);
+  const [sbSheetLogId, setSbSheetLogId] = useState<number>(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const v = sessionStorage.getItem("sb_next_record");
+    if (v && parseInt(v) === ncId) {
+      setSbMode(true);
+      const lid = sessionStorage.getItem("sb_sheet_log_id");
+      if (lid) setSbSheetLogId(parseInt(lid));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [nc,       setNc]       = useState<NcDetail | null>(null);
   const [setupSheets, setSetupSheets] = useState<SetupSheetLog[]>([]);
   const [selectedSheet, setSelectedSheet] = useState<SetupSheetLog | null>(null);
@@ -168,6 +182,17 @@ function RecordPageInner() {
   }, [ncId]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // [段取シートバック] sb_sheet_log_id に一致する未回収シートを自動選択する。
+  useEffect(() => {
+    if (!sbMode || !sbSheetLogId || setupSheets.length === 0) return;
+    const target = (setupSheets as any[]).find(s => s.id === sbSheetLogId);
+    if (target) {
+      setSelectedSheet(target);
+      if (!isAuthenticated) setShowAuth(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sbMode, sbSheetLogId, setupSheets]);
 
   // ?edit=ID がある場合、データ取得後に編集モードで開く
   useEffect(() => {
@@ -307,6 +332,15 @@ function RecordPageInner() {
           }
         }
         await endSession();
+        if (sbMode) {
+          showToast("✅ 段取シートバック完了 — 回収済みに更新しました");
+          if (typeof window !== "undefined") {
+            sessionStorage.removeItem("sb_next_record");
+            sessionStorage.removeItem("sb_sheet_log_id");
+          }
+          setTimeout(() => router.push("/nc"), 1200);
+          return;
+        }
         showToast("✅ 作業記録を登録しました");
         setTimeout(() => router.push(`/nc/${ncId}`), 1200);
         return;

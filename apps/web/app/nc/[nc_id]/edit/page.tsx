@@ -17,6 +17,20 @@ export default function NcEditPage() {
   const router    = useRouter();
   const ncId      = Number(nc_id);
 
+  // ── 段取シートバック(sbMode=新規STEP1 / sbRepeatMode=リピート編集) — MC側と同一仕様 ──
+  const [sbMode, setSbMode] = useState(false);
+  const [sbRepeatMode, setSbRepeatMode] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const v = sessionStorage.getItem("sb_next_record");
+      if (v && parseInt(v) === parseInt(String(nc_id))) setSbMode(true);
+      const r = sessionStorage.getItem("sb_repeat_edit");
+      if (r && parseInt(r) === parseInt(String(nc_id))) setSbRepeatMode(true);
+    }
+  }, [nc_id]);
+  // [v068] 段取シートバックが正規にSTEP2(作業記録)へ引き継がれたかを追跡する。
+  const sbFlowCompletedRef = useRef(false);
+
   const [detail,    setDetail]    = useState<NcDetail | null>(null);
   const [approvalModalOpen, setApprovalModalOpen] = useState(false); // [v095]
   const [machines,  setMachines]  = useState<Machine[]>([]);
@@ -92,12 +106,33 @@ export default function NcEditPage() {
   useEffect(() => { showKanryoModalRef.current = showKanryoModal; }, [showKanryoModal]);
   const tokenRef = useRef(token);
   useEffect(() => { tokenRef.current = token; }, [token]);
+  // sbMode/sbRepeatMode(段取シートバック)の最新値もrefで追従させる — MC側と同一仕様。
+  const sbModeRef = useRef(sbMode);
+  const sbRepeatModeRef = useRef(sbRepeatMode);
+  useEffect(() => { sbModeRef.current = sbMode; }, [sbMode]);
+  useEffect(() => { sbRepeatModeRef.current = sbRepeatMode; }, [sbRepeatMode]);
 
   // ── このページ自体がアンマウントされる(=他画面へ遷移する)際に、
   //    認証セッションが残っていれば必ず終了させる。タブ切り替えなど、明示的な
   //    「キャンセル」ボタンを経由しない遷移であっても、次の画面へ認証状態を持ち越さない。
   useLayoutEffect(() => {
     return () => {
+      // [段取シートバック] STEP1(新規)/リピート編集フローの途中で離脱した場合は、
+      // sessionStorageのsb_*フラグをクリアしてlogout()する(MC側と同一仕様)。
+      // 正規にSTEP2(作業記録)へ引き継がれた場合(sbFlowCompletedRef)はスキップする。
+      if (sbModeRef.current || sbRepeatModeRef.current) {
+        if (sbFlowCompletedRef.current) {
+          return;
+        }
+        console.warn("[NC-EDIT] 段取シートバックが未完了のまま離脱 — sessionStorageをクリアしlogoutします", { ncId });
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("sb_next_record");
+          sessionStorage.removeItem("sb_sheet_log_id");
+          sessionStorage.removeItem("sb_repeat_edit");
+        }
+        logout();
+        return;
+      }
       // [仮登録破棄] 新規登録(仮登録=PROVISIONAL)のまま「作業完了（登録）」
       // (finalize)を経由せずこの画面を離れた場合は、登録内容を破棄し
       // 採番したK_idを解放する。既に確定済み(PROVISIONAL以外)なら何もしない。
@@ -293,6 +328,13 @@ export default function NcEditPage() {
 
   const [authOpen, setAuthOpen] = useState(false);
 
+  // sbMode/sbRepeatMode=true かつ未認証の場合は自動で認証モーダルを開く — MC側と同一仕様。
+  useEffect(() => {
+    if ((sbMode || sbRepeatMode) && !isAuthenticated) {
+      setAuthOpen(true);
+    }
+  }, [sbMode, sbRepeatMode, isAuthenticated]);
+
   // 経過タイマー
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -397,11 +439,22 @@ export default function NcEditPage() {
         // モーダルを経由せず直接finalizeする。
         await ncApi.finalize(ncId, "新規登録", undefined, token);
         registrationCompletedRef.current = true;
+        // [段取シートバック] STEP1(新規)フロー中の確定完了 → STEP2(作業記録)へ引き継ぐ。
+        if (sbMode) {
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("sb_next_record", String(ncId));
+          }
+          sbFlowCompletedRef.current = true;
+          router.push(`/nc/${ncId}/record`);
+          return;
+        }
         logout();
         router.push(`/nc/${ncId}`);
         return;
       }
 
+      // 新規(sbMode)の場合は変更内容を「新規登録」に固定する — MC側と同一仕様。
+      if (sbMode) setKanryoType("新規登録");
       // [v112] 通常編集(確定済みレコードの変更): MC側と同一仕様で、保存後に
       // 「終了確認モーダル」(変更種別選択 + バージョンインクリ、または一時保存)を表示する。
       setShowKanryoModal(true);
@@ -415,9 +468,23 @@ export default function NcEditPage() {
   // ── 終了確認OK: change_type/detailを付けてfinalize()しバージョンインクリ ──
   const handleKanryoOk = async () => {
     if (!token) return;
+    const isSb = sbMode || sbRepeatMode;
     try {
       await ncApi.finalize(ncId, kanryoType, kanryoDetail || undefined, token);
       setShowKanryoModal(false);
+      if (isSb) {
+        // [段取シートバック] STEP1(新規)/リピート編集の完了 → STEP2(作業記録)へ引き継ぐ。
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("sb_repeat_edit");
+          // 新規(sbMode)の場合はsb_next_recordがダッシュボード側で既にセット済み。
+          if (!sbMode) {
+            sessionStorage.setItem("sb_next_record", String(ncId));
+          }
+        }
+        sbFlowCompletedRef.current = true;
+        setTimeout(() => router.push(`/nc/${ncId}/record`), 400);
+        return;
+      }
       logout();
       setTimeout(() => router.push(`/nc/${ncId}`), 400);
     } catch (e: any) {
@@ -437,6 +504,18 @@ export default function NcEditPage() {
   // ── モーダルの「キャンセル（変更を取り消す）」: 保存済みのCHANGING状態を
   //    revert()で元のステータスへ戻してから離脱する。
   const handleKanryoCancel = async () => {
+    if (sbMode || sbRepeatMode) {
+      // [段取シートバック] 新規/リピートフロー: 既存通り「スキップ」(作業記録なしでダッシュボードへ)
+      setShowKanryoModal(false);
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("sb_next_record");
+        sessionStorage.removeItem("sb_sheet_log_id");
+        sessionStorage.removeItem("sb_repeat_edit");
+      }
+      logout();
+      router.push("/nc");
+      return;
+    }
     if (token) {
       try { await ncApi.revert(ncId, token); }
       catch (e) { console.warn("[NC-EDIT] キャンセル時revert失敗", e); }
@@ -451,6 +530,17 @@ export default function NcEditPage() {
       if (!confirm("変更を破棄して戻りますか？")) return;
       logout();
     }
+    // [段取シートバック] 新規STEP1/リピート編集フロー中のキャンセルは
+    // sessionStorageのsb_*フラグをクリアしてダッシュボードへ戻す。
+    if (sbMode || sbRepeatMode) {
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("sb_next_record");
+        sessionStorage.removeItem("sb_sheet_log_id");
+        sessionStorage.removeItem("sb_repeat_edit");
+      }
+      router.push("/nc");
+      return;
+    }
     // [仮登録] 確定前(PROVISIONAL)はNC詳細画面自体がブロックされるため、
     // キャンセル時はダッシュボードへ戻す(離脱により仮登録は自動破棄される)。
     if (detail?.status === "PROVISIONAL") {
@@ -458,7 +548,7 @@ export default function NcEditPage() {
     } else {
       router.push(`/nc/${ncId}`);
     }
-  }, [isAuthenticated, logout, ncId, router, detail]);
+  }, [isAuthenticated, logout, ncId, router, detail, sbMode, sbRepeatMode]);
 
   if (loadError) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -474,6 +564,9 @@ export default function NcEditPage() {
   const d = detail;
   // [仮登録] 「作業完了（登録）」で確定するまでは段取シート・作業記録タブを非活性にする。
   const isProvisionalLocked = d.status === "PROVISIONAL";
+  // [段取シートバック] STEP1(新規)/リピート編集フロー中もNC詳細・段取シート・
+  // 作業記録タブを非活性にする(MC側と同一仕様)。
+  const sbTabLocked = isProvisionalLocked || sbMode || sbRepeatMode;
 
 
   return (
@@ -517,6 +610,34 @@ export default function NcEditPage() {
         {/* 部品情報エリア（共通コンポーネント） */}
         {d && <NcPartHeader data={d} showApprove onApproveClick={() => setApprovalModalOpen(true)} />}
 
+        {/* [段取シートバック] STEP1(新規)/リピート編集フローの案内バナー — MC側と同一仕様 */}
+        {isAuthenticated && (sbMode || sbRepeatMode) && (
+          <div className={`${sbRepeatMode ? "bg-amber-600" : "bg-blue-600"} text-white px-5 py-2 flex items-center justify-between text-xs shrink-0`}>
+            <div className="flex items-center gap-3">
+              <span className="bg-white/20 text-white rounded-full w-5 h-5 flex items-center justify-center font-bold shrink-0">1</span>
+              <span className="font-bold">{sbRepeatMode ? "段取シートバック リピート: 旋盤情報を確認・編集してください" : "段取シートバック STEP1: 旋盤情報・ツーリングなどを登録してください"}</span>
+              <span className="opacity-80">→ {sbRepeatMode ? "更新後、変更内容を登録してSTEP2(作業記録)へ遷移します" : "登録完了後 STEP2(作業記録)へ自動遷移します"}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => {
+                  if (typeof window !== "undefined") {
+                    sessionStorage.removeItem("sb_next_record");
+                    sessionStorage.removeItem("sb_sheet_log_id");
+                    sessionStorage.removeItem("sb_repeat_edit");
+                  }
+                  logout();
+                  router.push("/nc");
+                }}
+                className="text-white/80 hover:text-white text-xs px-3 py-1 rounded border border-white/40 hover:border-white transition-colors">
+                キャンセル（中断）
+              </button>
+              <button onClick={handleSave} disabled={saving}
+                className="bg-white text-slate-800 px-4 py-1 rounded font-bold hover:bg-slate-100 disabled:opacity-50 text-sm">
+                {saving ? "保存中..." : (sbRepeatMode ? "更新完了 → 変更登録・STEP2へ" : "STEP1完了 → STEP2(作業記録)へ")}
+              </button>
+            </div>
+          </div>
+        )}
         {/* [仮登録] 未確定状態の案内バナー */}
         {isProvisionalLocked && (
           <div className="bg-slate-100 border-b border-slate-200 px-4 py-2 text-xs text-slate-500 flex items-center gap-2 shrink-0">
@@ -527,10 +648,10 @@ export default function NcEditPage() {
 
         {/* タブナビ（MC側準拠: ブラウザタブ風） */}
         <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
-          <button onClick={() => { if (!isProvisionalLocked) guardedNavigate(`/nc/${ncId}`); }}
-            disabled={isProvisionalLocked}
-            title={isProvisionalLocked ? "登録確定後に利用できます" : undefined}
-            className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${isProvisionalLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
+          <button onClick={() => { if (!sbTabLocked) guardedNavigate(`/nc/${ncId}`); }}
+            disabled={sbTabLocked}
+            title={sbTabLocked ? "登録確定後に利用できます" : undefined}
+            className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${sbTabLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>NC詳細
           </button>
           <button onClick={() => router.push(`/nc/${ncId}/edit`)}
@@ -538,16 +659,16 @@ export default function NcEditPage() {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
             {isAuthenticated && <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse ml-0.5" />}
           </button>
-          <button onClick={() => { if (!isProvisionalLocked) guardedNavigate(`/nc/${ncId}/print`); }}
-            disabled={isProvisionalLocked}
-            title={isProvisionalLocked ? "登録確定後に利用できます" : undefined}
-            className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${isProvisionalLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
+          <button onClick={() => { if (!sbTabLocked) guardedNavigate(`/nc/${ncId}/print`); }}
+            disabled={sbTabLocked}
+            title={sbTabLocked ? "登録確定後に利用できます" : undefined}
+            className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${sbTabLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
           </button>
-          <button onClick={() => { if (!isProvisionalLocked) guardedNavigate(`/nc/${ncId}/record`); }}
-            disabled={isProvisionalLocked}
-            title={isProvisionalLocked ? "登録確定後に利用できます" : undefined}
-            className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${isProvisionalLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
+          <button onClick={() => { if (!sbTabLocked) guardedNavigate(`/nc/${ncId}/record`); }}
+            disabled={sbTabLocked}
+            title={sbTabLocked ? "登録確定後に利用できます" : undefined}
+            className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${sbTabLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録
           </button>
         </nav>
@@ -994,7 +1115,7 @@ export default function NcEditPage() {
                   disabled={saving || (dirty.size === 0 && !isProvisionalLocked)}
                   className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-bold text-sm rounded-lg transition-colors"
                 >
-                  ✓ 作業完了（登録）
+                  {(sbMode || sbRepeatMode) ? "STEP1完了 → STEP2(作業記録)へ" : "✓ 作業完了（登録）"}
                 </button>
                 <div className="text-xs text-amber-700">← 登録と同時に変更履歴に記録されます</div>
                 <div className="flex-1"></div>
@@ -1021,6 +1142,12 @@ export default function NcEditPage() {
               <p className="text-xs text-slate-400 mt-0.5">この変更をどの種類として登録しますか？バージョンが更新されます。</p>
             </div>
             <div className="p-5 space-y-4">
+              {sbMode ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+                  <p className="text-sm font-bold text-blue-700 mb-1">変更種別: 新規登録</p>
+                  <p className="text-xs text-blue-600">バージョン更新後、STEP2(作業記録)へ進みます</p>
+                </div>
+              ) : (
               <div>
                 <label className="text-xs font-bold text-slate-500 block mb-2">作業種別 *</label>
                 <div className="grid grid-cols-3 gap-2">
@@ -1043,26 +1170,29 @@ export default function NcEditPage() {
                   <p className="text-xs text-sky-600 mt-1.5">小変更系: 100分の1位が+0.01（例: 1.0001 → 1.0101）</p>
                 )}
               </div>
+              )}
               <div>
                 <label className="text-xs font-bold text-slate-500 block mb-1.5">内容（任意）</label>
                 <textarea value={kanryoDetail} onChange={e => setKanryoDetail(e.target.value)}
-                  rows={2} placeholder="変更の詳細内容を入力..."
+                  rows={2} placeholder={sbMode ? "登録内容の補足（任意）" : "変更の詳細内容を入力..."}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none" />
               </div>
             </div>
             <div className="px-5 pb-5 flex gap-3">
               <button onClick={handleKanryoOk}
                 className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl text-sm transition-colors">
-                OK — 登録する
+                {(sbMode || sbRepeatMode) ? "OK — 作業記録へ" : "OK — 登録する"}
               </button>
+              {!(sbMode || sbRepeatMode) && (
               <button onClick={handleKanryoTempSave}
                 title="バージョンを変更せず、入力内容だけを保存します"
                 className="px-4 py-3 border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 font-bold text-sm rounded-xl transition-colors whitespace-nowrap">
                 💾 一時保存
               </button>
+              )}
               <button onClick={handleKanryoCancel}
                 className="px-5 py-3 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
-                キャンセル（変更を取り消す）
+                {(sbMode || sbRepeatMode) ? "スキップ（作業記録なし）" : "キャンセル（変更を取り消す）"}
               </button>
             </div>
           </div>

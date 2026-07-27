@@ -159,6 +159,25 @@ export class NcController {
     return this.nc.collectSetupSheet(logId);
   }
 
+  /** 段取シートバック: legacy_nc_id で未回収シート検索 */
+  @Get("uncollected-by-legacy/:legacy_ncid")
+  uncollectedByLegacy(@Param("legacy_ncid", ParseIntPipe) legacyNcId: number) {
+    return this.nc.uncollectedByLegacy(legacyNcId);
+  }
+
+  /** 保存済み段取シートPDF取得（ログIDで原本を返す） */
+  @Get("setup-sheet-logs/:log_id/pdf")
+  async getSetupSheetPdf(
+    @Param("log_id", ParseIntPipe) logId: number,
+    @Res() reply: FastifyReply,
+  ) {
+    const { buffer, fileName } = await this.nc.getSetupSheetPdf(logId);
+    reply.header("Content-Type",        "application/pdf");
+    reply.header("Content-Disposition", `inline; filename="${fileName}"`);
+    reply.header("Content-Length",      String(buffer.length));
+    return reply.send(buffer);
+  }
+
   @Get(":nc_id/work-records")
   workRecords(@Param("nc_id", ParseIntPipe) id: number) {
     return this.nc.workRecords(id);
