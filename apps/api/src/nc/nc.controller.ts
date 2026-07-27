@@ -514,9 +514,11 @@ export class NcController {
     @Req() req: any,
     @Res() reply: FastifyReply,
   ) {
-    // is_preview:false → ログ記録する（ブラウザプレビューだが発行履歴は残す）。
-    // ただし直接印刷ではないため、force_watermarkで透かしだけは常に描画する(MC側と同一パターン)。
-    const opts = { ...dto, is_preview: false, force_watermark: true, sheet_type: 'REPEAT' };
+    // [バグ修正] プレビュー(単にPDFイメージを表示するだけで、プリンタへの本番出力ではない)は
+    // 未回収段取シートの履歴として残してはならない。is_preview:true でDB記録をスキップする
+    // (実際にプリンタへ出力する repeat-direct-print だけが履歴に残る。MC側と同一パターン)。
+    // force_watermarkで透かしだけは常に描画する。
+    const opts = { ...dto, is_preview: true, force_watermark: true, sheet_type: 'REPEAT' };
     const pdf = await this.nc.generateSetupSheetPdf(id, req.user.id, opts as any);
     reply.header("Content-Type",        "application/pdf");
     reply.header("Content-Disposition", `inline; filename="nc-repeat-sheet-${id}.pdf"`);
