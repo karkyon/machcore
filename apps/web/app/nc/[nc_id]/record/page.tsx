@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useParams, useRouter } from "next/navigation";
 import { toJstMonthDayString, toJstTimeString, toJstDateString } from "@/lib/dateUtils";
@@ -9,6 +9,7 @@ import {
   CreateWorkRecordBody, UpdateWorkRecordBody,
 } from "@/lib/api";
 import { NcPartHeader } from "@/components/nc/NcPartHeader";
+import { useAuth } from "@/contexts/AuthContext";
 
 // ─── 時間入力コンポーネント ─────────────────────────────────────
 function NumInput({ value, onChange, min=0, max=999, className="" }: {
@@ -109,6 +110,11 @@ function RecordPageInner() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // [段取シートバック] STEP1(編集)で確立済みのAuthContextセッションをSTEP2(作業記録)へ
+  // 引き継ぐために参照する — MC側(useAuth共有)と同一のユーザー体験にするための橋渡し。
+  const { isAuthenticated: ctxIsAuthenticated, token: ctxToken, operator: ctxOperator, logout: ctxLogout } = useAuth();
+  // sbフローが正規にSTEP2提出まで完了したかを追跡する(未完了のまま離脱した場合のlogout判定用)。
+  const sbFlowCompletedRef = useRef(false);
 
   const [nc,       setNc]       = useState<NcDetail | null>(null);
   const [setupSheets, setSetupSheets] = useState<SetupSheetLog[]>([]);
@@ -184,15 +190,33 @@ function RecordPageInner() {
   useEffect(() => { loadData(); }, [loadData]);
 
   // [段取シートバック] sb_sheet_log_id に一致する未回収シートを自動選択する。
+  // 認証済みかどうかは(レンダー遅延のない)AuthContext基準(ctxIsAuthenticated)で
+  // 判定する — ローカルisAuthenticatedへの橋渡し(下記effect)が完了するまでの
+  // 1レンダー分のずれで誤って担当者認証モーダルが開いてしまうのを防ぐため。
   useEffect(() => {
     if (!sbMode || !sbSheetLogId || setupSheets.length === 0) return;
     const target = (setupSheets as any[]).find(s => s.id === sbSheetLogId);
     if (target) {
       setSelectedSheet(target);
-      if (!isAuthenticated) setShowAuth(true);
+      if (!ctxIsAuthenticated) setShowAuth(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sbMode, sbSheetLogId, setupSheets]);
+  }, [sbMode, sbSheetLogId, setupSheets, ctxIsAuthenticated]);
+
+  // [段取シートバック] STEP1(編集)のAuthContextセッションをSTEP2(作業記録)の
+  // ローカル認証状態へそのまま引き継ぐ。担当者認証UIの再表示は不要 — MC側は
+  // useAuthを直接共有しているため元々このような再認証は発生しない。
+  useEffect(() => {
+    if (sbMode && ctxIsAuthenticated && ctxToken) {
+      setIsAuthenticated(true);
+      setWorkToken(ctxToken);
+      setShowAuth(false);
+      if (ctxOperator) {
+        setSelOpId(ctxOperator.id);
+        setSelOpName(ctxOperator.name);
+      }
+    }
+  }, [sbMode, ctxIsAuthenticated, ctxToken, ctxOperator]);
 
   // ?edit=ID がある場合、データ取得後に編集モードで開く
   useEffect(() => {
@@ -220,10 +244,10 @@ function RecordPageInner() {
         setSetupOps(Array.isArray(r.setup_operator_ids) ? r.setup_operator_ids : []);
         setProdOps(Array.isArray(r.production_operator_ids) ? r.production_operator_ids : []);
         setEditRecordId(id);
-        if (!isAuthenticated) setShowAuth(true);
+        if (!isAuthenticated && !sbMode) setShowAuth(true);
       }).catch(() => {});
     });
-  }, [loading, ncId, isAuthenticated]);
+  }, [loading, ncId, isAuthenticated, sbMode]);
 
   // タイマー
   useEffect(() => {
@@ -235,6 +259,33 @@ function RecordPageInner() {
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isAuthenticated]);
+
+  // [段取シートバック] 離脱警告(STEP2作業中) — MC側と同一仕様。
+  useEffect(() => {
+    if (!sbMode) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "作業が完了していません。このページを離れますか？";
+      return e.returnValue;
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [sbMode]);
+
+  // [段取シートバック] STEP2を提出せずにこの画面を離れた場合はAuthContextセッションを
+  // 終了し、sessionStorageのsb_*フラグをクリアする(NC-EDIT側と同一仕様)。
+  useLayoutEffect(() => {
+    return () => {
+      if (sbMode && !sbFlowCompletedRef.current) {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("sb_next_record");
+          sessionStorage.removeItem("sb_sheet_log_id");
+        }
+        ctxLogout();
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fmtTime = (s: number) => {
     const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
@@ -334,10 +385,12 @@ function RecordPageInner() {
         await endSession();
         if (sbMode) {
           showToast("✅ 段取シートバック完了 — 回収済みに更新しました");
+          sbFlowCompletedRef.current = true;
           if (typeof window !== "undefined") {
             sessionStorage.removeItem("sb_next_record");
             sessionStorage.removeItem("sb_sheet_log_id");
           }
+          ctxLogout();
           setTimeout(() => router.push("/nc"), 1200);
           return;
         }
@@ -374,13 +427,24 @@ function RecordPageInner() {
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* グローバルヘッダー */}
       <header className="bg-slate-800 text-white px-5 py-2.5 flex items-center gap-3 shrink-0">
-        <button onClick={() => router.push(`/nc/${ncId}`)} className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-white transition-colors shrink-0">
-          <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></span>NC詳細
-        </button>
-        <span className="text-slate-600">|</span>
-        <button onClick={() => router.push("/nc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>ダッシュボードへ
-        </button>
+        {!sbMode && (
+          <>
+            <button onClick={() => router.push(`/nc/${ncId}`)} className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-white transition-colors shrink-0">
+              <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></span>NC詳細
+            </button>
+            <span className="text-slate-600">|</span>
+            <button onClick={() => router.push("/nc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>ダッシュボードへ
+            </button>
+          </>
+        )}
+        {sbMode && (
+          <span className="flex items-center gap-2 bg-sky-700 border border-sky-500 rounded-lg px-3 py-1">
+            <span className="bg-sky-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shrink-0">2</span>
+            <span className="text-xs font-bold text-sky-100">段取シートバック — STEP2: 作業記録入力</span>
+            <span className="text-sky-300 text-xs">（登録で回収済みになります）</span>
+          </span>
+        )}
         <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
         <span className="text-sm font-medium">作業記録</span>
         <span className="ml-auto">
@@ -399,16 +463,19 @@ function RecordPageInner() {
 
       {/* タブナビ（MC側準拠: ブラウザタブ風） */}
       <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
-        <button onClick={() => router.push(`/nc/${ncId}`)}
-          className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
+        <button onClick={() => !sbMode && router.push(`/nc/${ncId}`)}
+          disabled={sbMode}
+          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>NC詳細
         </button>
-        <button onClick={() => router.push(`/nc/${ncId}/edit`)}
-          className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
+        <button onClick={() => !sbMode && router.push(`/nc/${ncId}/edit`)}
+          disabled={sbMode}
+          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
         </button>
-        <button onClick={() => router.push(`/nc/${ncId}/print`)}
-          className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
+        <button onClick={() => !sbMode && router.push(`/nc/${ncId}/print`)}
+          disabled={sbMode}
+          className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
         </button>
         <button onClick={() => router.push(`/nc/${ncId}/record`)}
