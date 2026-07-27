@@ -1427,8 +1427,11 @@ export class McService {
       return { found: false, programs: [], sheets: [] };
     }
     const programIds = programs.map(p => p.id);
+    // [バグ修正] 行方不明/回収済み処理(isLost:true)されたシートが段取シートバックの
+    // 選択モーダルに残り続けていた。ダッシュボード本体(dashboard.service.ts)の
+    // 未回収判定と同じ条件(workCollected:false かつ isLost:false)に統一する。
     const sheets = await this.prisma.mcSetupSheetLog.findMany({
-      where:   { mcProgramId: { in: programIds }, workCollected: false },
+      where:   { mcProgramId: { in: programIds }, workCollected: false, isLost: false },
       orderBy: { printedAt: 'desc' },
       include: { operator: { select: { name: true } } },
     });

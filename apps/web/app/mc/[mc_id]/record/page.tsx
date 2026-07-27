@@ -682,7 +682,8 @@ function McRecordPageInner() {
       }
     }).catch(() => {});
     mcApi.setupSheetLogs(mcId).then(r => {
-      const sheets = ((r as any).data ?? []).filter((s: McSetupSheetLog) => !s.work_collected);
+      // [バグ修正] 行方不明/回収済み処理(is_lost)されたシートも除外する。
+      const sheets = ((r as any).data ?? []).filter((s: McSetupSheetLog) => !s.work_collected && !(s as any).is_lost);
       setSetupSheets(sheets);
       if (sheets.length > 0) setSelectedSheet(sheets[0]);
     }).catch(() => {});

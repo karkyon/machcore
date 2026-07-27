@@ -177,7 +177,8 @@ function RecordPageInner() {
         usersApi.list("NC"),
       ]);
       setNc(ncRes.data);
-      setSetupSheets((sheetRes.data as any[]).filter(s => !s.work_collected));
+      // [バグ修正] 行方不明/回収済み処理(is_lost)されたシートも除外する。
+      setSetupSheets((sheetRes.data as any[]).filter(s => !s.work_collected && !s.is_lost));
       setMachines(machRes.data.filter((m: Machine) => m.isActive));
       setAllUsers(userRes.data);
       setAuthUsers(userRes.data.filter((u: UserInfo) => u.isActive));
