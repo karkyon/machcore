@@ -114,6 +114,54 @@ export class AdminController {
     return m.delete({ where: { id } });
   }
 
+  // ── NC旋盤 加工リスト(ツーリング)マスタ管理 ──────────────────
+  // (クランプマスタと同一方式。旧Access t_d_Shave1/Shave2/Chip/Holder相当)
+
+  private ncToolMasterModel(cat: string) {
+    const models: Record<string, any> = {
+      shave1: this.prisma.ncToolShave1Master,
+      shave2: this.prisma.ncToolShave2Master,
+      chip:   this.prisma.ncToolChipMaster,
+      holder: this.prisma.ncToolHolderMaster,
+    };
+    const m = models[cat];
+    if (!m) throw new Error(`Invalid category: ${cat}`);
+    return m;
+  }
+
+  @Get('nc-tool-master/:category')
+  async getNcToolMasterCategory(@Param('category') cat: string) {
+    return this.ncToolMasterModel(cat).findMany({ orderBy: { sortOrder: 'asc' } });
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('nc-tool-master/:category')
+  async createNcToolMasterItem(@Param('category') cat: string, @Body() body: any) {
+    return this.ncToolMasterModel(cat).create({ data: body });
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Put('nc-tool-master/:category/:id')
+  async updateNcToolMasterItem(
+    @Param('category') cat: string,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: any,
+  ) {
+    return this.ncToolMasterModel(cat).update({ where: { id }, data: body });
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Delete('nc-tool-master/:category/:id')
+  async deleteNcToolMasterItem(
+    @Param('category') cat: string,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.ncToolMasterModel(cat).delete({ where: { id } });
+  }
+
   // ── SPシート管理 ─────────────────────────────
 
   /** SP-01: SPシート一覧 */

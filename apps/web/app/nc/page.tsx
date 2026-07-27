@@ -193,7 +193,12 @@ export default function NcDashboard() {
     setSbAuthOpen(false);
     if (!sbSelectedSheet) return;
     // sb_next_record + sb_sheet_log_id をセット → record側でcollect処理する
+    // [バグ修正] 他フローの残留キー(sb_repeat_edit等)が混在しないよう、
+    // 関連キーは常に全クリアしてから今回分のみセットする。
     if (typeof window !== "undefined") {
+      sessionStorage.removeItem("sb_next_record");
+      sessionStorage.removeItem("sb_repeat_edit");
+      sessionStorage.removeItem("sb_sheet_log_id");
       sessionStorage.setItem("sb_next_record", String(sbSelectedSheet.nc_id));
       sessionStorage.setItem("sb_sheet_log_id", String(sbSelectedSheet.id));
     }
@@ -352,6 +357,10 @@ export default function NcDashboard() {
           onSuccess={() => {
             setSbStep1AuthOpen(false);
             if (typeof window !== "undefined") {
+              // [バグ修正] リピート系の残留キーが混在しないよう全クリアしてからセット。
+              sessionStorage.removeItem("sb_next_record");
+              sessionStorage.removeItem("sb_repeat_edit");
+              sessionStorage.removeItem("sb_sheet_log_id");
               sessionStorage.setItem("sb_next_record", String(sbStep1NcId));
               // sbSelectedSheet.id (log_id) を保存 — STEP2完了時のcollect用
               const sheetId = sbSelectedSheet?.id ?? 0;
@@ -373,6 +382,10 @@ export default function NcDashboard() {
           onSuccess={() => {
             setSbRepeatAuthOpen(false);
             if (typeof window !== "undefined") {
+              // [バグ修正] 新規(STEP1)系の残留キーが混在しないよう全クリアしてからセット。
+              sessionStorage.removeItem("sb_next_record");
+              sessionStorage.removeItem("sb_repeat_edit");
+              sessionStorage.removeItem("sb_sheet_log_id");
               sessionStorage.setItem("sb_repeat_edit", String(sbRepeatNcId));
               const sheetId = sbSelectedSheet?.id ?? 0;
               sessionStorage.setItem("sb_sheet_log_id", String(sheetId));

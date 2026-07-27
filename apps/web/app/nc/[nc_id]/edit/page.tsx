@@ -53,6 +53,26 @@ export default function NcEditPage() {
   // 加工リスト(MC側ツーリングと同等)
   const [toolingRows, setToolingRows] = useState<any[]>([]);
   const [toolingSaveMsg, setToolingSaveMsg] = useState<string | null>(null);
+  // [加工リストマスタ選択化] 旧Access(t_d_Shave1/Shave2/Chip/Holder)相当の
+  // 候補一覧を取得し、加工(加/工)・形状（チップ）・ホルダーをドロップダウン選択にする。
+  const [toolMasters, setToolMasters] = useState<{ shave1: string[]; shave2: string[]; chip: string[]; holder: string[] }>({ shave1: [], shave2: [], chip: [], holder: [] });
+  useEffect(() => {
+    Promise.all(
+      (["shave1", "shave2", "chip", "holder"] as const).map(cat =>
+        fetch(`/api/admin/nc-tool-master/${cat}`).then(r => r.json()).catch(() => [])
+      )
+    ).then(([shave1, shave2, chip, holder]) => {
+      setToolMasters({
+        shave1: (shave1 ?? []).filter((x: any) => x.isActive).map((x: any) => x.name),
+        shave2: (shave2 ?? []).filter((x: any) => x.isActive).map((x: any) => x.name),
+        chip:   (chip   ?? []).filter((x: any) => x.isActive).map((x: any) => x.name),
+        holder: (holder ?? []).filter((x: any) => x.isActive).map((x: any) => x.name),
+      });
+    }).catch(() => {});
+  }, []);
+  // 既存データに現在の値が候補一覧に無い場合でも消えないよう、常に候補+現在値の和集合を選択肢にする。
+  const withCurrent = (master: string[], current: string) =>
+    current && !master.includes(current) ? [...master, current] : master;
 
   // 変更検知（オレンジ枠用）
   const [dirty, setDirty] = useState<Set<string>>(new Set());
@@ -1039,7 +1059,14 @@ export default function NcEditPage() {
                             </tr>
                           </thead>
                           <tbody>
-                          {toolingRows.map((t, i) => (
+                          {toolingRows.map((t, i) => {
+                            // process_type は "加/工" 結合済みの単一文字列(スキーマ変更なし)。
+                            // 編集時のみ2つのドロップダウンに分解し、変更のたびに再結合する。
+                            const ptParts = String(t.process_type ?? "").split("/");
+                            const s1 = ptParts[0] ?? "";
+                            const s2 = ptParts.slice(1).join("/") ?? "";
+                            const combine = (a: string, b: string) => (a && b) ? `${a}/${b}` : (a || b || "");
+                            return (
                             <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                               <td className="px-1 py-1 w-20">
                                 <div className="flex gap-0.5">
@@ -1073,12 +1100,34 @@ export default function NcEditPage() {
                                   }} className="text-[10px] px-1 py-0.5 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded">+</button>
                                 </div>
                               </td>
-                              <td className="px-1 py-1"><input value={t.process_type ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, process_type: e.target.value} : x))}
-                                className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>
-                              <td className="px-1 py-1"><input value={t.chip_model ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, chip_model: e.target.value} : x))}
-                                className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
-                              <td className="px-1 py-1"><input value={t.holder_model ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, holder_model: e.target.value} : x))}
-                                className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                              <td className="px-1 py-1">
+                                <div className="flex gap-1">
+                                  <select value={s1} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, process_type: combine(e.target.value, s2)} : x))}
+                                    className="w-1/2 border border-slate-200 rounded px-1 py-1 text-xs bg-white">
+                                    <option value="">（加）</option>
+                                    {withCurrent(toolMasters.shave1, s1).map(v => <option key={v} value={v}>{v}</option>)}
+                                  </select>
+                                  <select value={s2} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, process_type: combine(s1, e.target.value)} : x))}
+                                    className="w-1/2 border border-slate-200 rounded px-1 py-1 text-xs bg-white">
+                                    <option value="">（工）</option>
+                                    {withCurrent(toolMasters.shave2, s2).map(v => <option key={v} value={v}>{v}</option>)}
+                                  </select>
+                                </div>
+                              </td>
+                              <td className="px-1 py-1">
+                                <select value={t.chip_model ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, chip_model: e.target.value} : x))}
+                                  className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs bg-white">
+                                  <option value=""></option>
+                                  {withCurrent(toolMasters.chip, t.chip_model ?? "").map(v => <option key={v} value={v}>{v}</option>)}
+                                </select>
+                              </td>
+                              <td className="px-1 py-1">
+                                <select value={t.holder_model ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, holder_model: e.target.value} : x))}
+                                  className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs bg-white">
+                                  <option value=""></option>
+                                  {withCurrent(toolMasters.holder, t.holder_model ?? "").map(v => <option key={v} value={v}>{v}</option>)}
+                                </select>
+                              </td>
                               <td className="px-1 py-1"><input value={t.nose_r ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, nose_r: e.target.value} : x))}
                                 className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-center" /></td>
                               <td className="px-1 py-1"><input value={t.t_number ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, t_number: e.target.value} : x))}
@@ -1090,7 +1139,8 @@ export default function NcEditPage() {
                               <td className="px-1 py-1 text-center"><button onClick={() => setToolingRows(r => r.filter((_,j) => j !== i))}
                                 className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">削除</button></td>
                             </tr>
-                          ))}
+                            );
+                          })}
                           </tbody>
                         </table>
                       </div>
@@ -1142,7 +1192,9 @@ export default function NcEditPage() {
               <p className="text-xs text-slate-400 mt-0.5">この変更をどの種類として登録しますか？バージョンが更新されます。</p>
             </div>
             <div className="p-5 space-y-4">
-              {sbMode ? (
+              {/* [防御的修正] 万一sbMode/sbRepeatModeが同時に真になっても
+                  リピート(sbRepeatMode)を優先し、通常の種別選択UIを表示する。 */}
+              {(sbMode && !sbRepeatMode) ? (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
                   <p className="text-sm font-bold text-blue-700 mb-1">変更種別: 新規登録</p>
                   <p className="text-xs text-blue-600">バージョン更新後、STEP2(作業記録)へ進みます</p>

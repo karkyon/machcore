@@ -820,3 +820,50 @@ model ClampIndex {
   @@map("clamp_index")
 }
 
+// ============================================================
+// NC旋盤 加工リスト(ツーリング) マスタ4種
+// 旧Access(t_d_Shave1/t_d_Shave2/t_d_Chip/t_d_Holder)と同一の役割。
+// nc_tools.process_type は "加/工" 結合済み文字列のまま(スキーマ変更なし)、
+// chip_model/holder_model もそのまま単一文字列で保持し、フロント側で
+// これらのマスタ値をドロップダウン候補として提示する(クランプマスタと同一方式)。
+// ============================================================
+model NcToolShave1Master {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(50)
+  sortOrder  Int      @default(0)    @map("sort_order") @db.SmallInt
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt      @map("updated_at")
+  @@map("nc_tool_shave1_master")
+}
+
+model NcToolShave2Master {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(50)
+  sortOrder  Int      @default(0)    @map("sort_order") @db.SmallInt
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt      @map("updated_at")
+  @@map("nc_tool_shave2_master")
+}
+
+model NcToolChipMaster {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(50)
+  sortOrder  Int      @default(0)    @map("sort_order") @db.SmallInt
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt      @map("updated_at")
+  @@map("nc_tool_chip_master")
+}
+
+model NcToolHolderMaster {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(50)
+  sortOrder  Int      @default(0)    @map("sort_order") @db.SmallInt
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt      @map("updated_at")
+  @@map("nc_tool_holder_master")
+}
+
