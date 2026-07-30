@@ -7,8 +7,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import sharp from 'sharp';
-// ★NC側PROGRAM(USB自動アップロード)対応: MC側と同一の命名ロジックを再利用する。
-import { calcProgramFileName, calcProgramFolderName } from '../mc/program-file-naming.util';
 
 const PROGRAM_EXTS = new Set(['.mpf', '.spf', '.nc', '.cnc', '.min', '.prg', '']);
 type PgRole = 'MAIN' | 'SUB' | null;
@@ -61,25 +59,25 @@ export class NcFilesService {
   }
 
   /**
-   * ★NC側PROGRAM(USB自動アップロード)対応: MC側resolveUploadNamingと同じ考え方で、
-   * 機械マスタ(Machine.pgIsFolder)に基づき権威的なファイル名/フォルダ名を算出する。
-   * NcMachiningDetail.folderName/fileNameはレガシーインポート由来の別概念のため
-   * 一切参照せず、常にMachine.pgIsFolderからその場で計算する。
+   * ★バグ修正(v093): 従来は機械マスタ(Machine.pgIsFolder)から毎回ファイル名を
+   * 「加工IDの下4桁」として計算し直していたため、レガシーインポート済みの実ファイル名
+   * (NcMachiningDetail.fileName、例:"19145")と、USB自動アップロードが探しに行くファイル名
+   * (計算値、例:"4570")が食い違い、「USBフォルダ内にファイルが見つかりません」という
+   * 誤検知が発生していた。ダウンロード側(nc.service.ts resolvePgFilePath)は常に
+   * NcMachiningDetail.fileName/folderNameをそのまま使うため、アップロード側もこれと
+   * 完全に同じ値を権威値として使用するよう統一する。
+   * NC側は1レコード=1ファイルのレガシー構成のみで、MC側のようなフォルダ単位
+   * (複数ファイル)構成は存在しないため、isFolderは常にfalseを返す。
    */
   private async resolveUploadNaming(kId: number): Promise<{ isFolder: boolean; fileName: string; folderName: string | null }> {
     const detail = await this.prisma.ncMachiningDetail.findUnique({
       where:  { kId },
-      select: { machineId: true },
+      select: { fileName: true, folderName: true },
     });
-    let isFolder = false;
-    if (detail?.machineId) {
-      const machine = await this.prisma.machine.findUnique({ where: { id: detail.machineId }, select: { pgIsFolder: true } });
-      isFolder = !!machine?.pgIsFolder;
+    if (!detail) {
+      throw new NotFoundException(`加工ID ${kId} のNcMachiningDetailが存在しません`);
     }
-    if (isFolder) {
-      return { isFolder: true, fileName: '', folderName: calcProgramFolderName(kId) };
-    }
-    return { isFolder: false, fileName: calcProgramFileName(kId), folderName: null };
+    return { isFolder: false, fileName: detail.fileName, folderName: detail.folderName };
   }
 
   /** UploadAgent向け: USB自動アップロードのticket発行時に期待ファイル名/フォルダ名を公開する。 */
@@ -101,24 +99,16 @@ export class NcFilesService {
     const ts        = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
     const trashDir  = path.join(basePath, 'trash');
 
-    if (programNaming.isFolder) {
-      const folderPath = path.join(basePath, 'NC', 'files', 'Programs', String(kId), programNaming.folderName as string);
-      if (fs.existsSync(folderPath)) {
-        this.ensureDir(trashDir);
-        let dest = path.join(trashDir, `${programNaming.folderName}_${ts}`);
-        if (fs.existsSync(dest)) dest = path.join(trashDir, `${programNaming.folderName}_${ts}_${Date.now()}`);
-        fs.renameSync(folderPath, dest);
-      }
-    } else {
-      const filePath = path.join(basePath, 'NC', 'files', 'Programs', String(kId), programNaming.fileName);
-      if (fs.existsSync(filePath)) {
-        this.ensureDir(trashDir);
-        const ext  = path.extname(programNaming.fileName);
-        const base = path.basename(programNaming.fileName, ext);
-        let dest = path.join(trashDir, `${base}_${ts}${ext}`);
-        if (fs.existsSync(dest)) dest = path.join(trashDir, `${base}_${ts}_${Date.now()}${ext}`);
-        fs.renameSync(filePath, dest);
-      }
+    // ★バグ修正(v093): 退避対象パスもresolveUploadNaming/resolvePgFilePathと完全に
+    //   同一の場所({base}/プログラム/{folderName}/{fileName})を参照するよう統一する。
+    const filePath = path.join(basePath, 'プログラム', programNaming.folderName as string, programNaming.fileName);
+    if (fs.existsSync(filePath)) {
+      this.ensureDir(trashDir);
+      const ext  = path.extname(programNaming.fileName);
+      const base = path.basename(programNaming.fileName, ext);
+      let dest = path.join(trashDir, `${base}_${ts}${ext}`);
+      if (fs.existsSync(dest)) dest = path.join(trashDir, `${base}_${ts}_${Date.now()}${ext}`);
+      fs.renameSync(filePath, dest);
     }
 
     const siblings = await this.prisma.ncProgram.findMany({
@@ -179,20 +169,13 @@ export class NcFilesService {
         await this.purgeExistingProgramFiles(kId, programNaming);
       }
 
-      let flatDir: string;
-      let storedName: string;
-      let folderNameToSave: string | null = null;
-
-      if (programNaming.isFolder) {
-        flatDir = path.join(basePath, 'NC', 'files', 'Programs', String(kId), programNaming.folderName as string);
-        // フォルダ内の個別ファイルはメインPG/サブPGの実名のため、ファイル名は維持する
-        storedName = file.filename;
-        folderNameToSave = programNaming.folderName;
-      } else {
-        flatDir = path.join(basePath, 'NC', 'files', 'Programs', String(kId));
-        // 単体ファイルは加工ID(K_id)の下4桁に強制変換する(元ファイル名・拡張子は使用しない)
-        storedName = programNaming.fileName;
-      }
+      // ★バグ修正(v093): 保存先はダウンロード/PGエディタが参照するresolvePgFilePathと
+      //   完全に同一の場所({base}/プログラム/{folderName}/{fileName})に統一する。
+      //   NC側にMC側のような「フォルダ内複数ファイル」構成は存在しないため、
+      //   ファイル名は常にNcMachiningDetail.fileNameの値へ強制変換(コンバート)する。
+      const flatDir: string = path.join(basePath, 'プログラム', programNaming.folderName as string);
+      const storedName: string = programNaming.fileName;
+      const folderNameToSave: string | null = programNaming.folderName;
 
       this.ensureDir(flatDir);
       const filePath = path.join(flatDir, storedName);
