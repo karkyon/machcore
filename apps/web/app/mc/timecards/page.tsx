@@ -2,6 +2,7 @@
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 const TODAY = () => {
   const d = new Date();
@@ -64,6 +65,7 @@ interface RowState {
 }
 
 export default function TimecardPage() {
+  const { t: tr } = useLanguage();
   const router   = useRouter();
   const pathname = usePathname();
   const [adminUser,  setAdminUser]  = useState<{ name: string } | null>(null);
@@ -101,7 +103,7 @@ export default function TimecardPage() {
         saving:      false,
       })));
     } catch (e: any) {
-      showToast(`データ取得失敗: ${e.message}`, false);
+      showToast(tr("mcTimecardsPage.dataFetchFailedMsg2","データ取得失敗: {msg}").replace("{msg}", e.message), false);
     } finally { setLoading(false); }
   }, [showToast]);
 
@@ -113,7 +115,7 @@ export default function TimecardPage() {
 
   const handleUpdate = useCallback(async (idx: number) => {
     const row = rows[idx];
-    if (!row.startTime || !row.endTime) { showToast("⚠️ 開始・終了時刻を入力してください", false); return; }
+    if (!row.startTime || !row.endTime) { showToast(tr("mcTimecardsPage.inputStartEndTimeRequired","⚠️ 開始・終了時刻を入力してください"), false); return; }
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, saving: true } : r));
     try {
       await apiFetch(`/admin/timecards/${row.id}`, {
@@ -121,16 +123,16 @@ export default function TimecardPage() {
         body: JSON.stringify({ start_time: row.startTime + ":00", end_time: row.endTime + ":00", note: row.note || undefined }),
       });
       setRows(prev => prev.map((r, i) => i === idx ? { ...r, dirty: false, saving: false } : r));
-      showToast(`✅ ${row.machineName} 更新しました`, true);
+      showToast(tr("mcTimecardsPage.updatedMsg2","✅ {name} 更新しました").replace("{name}", row.machineName), true);
     } catch (e: any) {
       setRows(prev => prev.map((r, i) => i === idx ? { ...r, saving: false } : r));
-      showToast(`❌ 更新失敗: ${e.message}`, false);
+      showToast(tr("mcTimecardsPage.updateFailedMsg","❌ 更新失敗: {msg}").replace("{msg}", e.message), false);
     }
   }, [rows, showToast]);
 
   const handleAllUpdate = useCallback(async () => {
     const dirtyRows = filteredRows.filter(r => r.dirty && r.startTime && r.endTime);
-    if (dirtyRows.length === 0) { showToast("変更なし"); return; }
+    if (dirtyRows.length === 0) { showToast(tr("mcTimecardsPage.noChangesMsg","変更なし")); return; }
     setRows(prev => prev.map(r => r.dirty ? { ...r, saving: true } : r));
     let ok = 0, ng = 0;
     const results = await Promise.allSettled(
@@ -143,13 +145,13 @@ export default function TimecardPage() {
     );
     results.forEach(r => { if (r.status === "fulfilled") ok++; else ng++; });
     await loadData(workDate);
-    if (ng === 0) showToast(`✅ ${ok}件を保存しました`, true);
-    else          showToast(`⚠️ ${ok}件成功、${ng}件失敗`, false);
+    if (ng === 0) showToast(tr("mcTimecardsPage.savedCountMsg","✅ {n}件を保存しました").replace("{n}", String(ok)), true);
+    else          showToast(tr("mcTimecardsPage.partialSuccessMsg","⚠️ {ok}件成功、{ng}件失敗").replace("{ok}", String(ok)).replace("{ng}", String(ng)), false);
   }, [rows, workDate, loadData, showToast]);
 
   const setAllTime = (field: "startTime" | "endTime", val: string) => {
     setRows(prev => prev.map(r => ({ ...r, [field]: val, dirty: true })));
-    showToast(`全機械の${field === "startTime" ? "開始" : "終了"}を${val}にセット`);
+    showToast(tr("mcTimecardsPage.setAllTimeMsg","全機械の{field}を{val}にセット").replace("{field}", field === "startTime" ? tr("mcTimecardsPage.startFieldLabel","開始") : tr("mcTimecardsPage.endFieldLabel","終了")).replace("{val}", val));
   };
 
   const filteredRows = rows.filter(r => r.systemType === sysType);
@@ -166,16 +168,16 @@ export default function TimecardPage() {
 
         <main className="flex-1 overflow-hidden flex flex-col p-5 gap-3">
           <div className="flex items-center justify-between shrink-0">
-            <h1 className="text-xl font-bold text-slate-800">機械タイムカード</h1>
-            <span className="text-xs text-slate-400">稼働時間一覧（昼休み12:00-13:00跨ぎ -60分補正）</span>
+            <h1 className="text-xl font-bold text-slate-800">{tr("mcTimecardsPage.pageTitle6", "機械タイムカード")}</h1>
+            <span className="text-xs text-slate-400">{tr("mcTimecardsPage.pageDesc", "稼働時間一覧（昼休み12:00-13:00跨ぎ -60分補正）")}</span>
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 flex-wrap shrink-0">
-            <label className="text-sm font-bold text-slate-600">日付</label>
+            <label className="text-sm font-bold text-slate-600">{tr("mcTimecardsPage.dateLabel2", "日付")}</label>
             <input type="date" value={workDate} onChange={e => setWorkDate(e.target.value)}
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none" />
-            <button onClick={() => setWorkDate(TODAY())} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold">今日</button>
-            <button onClick={() => loadData(workDate)} className="text-xs px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg font-bold">↺ 再読込</button>
+            <button onClick={() => setWorkDate(TODAY())} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold">{tr("mcTimecardsPage.todayButton", "今日")}</button>
+            <button onClick={() => loadData(workDate)} className="text-xs px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg font-bold">{tr("mcTimecardsPage.reloadButton", "↺ 再読込")}</button>
             <div className="flex items-center gap-1 ml-2">
               {(["MC","NC"] as const).map(t => (
                 <button key={t} onClick={() => setSysType(t)}
@@ -184,14 +186,14 @@ export default function TimecardPage() {
                   }`}>{t}</button>
               ))}
             </div>
-            <span className="text-xs text-slate-400">{filteredRows.length}件</span>
+            <span className="text-xs text-slate-400">{tr("mcTimecardsPage.itemsCountSuffix6", "{n}件").replace("{n}", String(filteredRows.length))}</span>
             <div className="ml-auto flex items-center gap-2 flex-wrap">
-              <button onClick={() => setAllTime("startTime","08:00")} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg font-bold whitespace-nowrap">全機械 08:00開始</button>
-              <button onClick={() => setAllTime("endTime","17:00")} className="text-xs px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-200 rounded-lg font-bold whitespace-nowrap">全機械 17:00終了</button>
-              <button onClick={() => setAllTime("endTime","19:00")} className="text-xs px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-200 rounded-lg font-bold whitespace-nowrap">全機械 19:00終了</button>
+              <button onClick={() => setAllTime("startTime","08:00")} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg font-bold whitespace-nowrap">{tr("mcTimecardsPage.allMachineStart", "全機械 08:00開始")}</button>
+              <button onClick={() => setAllTime("endTime","17:00")} className="text-xs px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-200 rounded-lg font-bold whitespace-nowrap">{tr("mcTimecardsPage.allMachineEnd17", "全機械 17:00終了")}</button>
+              <button onClick={() => setAllTime("endTime","19:00")} className="text-xs px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-200 rounded-lg font-bold whitespace-nowrap">{tr("mcTimecardsPage.allMachineEnd19", "全機械 19:00終了")}</button>
               {dirtyCount > 0 && (
                 <button onClick={handleAllUpdate} className="px-4 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-lg whitespace-nowrap">
-                  💾 {dirtyCount}件を一括更新
+                  {tr("mcTimecardsPage.batchUpdateButton", "💾 {n}件を一括更新").replace("{n}", String(dirtyCount))}
                 </button>
               )}
             </div>
@@ -207,23 +209,23 @@ export default function TimecardPage() {
                 </colgroup>
                 <thead>
                   <tr className="bg-slate-50 text-slate-600 text-xs uppercase">
-                    <th className="px-4 py-3 text-left font-bold">機械名</th>
-                    <th className="px-3 py-3 text-left font-bold">開始時刻</th>
-                    <th className="px-3 py-3 text-left font-bold">終了時刻</th>
-                    <th className="px-3 py-3 text-left font-bold">稼働時間</th>
-                    <th className="px-3 py-3 text-left font-bold">備考</th>
-                    <th className="px-3 py-3 text-center font-bold">更新</th>
+                    <th className="px-4 py-3 text-left font-bold">{tr("mcTimecardsPage.colMachineName", "機械名")}</th>
+                    <th className="px-3 py-3 text-left font-bold">{tr("mcTimecardsPage.colStartTime2", "開始時刻")}</th>
+                    <th className="px-3 py-3 text-left font-bold">{tr("mcTimecardsPage.colEndTime2", "終了時刻")}</th>
+                    <th className="px-3 py-3 text-left font-bold">{tr("mcTimecardsPage.colKadouTime2", "稼働時間")}</th>
+                    <th className="px-3 py-3 text-left font-bold">{tr("mcTimecardsPage.colNote4", "備考")}</th>
+                    <th className="px-3 py-3 text-center font-bold">{tr("mcTimecardsPage.colUpdate2", "更新")}</th>
                   </tr>
                 </thead>
               </table>
             </div>
             <div className="flex-1 overflow-y-auto">
               {loading ? (
-                <div className="text-center py-20 text-slate-400">読み込み中…</div>
+                <div className="text-center py-20 text-slate-400">{tr("mcTimecardsPage.loadingEllipsis8", "読み込み中…")}</div>
               ) : rows.length === 0 ? (
                 <div className="text-center py-20 text-slate-400">
-                  <p className="mb-1">データがありません</p>
-                  <p className="text-xs">毎朝5:00に自動生成されます</p>
+                  <p className="mb-1">{tr("mcTimecardsPage.noDataMsg", "データがありません")}</p>
+                  <p className="text-xs">{tr("mcTimecardsPage.autoGenNote", "毎朝5:00に自動生成されます")}</p>
                 </div>
               ) : (
                 <table className="w-full text-sm table-fixed">
@@ -254,7 +256,7 @@ export default function TimecardPage() {
                             {row.dirty && (
                               <button onClick={() => handleUpdate(idx)} disabled={row.saving}
                                 className="text-xs px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded font-bold disabled:opacity-50">
-                                {row.saving ? "…" : "更新"}
+                                {row.saving ? "…" : tr("mcTimecardsPage.updateButton2", "更新")}
                               </button>
                             )}
                           </td>

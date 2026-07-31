@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { ncApi, NcCommonSearchResult } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 // [v104] NC 共通部品検索・管理画面(MC側 mc/common-parts/page.tsx と同構成)。
 
@@ -17,6 +18,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function NcCommonPartsPage() {
+  const { t: tr } = useLanguage();
   const router = useRouter();
   const { isAuthenticated, token } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
@@ -56,18 +58,18 @@ export default function NcCommonPartsPage() {
       const d = (r as any).data ?? r;
       setResults(d.data ?? []); setTotal(d.total ?? 0); setPage(p);
     } catch (e: any) {
-      setError(e?.response?.data?.message ?? e?.message ?? "検索失敗");
+      setError(e?.response?.data?.message ?? e?.message ?? tr("ncCommonPartsPage.searchFailedMsg3","検索失敗"));
     } finally { setLoading(false); }
   }, [drawingNo, name, mainModel, partId, ncId, machiningId]);
 
   const doUnregister = async (item: NcCommonSearchResult) => {
     if (!isAuthenticated) { setAuthOpen(true); return; }
     if (!token) return;
-    if (!confirm(`NC_id:${item.ncProgramId} (${item.drawingNo}) の共通登録を解除しますか？`)) return;
+    if (!confirm(tr("ncCommonPartsPage.confirmUnregister2","NC_id:{id} ({no}) の共通登録を解除しますか？").replace("{id}", String(item.ncProgramId)).replace("{no}", item.drawingNo))) return;
     try {
       await ncApi.unregisterCommonPart(item.ncProgramId, token);
-      showToast("✅ 解除しました"); doSearch(page);
-    } catch (e: any) { alert(e?.response?.data?.message ?? e?.message ?? "解除失敗"); }
+      showToast(tr("ncCommonPartsPage.unregisteredMsg2","✅ 解除しました")); doSearch(page);
+    } catch (e: any) { alert(e?.response?.data?.message ?? e?.message ?? tr("ncCommonPartsPage.unregisterFailedMsg2","解除失敗")); }
   };
 
   const totalPages = Math.ceil(total / 50);
@@ -75,15 +77,15 @@ export default function NcCommonPartsPage() {
   return (
     <div className="min-h-screen bg-[#f0f4f8] flex flex-col">
       <div className="bg-[#1b2a41] px-6 py-3 flex items-center gap-4 shrink-0">
-        <button onClick={() => router.push("/nc")} className="text-sky-300 hover:text-white text-sm font-semibold">← NC</button>
-        <h1 className="text-white font-bold text-base">共通部品登録 — 検索・管理</h1>
+        <button onClick={() => router.push("/nc")} className="text-sky-300 hover:text-white text-sm font-semibold">{tr("ncCommonPartsPage.backToNcLink", "← NC")}</button>
+        <h1 className="text-white font-bold text-base">{tr("ncCommonPartsPage.pageTitle3", "共通部品登録 — 検索・管理")}</h1>
       </div>
 
       <div className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
-          {([["図面番号", drawingNo, setDrawingNo], ["名称", name, setName],
-             ["主機種型式", mainModel, setMainModel], ["部品ID", partId, setPartId],
-             ["NC_id", ncId, setNcId], ["加工ID", machiningId, setMachiningId]] as [string, string, (v: string) => void][])
+          {([[tr("ncCommonPartsPage.labelDrawingNo2","図面番号"), drawingNo, setDrawingNo], [tr("ncCommonPartsPage.labelName2","名称"), name, setName],
+             [tr("ncCommonPartsPage.labelMainModel2","主機種型式"), mainModel, setMainModel], [tr("ncCommonPartsPage.labelPartId2","部品ID"), partId, setPartId],
+             ["NC_id", ncId, setNcId], [tr("ncCommonPartsPage.labelMachiningId2","加工ID"), machiningId, setMachiningId]] as [string, string, (v: string) => void][])
             .map(([lbl, val, set]) => (
               <div key={lbl}>
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{lbl}</label>
@@ -97,35 +99,35 @@ export default function NcCommonPartsPage() {
         <div className="flex items-center gap-3">
           <button onClick={() => doSearch(1)} disabled={loading}
             className="px-5 py-2 bg-sky-600 text-white text-sm font-bold rounded-xl hover:bg-sky-700 disabled:opacity-50">
-            {loading ? "検索中..." : "🔍 検索"}
+            {loading ? tr("ncCommonPartsPage.searchingLabel5", "検索中...") : tr("ncCommonPartsPage.searchButton7", "🔍 検索")}
           </button>
           <button onClick={() => { setDrawingNo(""); setName(""); setMainModel(""); setPartId(""); setNcId(""); setMachiningId(""); setResults(null); }}
             className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-300">
-            クリア
+            {tr("ncCommonPartsPage.clearButton3", "クリア")}
           </button>
           <button onClick={() => router.push("/nc/new/common")}
             className="ml-auto px-4 py-2 bg-violet-600 text-white text-sm font-bold rounded-xl hover:bg-violet-700">
-            ＋ 新規に共通登録
+            {tr("ncCommonPartsPage.newCommonRegisterButton", "＋ 新規に共通登録")}
           </button>
-          {results !== null && <span className="text-sm text-slate-500">{total}件 / {totalPages}ページ</span>}
+          {results !== null && <span className="text-sm text-slate-500">{tr("ncCommonPartsPage.resultCountLabel2", "{n}件 / {p}ページ").replace("{n}", String(total)).replace("{p}", String(totalPages))}</span>}
         </div>
         {error && <div className="mt-2 text-red-600 text-sm">{error}</div>}
       </div>
 
       <div className="flex-1 overflow-auto p-4">
         {results === null && !loading && (
-          <div className="text-center text-slate-400 py-20 text-sm">条件を入力して検索してください<br/><span className="text-xs text-slate-300">（共通登録済み加工のみ表示）</span></div>
+          <div className="text-center text-slate-400 py-20 text-sm">{tr("ncCommonPartsPage.inputConditionHint2", "条件を入力して検索してください")}<br/><span className="text-xs text-slate-300">{tr("ncCommonPartsPage.commonRegisteredOnlyNote2", "（共通登録済み加工のみ表示）")}</span></div>
         )}
-        {loading && <div className="text-center text-slate-400 py-20 text-sm">検索中...</div>}
+        {loading && <div className="text-center text-slate-400 py-20 text-sm">{tr("ncCommonPartsPage.searchingLabel5", "検索中...")}</div>}
         {results !== null && !loading && results.length === 0 && (
-          <div className="text-center text-slate-400 py-20 text-sm">該当する共通部品がありません</div>
+          <div className="text-center text-slate-400 py-20 text-sm">{tr("ncCommonPartsPage.noMatchingCommonParts2", "該当する共通部品がありません")}</div>
         )}
         {results !== null && results.length > 0 && (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
             <table className="w-full text-xs border-collapse">
               <thead className="bg-[#1b2a41] text-white sticky top-0">
                 <tr>
-                  {["図面番号","名称","主機種型式","部品ID","NC_id","加工ID","Ver","共通CD","G件数","状態","操作"].map(h => (
+                  {[tr("ncCommonPartsPage.colDrawingNo3","図面番号"), tr("ncCommonPartsPage.colName3","名称"), tr("ncCommonPartsPage.colMainModel3","主機種型式"), tr("ncCommonPartsPage.colPartId3","部品ID"), tr("ncCommonPartsPage.colNcId3","NC_id"), tr("ncCommonPartsPage.colMachiningId4","加工ID"), tr("ncCommonPartsPage.colVer3","Ver"), tr("ncCommonPartsPage.colCommonCd2","共通CD"), tr("ncCommonPartsPage.colGCount2","G件数"), tr("ncCommonPartsPage.colStatus3","状態"), tr("ncCommonPartsPage.colOperation4","操作")].map(h => (
                     <th key={h} className="px-3 py-2 text-left font-bold whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -146,7 +148,7 @@ export default function NcCommonPartsPage() {
                     <td className="px-3 py-2 font-mono text-center text-emerald-700 text-[11px]">{item.commonPartCode ?? "—"}</td>
                     <td className="px-3 py-2 text-center">
                       <span className={`font-bold text-[11px] px-1.5 py-0.5 rounded ${item.groupCount > 1 ? "bg-sky-100 text-sky-700" : "bg-slate-100 text-slate-500"}`}>
-                        {item.groupCount}件
+                        {tr("ncCommonPartsPage.itemsCountSuffix5","{n}件").replace("{n}", String(item.groupCount))}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-center">
@@ -157,12 +159,12 @@ export default function NcCommonPartsPage() {
                     <td className="px-3 py-2 whitespace-nowrap">
                       <div className="flex items-center gap-1">
                         <button onClick={() => router.push(`/nc/${item.ncProgramId}`)}
-                          className="px-2 py-1 bg-sky-600 text-white text-[10px] font-bold rounded hover:bg-sky-700">詳細</button>
+                          className="px-2 py-1 bg-sky-600 text-white text-[10px] font-bold rounded hover:bg-sky-700">{tr("ncCommonPartsPage.detailButton3","詳細")}</button>
                         <button onClick={() => setInfoTarget(item)}
-                          className="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold rounded hover:bg-slate-200 border border-slate-300">供用方法</button>
+                          className="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold rounded hover:bg-slate-200 border border-slate-300">{tr("ncCommonPartsPage.sharedMethodButton2","供用方法")}</button>
                         {item.groupCount > 1 && (
                           <button onClick={() => doUnregister(item)}
-                            className="px-2 py-1 bg-red-100 text-red-600 text-[10px] font-bold rounded hover:bg-red-200 border border-red-200">解除</button>
+                            className="px-2 py-1 bg-red-100 text-red-600 text-[10px] font-bold rounded hover:bg-red-200 border border-red-200">{tr("ncCommonPartsPage.releaseButton2","解除")}</button>
                         )}
                       </div>
                     </td>
@@ -173,10 +175,10 @@ export default function NcCommonPartsPage() {
             {totalPages > 1 && (
               <div className="flex items-center gap-2 justify-center py-3 border-t border-slate-100">
                 <button onClick={() => doSearch(page - 1)} disabled={page <= 1}
-                  className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded disabled:opacity-40">← 前へ</button>
+                  className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded disabled:opacity-40">{tr("ncCommonPartsPage.prevPageButton2","← 前へ")}</button>
                 <span className="text-xs text-slate-600">{page} / {totalPages}</span>
                 <button onClick={() => doSearch(page + 1)} disabled={page >= totalPages}
-                  className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded disabled:opacity-40">次へ →</button>
+                  className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded disabled:opacity-40">{tr("ncCommonPartsPage.nextPageButton2","次へ →")}</button>
               </div>
             )}
           </div>
@@ -186,27 +188,27 @@ export default function NcCommonPartsPage() {
       {infoTarget && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h2 className="text-base font-bold text-slate-800 mb-3">📋 共通登録の手順</h2>
+            <h2 className="text-base font-bold text-slate-800 mb-3">{tr("ncCommonPartsPage.commonRegisterProcedureTitle3", "📋 共通登録の手順")}</h2>
             <div className="bg-sky-50 rounded-xl p-3 mb-4 text-sm space-y-1">
-              <div><span className="text-slate-400 text-xs">対象加工ID:</span> <span className="font-mono font-bold text-sky-700">{infoTarget.machiningId}</span></div>
-              <div><span className="text-slate-400 text-xs">図面番号:</span> <span className="font-mono font-bold">{infoTarget.drawingNo}</span></div>
-              <div><span className="text-slate-400 text-xs">名称:</span> <span>{infoTarget.name}</span></div>
+              <div><span className="text-slate-400 text-xs">{tr("ncCommonPartsPage.targetMachiningIdLabel2", "対象加工ID:")}</span> <span className="font-mono font-bold text-sky-700">{infoTarget.machiningId}</span></div>
+              <div><span className="text-slate-400 text-xs">{tr("ncCommonPartsPage.drawingNoLabel4", "図面番号:")}</span> <span className="font-mono font-bold">{infoTarget.drawingNo}</span></div>
+              <div><span className="text-slate-400 text-xs">{tr("ncCommonPartsPage.nameLabel3", "名称:")}</span> <span>{infoTarget.name}</span></div>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm">
-              <p className="font-bold text-amber-800 mb-2">共通登録の操作手順</p>
+              <p className="font-bold text-amber-800 mb-2">{tr("ncCommonPartsPage.commonRegisterProcedureTitle4", "共通登録の操作手順")}</p>
               <ol className="list-decimal list-inside space-y-1.5 text-amber-900 text-xs">
-                <li>「＋ 新規に共通登録」ボタンを押す</li>
-                <li>登録先の部品を検索・選択</li>
-                <li>検索で上記の加工（図面番号: {infoTarget.drawingNo}）を探して選択</li>
-                <li>「📋 共通登録（供用）する」を押して完了</li>
+                <li>{tr("ncCommonPartsPage.ncStep1","「＋ 新規に共通登録」ボタンを押す")}</li>
+                <li>{tr("ncCommonPartsPage.ncStep2","登録先の部品を検索・選択")}</li>
+                <li>{tr("ncCommonPartsPage.ncStep3","検索で上記の加工（図面番号: {no}）を探して選択").replace("{no}", infoTarget.drawingNo)}</li>
+                <li>{tr("ncCommonPartsPage.ncStep4","「📋 共通登録（供用）する」を押して完了")}</li>
               </ol>
             </div>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setInfoTarget(null)}
-                className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-300">閉じる</button>
+                className="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-300">{tr("ncCommonPartsPage.closeButton3","閉じる")}</button>
               <button onClick={() => { setInfoTarget(null); router.push(`/nc/${infoTarget.ncProgramId}`); }}
                 className="px-4 py-2 bg-sky-600 text-white text-sm font-bold rounded-xl hover:bg-sky-700">
-                このNCの詳細を開く →
+                {tr("ncCommonPartsPage.openNcDetailButton", "このNCの詳細を開く →")}
               </button>
             </div>
           </div>

@@ -2,6 +2,7 @@
 // NC側4画面(詳細/変更登録/段取シート/作業記録)共通の部品情報ヘッダー。
 // MC側の構造(text-2xl図番 + "/"セパレータ + バッジ群 + ID行)に準拠。
 import { StatusBadge } from "@/components/nc/StatusBadge";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
 
 type NcPartHeaderPart = {
@@ -32,6 +33,7 @@ type NcPartHeaderProps = {
 };
 
 export function NcPartHeader({ data, showApprove, onApproveClick }: NcPartHeaderProps) {
+  const { t: tr } = useLanguage();
   const d = data;
   return (
     <div className="bg-white border-b border-slate-200 px-5 py-3 shrink-0">
@@ -50,16 +52,16 @@ export function NcPartHeader({ data, showApprove, onApproveClick }: NcPartHeader
               onClick={onApproveClick}
               className="text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
             >
-              ✓ 承認
+              {tr("ncPartHeader.approveButton", "✓ 承認")}
             </button>
           )}
         </div>
       </div>
       <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
-        <span>NC_id: <span className="text-slate-700">{d.legacyNcId ?? d.id}</span></span>
-        {d.part.partId != null && <><span className="text-slate-400">|</span><span>部品ID: <span className="text-slate-700">{d.part.partId}</span></span></>}
-        {d.part.clientName && <><span className="text-slate-400">|</span><span>納入先: <span className="text-slate-700">{d.part.clientName}</span></span></>}
-        {d.machiningId != null && <><span className="text-slate-400">|</span><span>加工ID: <span className="text-slate-700">{d.machiningId}</span></span></>}
+        <span>{tr("ncPartHeader.ncIdPrefix", "NC_id: ")}<span className="text-slate-700">{d.legacyNcId ?? d.id}</span></span>
+        {d.part.partId != null && <><span className="text-slate-400">|</span><span>{tr("ncPartHeader.partIdPrefix7", "部品ID: ")}<span className="text-slate-700">{d.part.partId}</span></span></>}
+        {d.part.clientName && <><span className="text-slate-400">|</span><span>{tr("ncPartHeader.clientNamePrefix", "納入先: ")}<span className="text-slate-700">{d.part.clientName}</span></span></>}
+        {d.machiningId != null && <><span className="text-slate-400">|</span><span>{tr("ncPartHeader.machiningIdPrefix3", "加工ID: ")}<span className="text-slate-700">{d.machiningId}</span></span></>}
       </div>
     </div>
   );

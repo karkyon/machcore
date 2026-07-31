@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type Props = {
   imageUrl:    string;
@@ -12,6 +13,7 @@ type Props = {
 };
 
 export default function ImageEditor({ imageUrl, fileId, ncId, processingId, token, onSaved, onClose }: Props) {
+  const { t: tr } = useLanguage();
   const canvasRef  = useRef<HTMLCanvasElement>(null);
   const fabricRef  = useRef<any>(null);
   const [saving,   setSaving]   = useState(false);
@@ -81,7 +83,7 @@ export default function ImageEditor({ imageUrl, fileId, ncId, processingId, toke
     const y = e.clientY - rect.top;
 
     if (tool === "text") {
-      const txt = new fabric.IText("テキスト", {
+      const txt = new fabric.IText(tr("imageEditor.defaultTextLabel","テキスト"), {
         left: x, top: y, fontSize: 20, fill: color,
         fontFamily: "sans-serif", fontWeight: "bold",
         stroke: "#000", strokeWidth: 0.5,
@@ -152,7 +154,7 @@ export default function ImageEditor({ imageUrl, fileId, ncId, processingId, toke
         const j = await res.json().catch(() => ({}));
         throw new Error(j.message ?? `HTTP ${res.status}`);
       }
-      setSaveMsg("✅ 保存しました");
+      setSaveMsg(tr("imageEditor.savedMsg","✅ 保存しました"));
       setTimeout(() => { onSaved(); onClose(); }, 1200);
     } catch (e: any) {
       setSaveMsg(`⚠️ ${e.message}`);
@@ -173,35 +175,35 @@ export default function ImageEditor({ imageUrl, fileId, ncId, processingId, toke
       <div className="bg-slate-800 rounded-xl shadow-2xl flex flex-col max-w-5xl w-full max-h-[95vh]">
         {/* ヘッダー */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-          <span className="text-white font-bold text-sm">✏️ 画像編集</span>
+          <span className="text-white font-bold text-sm">{tr("imageEditor.titleLabel", "✏️ 画像編集")}</span>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-lg">✕</button>
         </div>
 
         {/* ツールバー */}
         <div className="flex items-center flex-wrap gap-2 px-4 py-2 border-b border-slate-700">
-          <span className="text-xs text-slate-400">ツール:</span>
-          <button onClick={() => setTool("select")} className={btnCls(tool === "select")}>▶ 選択</button>
-          <button onClick={() => setTool("text")}   className={btnCls(tool === "text")}>T テキスト</button>
-          <button onClick={() => setTool("arrow")}  className={btnCls(tool === "arrow")}>→ 矢印</button>
+          <span className="text-xs text-slate-400">{tr("imageEditor.toolLabel", "ツール:")}</span>
+          <button onClick={() => setTool("select")} className={btnCls(tool === "select")}>{tr("imageEditor.selectTool", "▶ 選択")}</button>
+          <button onClick={() => setTool("text")}   className={btnCls(tool === "text")}>{tr("imageEditor.textTool", "T テキスト")}</button>
+          <button onClick={() => setTool("arrow")}  className={btnCls(tool === "arrow")}>{tr("imageEditor.arrowTool", "→ 矢印")}</button>
           <div className="border-l border-slate-600 mx-1 self-stretch" />
-          <span className="text-xs text-slate-400">色:</span>
+          <span className="text-xs text-slate-400">{tr("imageEditor.colorLabel", "色:")}</span>
           {["#ef4444","#f59e0b","#22c55e","#3b82f6","#ffffff","#000000"].map(c => (
             <button key={c} onClick={() => setColor(c)}
               className={`w-6 h-6 rounded-full border-2 ${color === c ? "border-white" : "border-transparent"}`}
               style={{ background: c }} />
           ))}
           <div className="border-l border-slate-600 mx-1 self-stretch" />
-          <span className="text-xs text-slate-400">回転:</span>
+          <span className="text-xs text-slate-400">{tr("imageEditor.rotateLabel", "回転:")}</span>
           <button onClick={() => rotate(-90)} className={btnCls()}>↺ -90°</button>
           <button onClick={() => rotate(90)}  className={btnCls()}>↻ +90°</button>
           <button onClick={deleteSelected}    className="px-3 py-1.5 text-xs rounded-lg font-bold bg-red-800 text-red-200 hover:bg-red-700 transition-colors">
-            🗑 削除
+            {tr("imageEditor.deleteButton", "🗑 削除")}
           </button>
           <div className="ml-auto flex items-center gap-2">
             {saveMsg && <span className="text-xs text-slate-300">{saveMsg}</span>}
             <button onClick={handleSave} disabled={saving}
               className="px-4 py-1.5 text-xs rounded-lg font-bold bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white transition-colors">
-              {saving ? "保存中…" : "💾 保存"}
+              {saving ? tr("imageEditor.savingLabel3", "保存中…") : tr("imageEditor.saveButton2", "💾 保存")}
             </button>
           </div>
         </div>
@@ -216,7 +218,7 @@ export default function ImageEditor({ imageUrl, fileId, ncId, processingId, toke
         </div>
 
         <p className="text-[10px] text-slate-500 text-center pb-2">
-          テキスト: クリックで追加 → ダブルクリックで編集 ／ 矢印: クリックで追加 ／ 回転: 画像全体または選択オブジェクト
+          {tr("imageEditor.editHint", "テキスト: クリックで追加 → ダブルクリックで編集 ／ 矢印: クリックで追加 ／ 回転: 画像全体または選択オブジェクト")}
         </p>
       </div>
     </div>

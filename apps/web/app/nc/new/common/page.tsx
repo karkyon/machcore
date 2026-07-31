@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { ncApi, NcSearchResult } from "@/lib/api";
 import AuthModal from "@/components/auth/AuthModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 // [v104] NC 共通加工登録画面(MC側 mc/new/common/page.tsx と同構成)。
 // バックエンドAPI(common-parts/search, common-parts/register)はv087で実装済み。
@@ -17,6 +18,7 @@ type PartResult = {
 };
 
 export default function NcNewCommonPage() {
+  const { t: tr } = useLanguage();
   const router = useRouter();
   const { token, operator, isAuthenticated } = useAuth();
 
@@ -80,9 +82,9 @@ export default function NcNewCommonPage() {
   // 供用登録実行
   const handleRegister = async () => {
     if (!isAuthenticated || !token) { setAuthOpen(true); return; }
-    if (!selectedRow)  { setSaveError("供用する加工を選択してください"); return; }
-    if (!selectedPart) { setSaveError("登録先の部品を選択してください"); return; }
-    if (!confirm("両方の図面を見比べて、加工内容に相違ないか確認しましたか？\n\n今、手元に２枚の図面がありますか？")) return;
+    if (!selectedRow)  { setSaveError(tr("ncNewCommonPage.selectSourceRequired2","供用する加工を選択してください")); return; }
+    if (!selectedPart) { setSaveError(tr("ncNewCommonPage.selectTargetPartRequired2","登録先の部品を選択してください")); return; }
+    if (!confirm(tr("ncNewCommonPage.confirmDrawingCheck2","両方の図面を見比べて、加工内容に相違ないか確認しましたか？\n\n今、手元に２枚の図面がありますか？"))) return;
     setSaving(true); setSaveError(null);
     try {
       const res = await ncApi.registerCommonPart({
@@ -92,7 +94,7 @@ export default function NcNewCommonPage() {
       const d = (res as any).data ?? res;
       router.push(`/nc/${d.ncProgramId}`);
     } catch (e: any) {
-      setSaveError(e?.response?.data?.message ?? e?.message ?? "登録失敗");
+      setSaveError(e?.response?.data?.message ?? e?.message ?? tr("ncNewCommonPage.registerFailedDefault4","登録失敗"));
       setSaving(false);
     }
   };
@@ -105,17 +107,17 @@ export default function NcNewCommonPage() {
       <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
         <button onClick={() => router.push("/nc")}
           className="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-3 py-1.5 rounded transition-colors">
-          ← ダッシュボードへ戻る
+          {tr("ncNewCommonPage.backToDashboardLink8", "← ダッシュボードへ戻る")}
         </button>
         <button onClick={() => router.push("/nc/search")}
           className="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-3 py-1.5 rounded transition-colors">
-          ＋ NC検索に戻る
+          {tr("ncNewCommonPage.backToNcSearchLink2", "＋ NC検索に戻る")}
         </button>
         <span className="font-mono text-sky-400 font-bold text-base ml-2">MachCore</span>
         <span className="text-slate-400 text-xs">|</span>
-        <span className="text-sm font-medium">NC 共通加工登録</span>
+        <span className="text-sm font-medium">{tr("ncNewCommonPage.pageTitle5", "NC 共通加工登録")}</span>
         {operator && (
-          <span className="ml-auto text-xs text-emerald-400">✓ 認証済: {operator.name}</span>
+          <span className="ml-auto text-xs text-emerald-400">{tr("ncNewCommonPage.authenticatedLabel4", "✓ 認証済: {name}").replace("{name}", operator.name)}</span>
         )}
       </header>
 
@@ -124,29 +126,29 @@ export default function NcNewCommonPage() {
         <aside className="w-[260px] shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden">
           <div className="p-4 border-b border-slate-100">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-              ① 登録先の部品を検索
+              {tr("ncNewCommonPage.step1SelectTargetPart2", "① 登録先の部品を検索")}
             </p>
             <select value={partSearchType} onChange={e => setPartSearchType(e.target.value as any)}
               className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold mb-2 focus:outline-none focus:ring-2 focus:ring-sky-400">
-              <option value="drawing_no">図面番号</option>
-              <option value="part_id">部品ID</option>
-              <option value="part_name">名称</option>
+              <option value="drawing_no">{tr("ncNewCommonPage.drawingNoOption4","図面番号")}</option>
+              <option value="part_id">{tr("ncNewCommonPage.partIdOption4","部品ID")}</option>
+              <option value="part_name">{tr("ncNewCommonPage.partNameOption4","名称")}</option>
             </select>
             <div className="flex gap-1.5">
               <input value={partSearchQ} onChange={e => setPartSearchQ(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && doSearchPart()}
-                placeholder="Enterで検索"
+                placeholder={tr("ncNewCommonPage.enterToSearchPlaceholder2","Enterで検索")}
                 className="flex-1 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-sky-400" />
               <button onClick={doSearchPart} disabled={partLoading}
                 className="px-3 py-1.5 bg-sky-600 text-white text-xs font-bold rounded-lg hover:bg-sky-700 disabled:opacity-50">
-                {partLoading ? "…" : "検索"}
+                {partLoading ? "…" : tr("ncNewCommonPage.searchButton9","検索")}
               </button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto">
             {partResults.length === 0 && !partLoading && (
               <div className="p-4 text-xs text-slate-400 text-center mt-4">
-                登録先の部品を検索してください
+                {tr("ncNewCommonPage.selectTargetPartHint2", "登録先の部品を検索してください")}
               </div>
             )}
             {partResults.map(p => (
@@ -167,12 +169,12 @@ export default function NcNewCommonPage() {
           {/* 選択した登録先部品 */}
           {!selectedPart ? (
             <div className="bg-slate-100 border-2 border-dashed border-slate-300 rounded-xl p-6 mb-5 text-sm text-slate-400 text-center">
-              ← 左ペインで登録先の部品を検索・選択してください
+              {tr("ncNewCommonPage.selectPartFromLeftHint4", "← 左ペインで登録先の部品を検索・選択してください")}
             </div>
           ) : (
             <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 mb-5">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-bold text-sky-600 uppercase tracking-wider">登録先の部品</p>
+                <p className="text-[10px] font-bold text-sky-600 uppercase tracking-wider">{tr("ncNewCommonPage.targetPartLabel2", "登録先の部品")}</p>
                 <button onClick={() => setSelectedPart(null)} className="text-xs text-slate-400 hover:text-red-500">✕</button>
               </div>
               <div className="font-mono text-sky-700 font-bold text-sm">{selectedPart.drawing_no}</div>
@@ -184,23 +186,23 @@ export default function NcNewCommonPage() {
           {/* 供用する加工を検索 */}
           <div className="border-t border-slate-200 pt-5">
             <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
-              ② 供用する加工データを検索
+              {tr("ncNewCommonPage.step2SelectSourceMachining2", "② 供用する加工データを検索")}
             </h2>
             <div className="flex gap-2 mb-3">
               <select value={searchKey} onChange={e => setSearchKey(e.target.value as any)}
                 className="border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-violet-400">
-                <option value="drawing_no">図面番号</option>
-                <option value="name">名称</option>
+                <option value="drawing_no">{tr("ncNewCommonPage.drawingNoOption4","図面番号")}</option>
+                <option value="name">{tr("ncNewCommonPage.nameOption","名称")}</option>
                 <option value="nc_id">NC_id</option>
-                <option value="part_id">部品ID</option>
+                <option value="part_id">{tr("ncNewCommonPage.partIdOption4","部品ID")}</option>
               </select>
               <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && doSearchMachining()}
-                placeholder="Enterで検索"
+                placeholder={tr("ncNewCommonPage.enterToSearchPlaceholder2","Enterで検索")}
                 className="flex-1 max-w-xs border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" />
               <button onClick={doSearchMachining} disabled={searchLoading}
                 className="px-4 py-1.5 bg-violet-600 text-white text-xs font-bold rounded-lg hover:bg-violet-700 disabled:opacity-50">
-                {searchLoading ? "…" : "検索"}
+                {searchLoading ? "…" : tr("ncNewCommonPage.searchButton9","検索")}
               </button>
             </div>
             {searchResults.length > 0 && (
@@ -210,7 +212,7 @@ export default function NcNewCommonPage() {
                     className={`w-full text-left px-4 py-2.5 border-b border-slate-100 hover:bg-violet-50 transition-colors
                       ${selectedRow?.nc_id === row.nc_id ? "bg-violet-50 border-l-4 border-l-violet-500" : ""}`}>
                     <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="font-mono text-[10px] text-violet-600 font-bold">NC_id:{row.nc_id}</span>
+                      <span className="font-mono text-[10px] text-violet-600 font-bold">{tr("ncNewCommonPage.ncIdColonPrefix","NC_id:")}{row.nc_id}</span>
                       <span className="font-mono text-[10px] text-blue-500">L{row.process_l}</span>
                     </div>
                     <div className="font-mono text-xs font-bold text-slate-700">{row.drawing_no}</div>
@@ -226,32 +228,32 @@ export default function NcNewCommonPage() {
             {selectedRow && (
               <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 mb-4">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wider">供用する加工データ</p>
+                  <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wider">{tr("ncNewCommonPage.targetMachiningDataLabel2", "供用する加工データ")}</p>
                   <button onClick={() => setSelectedRow(null)} className="text-xs text-slate-400 hover:text-red-500">✕</button>
                 </div>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
                   <div>
-                    <span className="text-[10px] text-slate-400 block">NC_id</span>
+                    <span className="text-[10px] text-slate-400 block">{tr("ncNewCommonPage.ncIdLabel3", "NC_id")}</span>
                     <span className="font-mono font-bold text-violet-700 text-lg">{selectedRow.nc_id}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block">工程</span>
+                    <span className="text-[10px] text-slate-400 block">{tr("ncNewCommonPage.processLabel3", "工程")}</span>
                     <span className="font-mono font-bold text-blue-600">L{selectedRow.process_l}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block">図面番号</span>
+                    <span className="text-[10px] text-slate-400 block">{tr("ncNewCommonPage.drawingNoLabel6", "図面番号")}</span>
                     <span className="font-mono font-bold text-slate-800">{selectedRow.drawing_no}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block">名称</span>
+                    <span className="text-[10px] text-slate-400 block">{tr("ncNewCommonPage.nameLabel5", "名称")}</span>
                     <span className="text-slate-700">{selectedRow.part_name}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block">機械</span>
+                    <span className="text-[10px] text-slate-400 block">{tr("ncNewCommonPage.machineLabel10", "機械")}</span>
                     <span className="text-slate-600">{selectedRow.machine_code ?? "—"}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block">バージョン</span>
+                    <span className="text-[10px] text-slate-400 block">{tr("ncNewCommonPage.versionLabel5", "バージョン")}</span>
                     <span className="font-mono text-slate-600">{selectedRow.version}</span>
                   </div>
                 </div>
@@ -269,26 +271,26 @@ export default function NcNewCommonPage() {
             {!isAuthenticated ? (
               <button onClick={() => setAuthOpen(true)}
                 className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
-                🔒 先に認証してください
+                {tr("ncNewCommonPage.authFirstButton4", "🔒 先に認証してください")}
               </button>
             ) : (
               <button onClick={handleRegister} disabled={!canSubmit}
                 className="flex-1 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-bold text-sm transition-colors">
-                {saving ? "登録中…" : "📋 共通登録（供用）する"}
+                {saving ? tr("ncNewCommonPage.registeringLabel5", "登録中…") : tr("ncNewCommonPage.commonRegisterButton3", "📋 共通登録（供用）する")}
               </button>
             )}
             <button onClick={() => router.push("/nc")}
               className="px-5 py-3 rounded-xl border border-slate-300 text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors">
-              キャンセル
+              {tr("ncNewCommonPage.cancelButton9", "キャンセル")}
             </button>
           </div>
 
           <div className="mt-5 max-w-xl bg-slate-100 rounded-xl p-3 text-xs text-slate-500 space-y-0.5">
-            <p className="font-bold text-slate-600 mb-1">共通加工登録について</p>
-            <p>① 左ペインで「登録先の部品」を検索・選択</p>
-            <p>② 右ペインで「供用したい加工データ」を検索・選択</p>
-            <p>③ 認証後「図面確認」を経て供用登録を実行</p>
-            <p>④ 同一の加工ID（K_id。ツーリング含む）を別部品でも使用可能になります</p>
+            <p className="font-bold text-slate-600 mb-1">{tr("ncNewCommonPage.aboutCommonRegisterTitle2", "共通加工登録について")}</p>
+            <p>{tr("ncNewCommonPage.commonStep1b", "① 左ペインで「登録先の部品」を検索・選択")}</p>
+            <p>{tr("ncNewCommonPage.commonStep2b", "② 右ペインで「供用したい加工データ」を検索・選択")}</p>
+            <p>{tr("ncNewCommonPage.commonStep3b", "③ 認証後「図面確認」を経て供用登録を実行")}</p>
+            <p>{tr("ncNewCommonPage.commonStep4Nc", "④ 同一の加工ID（K_id。ツーリング含む）を別部品でも使用可能になります")}</p>
           </div>
         </main>
       </div>
