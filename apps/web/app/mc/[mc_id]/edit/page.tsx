@@ -14,6 +14,10 @@ import { useLanguage } from "@/lib/i18n/LanguageContext";
 const STATUS_LABEL: Record<string, string> = {
   NEW: "新規", PENDING_APPROVAL: "未承認", APPROVED: "承認済", CHANGING: "変更中",
 };
+const KANRYO_TYPE_KEYS: Record<string, string> = {
+  "大変更": "mcEditUi.typeMajorChange", "小変更": "mcEditUi.typeMinorChange", "追加": "mcEditUi.typeAdd",
+  "修正": "mcEditUi.typeFix", "削除": "mcEditUi.typeDelete", "訂正": "mcEditUi.typeCorrection",
+};
 
 export default function McEditPage() {
   const { t: tr } = useLanguage();
@@ -1728,7 +1732,7 @@ export default function McEditPage() {
               <div className="max-w-[816px]">
                 <div className="bg-white rounded-xl border border-slate-200">
                   <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between rounded-t-xl">
-                    <span className="text-xs font-bold text-slate-600">ワークオフセット ({offsetRows.length}レコード)</span>
+                    <span className="text-xs font-bold text-slate-600">{tr("mcEditUi.offsetListTitle","ワークオフセット ({n}レコード)").replace("{n}", String(offsetRows.length))}</span>
                     <div className="flex items-center gap-2">
                       <button onClick={async () => {
                         if (!token) { showToast("❌ " + tr("mcEdit.authRequired", "認証が必要です")); return; }
@@ -1742,11 +1746,11 @@ export default function McEditPage() {
                             r_offset: o.r_offset != null && o.r_offset !== "" ? Number(o.r_offset) : undefined,
                             note:     o.note     ?? undefined,
                           })), token);
-                          showToast("✅ ワークオフセットを保存しました");
-                        } catch { showToast("❌ 保存に失敗しました"); }
+                          showToast(tr("mcEditUi.saveOffsetSuccess", "✅ ワークオフセットを保存しました"));
+                        } catch { showToast(tr("mcEditUi.saveFailedShort", "❌ 保存に失敗しました")); }
                       }}
                         className="px-3 py-1 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors">
-                        ✓ ワークオフセットを保存
+                        {tr("mcEditUi.saveOffset", "✓ ワークオフセットを保存")}
                       </button>
                       <button onClick={() => setOffsetRows(prev => (() => { const n = prev.length; const gc = n === 0 ? "EXT" : `G${Math.min(54 + (n - 1), 59)}`; return [...prev, { g_code: gc }]; })())}
                         className="text-xs text-teal-600 font-bold">{tr("mcEditUi.addRow", "+ 追加")}</button>
@@ -1767,12 +1771,12 @@ export default function McEditPage() {
                       <thead className="bg-teal-50 sticky top-0 z-10">
                         <tr>
                           <th className="px-1 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">G</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">X</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">Y</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">Z</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">A / C</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">R / B</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("mcEditUi.colG", "G")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("mcEditUi.colX", "X")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("mcEditUi.colY", "Y")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("mcEditUi.colZ", "Z")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("mcEditUi.colAC", "A / C")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("mcEditUi.colRB", "R / B")}</th>
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
                         </tr>
                       </thead>
@@ -1813,7 +1817,7 @@ export default function McEditPage() {
                             <td className="px-1 py-1 text-center">
                               <button onClick={() => setOffsetRows(r => r.filter((_,j) => j !== i))}
                                 className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">
-                                削除
+                                {tr("mcEditUi.toolingDelete", "削除")}
                               </button>
                             </td>
                           </tr>
@@ -1830,7 +1834,7 @@ export default function McEditPage() {
               <div className="max-w-[1016px]">
                 <div className="bg-white rounded-xl border border-slate-200">
                   <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between rounded-t-xl">
-                    <span className="text-xs font-bold text-slate-600">インデックスプログラム ({indexRows.length}レコード)</span>
+                    <span className="text-xs font-bold text-slate-600">{tr("mcEditUi.indexListTitle","インデックスプログラム ({n}レコード)").replace("{n}", String(indexRows.length))}</span>
                     <div className="flex items-center gap-2">
                       <button onClick={async () => {
                         if (!token) { showToast("❌ " + tr("mcEdit.authRequired", "認証が必要です")); return; }
@@ -1842,11 +1846,11 @@ export default function McEditPage() {
                             axis_2: r.axis_2 ?? r.axis2 ?? undefined,
                             note:   r.note   ?? undefined,
                           })), token);
-                          showToast("✅ インデックスPGを保存しました");
-                        } catch { showToast("❌ 保存に失敗しました"); }
+                          showToast(tr("mcEditUi.saveIndexSuccess", "✅ インデックスPGを保存しました"));
+                        } catch { showToast(tr("mcEditUi.saveFailedShort", "❌ 保存に失敗しました")); }
                       }}
                         className="px-3 py-1 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors">
-                        ✓ インデックスPGを保存
+                        {tr("mcEditUi.saveIndex", "✓ インデックスPGを保存")}
                       </button>
                       <button onClick={() => setIndexRows(prev => [...prev, { sort_order: prev.length, axis_0: "", axis_1: "", axis_2: "" }])}
                         className="text-xs text-teal-600 font-bold">{tr("mcEditUi.addRow", "+ 追加")}</button>
@@ -1866,10 +1870,10 @@ export default function McEditPage() {
                       <thead className="bg-teal-50 sticky top-0 z-10">
                         <tr>
                           <th className="px-1 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">STEP/N</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">第0軸</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">第1軸</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">第2軸</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("mcEditUi.colStepN", "STEP/N")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("mcEditUi.colAxis0", "第0軸")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("mcEditUi.colAxis1", "第1軸")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("mcEditUi.colAxis2", "第2軸")}</th>
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
                         </tr>
                       </thead>
@@ -1910,7 +1914,7 @@ export default function McEditPage() {
                             <td className="px-1 py-1 text-center">
                               <button onClick={() => setIndexRows(r => r.filter((_,j) => j !== i))}
                                 className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">
-                                削除
+                                {tr("mcEditUi.toolingDelete", "削除")}
                               </button>
                             </td>
                           </tr>
@@ -1927,23 +1931,23 @@ export default function McEditPage() {
                 {/* 写真アップロード */}
                 <div className="bg-white border border-slate-200 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-xs font-bold text-slate-600">📷 写真のアップロード</p>
+                    <p className="text-xs font-bold text-slate-600">{tr("mcEditUi.photoUploadTitle", "📷 写真のアップロード")}</p>
                     <div className="flex gap-2">
                       <button className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                         disabled={fileUploading}
                         onClick={() => requestNewUpload("PHOTO", "folder")}>
                         {fileUploading && <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                        複数選拡・フォルダ
+                        {tr("mcEditUi.multiSelectFolder", "複数選拡・フォルダ")}
                       </button>
                       <button className="px-3 py-1.5 bg-teal-100 hover:bg-teal-200 text-teal-700 text-xs font-bold rounded-lg border border-teal-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                         disabled={fileUploading}
                         onClick={() => requestNewUpload("PHOTO", "file")}>
                         {fileUploading && <span className="inline-block w-3 h-3 border-2 border-teal-700 border-t-transparent rounded-full animate-spin" />}
-                        1枚追加
+                        {tr("mcEditUi.addOne", "1枚追加")}
                       </button>
                     </div>
                   </div>
-                  <p className="text-[11px] text-slate-400 text-center py-2">UploadAgentでファイル選択ダイアログが開きます</p>
+                  <p className="text-[11px] text-slate-400 text-center py-2">{tr("mcEditUi.agentDialogHint", "UploadAgentでファイル選択ダイアログが開きます")}</p>
                   {fileUploadMsg && activeUploadFileType === "PHOTO" && (
                     <p className={`text-xs mt-2 font-bold ${fileUploadMsg.startsWith("⏳") ? "text-amber-600 animate-pulse" : fileUploadMsg.startsWith("❌") ? "text-red-600" : "text-slate-600"}`}>
                       {fileUploadMsg}
@@ -1954,23 +1958,23 @@ export default function McEditPage() {
                 {/* 図アップロード */}
                 <div className="bg-white border border-slate-200 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-xs font-bold text-slate-600">📐 図のアップロード</p>
+                    <p className="text-xs font-bold text-slate-600">{tr("mcEditUi.drawingUploadTitle", "📐 図のアップロード")}</p>
                     <div className="flex gap-2">
                       <button className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                         disabled={fileUploading}
                         onClick={() => requestNewUpload("DRAWING", "folder")}>
                         {fileUploading && <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                        複数選拡・フォルダ
+                        {tr("mcEditUi.multiSelectFolder", "複数選拡・フォルダ")}
                       </button>
                       <button className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-bold rounded-lg border border-purple-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                         disabled={fileUploading}
                         onClick={() => requestNewUpload("DRAWING", "file")}>
                         {fileUploading && <span className="inline-block w-3 h-3 border-2 border-purple-700 border-t-transparent rounded-full animate-spin" />}
-                        1枚追加
+                        {tr("mcEditUi.addOne", "1枚追加")}
                       </button>
                     </div>
                   </div>
-                  <p className="text-[11px] text-slate-400 text-center py-2">UploadAgentでファイル選択ダイアログが開きます</p>
+                  <p className="text-[11px] text-slate-400 text-center py-2">{tr("mcEditUi.agentDialogHint", "UploadAgentでファイル選択ダイアログが開きます")}</p>
                   {fileUploadMsg && activeUploadFileType === "DRAWING" && (
                     <p className={`text-xs mt-2 font-bold ${fileUploadMsg.startsWith("⏳") ? "text-amber-600 animate-pulse" : fileUploadMsg.startsWith("❌") ? "text-red-600" : "text-slate-600"}`}>
                       {fileUploadMsg}
@@ -1982,8 +1986,8 @@ export default function McEditPage() {
                   {files.filter((f: any) => f.file_type === "PHOTO").length > 0 && (
                     <div className="mb-5">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs font-bold text-white bg-teal-600 px-2.5 py-0.5 rounded-full">📷 写真</span>
-                        <span className="text-xs text-slate-400">{files.filter((f: any) => f.file_type === "PHOTO").length}枚</span>
+                        <span className="text-xs font-bold text-white bg-teal-600 px-2.5 py-0.5 rounded-full">{tr("mcEditUi.photoSection", "📷 写真")}</span>
+                        <span className="text-xs text-slate-400">{tr("mcEditUi.sheetCount","{n}枚").replace("{n}", String(files.filter((f: any) => f.file_type === "PHOTO").length))}</span>
                       </div>
                       <div className="grid grid-cols-3 gap-3">
                         {files.filter((f: any) => f.file_type === "PHOTO").map((f: any) => (
@@ -1992,7 +1996,7 @@ export default function McEditPage() {
                             <div className="aspect-square bg-teal-50 flex items-center justify-center overflow-hidden relative">
                               {replacingId === f.id && (
                                 <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-                                  <span className="text-xs text-teal-600 font-bold animate-pulse">差し替え中...</span>
+                                  <span className="text-xs text-teal-600 font-bold animate-pulse">{tr("mcEditUi.replacingInProgress", "差し替え中...")}</span>
                                 </div>
                               )}
                               
@@ -2006,10 +2010,10 @@ export default function McEditPage() {
                                 <button className="flex-1 flex items-center justify-center gap-1 text-[11px] border-2 border-yellow-400 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 font-bold rounded-lg px-2 py-1 transition-colors disabled:opacity-40"
                                   disabled={replacingId !== null}
                                   onClick={() => requestReplaceUpload(f.id, "PHOTO")}>
-                                  🔄 差し替え
+                                  {tr("mcEditUi.replaceButton", "🔄 差し替え")}
                                 </button>
                                 <button onClick={async () => {
-                                    if (!token || !window.confirm("削除しますか？")) return;
+                                    if (!token || !window.confirm(tr("mcEditUi.deleteConfirmShort", "削除しますか？"))) return;
                                     await mcFilesApi.delete(mcId, f.id, token);
                                     const r = await mcApi.listFiles(mcId);
                                     setFiles((r as any).data ?? []);
@@ -2026,8 +2030,8 @@ export default function McEditPage() {
                   {files.filter((f: any) => f.file_type === "DRAWING").length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs font-bold text-white bg-purple-600 px-2.5 py-0.5 rounded-full">📐 図</span>
-                        <span className="text-xs text-slate-400">{files.filter((f: any) => f.file_type === "DRAWING").length}枚</span>
+                        <span className="text-xs font-bold text-white bg-purple-600 px-2.5 py-0.5 rounded-full">{tr("mcEditUi.drawingSection", "📐 図")}</span>
+                        <span className="text-xs text-slate-400">{tr("mcEditUi.sheetCount","{n}枚").replace("{n}", String(files.filter((f: any) => f.file_type === "DRAWING").length))}</span>
                       </div>
                       <div className="grid grid-cols-3 gap-3">
                         {files.filter((f: any) => f.file_type === "DRAWING").map((f: any) => (
@@ -2036,7 +2040,7 @@ export default function McEditPage() {
                             <div className="aspect-square bg-purple-50 flex items-center justify-center overflow-hidden relative">
                               {replacingId === f.id && (
                                 <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-                                  <span className="text-xs text-purple-600 font-bold animate-pulse">差し替え中...</span>
+                                  <span className="text-xs text-purple-600 font-bold animate-pulse">{tr("mcEditUi.replacingInProgress", "差し替え中...")}</span>
                                 </div>
                               )}
                               
@@ -2050,10 +2054,10 @@ export default function McEditPage() {
                                 <button className="flex-1 flex items-center justify-center gap-1 text-[11px] border-2 border-yellow-400 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 font-bold rounded-lg px-2 py-1 transition-colors disabled:opacity-40"
                                   disabled={replacingId !== null}
                                   onClick={() => requestReplaceUpload(f.id, "DRAWING")}>
-                                  🔄 差し替え
+                                  {tr("mcEditUi.replaceButton", "🔄 差し替え")}
                                 </button>
                                 <button onClick={async () => {
-                                    if (!token || !window.confirm("削除しますか？")) return;
+                                    if (!token || !window.confirm(tr("mcEditUi.deleteConfirmShort", "削除しますか？"))) return;
                                     await mcFilesApi.delete(mcId, f.id, token);
                                     const r = await mcApi.listFiles(mcId);
                                     setFiles((r as any).data ?? []);
@@ -2067,7 +2071,7 @@ export default function McEditPage() {
                     </div>
                   )}
                   {files.filter((f: any) => f.file_type === "PHOTO" || f.file_type === "DRAWING").length === 0 && (
-                    <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">ファイルがありません</div>
+                    <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">{tr("mcEditUi.noFiles", "ファイルがありません")}</div>
                   )}
               </div>
             )}
@@ -2080,19 +2084,19 @@ export default function McEditPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
             <div className="bg-slate-800 px-5 py-3">
-              <h2 className="text-base font-bold text-white">終了確認 — 変更内容を記録</h2>
-              <p className="text-xs text-slate-400 mt-0.5">この変更をどの種類として登録しますか？バージョンが更新されます。</p>
+              <h2 className="text-base font-bold text-white">{tr("mcEditUi.endConfirmTitle", "終了確認 — 変更内容を記録")}</h2>
+              <p className="text-xs text-slate-400 mt-0.5">{tr("mcEditUi.endConfirmDesc")}</p>
             </div>
             <div className="p-5 space-y-4">
               {/* 新規登録の場合は固定表示 */}
               {pendingBody?.isSbMode ? (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-                  <p className="text-sm font-bold text-blue-700 mb-1">変更種別: 新規登録</p>
-                  <p className="text-xs text-blue-600">バージョン 0.0001 → 1.0001（整数部+1）</p>
+                  <p className="text-sm font-bold text-blue-700 mb-1">{tr("mcEditUi.changeTypeNewLabel", "変更種別: 新規登録")}</p>
+                  <p className="text-xs text-blue-600">{tr("mcEditUi.versionUpgradeNote", "バージョン 0.0001 → 1.0001（整数部+1）")}</p>
                 </div>
               ) : (
                 <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-2">作業種別 *</label>
+                  <label className="text-xs font-bold text-slate-500 block mb-2">{tr("mcEditUi.workTypeLabel", "作業種別 *")}</label>
                   <div className="grid grid-cols-3 gap-2">
                     {["大変更","小変更","追加","修正","削除","訂正"].map(t => (
                       <button key={t} type="button"
@@ -2103,15 +2107,15 @@ export default function McEditPage() {
                               : "bg-teal-600 text-white border-teal-600"
                             : "bg-white text-slate-600 border-slate-300 hover:border-teal-400"
                         }`}>
-                        {t}
+                        {tr(KANRYO_TYPE_KEYS[t] ?? "", t)}
                       </button>
                     ))}
                   </div>
                   {kanryoType === "大変更" && (
-                    <p className="text-xs text-red-600 mt-1.5 font-bold">⚠️ 大変更: バージョンの整数部が+1（例: 1.0001 → 2.0001）</p>
+                    <p className="text-xs text-red-600 mt-1.5 font-bold">{tr("mcEditUi.majorChangeWarning", "⚠️ 大変更: バージョンの整数部が+1（例: 1.0001 → 2.0001）")}</p>
                   )}
                   {kanryoType !== "大変更" && (
-                    <p className="text-xs text-teal-600 mt-1.5">小変更系: 100分の1位が+0.01（例: 1.0001 → 1.0101）</p>
+                    <p className="text-xs text-teal-600 mt-1.5">{tr("mcEditUi.minorChangeNote", "小変更系: 100分の1位が+0.01（例: 1.0001 → 1.0101）")}</p>
                   )}
                 </div>
               )}
@@ -2496,7 +2500,7 @@ export default function McEditPage() {
                   <button onClick={() => {
                     photoPreviewFiles.forEach(f => URL.revokeObjectURL(f.url));
                     setPhotoPreviewOpen(false); setPhotoPreviewFiles([]); setExpandedIdx(null);
-                    showToast("📥 ファイル取り込みは「複数選拡・フォルダ」「1枚追加」ボタンからUploadAgent経由で行ってください");
+                    showToast(tr("mcEditUi.filePreviewCloseMsg", "📥 ファイル取り込みは「複数選拡・フォルダ」「1枚追加」ボタンからUploadAgent経由で行ってください"));
                   }} className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold rounded-xl transition-colors">
                     閉じる（UploadAgent経由で取り込んでください）
                   </button>
