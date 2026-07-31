@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import ApprovalModal from "@/components/shared/ApprovalModal";
 import { isAgentOnline, agentPgToUsb } from "@/lib/upload-agent";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 const STATUS_LABEL: Record<string, string> = {
   NEW: "新規", PENDING_APPROVAL: "未承認", APPROVED: "承認済", CHANGING: "変更中",
@@ -19,13 +20,13 @@ const STATUS_COLOR: Record<string, string> = {
   APPROVED: "bg-emerald-100 text-emerald-700", CHANGING: "bg-red-100 text-red-700",
 };
 
-const MAIN_TABS = [
-  { key: "mc",      label: "マシニングデータ" },
-  { key: "tooling", label: "ツーリング" },
-  { key: "offset",  label: "ワークオフセット" },
-  { key: "index",   label: "インデックスプログラム" },
-  { key: "history", label: "履歴" },
-  { key: "files",   label: "写真・図" },
+const MAIN_TAB_KEYS = [
+  { key: "mc",      labelKey: "mcDetailPage.tabMcData",  labelFallback: "マシニングデータ" },
+  { key: "tooling", labelKey: "mcDetailPage.tabTooling", labelFallback: "ツーリング" },
+  { key: "offset",  labelKey: "mcDetailPage.tabOffset",  labelFallback: "ワークオフセット" },
+  { key: "index",   labelKey: "mcDetailPage.tabIndex",   labelFallback: "インデックスプログラム" },
+  { key: "history", labelKey: "mcDetailPage.tabHistory", labelFallback: "履歴" },
+  { key: "files",   labelKey: "mcDetailPage.tabFiles",   labelFallback: "写真・図" },
 ];
 
 // ★旧システム(Access/SQL Server)のD値はSQL Server側でfloat型のため、
@@ -40,6 +41,8 @@ function fmtDValue(raw: string | null | undefined): string {
 }
 
 export default function McDetailPage() {
+  const { t: tr } = useLanguage();
+  const MAIN_TABS = MAIN_TAB_KEYS.map(x => ({ key: x.key, label: tr(x.labelKey, x.labelFallback) }));
   const { mc_id } = useParams<{ mc_id: string }>();
   const mcId  = parseInt(mc_id);
   const router = useRouter();
@@ -193,12 +196,12 @@ export default function McDetailPage() {
   }, [isAuthenticated, pendingUsb, token]);
 
   const handleUsbCopy = async () => {
-    if (!token) { showToast("❌ 認証が必要です"); return; }
+    if (!token) { showToast(tr("mcDetailPage.authRequired", "❌ 認証が必要です")); return; }
     setPgToUsbBusy(true);
     try {
       const online = await isAgentOnline();
       if (!online) {
-        showToast("❌ UploadAgentが起動していません。タスクトレイを確認してください");
+        showToast(tr("mcDetailPage.agentNotRunning", "❌ UploadAgentが起動していません。タスクトレイを確認してください"));
         return;
       }
 
@@ -208,12 +211,12 @@ export default function McDetailPage() {
       });
       if (!ticketRes.ok) {
         const errJson = await ticketRes.json().catch(() => ({}));
-        showToast(`❌ ${errJson.message ?? 'チケット発行に失敗しました'}`);
+        showToast(tr("mcDetailPage.ticketIssueFailed","❌ {msg}").replace("{msg}", errJson.message ?? tr("mcDetailPage.ticketIssueFailedDefault","チケット発行に失敗しました")));
         return;
       }
       const { ticket } = await ticketRes.json();
 
-      if (!window.confirm(`プログラムファイル（MCID:${d?.machiningId ?? mcId}）をUSBへ転送します。\n続行しますか？`)) {
+      if (!window.confirm(tr("mcDetailPage.usbTransferConfirm", "プログラムファイル（MCID:{id}）をUSBへ転送します。\n続行しますか？").replace("{id}", String(d?.machiningId ?? mcId)))) {
         fetch(`/api/mc/files/pg-to-usb-complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -232,9 +235,9 @@ export default function McDetailPage() {
       }).catch(() => {});
 
       if (result.success) {
-        showToast(`✅ USBへ転送しました（${result.copiedFiles.length}件）`);
+        showToast(tr("mcDetailPage.usbTransferSuccess","✅ USBへ転送しました（{n}件）").replace("{n}", String(result.copiedFiles.length)));
       } else {
-        showToast(`❌ 転送に失敗しました: ${result.error ?? '不明なエラー'}`);
+        showToast(tr("mcDetailPage.usbTransferFailed","❌ 転送に失敗しました: {msg}").replace("{msg}", result.error ?? tr("mcDetailPage.unknownError","不明なエラー")));
       }
     } finally {
       setPgToUsbBusy(false);
@@ -258,7 +261,7 @@ export default function McDetailPage() {
       setPgFilePath(data.filePath ?? "");
       setPgViewerOpen(true);
     } catch {
-      showToast("PGファイルが見つかりません");
+      showToast(tr("mcDetailPage.pgFileNotFound", "PGファイルが見つかりません"));
     } finally {
       setPgLoading(false);
     }
@@ -286,7 +289,7 @@ export default function McDetailPage() {
       const d = await r.json();
       setPgContent((d as any).content ?? "");
       setPgOrigName((d as any).original_name ?? f.original_name ?? "");
-    } catch { showToast("読み込みに失敗しました"); }
+    } catch { showToast(tr("mcDetailPage.loadFailed", "読み込みに失敗しました")); }
     finally { setPgLoading(false); }
   };
 
@@ -322,15 +325,15 @@ export default function McDetailPage() {
   if (loadError) return (
     <div className="h-screen flex items-center justify-center text-red-500">
       <div className="text-center"><p className="text-2xl mb-2">⚠️</p><p>{loadError}</p>
-        <button onClick={() => router.push("/mc")} className="px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold transition-colors">← ダッシュボード</button>
-          <button onClick={() => router.push("/mc/search")} className="mt-4 text-teal-600 text-sm hover:underline">← 検索に戻る</button>
+        <button onClick={() => router.push("/mc")} className="px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold transition-colors">{tr("mcDetailPage.backToDashboardArrow", "← ダッシュボード")}</button>
+          <button onClick={() => router.push("/mc/search")} className="mt-4 text-teal-600 text-sm hover:underline">{tr("mcDetailPage.backToSearch", "← 検索に戻る")}</button>
       </div>
     </div>
   );
 
   if (!detail) return (
     <div className="h-screen flex items-center justify-center text-slate-400">
-      <div className="text-center"><div className="animate-spin text-3xl mb-2">⚙️</div><p>読み込み中…</p></div>
+      <div className="text-center"><div className="animate-spin text-3xl mb-2">⚙️</div><p>{tr("mcDetailPage.loading", "読み込み中…")}</p></div>
     </div>
   );
 
@@ -341,15 +344,15 @@ export default function McDetailPage() {
       {/* ヘッダー */}
       <header className="bg-slate-800 text-white px-5 py-2 flex items-center gap-3 shrink-0">
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
-        <span className="text-sm font-medium text-white">MC 詳細</span>
+        <span className="text-sm font-medium text-white">{tr("mcDetailPage.mcDetailTitle", "MC 詳細")}</span>
         <span className="ml-auto flex items-center gap-3">
           <button onClick={() => router.push("/mc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-            ダッシュボードへ
+            {tr("mcDetailPage.backToDashboard", "ダッシュボードへ")}
           </button>
           <button onClick={() => router.push("/mc/search")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-500 rounded-lg text-xs font-bold text-white transition-colors">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-            部品検索へ戻る
+            {tr("mcDetailPage.backToPartSearch", "部品検索へ戻る")}
           </button>
           {!!d?.files?.some(f => f.file_type === "PROGRAM") && (
             <button
@@ -360,7 +363,7 @@ export default function McDetailPage() {
               }}
               disabled={pgToUsbBusy}
               className="text-[11px] bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-3 py-1 rounded font-bold">
-              {pgToUsbBusy ? "⏳ 転送中..." : "PG→USB"}
+              {pgToUsbBusy ? tr("mcDetailPage.transferring","⏳ 転送中...") : "PG→USB"}
             </button>
           )}
         </span>
@@ -379,13 +382,13 @@ export default function McDetailPage() {
                 dragStart.current = { mx: e.clientX, my: e.clientY, px: floatPos.x, py: floatPos.y };
               }}
             >
-              <span className="text-[10px] font-bold text-slate-300 flex-1">⚙ 工程切り替え</span>
+              <span className="text-[10px] font-bold text-slate-300 flex-1">{tr("mcDetailPage.processSwitchLabel", "⚙ 工程切り替え")}</span>
               <button
                 onMouseDown={e => e.stopPropagation()}
                 onClick={() => setFloatOpen(v => !v)}
                 className="text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-0.5 rounded font-bold text-slate-200"
               >
-                {floatOpen ? "CLOSE" : "OPEN"}
+                {floatOpen ? tr("mcDetailPage.close","CLOSE") : tr("mcDetailPage.open","OPEN")}
               </button>
             </div>
             {floatOpen && (
@@ -409,7 +412,7 @@ export default function McDetailPage() {
                       g.status === "CHANGING" ? "bg-orange-100 text-orange-700" :
                       "bg-slate-100 text-slate-500"
                     }`}>
-                      {g.status === "APPROVED" ? "承認済" : g.status === "CHANGING" ? "変更中" : g.status === "PENDING_APPROVAL" ? "承認待" : "新規"}
+                      {g.status === "APPROVED" ? tr("mcDetailPage.statusApproved","承認済") : g.status === "CHANGING" ? tr("mcDetailPage.statusChanging","変更中") : g.status === "PENDING_APPROVAL" ? tr("mcDetailPage.statusPendingShort","承認待") : tr("mcDetailPage.statusNew","新規")}
                     </span>
                   </button>
                 ))}
@@ -451,19 +454,19 @@ export default function McDetailPage() {
                 onClick={() => setApprovalModalOpen(true)}
                 className="text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
               >
-                ✓ 承認
+                {tr("mcDetailPage.approve", "✓ 承認")}
               </button>
             )}
           </div>
         </div>
         {/* 2行目: ID情報 */}
         <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
-          {d.mcProcessNo != null && <span className="font-bold text-teal-700 text-sm">工程No: {d.mcProcessNo}</span>}
+          {d.mcProcessNo != null && <span className="font-bold text-teal-700 text-sm">{tr("mcDetailPage.processNoLabel","工程No: {n}").replace("{n}", String(d.mcProcessNo))}</span>}
           <span className="text-slate-400">|</span>
-          <span>MCID: <span className="text-slate-700">{d.legacyMcid ?? "—"}</span></span>
+          <span>{tr("mcDetailPage.mcIdLabel", "MCID:")} <span className="text-slate-700">{d.legacyMcid ?? "—"}</span></span>
           <span className="text-slate-400">|</span>
-          <span>加工ID: <span className="text-slate-700">{d.machiningId}</span></span>
-          {d.part.partId && <><span className="text-slate-400">|</span><span>部品ID: <span className="text-slate-700">{d.part.partId}</span></span></>}
+          <span>{tr("mcDetailPage.machiningIdLabel2", "加工ID:")} <span className="text-slate-700">{d.machiningId}</span></span>
+          {d.part.partId && <><span className="text-slate-400">|</span><span>{tr("mcDetailPage.partIdLabel", "部品ID:")} <span className="text-slate-700">{d.part.partId}</span></span></>}
         </div>
       </div>
 
@@ -471,19 +474,19 @@ export default function McDetailPage() {
       <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
         <button onClick={() => router.push(`/mc/${mcId}`)}
           className="px-4 py-1.5 text-[12px] font-bold flex items-center gap-1.5 rounded-t border border-b-0 border-[#1b2a41] bg-[#1b2a41] text-white">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>MC詳細
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>{tr("mcDetailPage.mcDetailTab", "MC詳細")}
         </button>
         <button onClick={() => router.push(`/mc/${mcId}/edit`)}
           className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>{tr("mcDetailPage.editRegisterTab", "変更・登録")}
         </button>
         <button onClick={() => router.push(`/mc/${mcId}/print`)}
           className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>{tr("mcDetailPage.setupSheetTab", "段取シート")}
         </button>
         <button onClick={() => router.push(`/mc/${mcId}/record`)}
           className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>{tr("mcDetailPage.workRecordTab", "作業記録")}
         </button>
       </nav>
 
