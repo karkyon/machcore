@@ -26,6 +26,7 @@ import { ProcessEntry } from "@/lib/api";
 import AuthModal from "@/components/auth/AuthModal";
 import ApprovalModal from "@/components/shared/ApprovalModal";
 import ProgramFileViewer from "@/components/shared/ProgramFileViewer";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type MainTab = "lathe" | "history" | "files";
 type HistorySubTab = "change" | "work" | "print" | "oplog";
@@ -38,6 +39,7 @@ const CHANGE_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function NcDetailPage() {
+  const { t: tr } = useLanguage();
   const { nc_id } = useParams();
   const router    = useRouter();
   const ncId      = Number(nc_id);
@@ -154,7 +156,7 @@ export default function NcDetailPage() {
       setFiles(res.data);
       ncApi.findOne(ncId).then(r => setDetail(r.data));
     } catch {
-      setFileError("アップロードに失敗しました");
+      setFileError(tr("ncDetailPage.uploadFailedMsg","アップロードに失敗しました"));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -163,7 +165,7 @@ export default function NcDetailPage() {
 
   // ── ファイル削除 ──
   const handleDelete = async (fileId: number) => {
-    if (!confirm("このファイルを削除しますか？")) return;
+    if (!confirm(tr("ncDetailPage.confirmDeleteFile","このファイルを削除しますか？"))) return;
     if (!token) { openAuth("edit"); return; }
     try {
       await filesApi.delete(fileId, token);
@@ -171,7 +173,7 @@ export default function NcDetailPage() {
       if (previewFile?.id === fileId) setPreviewFile(null);
       ncApi.findOne(ncId).then(r => setDetail(r.data));
     } catch {
-      setFileError("削除に失敗しました");
+      setFileError(tr("ncDetailPage.deleteFailedMsg2","削除に失敗しました"));
     }
   };
 
@@ -184,7 +186,7 @@ export default function NcDetailPage() {
       try {
         await filesApi.upload(ncId, file, token);
       } catch {
-        setFileError(`${file.name} のアップロードに失敗しました`);
+        setFileError(tr("ncDetailPage.uploadFailedMsgNamed","{name} のアップロードに失敗しました").replace("{name}", file.name));
       } finally {
         setUploading(false);
       }
@@ -206,7 +208,7 @@ export default function NcDetailPage() {
   useEffect(() => {
     if (isAuthenticated && pendingUsb && token) {
       setPendingUsb(false);
-      downloadApi.pgFile(ncId, token).catch(() => alert("PGファイルのダウンロードに失敗しました"));
+      downloadApi.pgFile(ncId, token).catch(() => alert(tr("ncDetailPage.pgDownloadFailedAlert","PGファイルのダウンロードに失敗しました")));
     }
   }, [isAuthenticated, pendingUsb, token, ncId]);
 
@@ -250,7 +252,7 @@ export default function NcDetailPage() {
     setFilesLoading(true);
     filesApi.list(ncId)
       .then(r => setFiles(r.data))
-      .catch(() => setFileError("ファイルの取得に失敗しました"))
+      .catch(() => setFileError(tr("ncDetailPage.filesFetchFailed","ファイルの取得に失敗しました")))
       .finally(() => setFilesLoading(false));
   }, [mainTab, ncId, files]);
 
@@ -258,12 +260,12 @@ export default function NcDetailPage() {
 
   if (loadError) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="text-red-500 text-sm">読み込みエラー: {loadError}</div>
+      <div className="text-red-500 text-sm">{tr("ncDetailPage.loadErrorPrefix", "読み込みエラー: ")}{loadError}</div>
     </div>
   );
   if (!detail) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="text-slate-400 text-sm">読み込み中...</div>
+      <div className="text-slate-400 text-sm">{tr("ncDetailPage.loadingDots","読み込み中...")}</div>
     </div>
   );
 
@@ -277,11 +279,11 @@ export default function NcDetailPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 max-w-md w-full text-center">
         <div className="text-5xl mb-4">🔒</div>
-        <h2 className="text-slate-700 font-bold text-lg mb-2">NC詳細はまだ利用できません</h2>
-        <p className="text-slate-400 text-sm mb-6">この新規登録はまだ確定していません。「変更・登録」で「✓ 作業完了（登録）」を行うと利用できるようになります。</p>
+        <h2 className="text-slate-700 font-bold text-lg mb-2">{tr("ncDetailPage.provisionalLockedTitle", "NC詳細はまだ利用できません")}</h2>
+        <p className="text-slate-400 text-sm mb-6">{tr("ncDetailPage.provisionalLockedDesc", "この新規登録はまだ確定していません。「変更・登録」で「✓ 作業完了（登録）」を行うと利用できるようになります。")}</p>
         <button onClick={() => router.push(`/nc/${ncId}/edit`)}
           className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl transition-colors">
-          変更・登録へ戻る
+          {tr("ncDetailPage.backToEditButton", "変更・登録へ戻る")}
         </button>
       </div>
     </div>
@@ -303,15 +305,15 @@ export default function NcDetailPage() {
         {/* ── ヘッダー ── */}
         <header className="bg-slate-800 text-white px-5 py-2 flex items-center gap-3 shrink-0">
           <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
-          <span className="text-sm font-medium text-white">NC 詳細</span>
+          <span className="text-sm font-medium text-white">{tr("ncDetailPage.ncDetailTitle", "NC 詳細")}</span>
           <span className="ml-auto flex items-center gap-3">
             <button onClick={() => router.push("/nc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-              ダッシュボードへ
+              {tr("ncDetailPage.backToDashboardLink2", "ダッシュボードへ")}
             </button>
             <button onClick={() => router.push("/nc/search")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 rounded-lg text-xs font-bold text-white transition-colors">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-              部品検索へ戻る
+              {tr("ncDetailPage.backToPartSearchLink", "部品検索へ戻る")}
             </button>
           </span>
         </header>
@@ -331,7 +333,7 @@ export default function NcDetailPage() {
                 dragStart.current = { mx: e.clientX, my: e.clientY, px: floatPos.x, py: floatPos.y };
               }}
             >
-              <span className="text-[10px] font-bold text-slate-300 flex-1">⚙ 工程切り替え</span>
+              <span className="text-[10px] font-bold text-slate-300 flex-1">{tr("ncDetailPage.processSwitchLabel2", "⚙ 工程切り替え")}</span>
               <button
                 onMouseDown={e => e.stopPropagation()}
                 onClick={() => setFloatOpen(v => !v)}
@@ -362,7 +364,7 @@ export default function NcDetailPage() {
                       p.status === "CHANGING" ? "bg-orange-100 text-orange-700" :
                       "bg-slate-100 text-slate-500"
                     }`}>
-                      {p.status === "APPROVED" ? "承認済" : p.status === "CHANGING" ? "変更中" : p.status === "PENDING_APPROVAL" ? "承認待" : "新規"}
+                      {p.status === "APPROVED" ? tr("ncDetailPage.statusApproved2", "承認済") : p.status === "CHANGING" ? tr("ncDetailPage.statusChanging2", "変更中") : p.status === "PENDING_APPROVAL" ? tr("ncDetailPage.statusPendingShort2", "承認待") : tr("ncDetailPage.statusNew2", "新規")}
                     </span>
                   </button>
                 ))}
@@ -378,32 +380,32 @@ export default function NcDetailPage() {
         <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
           <button onClick={() => router.push(`/nc/${ncId}`)}
             className="px-4 py-1.5 text-[12px] font-bold flex items-center gap-1.5 rounded-t border border-b-0 border-[#1b2a41] bg-[#1b2a41] text-white">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>NC詳細
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>{tr("ncDetailPage.ncDetailTabLink2", "NC詳細")}
           </button>
           <button onClick={() => router.push(`/nc/${ncId}/edit`)}
             className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>{tr("ncDetailPage.editRegisterTabLink2", "変更・登録")}
           </button>
           <button onClick={() => { if (!isProvisionalLocked) router.push(`/nc/${ncId}/print`); }}
             disabled={isProvisionalLocked}
-            title={isProvisionalLocked ? "登録確定後に利用できます" : undefined}
+            title={isProvisionalLocked ? tr("ncDetailPage.lockedHint","登録確定後に利用できます") : undefined}
             className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${isProvisionalLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>{tr("ncDetailPage.setupSheetTabLink2", "段取シート")}
           </button>
           <button onClick={() => { if (!isProvisionalLocked) router.push(`/nc/${ncId}/record`); }}
             disabled={isProvisionalLocked}
-            title={isProvisionalLocked ? "登録確定後に利用できます" : undefined}
+            title={isProvisionalLocked ? tr("ncDetailPage.lockedHint","登録確定後に利用できます") : undefined}
             className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${isProvisionalLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>{tr("ncDetailPage.workRecordTabLink2", "作業記録")}
           </button>
         </nav>
 
         {/* ── メインタブバー（MC側準拠: コンテンツタブ） ── */}
         <div className="bg-[#f4f7fb] border-b border-[#d0d8e4] px-4 flex gap-1 items-end shrink-0 pt-1.5 overflow-x-auto">
           {([
-            { key: "lathe",   label: "旋盤データ" },
-            { key: "history", label: "履歴" },
-            { key: "files",   label: "写真・図" },
+            { key: "lathe",   label: tr("ncDetailPage.tabLathe", "旋盤データ") },
+            { key: "history", label: tr("ncDetailPage.tabHistory2", "履歴") },
+            { key: "files",   label: tr("ncDetailPage.tabFiles2", "写真・図") },
           ] as { key: MainTab; label: string }[]).map(t => (
             <button
               key={t.key}
@@ -430,10 +432,10 @@ export default function NcDetailPage() {
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <div className="grid grid-cols-6 divide-x divide-slate-100 border-b border-slate-100">
                   {[
-                    { label: "工程 L", value: String(d.processL), mono: true },
-                    { label: "機械",   value: d.machine?.machineCode ?? "—", mono: true },
-                    { label: "加工時間", value: d.machiningTime != null ? `${d.machiningTime} 分` : "—", mono: true },
-                    { label: "フォルダ", value: d.folderName ?? "—", mono: true },
+                    { label: tr("ncDetailPage.colProcessL","工程 L"), value: String(d.processL), mono: true },
+                    { label: tr("ncDetailPage.colMachine2","機械"),   value: d.machine?.machineCode ?? "—", mono: true },
+                    { label: tr("ncDetailPage.colMachiningTime","加工時間"), value: d.machiningTime != null ? `${d.machiningTime} ${tr("ncDetailPage.unitMinute","分")}` : "—", mono: true },
+                    { label: tr("ncDetailPage.colFolder","フォルダ"), value: d.folderName ?? "—", mono: true },
                   ].map(f => (
                     <div key={f.label} className="p-3">
                       <div className="text-[10px] text-slate-400 mb-1">{f.label}</div>
@@ -442,18 +444,18 @@ export default function NcDetailPage() {
                   ))}
                   {/* 図 */}
                   <div className="p-3 text-center">
-                    <div className="text-[10px] text-slate-400 mb-1">図</div>
+                    <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.colDrawing2", "図")}</div>
                     <button onClick={() => setMainTab("files")}
                       className="text-sm font-bold text-sky-600 hover:text-sky-700 hover:underline transition-colors">
-                      {d.drawingCount} 枚
+                      {d.drawingCount} {tr("ncDetailPage.unitSheet", "枚")}
                     </button>
                   </div>
                   {/* 写真 */}
                   <div className="p-3 text-center">
-                    <div className="text-[10px] text-slate-400 mb-1">写真</div>
+                    <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.colPhoto2", "写真")}</div>
                     <button onClick={() => setMainTab("files")}
                       className="text-sm font-bold text-sky-600 hover:text-sky-700 hover:underline transition-colors">
-                      {d.photoCount} 枚
+                      {d.photoCount} {tr("ncDetailPage.unitSheet", "枚")}
                     </button>
                   </div>
                 </div>
@@ -461,18 +463,18 @@ export default function NcDetailPage() {
                 {/* ── ファイル名 / O番号（独立行） ── */}
                 <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100">
                   <div className="p-3">
-                    <div className="text-[10px] text-slate-400 mb-1">ファイル名</div>
+                    <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.colFileName", "ファイル名")}</div>
                     <div className="text-sm font-mono font-medium text-slate-800 flex items-center gap-2 flex-wrap">
                       {d.fileName ?? "—"}
                       {/* [v084] MC側と同じ共通コンポーネントでプログラムファイルを参照できるようにする */}
                       <button type="button" onClick={() => setPgViewerOpen(true)}
                         className="text-[10px] text-sky-600 hover:text-sky-800 font-bold underline decoration-dotted">
-                        📄 プログラムファイルを参照
+                        {tr("ncDetailPage.programFileRefButton", "📄 プログラムファイルを参照")}
                       </button>
                     </div>
                   </div>
                   <div className="p-3">
-                    <div className="text-[10px] text-slate-400 mb-1">O番号</div>
+                    <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.colONumber2", "O番号")}</div>
                     <div className="text-sm font-mono font-medium text-slate-800">{d.oNumber ?? "—"}</div>
                   </div>
                 </div>
@@ -480,18 +482,18 @@ export default function NcDetailPage() {
                 {/* ── NC_id / 加工ID（独立行） ── */}
                 <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100">
                   <div className="p-3">
-                    <div className="text-[10px] text-slate-400 mb-1">NC_id</div>
+                    <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.colNcId2", "NC_id")}</div>
                     <div className="text-sm font-mono font-medium text-slate-800">{d.legacyNcId ?? d.id}</div>
                   </div>
                   <div className="p-3">
-                    <div className="text-[10px] text-slate-400 mb-1">加工ID</div>
+                    <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.colMachiningId2", "加工ID")}</div>
                     <div className="text-sm font-mono font-medium text-slate-800">{d.machiningId}</div>
                   </div>
                 </div>
 
                 {/* [v101] 掴代(専用フィールド) */}
                 <div className="p-3 border-b border-slate-100">
-                  <div className="text-[10px] text-slate-400 mb-1">掴代 (mm)</div>
+                  <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.clampAllowanceLabel", "掴代 (mm)")}</div>
                   <div className="text-sm font-mono font-medium text-slate-800">
                     {d.clampAllowance ?? "—"}
                   </div>
@@ -499,7 +501,7 @@ export default function NcDetailPage() {
 
                 {/* ── クランプ/備考 ── */}
                 <div className="p-3 border-b border-slate-100">
-                  <div className="text-[10px] text-slate-400 mb-1">クランプ / 備考</div>
+                  <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.clampNoteLabel2", "クランプ / 備考")}</div>
                   <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">
                     {d.clampNote || "—"}
                   </pre>
@@ -507,16 +509,16 @@ export default function NcDetailPage() {
 
                 {/* [v101] 共通部品コード + 共通加工グループ(MC側 mc/[mc_id]/page.tsx と同構造) */}
                 <div className="p-3 border-b border-slate-100">
-                  <div className="text-[10px] text-slate-400 mb-1">共通部品コード</div>
+                  <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.commonPartCodeLabel2", "共通部品コード")}</div>
                   <div className="text-sm font-mono font-medium text-slate-800">{d.commonPartCode ?? "—"}</div>
                 </div>
                 <div className="p-3 border-b border-slate-100 bg-pink-50/40">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] font-bold text-pink-700 uppercase tracking-wide">共通加工グループ（加工ID: {d.machiningId}）</span>
-                    <span className="text-[10px] text-pink-500">{d.commonGroup.length}件</span>
+                    <span className="text-[10px] font-bold text-pink-700 uppercase tracking-wide">{tr("ncDetailPage.commonGroupTitle2", "共通加工グループ（加工ID: {id}）").replace("{id}", String(d.machiningId))}</span>
+                    <span className="text-[10px] text-pink-500">{tr("ncDetailPage.itemsCountSuffix2", "{n}件").replace("{n}", String(d.commonGroup.length))}</span>
                   </div>
                   {d.commonGroup.length === 0 ? (
-                    <div className="text-xs text-slate-400">共通登録はありません</div>
+                    <div className="text-xs text-slate-400">{tr("ncDetailPage.noCommonRegistration2", "共通登録はありません")}</div>
                   ) : (
                     <div className="space-y-1">
                       {d.commonGroup.map(g => (
@@ -524,10 +526,10 @@ export default function NcDetailPage() {
                           className={`flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-xs ${
                             g.id === d.id ? "bg-teal-50 border border-teal-200" : "bg-white border border-slate-100"}`}>
                           <span className="font-mono text-teal-600 font-bold">NC_id:{g.legacyNcId ?? g.id}</span>
-                          {g.part.partId && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-mono shrink-0">部品ID:{g.part.partId}</span>}
+                          {g.part.partId && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-mono shrink-0">{tr("ncDetailPage.partIdPrefix2","部品ID:")}{g.part.partId}</span>}
                           <span className="font-mono text-slate-700 font-bold">{g.part.drawingNo}</span>
                           <span className="text-slate-600">{g.part.name}</span>
-                          {g.id === d.id && <span className="ml-auto text-[10px] text-teal-600 font-bold">← 現在</span>}
+                          {g.id === d.id && <span className="ml-auto text-[10px] text-teal-600 font-bold">{tr("ncDetailPage.currentArrow2", "← 現在")}</span>}
                         </div>
                       ))}
                     </div>
@@ -537,11 +539,11 @@ export default function NcDetailPage() {
                 {/* ── 作成者（シート）/ 作成日（シート）── */}
                 <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100">
                   <div className="p-3">
-                    <div className="text-[10px] text-slate-400 mb-1">作成者（シート）</div>
+                    <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.creatorSheetLabel2", "作成者（シート）")}</div>
                     <div className="text-sm text-slate-700">{d.creator?.name ?? "—"}</div>
                   </div>
                   <div className="p-3">
-                    <div className="text-[10px] text-slate-400 mb-1">作成日（シート）</div>
+                    <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.createdDateSheetLabel2", "作成日（シート）")}</div>
                     <div className="text-sm font-mono text-slate-700">{d.sheetCreatedAt ? toJstDateString(d.sheetCreatedAt) : "—"}</div>
                   </div>
                 </div>
@@ -549,11 +551,11 @@ export default function NcDetailPage() {
                 {/* ── オペレーター / 入力日 ── */}
                 <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100">
                   <div className="p-3">
-                    <div className="text-[10px] text-slate-400 mb-1">オペレーター</div>
+                    <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.operatorLabel4", "オペレーター")}</div>
                     <div className="text-sm text-slate-700">{d.registrar.name}</div>
                   </div>
                   <div className="p-3">
-                    <div className="text-[10px] text-slate-400 mb-1">入力日</div>
+                    <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.inputDateLabel3", "入力日")}</div>
                     <div className="text-sm font-mono text-slate-700">{toJstDateString(d.registeredAt)}</div>
                   </div>
                 </div>
@@ -561,11 +563,11 @@ export default function NcDetailPage() {
                 {/* ── 承認者 / 承認日 ── */}
                 <div className="grid grid-cols-2 divide-x divide-slate-100">
                   <div className="p-3">
-                    <div className="text-[10px] text-slate-400 mb-1">承認者</div>
-                    <div className="text-sm text-slate-700">{d.approver?.name ?? "未承認"}</div>
+                    <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.approverLabel3", "承認者")}</div>
+                    <div className="text-sm text-slate-700">{d.approver?.name ?? tr("ncDetailPage.notApprovedShort2", "未承認")}</div>
                   </div>
                   <div className="p-3">
-                    <div className="text-[10px] text-slate-400 mb-1">承認日</div>
+                    <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.approvedDateLabel3", "承認日")}</div>
                     <div className="text-sm font-mono text-slate-700">{d.approvedAt ? toJstDateString(d.approvedAt) : "—"}</div>
                   </div>
                 </div>
@@ -579,9 +581,9 @@ export default function NcDetailPage() {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-sky-700">写真・図を見る</div>
+                    <div className="text-sm font-medium text-sky-700">{tr("ncDetailPage.viewPhotosDrawingsTitle", "写真・図を見る")}</div>
                     <div className="text-xs text-sky-500 mt-0.5">
-                      図 {d.drawingCount}枚 / 写真 {d.photoCount}枚 — 段取図・写真・PDFを確認できます
+                      {tr("ncDetailPage.viewPhotosDrawingsDesc", "図 {dcount}枚 / 写真 {pcount}枚 — 段取図・写真・PDFを確認できます").replace("{dcount}", String(d.drawingCount)).replace("{pcount}", String(d.photoCount))}
                     </div>
                   </div>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2" className="shrink-0"><path d="M9 18l6-6-6-6"/></svg>
@@ -591,19 +593,19 @@ export default function NcDetailPage() {
               {/* ── 加工リスト（インライン） ── */}
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">加工リスト</span>
+                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">{tr("ncDetailPage.toolListTitle", "加工リスト")}</span>
                   {d.tools.length > 0 && (
-                    <span className="ml-2 text-xs text-slate-400">{d.tools.length}件</span>
+                    <span className="ml-2 text-xs text-slate-400">{tr("ncDetailPage.itemsCountSuffix2", "{n}件").replace("{n}", String(d.tools.length))}</span>
                   )}
                 </div>
                 {d.tools.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-xs text-slate-400">工具データなし</div>
+                  <div className="px-4 py-6 text-center text-xs text-slate-400">{tr("ncDetailPage.noToolData", "工具データなし")}</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs border-collapse">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
-                          {["NO", "加工", "形状（チップ）", "ホルダー", "ノーズR", "T NO", "備考"].map(h => (
+                          {[tr("ncDetailPage.colNo","NO"), tr("ncDetailPage.colProcessing","加工"), tr("ncDetailPage.colShapeChip","形状（チップ）"), tr("ncDetailPage.colHolder","ホルダー"), tr("ncDetailPage.colNoseR","ノーズR"), tr("ncDetailPage.colTNo","T NO"), tr("ncDetailPage.colNote3","備考")].map(h => (
                             <th key={h} className="px-3 py-2 text-left font-bold text-slate-500 text-[10px] uppercase tracking-wider whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -635,10 +637,10 @@ export default function NcDetailPage() {
               {/* サブタブ */}
               <div className="bg-slate-50 border-b border-slate-200 px-5 flex gap-0 shrink-0">
                 {([
-                  { key: "change", label: "変更履歴", svg: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> },
-                  { key: "work",   label: "作業記録", svg: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> },
-                  { key: "print",  label: "印刷履歴", svg: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> },
-                  { key: "oplog",  label: "操作ログ", svg: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg> },
+                  { key: "change", label: tr("ncDetailPage.tabChangeHistory2", "変更履歴"), svg: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> },
+                  { key: "work",   label: tr("ncDetailPage.tabWorkRecord2", "作業記録"), svg: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> },
+                  { key: "print",  label: tr("ncDetailPage.tabPrintHistory2", "印刷履歴"), svg: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> },
+                  { key: "oplog",  label: tr("ncDetailPage.tabOplog", "操作ログ"), svg: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg> },
                 ] as { key: HistorySubTab; label: string; svg: React.ReactNode }[]).map(t => (
                   <button
                     key={t.key}
@@ -655,16 +657,16 @@ export default function NcDetailPage() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-5">
-                {histLoading && <div className="text-slate-400 text-sm">読み込み中...</div>}
+                {histLoading && <div className="text-slate-400 text-sm">{tr("ncDetailPage.loadingDots", "読み込み中...")}</div>}
 
                 {/* 変更履歴 */}
                 {histTab === "change" && !histLoading && (
                   changes === null ? null :
-                  changes.length === 0 ? <Empty label="変更履歴なし" /> : (
+                  changes.length === 0 ? <Empty label={tr("ncDetailPage.noChangeHistory2","変更履歴なし")} /> : (
                     <table className="w-full text-xs border-collapse bg-white rounded-xl overflow-hidden shadow-sm">
                       <thead className="bg-slate-100 text-slate-600">
                         <tr>
-                          {["日時", "種別", "担当者", "Ver変化", "変更内容"].map(h => (
+                          {[tr("ncDetailPage.colDateTime","日時"), tr("ncDetailPage.colType2","種別"), tr("ncDetailPage.colOperator2","担当者"), tr("ncDetailPage.colVerChange","Ver変化"), tr("ncDetailPage.colChangeDetail","変更内容")].map(h => (
                             <th key={h} className="px-3 py-2 text-left font-bold border-b border-slate-200">{h}</th>
                           ))}
                         </tr>
@@ -680,7 +682,7 @@ export default function NcDetailPage() {
                                 c.change_type === "MIGRATE" ? "bg-slate-100 text-slate-500" :
                                 "bg-amber-100 text-amber-700"
                               }`}>
-                                {CHANGE_TYPE_LABELS[c.change_type] ?? c.change_type}
+                                {tr(({NEW_REGISTRATION:"ncDetailPage.changeTypeNewReg2",CHANGE:"ncDetailPage.changeTypeChangeVal",APPROVAL:"ncDetailPage.changeTypeApprovalVal",MIGRATION:"ncDetailPage.changeTypeMigration"} as Record<string,string>)[c.change_type] ?? "", CHANGE_TYPE_LABELS[c.change_type] ?? c.change_type)}
                               </span>
                             </td>
                             <td className="px-3 py-2">{c.operator_name ?? "—"}</td>
@@ -698,11 +700,11 @@ export default function NcDetailPage() {
                 {/* 作業記録 */}
                 {histTab === "work" && !histLoading && (
                   works === null ? null :
-                  works.length === 0 ? <Empty label="作業記録なし" /> : (
+                  works.length === 0 ? <Empty label={tr("ncDetailPage.noWorkRecord2","作業記録なし")} /> : (
                     <table className="w-full text-xs border-collapse bg-white rounded-xl overflow-hidden shadow-sm">
                       <thead className="bg-slate-100 text-slate-600">
                         <tr>
-                          {["作業日", "担当者", "機械", "段取(分)", "加工(分)", "個数", "備考", ""].map(h => (
+                          {[tr("ncDetailPage.colWorkDate","作業日"), tr("ncDetailPage.colOperator2","担当者"), tr("ncDetailPage.colMachine3","機械"), tr("ncDetailPage.colSetupMin","段取(分)"), tr("ncDetailPage.colMachMin","加工(分)"), tr("ncDetailPage.colQty","個数"), tr("ncDetailPage.colNote3","備考"), ""].map(h => (
                             <th key={h} className="px-3 py-2 text-left font-bold border-b border-slate-200">{h}</th>
                           ))}
                         </tr>
@@ -722,7 +724,7 @@ export default function NcDetailPage() {
                                 onClick={() => router.push(`/nc/${ncId}/record?edit=${w.id}`)}
                                 className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-0.5 rounded transition-colors"
                               >
-                                ✏️ 編集
+                                {tr("ncDetailPage.editButtonShort2", "✏️ 編集")}
                               </button>
                             </td>
                           </tr>
@@ -736,11 +738,11 @@ export default function NcDetailPage() {
                 {/* 操作ログ */}
                 {histTab === "oplog" && !histLoading && (
                   oplogs === null ? null :
-                  oplogs.length === 0 ? <Empty label="操作ログなし" /> : (
+                  oplogs.length === 0 ? <Empty label={tr("ncDetailPage.noOplog","操作ログなし")} /> : (
                     <table className="w-full text-xs border-collapse bg-white rounded-xl overflow-hidden shadow-sm">
                       <thead className="bg-slate-100 text-slate-600">
                         <tr>
-                          {["日時", "操作", "担当者", "詳細"].map(h => (
+                          {[tr("ncDetailPage.colDateTime","日時"), tr("ncDetailPage.colOperation2","操作"), tr("ncDetailPage.colOperator2","担当者"), tr("ncDetailPage.colDetail2","詳細")].map(h => (
                             <th key={h} className="px-3 py-2 text-left font-bold border-b border-slate-200">{h}</th>
                           ))}
                         </tr>
@@ -748,11 +750,11 @@ export default function NcDetailPage() {
                       <tbody>
                         {oplogs.map((log, i) => {
                           const labels: Record<string, { label: string; color: string }> = {
-                            SESSION_START: { label: "作業開始",    color: "bg-green-100 text-green-700" },
-                            SESSION_END:   { label: "作業終了",    color: "bg-slate-100 text-slate-600" },
-                            USB_DOWNLOAD:  { label: "PGファイルDL", color: "bg-blue-100 text-blue-700" },
-                            FILE_UPLOAD:   { label: "ファイルUP",  color: "bg-sky-100 text-sky-700" },
-                            FILE_DELETE:   { label: "ファイル削除", color: "bg-red-100 text-red-600" },
+                            SESSION_START: { label: tr("ncDetailPage.opSessionStart","作業開始"),    color: "bg-green-100 text-green-700" },
+                            SESSION_END:   { label: tr("ncDetailPage.opSessionEnd","作業終了"),    color: "bg-slate-100 text-slate-600" },
+                            USB_DOWNLOAD:  { label: tr("ncDetailPage.opUsbDownload","PGファイルDL"), color: "bg-blue-100 text-blue-700" },
+                            FILE_UPLOAD:   { label: tr("ncDetailPage.opFileUpload","ファイルUP"),  color: "bg-sky-100 text-sky-700" },
+                            FILE_DELETE:   { label: tr("ncDetailPage.opFileDelete","ファイル削除"), color: "bg-red-100 text-red-600" },
                           };
                           const badge = labels[log.action_type] ?? { label: log.action_type, color: "bg-slate-100 text-slate-500" };
                           const meta  = log.metadata as Record<string, unknown> | null;
@@ -778,11 +780,11 @@ export default function NcDetailPage() {
                                 {/* 印刷履歴 */}
                 {histTab === "print" && !histLoading && (
                   prints === null ? null :
-                  prints.length === 0 ? <Empty label="印刷履歴なし" /> : (
+                  prints.length === 0 ? <Empty label={tr("ncDetailPage.noPrintHistory2","印刷履歴なし")} /> : (
                     <table className="w-full text-xs border-collapse bg-white rounded-xl overflow-hidden shadow-sm">
                       <thead className="bg-slate-100 text-slate-600">
                         <tr>
-                          {["印刷日時", "印刷者", "バージョン"].map(h => (
+                          {[tr("ncDetailPage.colPrintedAt2","印刷日時"), tr("ncDetailPage.colPrinter2","印刷者"), tr("ncDetailPage.colVersion2","バージョン")].map(h => (
                             <th key={h} className="px-3 py-2 text-left font-bold border-b border-slate-200">{h}</th>
                           ))}
                         </tr>
@@ -812,7 +814,7 @@ export default function NcDetailPage() {
               {d.part.drawingNo && (
                 <div className="mb-6">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs font-bold text-white bg-indigo-600 px-2.5 py-0.5 rounded-full">📋 図面</span>
+                    <span className="text-xs font-bold text-white bg-indigo-600 px-2.5 py-0.5 rounded-full">{tr("ncDetailPage.drawingBadge3", "📋 図面")}</span>
                     <span className="text-xs text-slate-400">{d.part.drawingNo}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
@@ -821,20 +823,20 @@ export default function NcDetailPage() {
                       className="bg-white rounded-xl border-2 border-indigo-300 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                     >
                       <div className="aspect-square bg-indigo-50 flex items-center justify-center overflow-hidden">
-                        <img src={`/api/nc/${ncId}/drawing-image?imgType=TN`} alt={`図面 ${d.part.drawingNo}`}
+                        <img src={`/api/nc/${ncId}/drawing-image?imgType=TN`} alt={tr("ncDetailPage.drawingAlt2", "図面 {no}").replace("{no}", d.part.drawingNo)}
                           className="w-full h-full object-contain" loading="lazy"
                           onError={e => {
                             const el = e.target as HTMLImageElement; el.style.display = "none";
                             const par = el.parentElement;
                             if (par && !par.querySelector(".no-tn-msg")) {
                               const m = document.createElement("span"); m.className = "no-tn-msg text-[10px] text-slate-400 text-center px-2";
-                              m.textContent = "図面取得不可"; par.appendChild(m);
+                              m.textContent = tr("ncDetailPage.drawingUnavailable2","図面取得不可"); par.appendChild(m);
                             }
                           }} />
                       </div>
                       <div className="px-2 py-1.5 bg-indigo-50 border-t border-indigo-200">
                         <p className="text-[11px] text-indigo-800 font-bold truncate">{d.part.drawingNo}</p>
-                        <p className="text-[10px] text-slate-400">クリックで拡大表示</p>
+                        <p className="text-[10px] text-slate-400">{tr("ncDetailPage.clickToEnlarge2", "クリックで拡大表示")}</p>
                       </div>
                     </div>
                   </div>
@@ -845,7 +847,7 @@ export default function NcDetailPage() {
               {filesLoading && (
                 <div className="flex items-center justify-center py-16 text-slate-400 gap-2">
                   <span className="animate-spin text-xl">⏳</span>
-                  <span className="text-sm">読み込み中…</span>
+                  <span className="text-sm">{tr("ncDetailPage.loadingEllipsis4", "読み込み中…")}</span>
                 </div>
               )}
 
@@ -853,7 +855,7 @@ export default function NcDetailPage() {
               {!filesLoading && files !== null && (
                 <div className="space-y-6">
                   <FileSection
-                    title="📷 写真"
+                    title={tr("ncDetailPage.photoBadge2","📷 写真")}
                     colorTheme="teal"
                     files={files.filter(f => f.file_type === "PHOTO")}
                     isAuthenticated={isAuthenticated}
@@ -861,7 +863,7 @@ export default function NcDetailPage() {
                     onDelete={handleDelete}
                   />
                   <FileSection
-                    title="📐 図"
+                    title={tr("ncDetailPage.drawingBadge4","📐 図")}
                     colorTheme="purple"
                     files={files.filter(f => f.file_type === "DRAWING")}
                     isAuthenticated={isAuthenticated}
@@ -871,7 +873,7 @@ export default function NcDetailPage() {
                   {files.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-20 text-slate-300 gap-2">
                       <div className="text-5xl">🖼</div>
-                      <p className="text-sm">ファイルがありません</p>
+                      <p className="text-sm">{tr("ncDetailPage.noFiles2", "ファイルがありません")}</p>
                     </div>
                   )}
                 </div>
@@ -899,11 +901,11 @@ export default function NcDetailPage() {
                           <>
                             <button onClick={() => setPreviewZoom("fit")}
                               className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${previewZoom === "fit" ? "bg-sky-600 text-white border-sky-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
-                              画面内
+                              {tr("ncDetailPage.fitScreenLabel2", "画面内")}
                             </button>
                             <button onClick={() => setPreviewZoom("real")}
                               className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${previewZoom === "real" ? "bg-sky-600 text-white border-sky-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
-                              実寸(100%)
+                              {tr("ncDetailPage.realSizeLabel2", "実寸(100%)")}
                             </button>
                             <button onClick={() => setPreviewZoom(z => { const cur = typeof z === "number" ? z : 100; return Math.max(10, cur - 20); })}
                               className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">－</button>
@@ -916,13 +918,13 @@ export default function NcDetailPage() {
                             <button onClick={() => {
                               const w = window.open("");
                               if (w) { w.document.write(`<img src="/api/files/serve/${previewFile.id}" onload="window.print();window.close()">`); }
-                            }} className="px-2.5 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">🖨 印刷</button>
+                            }} className="px-2.5 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">{tr("ncDetailPage.printLabel2", "🖨 印刷")}</button>
                           </>
                         )}
                         {isAuthenticated && (
                           <a href={`/api/files/serve/${previewFile.id}`} download={previewFile.original_name}
                             className="px-2.5 py-1 text-xs font-bold rounded border bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100">
-                            ✏️ 編集用DL
+                            {tr("ncDetailPage.editDownloadLabel2", "✏️ 編集用DL")}
                           </a>
                         )}
                         <button onClick={() => { setPreviewFile(null); setPreviewZoom("fit"); }}
@@ -994,7 +996,7 @@ export default function NcDetailPage() {
                   onClick={() => { setDrawingModal(false); setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}>
                   <div className="bg-white flex flex-col w-screen h-screen" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-slate-50 shrink-0 gap-2">
-                      <p className="text-sm font-bold text-slate-700">📋 図面 — {d.part.drawingNo}</p>
+                      <p className="text-sm font-bold text-slate-700">{tr("ncDetailPage.drawingModalTitle2", "📋 図面 — {no}").replace("{no}", d.part.drawingNo)}</p>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button onClick={() => { setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}
                           className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${drawingZoom === "fit" ? "bg-sky-600 text-white border-sky-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
@@ -1015,7 +1017,7 @@ export default function NcDetailPage() {
                         {drawingBlobUrl && (
                           <a href={drawingBlobUrl} download={`drawing-${d.part.drawingNo}.jpg`}
                             className="px-2.5 py-1 text-xs font-bold rounded border bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100">
-                            ⬇ ダウンロード
+                            {tr("ncDetailPage.downloadLabel2", "⬇ ダウンロード")}
                           </a>
                         )}
                         <button onClick={() => { setDrawingModal(false); setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}
@@ -1051,7 +1053,7 @@ export default function NcDetailPage() {
                       {drawingLoading ? (
                         <div className="flex flex-col items-center gap-3 text-slate-400">
                           <div className="w-8 h-8 border-2 border-slate-500 border-t-white rounded-full animate-spin" />
-                          <span className="text-sm">図面を取得中…</span>
+                          <span className="text-sm">{tr("ncDetailPage.fetchingDrawing2", "図面を取得中…")}</span>
                         </div>
                       ) : drawingBlobUrl ? (
                         <div
@@ -1066,7 +1068,7 @@ export default function NcDetailPage() {
                         >
                           <img
                             src={drawingBlobUrl}
-                            alt={`図面 ${d.part.drawingNo}`}
+                            alt={tr("ncDetailPage.drawingAlt2", "図面 {no}").replace("{no}", d.part.drawingNo)}
                             draggable={false}
                             style={
                               drawingZoom === "fit"
@@ -1077,8 +1079,8 @@ export default function NcDetailPage() {
                         </div>
                       ) : (
                         <p className="text-slate-400 text-sm text-center px-8">
-                          図面を取得できませんでした<br />
-                          <span className="text-xs text-slate-500">（Ridocサーバー未応答またはRIDOC_API_URL未設定）</span>
+                          {tr("ncDetailPage.drawingFetchFailed2", "図面を取得できませんでした")}<br />
+                          <span className="text-xs text-slate-500">{tr("ncDetailPage.ridocServerNote2", "（Ridocサーバー未応答またはRIDOC_API_URL未設定）")}</span>
                         </p>
                       )}
                     </div>
@@ -1210,19 +1212,20 @@ function FileSection({
   onDelete: (id: number) => void;
   colorTheme?: "teal" | "purple";
 }) {
+  const { t: tr } = useLanguage();
   const theme = FILE_SECTION_THEME[colorTheme] ?? FILE_SECTION_THEME.teal;
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
         <span className={`text-xs font-bold text-white ${theme.badge} px-2.5 py-0.5 rounded-full`}>{title}</span>
         <span className="text-xs text-slate-400">
-          {files.length} 件
+          {tr("ncDetailPage.itemsCountSuffix3","{n} 件").replace("{n}", String(files.length))}
         </span>
       </div>
 
       {files.length === 0 ? (
         <div className="text-xs text-slate-300 py-6 text-center border border-dashed border-slate-200 rounded-xl">
-          なし
+          {tr("ncDetailPage.noneShort4","なし")}
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-4">
@@ -1265,7 +1268,7 @@ function FileSection({
                 <button
                   onClick={e => { e.stopPropagation(); onDelete(f.id); }}
                   className="absolute top-1.5 right-1.5 w-5 h-5 bg-red-500/80 text-white text-[10px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-600"
-                  title="削除"
+                  title={tr("ncDetailPage.deleteTitle","削除")}
                 >
                   ✕
                 </button>
