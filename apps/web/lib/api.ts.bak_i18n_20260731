@@ -568,17 +568,6 @@ export const adminPrinterApi = {
     api.put('/admin/printer', { printer_name }, { headers: { Authorization: `Bearer ${token}` } }),
 };
 
-export const languageApi = {
-  getConfig: () => api.get<{
-    default_language: "ja" | "vi";
-    custom_dictionaries: { ja: Record<string, unknown> | null; vi: Record<string, unknown> | null };
-  }>('/language/config'),
-  setDefault: (lang: "ja" | "vi", token: string) =>
-    api.put('/language/default', { lang }, { headers: { Authorization: `Bearer ${token}` } }),
-  setDictionary: (lang: "ja" | "vi", dictionary: Record<string, unknown>, token: string) =>
-    api.put('/language/dictionary', { lang, dictionary }, { headers: { Authorization: `Bearer ${token}` } }),
-};
-
 export const adminSettingsApi = {
   getCompany:    (token: string) =>
     api.get<CompanySetting>('/admin/company', { headers: { Authorization: `Bearer ${token}` } }),

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
+import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
 import { useRouter } from "next/navigation";
 import { toJstMonthDayTimeString, toJstYearMonthDayTimeString, toJstTimeString } from "@/lib/dateUtils";
 
@@ -457,7 +458,7 @@ export default function McDashboard() {
           <span className="text-slate-400 text-xs">|</span>
           <span className="text-sm font-medium">MC マシニング ダッシュボード</span>
           <div className="ml-auto flex items-center gap-2 text-xs">
-            
+            <LanguageSwitcher compact />
             {lastAt && <span className="text-slate-400">更新: {toJstTimeString(lastAt)}</span>}
             <button onClick={load} className="bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 rounded transition-colors text-slate-300">
               ↺ 更新
