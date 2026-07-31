@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import { calcKadouMinutes, fmtKadouMinutes } from "@/lib/kadouTime";
 import { toJstDateString, toJstMonthDayString } from "@/lib/dateUtils";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 // ── 共通コンポーネント ──────────────────────────────────────────
 function NumInput({ value, onChange, min=0, max=999, className="" }: {
@@ -132,6 +133,7 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
 function SingleUserSelect({ users, selected, onChange, placeholder }: {
   users: UserInfo[]; selected: number | null; onChange: (id: number | null) => void; placeholder?: string;
 }) {
+  const { t: tr } = useLanguage();
   const nav = (e: React.KeyboardEvent<HTMLSelectElement>) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
@@ -153,7 +155,7 @@ function SingleUserSelect({ users, selected, onChange, placeholder }: {
       onChange={e => { const v=e.target.value?parseInt(e.target.value):null; console.log("[RECORD] SingleUserSelect変更",{id:v,name:e.target.options[e.target.selectedIndex]?.text}); onChange(v); }}
       onKeyDown={nav}
       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
-      <option value="">{placeholder ?? "— 選択 —"}</option>
+      <option value="">{placeholder ?? tr("mcRecordPage.selectPlaceholder", "— 選択 —")}</option>
       {users.filter(u=>u.isActive!==false).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
     </select>
   );
@@ -163,6 +165,7 @@ function SingleUserSelect({ users, selected, onChange, placeholder }: {
 function DateTimeInput({ value, onChange, hasError, onAfterMi, label="日時" }: {
   value: string; onChange: (v: string) => void; hasError?: boolean; onAfterMi?: () => void; label?: string;
 }) {
+  const { t: tr } = useLanguage();
   const [y,  setY]  = React.useState("");
   const [mo, setMo] = React.useState("");
   const [d,  setD]  = React.useState("");
@@ -258,37 +261,37 @@ function DateTimeInput({ value, onChange, hasError, onAfterMi, label="日時" }:
 
   return (
     <div className={"flex items-center gap-1 flex-wrap" + (hasError?" rounded-lg ring-1 ring-red-400 p-0.5":"")}>
-      <input type="text" inputMode="numeric" value={y} placeholder="年" data-fi="true"
+      <input type="text" inputMode="numeric" value={y} placeholder={tr("mcRecordPage.yearPlaceholder", "年")} data-fi="true"
         className={`${ic}${ec}`} style={baseStyle(4)}
         onFocus={mkFocus("年")}
         onChange={mkCh("年",setY,4,moRef,v=>emit(v,mo,d,h,mi))}
         onKeyDown={mkKD("年",moRef)} />
       <span className="text-xs text-slate-400">/</span>
-      <input ref={moRef} type="text" inputMode="numeric" value={mo} placeholder="月" data-fi="true"
+      <input ref={moRef} type="text" inputMode="numeric" value={mo} placeholder={tr("mcRecordPage.monthPlaceholder", "月")} data-fi="true"
         className={`${ic}${ec}`} style={baseStyle(2)}
         onFocus={mkFocus("月")}
         onChange={mkCh("月",setMo,2,dRef,v=>emit(y,v,d,h,mi))}
         onKeyDown={mkKD("月",dRef)} />
       <span className="text-xs text-slate-400">/</span>
-      <input ref={dRef} type="text" inputMode="numeric" value={d} placeholder="日" data-fi="true"
+      <input ref={dRef} type="text" inputMode="numeric" value={d} placeholder={tr("mcRecordPage.dayPlaceholder", "日")} data-fi="true"
         className={`${ic}${ec}`} style={baseStyle(2)}
         onFocus={mkFocus("日")}
         onChange={mkCh("日",setD,2,hRef,v=>emit(y,mo,v,h,mi))}
         onKeyDown={mkKD("日",hRef)} />
       <span className="text-xs text-slate-400 ml-0.5"> </span>
-      <input ref={hRef} type="text" inputMode="numeric" value={h} placeholder="時" data-fi="true"
+      <input ref={hRef} type="text" inputMode="numeric" value={h} placeholder={tr("mcRecordPage.hourPlaceholder", "時")} data-fi="true"
         className={`${ic}${ec}`} style={baseStyle(2)}
         onFocus={mkFocus("時")}
         onChange={mkCh("時",setH,2,miRef,v=>emit(y,mo,d,v,mi))}
         onKeyDown={mkKD("時",miRef)} />
       <span className="text-xs text-slate-400">:</span>
-      <input ref={miRef} type="text" inputMode="numeric" value={mi} placeholder="分" data-fi="true"
+      <input ref={miRef} type="text" inputMode="numeric" value={mi} placeholder={tr("mcRecordPage.minutePlaceholder", "分")} data-fi="true"
         className={`${ic}${ec}`} style={baseStyle(2)}
         onFocus={mkFocus("分")}
         onChange={mkCh("分",setMi,2,null,v=>emit(y,mo,d,h,v))}
         onKeyDown={mkKD("分",null,true)} />
       {/* カレンダーピッカー: SVGアイコンクリックで開く */}
-      <label className="ml-1 cursor-pointer text-slate-400 hover:text-teal-600" title="カレンダーから選択">
+      <label className="ml-1 cursor-pointer text-slate-400 hover:text-teal-600" title={tr("mcRecordPage.calendarSelectTitle", "カレンダーから選択")}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="inline-block align-middle">
           <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
         </svg>
@@ -361,6 +364,7 @@ function TimecardModal({
   open, onClose, machineCode, machineId,
   startedAt, checkedAt, finishedAt, token, onKadouChange,
 }: TimecardModalProps) {
+  const { t: tr } = useLanguage();
   const [rows, setRows] = React.useState<TcRow[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [tcToast, setTcToast] = React.useState<string | null>(null);
@@ -405,7 +409,7 @@ function TimecardModal({
         }
       }
       setRows(newRows);
-    } catch { showTcToast("タイムカード取得失敗"); }
+    } catch { showTcToast(tr("mcRecordPage.tcFetchFailed","タイムカード取得失敗")); }
     finally  { setLoading(false); }
   }, [open, dateRange, machineCode]);
 
@@ -427,23 +431,23 @@ function TimecardModal({
 
   const handleSave = async (idx: number) => {
     const row = rows[idx];
-    if (!token) { showTcToast("認証が必要です"); return; }
+    if (!token) { showTcToast(tr("mcRecordPage.tcAuthRequired","認証が必要です")); return; }
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, saving: true } : r));
     try {
       if (row.id !== null) {
         await mcApi.updateTimecard(row.id, { start_time: row.startTime + ":00", end_time: row.endTime + ":00" }, token);
         setRows(prev => prev.map((r, i) => i === idx ? { ...r, dirty: false, saving: false } : r));
-        showTcToast("更新しました: " + row.date);
+        showTcToast(tr("mcRecordPage.tcUpdatedMsg","更新しました: {date}").replace("{date}", row.date));
       } else {
         const res = await mcApi.createTimecard({ machine_id: machineId, work_date: row.date,
           start_time: row.startTime + ":00", end_time: row.endTime + ":00" }, token);
         const newId: number = (res as any).data?.id ?? (res as any).id ?? -1;
         setRows(prev => prev.map((r, i) => i === idx ? { ...r, id: newId, dirty: false, saving: false } : r));
-        showTcToast("登録しました: " + row.date);
+        showTcToast(tr("mcRecordPage.tcCreatedMsg","登録しました: {date}").replace("{date}", row.date));
       }
     } catch {
       setRows(prev => prev.map((r, i) => i === idx ? { ...r, saving: false } : r));
-      showTcToast("保存失敗");
+      showTcToast(tr("mcRecordPage.tcSaveFailed","保存失敗"));
     }
   };
 
@@ -468,37 +472,37 @@ function TimecardModal({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[85vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
           <div>
-            <h2 className="text-sm font-bold text-slate-800">&#128197; 機械タイムカード参照 — {machineCode}</h2>
-            <p className="text-[11px] text-slate-400 mt-0.5">タイムカードを確認・編集できます。更新すると稼働時間に即反映されます。</p>
+            <h2 className="text-sm font-bold text-slate-800">{tr("mcRecordPage.tcModalTitle", "📅 機械タイムカード参照 — {code}").replace("{code}", machineCode)}</h2>
+            <p className="text-[11px] text-slate-400 mt-0.5">{tr("mcRecordPage.tcModalDesc", "タイムカードを確認・編集できます。更新すると稼働時間に即反映されます。")}</p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg font-bold px-2">&#10005;</button>
         </div>
         <div className="grid grid-cols-3 gap-3 px-5 py-3 bg-slate-50 border-b border-slate-100 shrink-0">
           <div className="text-center text-xs font-bold">
-            <p className="text-slate-400 mb-0.5">段取稼働</p>
+            <p className="text-slate-400 mb-0.5">{tr("mcRecordPage.setupKadouLabel", "段取稼働")}</p>
             <p className="text-blue-700 text-sm">{summaryK(startedAt, checkedAt || finishedAt)}</p>
           </div>
           <div className="text-center text-xs font-bold">
-            <p className="text-slate-400 mb-0.5">量産稼働</p>
+            <p className="text-slate-400 mb-0.5">{tr("mcRecordPage.prodKadouLabel", "量産稼働")}</p>
             <p className="text-green-700 text-sm">{checkedAt ? summaryK(checkedAt, finishedAt) : "—"}</p>
           </div>
           <div className="text-center text-xs font-bold">
-            <p className="text-slate-400 mb-0.5">総稼働</p>
+            <p className="text-slate-400 mb-0.5">{tr("mcRecordPage.totalKadouLabel", "総稼働")}</p>
             <p className="text-teal-700 text-sm">{summaryK(startedAt, finishedAt || checkedAt)}</p>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-3">
           {loading ? (
-            <div className="flex items-center justify-center py-8 text-slate-400 text-sm">読み込み中...</div>
+            <div className="flex items-center justify-center py-8 text-slate-400 text-sm">{tr("mcRecordPage.tcLoading", "読み込み中...")}</div>
           ) : (
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="pb-2 text-left font-bold text-slate-500 w-24">日付</th>
-                  <th className="pb-2 text-left font-bold text-slate-500 w-20">開始</th>
-                  <th className="pb-2 text-left font-bold text-slate-500 w-20">終了</th>
-                  <th className="pb-2 text-center font-bold text-slate-500 w-20">稼働時間</th>
-                  <th className="pb-2 text-center font-bold text-slate-500 w-14">操作</th>
+                  <th className="pb-2 text-left font-bold text-slate-500 w-24">{tr("mcRecordPage.colDate", "日付")}</th>
+                  <th className="pb-2 text-left font-bold text-slate-500 w-20">{tr("mcRecordPage.colStart", "開始")}</th>
+                  <th className="pb-2 text-left font-bold text-slate-500 w-20">{tr("mcRecordPage.colEnd", "終了")}</th>
+                  <th className="pb-2 text-center font-bold text-slate-500 w-20">{tr("mcRecordPage.colKadouTime", "稼働時間")}</th>
+                  <th className="pb-2 text-center font-bold text-slate-500 w-14">{tr("mcRecordPage.colOperation", "操作")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -510,7 +514,7 @@ function TimecardModal({
                       <td className="py-2 font-mono text-slate-700">{row.date.slice(5)}</td>
                       <td className="py-2">
                         {isHoliday
-                          ? <span className="text-slate-400 text-[11px]">― 休日 ―</span>
+                          ? <span className="text-slate-400 text-[11px]">{tr("mcRecordPage.holidayLabel", "― 休日 ―")}</span>
                           : <input type="time" value={row.startTime} onChange={e => updateField(idx,"startTime",e.target.value)}
                               className="border border-slate-200 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-teal-400" />}
                       </td>
@@ -525,7 +529,7 @@ function TimecardModal({
                         {row.dirty && (
                           <button onClick={() => handleSave(idx)} disabled={row.saving}
                             className="text-[11px] px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold disabled:opacity-50 transition-colors whitespace-nowrap">
-                            {row.saving ? "..." : row.id === null ? "登録" : "更新"}
+                            {row.saving ? "..." : row.id === null ? tr("mcRecordPage.tcRegister", "登録") : tr("mcRecordPage.tcUpdate", "更新")}
                           </button>
                         )}
                       </td>
@@ -537,8 +541,8 @@ function TimecardModal({
           )}
         </div>
         <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 shrink-0">
-          <p className="text-[10px] text-slate-400">※ 稼働時間 = overlap（12:00-13:00は自動控除）</p>
-          <button onClick={onClose} className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg transition-colors">閉じる</button>
+          <p className="text-[10px] text-slate-400">{tr("mcRecordPage.tcFooterNote", "※ 稼働時間 = overlap（12:00-13:00は自動控除）")}</p>
+          <button onClick={onClose} className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg transition-colors">{tr("mcRecordPage.close", "閉じる")}</button>
         </div>
         {tcToast && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-4 py-2 rounded-full shadow-lg whitespace-nowrap">{tcToast}</div>
@@ -549,6 +553,7 @@ function TimecardModal({
 }
 
 function McRecordPageInner() {
+  const { t: tr } = useLanguage();
   const { mc_id } = useParams<{ mc_id: string }>();
   const mcId = parseInt(mc_id);
   const router = useRouter();
@@ -612,7 +617,7 @@ function McRecordPageInner() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [timeValidErr, setTimeValidErr] = useState<string | null>(null);
+  const [timeValidErr, setTimeValidErr] = useState<{ field: "checked" | "finished"; key: string; fallback: string } | null>(null);
   const [tcWarnMsg, setTcWarnMsg] = useState<string | null>(null);
   const [tcModalOpen, setTcModalOpen] = useState(false);
   const [setupKadouMin, setSetupKadouMin] = useState<number | null>(null);
@@ -985,15 +990,15 @@ function McRecordPageInner() {
 
 
   // ── 日時バリデーション: 段取開始 < 段取終了 < 加工終了 ───────────────
-  const validateDateOrder = (sa: string, ca: string, fa: string): string | null => {
+  const validateDateOrder = (sa: string, ca: string, fa: string): { field: "checked" | "finished"; key: string; fallback: string } | null => {
     if (sa && ca) {
-      if (new Date(ca) <= new Date(sa)) return "段取終了は段取開始より後の日時を入力してください";
+      if (new Date(ca) <= new Date(sa)) return { field: "checked", key: "mcRecordPage.validSetupEndAfterStart", fallback: "段取終了は段取開始より後の日時を入力してください" };
     }
     if (ca && fa) {
-      if (new Date(fa) <= new Date(ca)) return "加工終了は段取終了（チェックTime）より後の日時を入力してください";
+      if (new Date(fa) <= new Date(ca)) return { field: "finished", key: "mcRecordPage.validMachEndAfterCheck", fallback: "加工終了は段取終了（チェックTime）より後の日時を入力してください" };
     }
     if (sa && fa && !ca) {
-      if (new Date(fa) <= new Date(sa)) return "加工終了は段取開始より後の日時を入力してください";
+      if (new Date(fa) <= new Date(sa)) return { field: "finished", key: "mcRecordPage.validMachEndAfterStart", fallback: "加工終了は段取開始より後の日時を入力してください" };
     }
     return null;
   };
@@ -1002,7 +1007,7 @@ function McRecordPageInner() {
     const handleSubmit = async () => {
     console.log("[RECORD] handleSubmit 全フォーム値", JSON.stringify({machineId,cycleH,cycleM,cycleS,cyclePcs,startedAt,checkedAt,finishedAt,dStopH,dStopM,yStopH,yStopM,setupOps,prodOps,checkMan,prgMan,setupQty,quantity,note,prgPlas,prgTimeH,prgTimeM,timeMode},null,2));
     console.log("[STEP2] handleSubmit sbMode=", sbMode, "token=", token ? "あり" : "なし", "isAuthenticated=", isAuthenticated);
-    if (!token) { setSaveError("認証セッションが切れています。再認証してください。"); setAuthOpen(true); return; }
+    if (!token) { setSaveError(tr("mcRecordPage.authSessionExpired","認証セッションが切れています。再認証してください。")); setAuthOpen(true); return; }
     // 日時バリデーション
     if (timeMode === "datetime") {
       const vErr = validateDateOrder(startedAt, checkedAt, finishedAt);
@@ -1035,14 +1040,14 @@ function McRecordPageInner() {
       const r = await mcApi.workRecords(mcId);
       setRecords((r as any).data ?? []);
       resetForm();
-      showToast("✅ 作業記録を登録しました");
+      showToast(tr("mcRecordPage.recordSavedMsg","✅ 作業記録を登録しました"));
       if (sbMode && typeof window !== "undefined") {
         const v = sessionStorage.getItem("sb_next_record");
         if (v && parseInt(v) === mcId) {
           const logId = sbSheetLogId || parseInt(sessionStorage.getItem("sb_sheet_log_id") ?? "0");
           if (logId && token) {
-            try { await mcApi.collectSetupSheet(mcId, logId, token); showToast("✅ 段取シートバック完了 — 回収済みに更新しました"); }
-            catch { showToast("⚠️ 作業記録登録済み（回収済み更新に失敗）"); }
+            try { await mcApi.collectSetupSheet(mcId, logId, token); showToast(tr("mcRecordPage.sbCollectDoneMsg","✅ 段取シートバック完了 — 回収済みに更新しました")); }
+            catch { showToast(tr("mcRecordPage.sbCollectFailedMsg","⚠️ 作業記録登録済み（回収済み更新に失敗）")); }
           }
           sessionStorage.removeItem("sb_next_record");
           sessionStorage.removeItem("sb_sheet_log_id");
@@ -1052,7 +1057,7 @@ function McRecordPageInner() {
       }
     } catch (e: any) {
       console.error("[STEP2] API error detail:", e?.response?.status, e?.response?.data);
-      const msg = e?.response?.data?.message ?? e?.message ?? "登録に失敗しました";
+      const msg = e?.response?.data?.message ?? e?.message ?? tr("mcRecordPage.registerFailedDefault","登録に失敗しました");
       setSaveError(msg);
       console.error("[STEP2] submit error:", e);
     } finally { setSaving(false); }
@@ -1065,30 +1070,30 @@ function McRecordPageInner() {
         {!sbMode && (
           <>
             <button onClick={() => router.push(`/mc/${mcId}`)} className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-white transition-colors shrink-0">
-              <span className="w-5 h-5 rounded-full bg-teal-500 flex items-center justify-center shrink-0"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></span>MC詳細
+              <span className="w-5 h-5 rounded-full bg-teal-500 flex items-center justify-center shrink-0"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></span>{tr("mcRecordPage.mcDetailTabLink", "MC詳細")}
             </button>
             <span className="text-slate-600">|</span>
             <button onClick={() => router.push("/mc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>ダッシュボードへ
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>{tr("mcRecordPage.backToDashboardLink", "ダッシュボードへ")}
             </button>
           </>
         )}
         {sbMode && (
           <span className="flex items-center gap-2 bg-teal-700 border border-teal-500 rounded-lg px-3 py-1">
             <span className="bg-teal-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shrink-0">2</span>
-            <span className="text-xs font-bold text-teal-100">段取シートバック — STEP2: 作業記録入力</span>
-            <span className="text-teal-400 text-xs">（登録で回収済みになります）</span>
+            <span className="text-xs font-bold text-teal-100">{tr("mcRecordPage.sbStep2Badge", "段取シートバック — STEP2: 作業記録入力")}</span>
+            <span className="text-teal-400 text-xs">{tr("mcRecordPage.sbStep2Note", "（登録で回収済みになります）")}</span>
           </span>
         )}
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
-        <span className="text-sm font-medium">作業記録</span>
+        <span className="text-sm font-medium">{tr("mcRecordPage.workRecordTitle", "作業記録")}</span>
         <span className="ml-auto">
           {isAuthenticated && operator ? (
             <span className="text-[11px] bg-red-600 text-white px-2 py-0.5 rounded font-bold animate-pulse">
-              作業中: {operator.name} {fmtElapsed(elapsed)}
+              {tr("mcRecordPage.workingStatus", "作業中: {name} {elapsed}").replace("{name}", operator.name).replace("{elapsed}", fmtElapsed(elapsed))}
             </span>
           ) : (
-            <span className="text-[11px] text-slate-400">未認証</span>
+            <span className="text-[11px] text-slate-400">{tr("mcRecordPage.notAuthenticated", "未認証")}</span>
           )}
         </span>
       </header>
@@ -1111,12 +1116,12 @@ function McRecordPageInner() {
             </div>
           </div>
           <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
-            {(detail as any)?.mcProcessNo != null && <span className="font-bold text-teal-700 text-sm">工程No: {(detail as any).mcProcessNo}</span>}
+            {(detail as any)?.mcProcessNo != null && <span className="font-bold text-teal-700 text-sm">{tr("mcRecordPage.processNoLabel3", "工程No: {n}").replace("{n}", String((detail as any).mcProcessNo))}</span>}
             <span className="text-slate-400">|</span>
-            <span>MCID: <span className="text-slate-700">{detail.legacyMcid ?? "—"}</span></span>
+            <span>{tr("mcRecordPage.mcIdPrefix", "MCID: ")}<span className="text-slate-700">{detail.legacyMcid ?? "—"}</span></span>
             <span className="text-slate-400">|</span>
-            <span>加工ID: <span className="text-slate-700">{detail.machiningId}</span></span>
-            {detail.part?.partId && <><span className="text-slate-400">|</span><span>部品ID: <span className="text-slate-700">{detail.part.partId}</span></span></>}
+            <span>{tr("mcRecordPage.machiningIdPrefix", "加工ID: ")}<span className="text-slate-700">{detail.machiningId}</span></span>
+            {detail.part?.partId && <><span className="text-slate-400">|</span><span>{tr("mcRecordPage.partIdPrefix", "部品ID: ")}<span className="text-slate-700">{detail.part.partId}</span></span></>}
           </div>
         </div>
       )}
@@ -1125,18 +1130,18 @@ function McRecordPageInner() {
       <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
         <button onClick={() => !sbMode && router.push(`/mc/${mcId}`)}
           className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8]")}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>MC詳細
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>{tr("mcRecordPage.mcDetailTabLink", "MC詳細")}
         </button>
         <button onClick={() => !sbMode && router.push(`/mc/${mcId}/edit`)}
           className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8]")}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/></svg>変更・登録
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/></svg>{tr("mcRecordPage.editRegisterTabLink", "変更・登録")}
         </button>
         <button onClick={() => !sbMode && router.push(`/mc/${mcId}/print`)}
           className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8]")}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>{tr("mcRecordPage.setupSheetTabLink", "段取シート")}
         </button>
         <button className="px-4 py-1.5 text-[12px] font-bold flex items-center gap-1.5 rounded-t-md border border-b-0 border-[#1b2a41] bg-[#1b2a41] text-white">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>{tr("mcRecordPage.workRecordTabLink", "作業記録")}
         </button>
       </nav>
 
@@ -1145,10 +1150,10 @@ function McRecordPageInner() {
         {/* 左ペイン: 段取シート一覧 */}
         <div className="w-52 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
           <div className="px-3 py-2 border-b border-slate-100">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">段取シート一覧</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{tr("mcRecordPage.setupSheetListTitle", "段取シート一覧")}</p>
           </div>
           {setupSheets.length === 0 ? (
-            <div className="px-3 py-4 text-xs text-slate-400">未回収なし</div>
+            <div className="px-3 py-4 text-xs text-slate-400">{tr("mcRecordPage.noUncollected", "未回収なし")}</div>
           ) : (
             <div className="divide-y divide-slate-100">
               {setupSheets.map(s => (
@@ -1162,10 +1167,10 @@ function McRecordPageInner() {
           )}
           {/* 過去記録 */}
           <div className="px-3 py-2 border-t border-b border-slate-100 mt-2">
-            <p className="text-[10px] font-bold text-slate-400 uppercase">過去記録</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase">{tr("mcRecordPage.pastRecordsTitle", "過去記録")}</p>
           </div>
           {records.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-slate-400">なし</div>
+            <div className="px-3 py-2 text-xs text-slate-400">{tr("mcRecordPage.noneShort2", "なし")}</div>
           ) : (
             <div className="divide-y divide-slate-100">
               {records.map(r => (
@@ -1186,12 +1191,12 @@ function McRecordPageInner() {
             <div className="m-5 p-4 bg-teal-50 border border-teal-200 rounded-xl flex items-center gap-4">
               <span className="text-3xl">⏱</span>
               <div className="flex-1">
-                <div className="text-sm font-bold text-teal-800">作業記録 — 作業開始前</div>
-                <div className="text-xs text-teal-600 mt-0.5">担当者認証が必要です</div>
+                <div className="text-sm font-bold text-teal-800">{tr("mcRecordPage.recordBeforeStart", "作業記録 — 作業開始前")}</div>
+                <div className="text-xs text-teal-600 mt-0.5">{tr("mcRecordPage.operatorAuthRequired", "担当者認証が必要です")}</div>
               </div>
               <button onClick={() => setAuthOpen(true)}
                 className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-sm transition-colors whitespace-nowrap">
-                この作業を開始する
+                {tr("mcRecordPage.startWorkButton", "この作業を開始する")}
               </button>
             </div>
           )}
@@ -1206,15 +1211,15 @@ function McRecordPageInner() {
                     <span className="font-bold text-slate-700">{detail.version}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block mb-0.5">登録・出力（段取シート）</span>
+                    <span className="text-slate-400 block mb-0.5">{tr("mcRecordPage.verSheetLabel", "登録・出力（段取シート）")}</span>
                     <span className="font-bold text-slate-700">{selectedSheet ? toJstDateString(selectedSheet.printed_at) : "—"}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block mb-0.5">回収日時</span>
+                    <span className="text-slate-400 block mb-0.5">{tr("mcRecordPage.collectedAtLabel", "回収日時")}</span>
                     <span className="font-bold text-slate-700">{fmtNow()}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block mb-0.5">オペレータ</span>
+                    <span className="text-slate-400 block mb-0.5">{tr("mcRecordPage.operatorLabel3", "オペレータ")}</span>
                     <span className="font-bold text-teal-700">{operator?.name ?? "—"}</span>
                   </div>
                 </div>
@@ -1225,23 +1230,23 @@ function McRecordPageInner() {
             <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold mb-4 max-w-3xl ${
               editRecordId ? "bg-amber-100 border border-amber-300 text-amber-800" : "bg-teal-50 border border-teal-200 text-teal-700"
             }`}>
-              <span>{editRecordId ? "✏️ 編集モード" : "＋ 新規入力モード"}</span>
+              <span>{editRecordId ? tr("mcRecordPage.editModeLabel", "✏️ 編集モード") : tr("mcRecordPage.newInputModeLabel", "＋ 新規入力モード")}</span>
               <div className="flex items-center gap-3">
                 {/* 入力方法切り替え */}
                 <div className="flex items-center gap-1 text-xs">
-                  <span className="text-slate-500 mr-1">入力方法:</span>
+                  <span className="text-slate-500 mr-1">{tr("mcRecordPage.inputMethodLabel", "入力方法:")}</span>
                   <button onClick={() => setTimeMode("datetime")}
                     className={`px-2 py-0.5 rounded font-bold transition-colors ${timeMode==="datetime" ? "bg-teal-600 text-white" : "bg-white text-slate-500 border border-slate-300"}`}>
-                    開始/終了日時
+                    {tr("mcRecordPage.dateTimeModeButton", "開始/終了日時")}
                   </button>
                   <button onClick={() => setTimeMode("hm")}
                     className={`px-2 py-0.5 rounded font-bold transition-colors ${timeMode==="hm" ? "bg-teal-600 text-white" : "bg-white text-slate-500 border border-slate-300"}`}>
-                    h/m入力
+                    {tr("mcRecordPage.hmModeButton", "h/m入力")}
                   </button>
                 </div>
                 {editRecordId && (
                   <button onClick={resetForm} className="text-xs bg-white border border-slate-300 text-slate-600 px-2 py-1 rounded hover:bg-slate-50">
-                    ＋ 新規に戻す
+                    {tr("mcRecordPage.resetToNewButton", "＋ 新規に戻す")}
                   </button>
                 )}
               </div>
@@ -1252,7 +1257,7 @@ function McRecordPageInner() {
               <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1.5">今回使用機械</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.thisMachineLabel", "今回使用機械")}</label>
                     <select value={machineId} onChange={e => { setMachineId(e.target.value); console.log("[RECORD] 機械変更",{machineId:e.target.value,label:e.target.options[e.target.selectedIndex]?.text}); }} data-fi="true"
                       onKeyDown={e => {
                         const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
@@ -1261,19 +1266,19 @@ function McRecordPageInner() {
                         else if ((e.key==="Enter"&&e.shiftKey)||(e.key==="Tab"&&e.shiftKey)) { e.preventDefault(); console.log("[RECORD][機械select] Shift+Enter後退"); if (idx>0) allFi[idx-1].focus(); }
                       }}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
-                      <option value="">— 選択 —</option>
+                      <option value="">{tr("mcRecordPage.selectPlaceholder", "— 選択 —")}</option>
                       {machines.filter(m => m.isActive).map(m => (
                         <option key={m.id} value={m.id}>{m.machineCode}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1.5">サイクルタイム / 1P</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.cycleTimePerP2", "サイクルタイム / 1P")}</label>
                     <div className="flex items-center gap-1 flex-wrap">
                       <NumInput value={cycleH} onChange={setCycleH} /><span className="text-xs text-slate-500">H</span>
                       <NumInput value={cycleM} onChange={setCycleM} min={0} max={59} /><span className="text-xs text-slate-500">M</span>
                       <NumInput value={cycleS} onChange={setCycleS} min={0} max={59} /><span className="text-xs text-slate-500">S</span>
-                      <span className="text-xs text-slate-500 ml-2">個/1サイクル:</span>
+                      <span className="text-xs text-slate-500 ml-2">{tr("mcRecordPage.piecesPerCycle", "個/1サイクル:")}</span>
                       <input type="number" min="1" value={cyclePcs} onChange={e => setCyclePcs(e.target.value)}
                         data-fi="true" onFocus={e => e.target.select()}
                         onKeyDown={e => {
@@ -1290,15 +1295,15 @@ function McRecordPageInner() {
 
               {/* 段取グループ */}
               <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 space-y-3">
-                <h3 className="text-xs font-bold text-blue-700 border-b border-blue-200 pb-2">🔧 段取</h3>
+                <h3 className="text-xs font-bold text-blue-700 border-b border-blue-200 pb-2">{tr("mcRecordPage.setupGroupTitle", "🔧 段取")}</h3>
                 {timeMode === "hm" ? (
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1.5">段取時間</label>
+                      <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.setupTimeLabel", "段取時間")}</label>
                       <TimeInput h={setupH} m={setupMm} onH={setSetupH} onM={setSetupMm} />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1.5">中断時間</label>
+                      <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.interruptTimeLabel", "中断時間")}</label>
                       <div className="flex items-center gap-1">
                         <NumInput value={setupInterruption} onChange={setSetupInterruption} /><span className="text-xs text-slate-500">m</span>
                       </div>
@@ -1310,7 +1315,7 @@ function McRecordPageInner() {
                     {/* 日時バリデーションエラー */}
                     {timeValidErr && (
                       <div className="flex items-center gap-2 bg-red-50 border border-red-300 rounded-lg px-3 py-2 text-xs text-red-700 font-bold">
-                        <span>⛔</span><span>{timeValidErr}</span>
+                        <span>⛔</span><span>{tr(timeValidErr.key, timeValidErr.fallback)}</span>
                       </div>
                     )}
                     {/* タイムカード未登録警告 */}
@@ -1318,16 +1323,16 @@ function McRecordPageInner() {
                       <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 text-xs text-amber-800">
                         <span className="shrink-0 mt-0.5">⚠️</span>
                         <div>
-                          <p className="font-bold">機械タイムカード未登録</p>
+                          <p className="font-bold">{tr("mcRecordPage.tcNotRegisteredTitle", "機械タイムカード未登録")}</p>
                           <p className="mt-0.5 font-normal">{tcWarnMsg.replace("⚠️ ", "")}</p>
-                          <p className="mt-1 text-amber-600">中断時間を手動で入力してください</p>
+                          <p className="mt-1 text-amber-600">{tr("mcRecordPage.manualInterruptHint", "中断時間を手動で入力してください")}</p>
                         </div>
                         <button className="ml-auto shrink-0 text-amber-500 hover:text-amber-700" onClick={() => setTcWarnMsg(null)}>✕</button>
                       </div>
                     )}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1.5">段取開始</label>
+                        <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.setupStartLabel", "段取開始")}</label>
                         <div id="dti-started" data-dti="true">
                           <DateTimeInput value={startedAt} label="段取開始"
                             onChange={v => { setStartedAt(v); setTimeValidErr(validateDateOrder(v, checkedAt, finishedAt)); setSetupKadouMin(null); setMachKadouMin(null); }}
@@ -1339,10 +1344,10 @@ function McRecordPageInner() {
                         </div>
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1.5">段取終了（ﾁｪｯｸTime）</label>
+                        <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.setupEndLabel", "段取終了（ﾁｪｯｸTime）")}</label>
                         <div id="dti-checked" data-dti="true">
                           <DateTimeInput value={checkedAt} label="段取終了"
-                            hasError={!!(timeValidErr && timeValidErr.includes("段取終了"))}
+                            hasError={!!(timeValidErr && timeValidErr.field === "checked")}
                             onChange={v => { setCheckedAt(v); setTimeValidErr(validateDateOrder(startedAt, v, finishedAt)); setSetupKadouMin(null); setMachKadouMin(null); }} />
                         </div>
                       </div>
@@ -1351,14 +1356,14 @@ function McRecordPageInner() {
                       // [v083] 独自の日付差分計算を廃止し、機械タイムカードの実稼働時間(setupKadouMin)に一本化
                       const dStopMin = dStopH * 60 + dStopM;
                       if (setupKadouMin === null) {
-                        return <p className="text-xs text-slate-400">→ 段取時間: タイムカード集計中…</p>;
+                        return <p className="text-xs text-slate-400">{tr("mcRecordPage.setupTimeAggregating", "→ 段取時間: タイムカード集計中…")}</p>;
                       }
                       const mins = Math.max(0, setupKadouMin - dStopMin);
-                      return mins > 0 ? <p className="text-xs text-blue-600 font-bold">→ 段取時間: {Math.floor(mins/60)}H {mins%60}M（実稼働ベース）</p> : null;
+                      return mins > 0 ? <p className="text-xs text-blue-600 font-bold">{tr("mcRecordPage.setupTimeResult", "→ 段取時間: {h}H {m}M（実稼働ベース）").replace("{h}", String(Math.floor(mins/60))).replace("{m}", String(mins%60))}</p> : null;
                     })()}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1.5">段取時の中断</label>
+                        <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.setupInterruptLabel", "段取時の中断")}</label>
                         <div className="flex items-center gap-1 flex-wrap">
                           <NumInput value={dStopH} onChange={setDStopH} /><span className="text-xs text-slate-500">h</span>
                           <NumInput value={dStopM} onChange={setDStopM} min={0} max={59} /><span className="text-xs text-slate-500">m</span>
@@ -1371,15 +1376,15 @@ function McRecordPageInner() {
                 )}
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1.5">段取担当者（複数可）</label>
-                    <MultiUserSelect users={users} selected={setupOps} onChange={setSetupOps} placeholder="担当者を選択..." />
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.setupOperatorsLabel", "段取担当者（複数可）")}</label>
+                    <MultiUserSelect users={users} selected={setupOps} onChange={setSetupOps} placeholder={tr("mcRecordPage.selectOperatorPlaceholder", "担当者を選択...")} />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1.5">チェック担当（ﾁｪｯｸMan）</label>
-                    <SingleUserSelect users={users} selected={checkMan} onChange={setCheckMan} placeholder="— 選択 —" />
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.checkManLabel", "チェック担当（ﾁｪｯｸMan）")}</label>
+                    <SingleUserSelect users={users} selected={checkMan} onChange={setCheckMan} placeholder={tr("mcRecordPage.selectPlaceholder", "— 選択 —")} />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1.5">段取良品数</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.setupGoodQtyLabel", "段取良品数")}</label>
                     <div className="flex items-center gap-1">
                       <input type="number" min="0" value={setupQty} onChange={e => { setSetupQty(e.target.value); console.log("[RECORD] 段取良品数変更",{setupQty:e.target.value}); }}
                         data-fi="true" onFocus={e => (e.target as HTMLInputElement).select()}
@@ -1390,7 +1395,7 @@ function McRecordPageInner() {
                           else if ((e.key === "Enter" && e.shiftKey) || (e.key === "Tab" && e.shiftKey)) { e.preventDefault(); if (idx > 0) allFi[idx-1].focus(); }
                         }}
                         className="w-24 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-400" placeholder="0" />
-                      <span className="text-xs text-slate-500">個</span>
+                      <span className="text-xs text-slate-500">{tr("mcRecordPage.unitPiece2", "個")}</span>
                     </div>
                   </div>
                 </div>
@@ -1398,15 +1403,15 @@ function McRecordPageInner() {
 
               {/* 量産グループ */}
               <div className="bg-green-50 rounded-xl border border-green-200 p-4 space-y-3">
-                <h3 className="text-xs font-bold text-green-700 border-b border-green-200 pb-2">⚙️ 量産</h3>
+                <h3 className="text-xs font-bold text-green-700 border-b border-green-200 pb-2">{tr("mcRecordPage.prodGroupTitle", "⚙️ 量産")}</h3>
                 {timeMode === "hm" ? (
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1.5">加工時間</label>
+                      <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.machTimeLabel", "加工時間")}</label>
                       <TimeInput h={machH} m={machMm} onH={setMachH} onM={setMachMm} />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1.5">中断時間</label>
+                      <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.interruptTimeLabel", "中断時間")}</label>
                       <div className="flex items-center gap-1">
                         <NumInput value={machInterruption} onChange={setMachInterruption} /><span className="text-xs text-slate-500">m</span>
                       </div>
@@ -1417,10 +1422,10 @@ function McRecordPageInner() {
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1.5">加工終了</label>
+                        <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.machEndLabel", "加工終了")}</label>
                         <div id="dti-finished" data-dti="true">
                           <DateTimeInput value={finishedAt} label="加工終了"
-                            hasError={!!(timeValidErr && timeValidErr.includes("加工終了"))}
+                            hasError={!!(timeValidErr && timeValidErr.field === "finished")}
                             onChange={v => { setFinishedAt(v); setTimeValidErr(validateDateOrder(startedAt, checkedAt, v)); setSetupKadouMin(null); setMachKadouMin(null); }} />
                         </div>
                       </div>
@@ -1430,14 +1435,14 @@ function McRecordPageInner() {
                       // [v083] 独自の日付差分計算を廃止し、機械タイムカードの実稼働時間(machKadouMin)に一本化
                       const yStopMin = yStopH * 60 + yStopM;
                       if (machKadouMin === null) {
-                        return <p className="text-xs text-slate-400">→ 加工時間: タイムカード集計中…</p>;
+                        return <p className="text-xs text-slate-400">{tr("mcRecordPage.machTimeAggregating", "→ 加工時間: タイムカード集計中…")}</p>;
                       }
                       const mins = Math.max(0, machKadouMin - yStopMin);
-                      return mins > 0 ? <p className="text-xs text-green-600 font-bold">→ 加工時間: {Math.floor(mins/60)}H {mins%60}M（実稼働ベース）</p> : null;
+                      return mins > 0 ? <p className="text-xs text-green-600 font-bold">{tr("mcRecordPage.machTimeResult", "→ 加工時間: {h}H {m}M（実稼働ベース）").replace("{h}", String(Math.floor(mins/60))).replace("{m}", String(mins%60))}</p> : null;
                     })()}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1.5">量産時の中断</label>
+                        <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.prodInterruptLabel", "量産時の中断")}</label>
                         <div className="flex items-center gap-1 flex-wrap">
                           <NumInput value={yStopH} onChange={setYStopH} /><span className="text-xs text-slate-500">h</span>
                           <NumInput value={yStopM} onChange={setYStopM} min={0} max={59} /><span className="text-xs text-slate-500">m</span>
@@ -1450,18 +1455,18 @@ function McRecordPageInner() {
                 )}
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1.5">量産作業者（複数可）</label>
-                    <MultiUserSelect users={users} selected={prodOps} onChange={setProdOps} placeholder="作業者を選択..." />
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.prodOperatorsLabel", "量産作業者（複数可）")}</label>
+                    <MultiUserSelect users={users} selected={prodOps} onChange={setProdOps} placeholder={tr("mcRecordPage.selectWorkerPlaceholder", "作業者を選択...")} />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1.5">全良品数（ワーク数）</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.totalGoodQtyLabel", "全良品数（ワーク数）")}</label>
                     <div className="flex items-center gap-1">
                       <input type="number" min="0" value={quantity}
                         onChange={e => { setQuantity(e.target.value); console.log("[RECORD] 全良品数変更",{quantity:e.target.value}); }}
                         data-fi="true" onFocus={e => (e.target as HTMLInputElement).select()}
                         onKeyDown={e => { if(e.key!=="Enter")return; e.preventDefault(); const a=Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])")); const i=a.indexOf(e.currentTarget); if(e.shiftKey){if(i>0)a[i-1].focus();}else{if(i<a.length-1)a[i+1].focus();} }}
                         className="w-24 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-400" placeholder="0" />
-                      <span className="text-xs text-slate-500">個</span>
+                      <span className="text-xs text-slate-500">{tr("mcRecordPage.unitPiece2", "個")}</span>
                     </div>
                   </div>
                   <div />
@@ -1472,31 +1477,31 @@ function McRecordPageInner() {
               {machineId && (
                 <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0 flex items-center gap-4 flex-wrap">
-                    <span className="text-xs font-bold text-slate-600">&#128197; 機械タイムカード</span>
+                    <span className="text-xs font-bold text-slate-600">{tr("mcRecordPage.tcRefBarTitle", "📅 機械タイムカード")}</span>
                     {setupKadouMin !== null && (
-                      <span className="text-xs text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded">{"段取稼働: " + Math.floor(setupKadouMin/60) + "H " + (setupKadouMin%60) + "M"}</span>
+                      <span className="text-xs text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded">{tr("mcRecordPage.setupKadouResult", "段取稼働: {h}H {m}M").replace("{h}", String(Math.floor(setupKadouMin/60))).replace("{m}", String(setupKadouMin%60))}</span>
                     )}
                     {machKadouMin !== null && (
-                      <span className="text-xs text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded">{"量産稼働: " + Math.floor(machKadouMin/60) + "H " + (machKadouMin%60) + "M"}</span>
+                      <span className="text-xs text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded">{tr("mcRecordPage.prodKadouResult", "量産稼働: {h}H {m}M").replace("{h}", String(Math.floor(machKadouMin/60))).replace("{m}", String(machKadouMin%60))}</span>
                     )}
                     {setupKadouMin === null && machKadouMin === null && (
-                      <span className="text-xs text-slate-400">機械のタイムカードを確認・編集して稼働時間を参照できます</span>
+                      <span className="text-xs text-slate-400">{tr("mcRecordPage.tcRefHint", "機械のタイムカードを確認・編集して稼働時間を参照できます")}</span>
                     )}
                   </div>
                   <button type="button" onClick={() => setTcModalOpen(true)}
                     className="shrink-0 flex items-center gap-1.5 text-xs px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm">
-                    タイムカード参照
+                    {tr("mcRecordPage.tcRefButton", "タイムカード参照")}
                   </button>
                 </div>
               )}
 
               {/* プログラム */}
               <div className="bg-purple-50 rounded-xl border border-purple-200 p-4 space-y-3">
-                <h3 className="text-xs font-bold text-purple-700 border-b border-purple-200 pb-2">💾 プログラム</h3>
+                <h3 className="text-xs font-bold text-purple-700 border-b border-purple-200 pb-2">{tr("mcRecordPage.programGroupTitle", "💾 プログラム")}</h3>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1.5">プログラム担当</label>
-                    <SingleUserSelect users={users} selected={prgMan} onChange={setPrgMan} placeholder="— 選択 —" />
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.programManagerLabel", "プログラム担当")}</label>
+                    <SingleUserSelect users={users} selected={prgMan} onChange={setPrgMan} placeholder={tr("mcRecordPage.selectPlaceholder", "— 選択 —")} />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1.5">PrgTime</label>
@@ -1518,7 +1523,7 @@ function McRecordPageInner() {
                       </button>
                       <button type="button" onClick={() => setPrgPlas("")}
                         className="px-2 py-2 rounded-lg text-xs border border-slate-200 text-slate-400 hover:bg-slate-50">
-                        クリア
+                        {tr("mcRecordPage.clearButton", "クリア")}
                       </button>
                     </div>
                   </div>
@@ -1528,37 +1533,37 @@ function McRecordPageInner() {
               {/* 時間集計（自動計算・表示のみ）*/}
               {times && (
                 <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
-                  <h3 className="text-xs font-bold text-slate-500 mb-3">時間集計（自動計算）</h3>
+                  <h3 className="text-xs font-bold text-slate-500 mb-3">{tr("mcRecordPage.timeSummaryTitle", "時間集計（自動計算）")}</h3>
                   <div className="grid grid-cols-3 gap-2 text-center text-xs mb-2">
                     <div className="bg-white rounded-lg p-2 border border-slate-100">
-                      <div className="text-slate-400 mb-0.5">段取時間</div>
+                      <div className="text-slate-400 mb-0.5">{tr("mcRecordPage.setupTimeLabel", "段取時間")}</div>
                       <div className="font-bold text-blue-700 text-sm">{fmtMin(times.setupMin)}</div>
                     </div>
                     <div className="bg-white rounded-lg p-2 border border-slate-100">
-                      <div className="text-slate-400 mb-0.5">加工時間</div>
+                      <div className="text-slate-400 mb-0.5">{tr("mcRecordPage.machTimeLabel", "加工時間")}</div>
                       <div className="font-bold text-teal-700 text-sm">{fmtMin(times.machMin)}</div>
                     </div>
                     <div className="bg-white rounded-lg p-2 border border-slate-100">
-                      <div className="text-slate-400 mb-0.5">総時間</div>
+                      <div className="text-slate-400 mb-0.5">{tr("mcRecordPage.totalTimeLabel2", "総時間")}</div>
                       <div className="font-bold text-slate-700 text-sm">{fmtMin(times.totalMin)}</div>
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center text-xs">
                     {times.cyclePerPSec != null && (
                       <div className="bg-white rounded-lg p-2 border border-slate-100">
-                        <div className="text-slate-400 mb-0.5">サイクルタイム/1P</div>
+                        <div className="text-slate-400 mb-0.5">{tr("mcRecordPage.cycleTimePerP", "サイクルタイム/1P")}</div>
                         <div className="font-bold text-purple-700 text-sm">{fmtSec(times.cyclePerPSec)}</div>
                       </div>
                     )}
                     {times.machPerPSec != null && (
                       <div className="bg-white rounded-lg p-2 border border-slate-100">
-                        <div className="text-slate-400 mb-0.5">加工時間/1P</div>
+                        <div className="text-slate-400 mb-0.5">{tr("mcRecordPage.machTimePerP", "加工時間/1P")}</div>
                         <div className="font-bold text-teal-600 text-sm">{fmtSec(times.machPerPSec)}</div>
                       </div>
                     )}
                     {times.totalPerPSec != null && (
                       <div className="bg-white rounded-lg p-2 border border-slate-100">
-                        <div className="text-slate-400 mb-0.5">総時間/1P</div>
+                        <div className="text-slate-400 mb-0.5">{tr("mcRecordPage.totalTimePerP", "総時間/1P")}</div>
                         <div className="font-bold text-slate-600 text-sm">{fmtSec(times.totalPerPSec)}</div>
                       </div>
                     )}
@@ -1567,9 +1572,9 @@ function McRecordPageInner() {
               )}
               {/* 備考 */}
               <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <label className="text-xs font-bold text-slate-500 block mb-1.5">備考</label>
+                <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.noteLabel3", "備考")}</label>
                 <textarea value={note} onChange={e => { setNote(e.target.value); console.log("[RECORD] 備考変更",{len:e.target.value.length,preview:e.target.value.slice(0,30)}); }} rows={3}
-                  placeholder="問題点・注意事項・特記事項"
+                  placeholder={tr("mcRecordPage.notePlaceholder", "問題点・注意事項・特記事項")}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none" />
                 <div className="text-right text-xs text-slate-400 mt-1">{note.length} / 1000</div>
               </div>
@@ -1582,7 +1587,7 @@ function McRecordPageInner() {
               <div className="flex gap-3 pb-4">
                 <button onClick={handleSubmit} disabled={saving || (!isAuthenticated && !sbMode)}
                   className="flex-1 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-bold py-3 rounded-xl text-sm transition-colors">
-                  {saving ? "登録中..." : editRecordId ? "✓ 更新（保存）" : "✓ 作業完了（登録）"}
+                  {saving ? tr("mcRecordPage.registeringLabel", "登録中...") : editRecordId ? tr("mcRecordPage.updateSaveButton", "✓ 更新（保存）") : tr("mcRecordPage.completeRegisterButton", "✓ 作業完了（登録）")}
                 </button>
                 <button onClick={() => {
                     resetForm();
@@ -1592,7 +1597,7 @@ function McRecordPageInner() {
                     }
                   }}
                   className="px-5 py-3 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-colors">
-                  ✗ キャンセル
+                  {tr("mcRecordPage.cancelButton2", "✗ キャンセル")}
                 </button>
               </div>
             </div>
@@ -1632,8 +1637,9 @@ function McRecordPageInner() {
 }
 
 export default function McRecordPage() {
+  const { t: tr } = useLanguage();
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen text-slate-400">読み込み中…</div>}>
+    <Suspense fallback={<div className="flex items-center justify-center h-screen text-slate-400">{tr("mcRecordPage.loadingEllipsis2","読み込み中…")}</div>}>
       <McRecordPageInner />
     </Suspense>
   );
