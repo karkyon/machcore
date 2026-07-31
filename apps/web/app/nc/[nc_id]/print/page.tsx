@@ -8,6 +8,7 @@ import { printApi, ncApi, machinesApi, Machine, PrintData, NcTool, downloadApi} 
 import { NcPartHeader } from "@/components/nc/NcPartHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 const STATUS_LABEL: Record<string, string> = {
   NEW:              "新規",
@@ -23,6 +24,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function PrintPage() {
+  const { t: tr } = useLanguage();
   const { nc_id } = useParams<{ nc_id: string }>();
   const ncId  = parseInt(nc_id);
   const router = useRouter();
@@ -144,10 +146,10 @@ export default function PrintPage() {
 
   const handleDownload = async () => {
     try {
-      if (!token) { alert("先に作業を開始してください"); return; }
+      if (!token) { alert(tr("ncPrintPage.startWorkFirstAlert","先に作業を開始してください")); return; }
       await downloadApi.pgFile(ncId, token);
     } catch {
-      alert("ダウンロードに失敗しました");
+      alert(tr("ncPrintPage.downloadFailedAlert","ダウンロードに失敗しました"));
     }
   };
 
@@ -167,16 +169,16 @@ export default function PrintPage() {
 
   const validateRepeat = (): string | null => {
     if (isNew) return null;
-    if (!repeatConfirmed) return '発行前の確認を完了してください';
-    if (repeatPurpose !== 'reference' && (!repeatQty || repeatQty < 1)) return 'ワーク数を入力してください';
-    if (repeatPurpose !== 'reference' && !repeatMachineId) return '使用機械を選択してください';
+    if (!repeatConfirmed) return tr("ncPrintPage.confirmBeforeIssueRequired2","発行前の確認を完了してください");
+    if (repeatPurpose !== 'reference' && (!repeatQty || repeatQty < 1)) return tr("ncPrintPage.inputWorkQtyRequired2","ワーク数を入力してください");
+    if (repeatPurpose !== 'reference' && !repeatMachineId) return tr("ncPrintPage.selectMachineRequired2","使用機械を選択してください");
     return null;
   };
 
   const handlePrint = async () => {
     // token は useAuth() から取得（localStorage は使わない）
     if (!token) {
-      setPrintError("認証トークンが取得できません。再度「この作業を開始する」から認証してください。");
+      setPrintError(tr("ncPrintPage.authTokenMissingMsg","認証トークンが取得できません。再度「この作業を開始する」から認証してください。"));
       return;
     }
     if (!nc) return;
@@ -208,10 +210,10 @@ export default function PrintPage() {
 
       // [v113] ブラウザプレビューは(新規・リピート問わず)作業セッションを終了しない。
       //   MC側と同一仕様: 実際にセッションを終える操作は「🖨 ダイレクト印刷」のみ。
-      showToast(isNew ? "📄 プレビューを開きました（DBに記録されません）" : "📄 プレビューを開きました（発行履歴に記録されます）");
+      showToast(isNew ? tr("ncPrintPage.previewOpenedNoRecordMsg","📄 プレビューを開きました（DBに記録されません）") : tr("ncPrintPage.previewOpenedRecordedMsg","📄 プレビューを開きました（発行履歴に記録されます）"));
     } catch (e: any) {
       console.error("[print] error:", e);
-      setPrintError(e.message ?? "PDF生成に失敗しました");
+      setPrintError(e.message ?? tr("ncPrintPage.pdfGenerateFailedMsg2","PDF生成に失敗しました"));
     } finally {
       setPrinting(false);
     }
@@ -219,7 +221,7 @@ export default function PrintPage() {
 
   // ── ダイレクト印刷 ──
   const handleDirectPrint = async () => {
-    if (!token) { setPrintError("認証が必要です"); return; }
+    if (!token) { setPrintError(tr("ncPrintPage.authRequired3","認証が必要です")); return; }
     const vErr = validateRepeat();
     if (vErr) { setPrintError(vErr); return; }
     setDirectPrinting(true); setPrintError(null);
@@ -239,7 +241,7 @@ export default function PrintPage() {
       showToast(`✅ ${result.message}`);
       setTimeout(() => router.push(`/nc/${ncId}`), 1500);
     } catch (e: any) {
-      setPrintError(e.message ?? "印刷に失敗しました");
+      setPrintError(e.message ?? tr("ncPrintPage.printFailedMsg2","印刷に失敗しました"));
     } finally { setDirectPrinting(false); }
   };
 
@@ -253,12 +255,12 @@ export default function PrintPage() {
   // ── ローディング ──
   if (loadError) return (
     <div className="min-h-screen flex items-center justify-center text-red-500 text-sm">
-      読み込みエラー: {loadError}
+      {tr("ncPrintPage.loadErrorPrefix2", "読み込みエラー: ")}{loadError}
     </div>
   );
   if (!nc) return (
     <div className="min-h-screen flex items-center justify-center text-slate-400 text-sm">
-      読み込み中…
+      {tr("ncPrintPage.loadingEllipsis6", "読み込み中…")}
     </div>
   );
 
@@ -268,11 +270,11 @@ export default function PrintPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 max-w-md w-full text-center">
         <div className="text-5xl mb-4">🔒</div>
-        <h2 className="text-slate-700 font-bold text-lg mb-2">段取シートはまだ利用できません</h2>
-        <p className="text-slate-400 text-sm mb-6">この新規登録はまだ確定していません。「変更・登録」で「✓ 作業完了（登録）」を行うと利用できるようになります。</p>
+        <h2 className="text-slate-700 font-bold text-lg mb-2">{tr("ncPrintPage.setupSheetLockedTitle", "段取シートはまだ利用できません")}</h2>
+        <p className="text-slate-400 text-sm mb-6">{tr("ncPrintPage.setupSheetLockedDesc", "この新規登録はまだ確定していません。「変更・登録」で「✓ 作業完了（登録）」を行うと利用できるようになります。")}</p>
         <button onClick={() => router.push(`/nc/${ncId}/edit`)}
           className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl transition-colors">
-          変更・登録へ戻る
+          {tr("ncPrintPage.backToEditButton3", "変更・登録へ戻る")}
         </button>
       </div>
     </div>
@@ -291,22 +293,22 @@ export default function PrintPage() {
             <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
             </span>
-            NC詳細
+            {tr("ncPrintPage.ncDetailTabLink4", "NC詳細")}
           </button>
           <span className="text-slate-600">|</span>
           <button onClick={() => router.push("/nc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>ダッシュボードへ
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>{tr("ncPrintPage.backToDashboardLink4", "ダッシュボードへ")}
           </button>
           <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
-          <span className="text-sm font-medium flex items-center gap-1.5">段取シート</span>
+          <span className="text-sm font-medium flex items-center gap-1.5">{tr("ncPrintPage.setupSheetTitle2", "段取シート")}</span>
           <span className="ml-auto">
             {isAuthenticated && operator ? (
               <span className="text-[11px] bg-amber-600 text-white px-3 py-1 rounded font-bold">
-                作業中: {operator.name}　{fmtElapsed(elapsed)}
+                {tr("ncPrintPage.workingStatus3", "作業中: {name}　{elapsed}").replace("{name}", operator.name).replace("{elapsed}", fmtElapsed(elapsed))}
               </span>
             ) : (
               <span className="text-[11px] text-slate-400 bg-slate-700 px-2 py-1 rounded">
-                🔒 認証待ち
+                {tr("ncPrintPage.authWaiting3", "🔒 認証待ち")}
               </span>
             )}
           </span>
@@ -319,20 +321,20 @@ export default function PrintPage() {
       <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
         <button onClick={() => router.push(`/nc/${ncId}`)}
           className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>NC詳細
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>{tr("ncPrintPage.ncDetailTabLink4", "NC詳細")}
         </button>
         <button onClick={() => router.push(`/nc/${ncId}/edit`)}
           className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>{tr("ncPrintPage.editRegisterTabLink4", "変更・登録")}
         </button>
         <button onClick={() => router.push(`/nc/${ncId}/print`)}
           className="px-4 py-1.5 text-[12px] font-bold flex items-center gap-1.5 rounded-t border border-b-0 border-[#1b2a41] bg-[#1b2a41] text-white">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>{tr("ncPrintPage.setupSheetTabLink4", "段取シート")}
           {isAuthenticated && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse ml-0.5" />}
         </button>
         <button onClick={() => router.push(`/nc/${ncId}/record`)}
           className="px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>{tr("ncPrintPage.workRecordTabLink4", "作業記録")}
         </button>
       </nav>
 
@@ -355,10 +357,10 @@ export default function PrintPage() {
                   <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto mb-3">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                   </div>
-                  <h2 className="text-lg font-bold text-slate-700">段取シート 発行</h2>
+                  <h2 className="text-lg font-bold text-slate-700">{tr("ncPrintPage.setupSheetIssueTitle2", "段取シート 発行")}</h2>
                   <p className="text-sm text-slate-500 mt-1">
-                    段取シートをA4 PDFで出力します。<br />
-                    作業を開始するには認証が必要です。
+                    {tr("ncPrintPage.setupSheetIssueDesc1", "段取シートをA4 PDFで出力します。")}<br />
+                    {tr("ncPrintPage.setupSheetIssueDesc2", "作業を開始するには認証が必要です。")}
                   </p>
                 </div>
 
@@ -372,9 +374,9 @@ export default function PrintPage() {
                   className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  この作業を開始する（担当者確認）
+                  {tr("ncPrintPage.startWorkButton4", "この作業を開始する（担当者確認）")}
                 </button>
-                <p className="text-xs text-slate-400 text-center mt-2">担当者確認後に印刷・USB書き出しができます</p>
+                <p className="text-xs text-slate-400 text-center mt-2">{tr("ncPrintPage.authAfterHint", "担当者確認後に印刷・USB書き出しができます")}</p>
               </div>
             </div>
           )}
@@ -387,22 +389,22 @@ export default function PrintPage() {
                 repeatConfirmed ? (
                   <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-wrap">
-                      <span className="font-bold text-emerald-700">✅ 発行前の確認完了</span>
-                      <span className="text-slate-600">用途: <span className="font-bold">{repeatPurpose === 'setup' ? '段取' : repeatPurpose === 'reference' ? '参考資料' : '連続使用'}</span></span>
-                      {repeatPurpose !== 'reference' && <span className="text-slate-600">W数: <span className="font-bold">{repeatQty}</span></span>}
+                      <span className="font-bold text-emerald-700">{tr("ncPrintPage.confirmCompleteMsg2", "✅ 発行前の確認完了")}</span>
+                      <span className="text-slate-600">{tr("ncPrintPage.purposeLabel3", "用途: ")}<span className="font-bold">{repeatPurpose === 'setup' ? tr("ncPrintPage.purposeSetup2", "段取") : repeatPurpose === 'reference' ? tr("ncPrintPage.purposeReference2", "参考資料") : tr("ncPrintPage.purposeContinuous2", "連続使用")}</span></span>
+                      {repeatPurpose !== 'reference' && <span className="text-slate-600">{tr("ncPrintPage.quantityWLabel3", "W数: ")}<span className="font-bold">{repeatQty}</span></span>}
                       {repeatPurpose !== 'reference' && repeatMachineId && (
-                        <span className="text-slate-600">機械: <span className="font-bold">{machines.find(m => m.id === repeatMachineId)?.machineCode ?? '—'}</span></span>
+                        <span className="text-slate-600">{tr("ncPrintPage.machineLabel5", "機械: ")}<span className="font-bold">{machines.find(m => m.id === repeatMachineId)?.machineCode ?? '—'}</span></span>
                       )}
                     </div>
-                    <button onClick={() => setRepeatConfirmed(false)} className="text-xs text-slate-500 underline ml-4 shrink-0">変更</button>
+                    <button onClick={() => setRepeatConfirmed(false)} className="text-xs text-slate-500 underline ml-4 shrink-0">{tr("ncPrintPage.changeButton2", "変更")}</button>
                   </div>
                 ) : (
                   <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 space-y-3">
-                    <div className="text-sm font-bold text-amber-800">⚠️ 発行前の確認</div>
+                    <div className="text-sm font-bold text-amber-800">{tr("ncPrintPage.confirmBeforeIssueTitle2", "⚠️ 発行前の確認")}</div>
                     <div>
-                      <label className="text-xs font-bold text-slate-600 mb-1 block">用途</label>
+                      <label className="text-xs font-bold text-slate-600 mb-1 block">{tr("ncPrintPage.purposeLabel3b", "用途")}</label>
                       <div className="flex gap-3 flex-wrap">
-                        {([['setup','段取'],['reference','参考資料'],['continuous','連続使用']] as const).map(([val,label]) => (
+                        {([['setup', tr("ncPrintPage.purposeSetup2", "段取")],['reference', tr("ncPrintPage.purposeReference2", "参考資料")],['continuous', tr("ncPrintPage.purposeContinuous2", "連続使用")]] as const).map(([val,label]) => (
                           <label key={val} className="flex items-center gap-1.5 cursor-pointer">
                             <input type="radio" name="repeatPurpose" value={val}
                               checked={repeatPurpose === val}
@@ -415,7 +417,7 @@ export default function PrintPage() {
                     </div>
                     {repeatPurpose !== 'reference' && (
                       <div>
-                        <label className="text-xs font-bold text-slate-600 mb-1 block">ワーク数 <span className="text-red-500">*</span></label>
+                        <label className="text-xs font-bold text-slate-600 mb-1 block">{tr("ncPrintPage.workQtyLabel2", "ワーク数 ")}<span className="text-red-500">*</span></label>
                         <input type="number" min={1} value={repeatQty}
                           onChange={e => setRepeatQty(Math.max(1, parseInt(e.target.value) || 1))}
                           className="w-24 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400" />
@@ -423,10 +425,10 @@ export default function PrintPage() {
                     )}
                     {repeatPurpose !== 'reference' && (
                       <div>
-                        <label className="text-xs font-bold text-slate-600 mb-1 block">使用機械 <span className="text-red-500">*</span></label>
+                        <label className="text-xs font-bold text-slate-600 mb-1 block">{tr("ncPrintPage.usedMachineLabel3", "使用機械 ")}<span className="text-red-500">*</span></label>
                         <select value={repeatMachineId ?? ""} onChange={e => setRepeatMachineId(e.target.value ? Number(e.target.value) : null)}
                           className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-                          <option value="">選択してください</option>
+                          <option value="">{tr("ncPrintPage.selectPlaceholder4", "選択してください")}</option>
                           {machines.map(m => <option key={m.id} value={m.id}>{m.machineCode}</option>)}
                         </select>
                       </div>
@@ -434,13 +436,13 @@ export default function PrintPage() {
                     <div className="flex justify-end">
                       <button
                         onClick={() => {
-                          if (repeatPurpose !== 'reference' && (!repeatQty || repeatQty < 1)) { setPrintError('ワーク数を入力してください'); return; }
-                          if (repeatPurpose !== 'reference' && !repeatMachineId) { setPrintError('使用機械を選択してください'); return; }
+                          if (repeatPurpose !== 'reference' && (!repeatQty || repeatQty < 1)) { setPrintError(tr("ncPrintPage.inputWorkQtyRequired2","ワーク数を入力してください")); return; }
+                          if (repeatPurpose !== 'reference' && !repeatMachineId) { setPrintError(tr("ncPrintPage.selectMachineRequired2","使用機械を選択してください")); return; }
                           setPrintError(null);
                           setRepeatConfirmed(true);
                         }}
                         className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold rounded-lg transition-colors"
-                      >確認完了</button>
+                      >{tr("ncPrintPage.confirmCompleteButton2", "確認完了")}</button>
                     </div>
                   </div>
                 )
@@ -452,7 +454,7 @@ export default function PrintPage() {
               <div className="flex-1 min-w-0">
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                   <h2 className="text-sm font-bold text-slate-600 mb-4 flex items-center gap-2">
-                    📋 プレビュー（出力内容確認）
+                    {tr("ncPrintPage.previewTitle", "📋 プレビュー（出力内容確認）")}
                   </h2>
                   <DataPreview nc={nc} showClamp={includeClamp} showTools={includeTools} />
                 </div>
@@ -464,21 +466,21 @@ export default function PrintPage() {
                 {/* 印刷オプション */}
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                   <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
-                    印刷オプション
+                    {tr("ncPrintPage.printOptionsTitle", "印刷オプション")}
                   </h3>
                   <div className="space-y-2">
                     <CheckOption
-                      label="加工リストを含める"
+                      label={tr("ncPrintPage.includeToolListLabel","加工リストを含める")}
                       checked={includeTools}
                       onChange={setIncludeTools}
                     />
                     <CheckOption
-                      label="クランプ・備考を含める"
+                      label={tr("ncPrintPage.includeClampNoteLabel","クランプ・備考を含める")}
                       checked={includeClamp}
                       onChange={setIncludeClamp}
                     />
                     <CheckOption
-                      label="図を含める"
+                      label={tr("ncPrintPage.includeDrawingsLabel2","図を含める")}
                       checked={includeDrawings}
                       onChange={setIncludeDrawings}
                     />
@@ -493,8 +495,8 @@ export default function PrintPage() {
                     className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     {printing
-                      ? <><span className="animate-spin">⏳</span> 生成中…</>
-                      : <><span>📄</span> {isNew ? "プレビュー（透かし入り・記録なし）" : "PDFプレビュー（ブラウザで開く）"}</>
+                      ? <><span className="animate-spin">⏳</span> {tr("ncPrintPage.generatingLabel","生成中…")}</>
+                      : <><span>📄</span> {isNew ? tr("ncPrintPage.previewWatermarkButton2","プレビュー（透かし入り・記録なし）") : tr("ncPrintPage.previewBrowserButton2","PDFプレビュー（ブラウザで開く）")}</>
                     }
                   </button>
               <button
@@ -502,28 +504,28 @@ export default function PrintPage() {
                 disabled={directPrinting || printing}
                 className="w-full py-3 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
               >
-                {directPrinting ? "印刷中..." : "🖨 ダイレクト印刷（プリンタへ直接送信）"}
+                {directPrinting ? tr("ncPrintPage.printingLabel", "印刷中...") : tr("ncPrintPage.directPrintButton2", "🖨 ダイレクト印刷（プリンタへ直接送信）")}
               </button>
                   <button
                     onClick={handleDownload}
                     disabled={printing}
                     className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors"
                   >
-                    💾 NCプログラム → USB
+                    {tr("ncPrintPage.usbDownloadButton", "💾 NCプログラム → USB")}
                   </button>
                                     <button
                     onClick={handleCancel}
                     disabled={printing}
                     className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm rounded-lg transition-colors"
                   >
-                    ✗ キャンセル
+                    {tr("ncPrintPage.cancelButton5", "✗ キャンセル")}
                   </button>
                 </div>
 
                 {/* 注意書き */}
                 <div className="text-[10px] text-slate-400 space-y-1 px-1">
-                  <p>• プレビューはPDFが新しいタブで開きます{isNew ? "（透かし入り・DB記録なし）" : "（発行履歴に記録されます）"}</p>
-                  <p>• 「ダイレクト印刷」がプリンタへの実送信で、作業セッションを終了します</p>
+                  <p>{tr("ncPrintPage.previewOpenNote", "• プレビューはPDFが新しいタブで開きます{note}").replace("{note}", isNew ? tr("ncPrintPage.previewNoteWatermark","（透かし入り・DB記録なし）") : tr("ncPrintPage.previewNoteRecorded","（発行履歴に記録されます）"))}</p>
+                  <p>{tr("ncPrintPage.directPrintNote", "• 「ダイレクト印刷」がプリンタへの実送信で、作業セッションを終了します")}</p>
                 </div>
               </div>
             </div>
@@ -563,28 +565,29 @@ function DataPreview({
   showClamp?: boolean;
   showTools?: boolean;
 }) {
+  const { t: tr } = useLanguage();
   return (
     <div className="space-y-4">
       {/* 加工情報 + ファイル情報 */}
       <div className="grid grid-cols-2 gap-3">
-        <InfoBox title="加工情報">
-          <InfoRow label="工程"     value={`L${nc.processL}`} />
-          <InfoRow label="機械"     value={nc.machine?.machineName ?? nc.machine?.machineCode ?? "—"} />
-          <InfoRow label="加工時間" value={nc.machiningTime != null ? `${nc.machiningTime} 分` : "—"} />
-          <InfoRow label="O番号"    value={nc.oNumber ?? "—"} />
+        <InfoBox title={tr("ncPrintPage.processingInfoTitle","加工情報")}>
+          <InfoRow label={tr("ncPrintPage.processLabel2","工程")}     value={`L${nc.processL}`} />
+          <InfoRow label={tr("ncPrintPage.machineLabel6","機械")}     value={nc.machine?.machineName ?? nc.machine?.machineCode ?? "—"} />
+          <InfoRow label={tr("ncPrintPage.machiningTimeLabel2","加工時間")} value={nc.machiningTime != null ? `${nc.machiningTime} ${tr("ncPrintPage.unitMinute2","分")}` : "—"} />
+          <InfoRow label={tr("ncPrintPage.oNumberLabel2","O番号")}    value={nc.oNumber ?? "—"} />
         </InfoBox>
-        <InfoBox title="ファイル情報">
-          <InfoRow label="フォルダ" value={nc.folderName} />
-          <InfoRow label="ファイル" value={nc.fileName} />
-          <InfoRow label="登録者"   value={nc.registrar.name} />
-          <InfoRow label="承認者"   value={nc.approver?.name ?? "未承認"} />
+        <InfoBox title={tr("ncPrintPage.fileInfoTitle","ファイル情報")}>
+          <InfoRow label={tr("ncPrintPage.folderLabel2","フォルダ")} value={nc.folderName} />
+          <InfoRow label={tr("ncPrintPage.fileLabel2","ファイル")} value={nc.fileName} />
+          <InfoRow label={tr("ncPrintPage.registrarLabel","登録者")}   value={nc.registrar.name} />
+          <InfoRow label={tr("ncPrintPage.approverLabel4","承認者")}   value={nc.approver?.name ?? tr("ncPrintPage.notApprovedShort3","未承認")} />
         </InfoBox>
       </div>
 
       {/* 掴代 */}
       {showClamp && nc.clampAllowance && (
         <div>
-          <p className="text-xs font-bold text-slate-500 mb-1">掴代</p>
+          <p className="text-xs font-bold text-slate-500 mb-1">{tr("ncPrintPage.clampAllowanceLabel2", "掴代")}</p>
           <p className="text-xs text-slate-700 bg-sky-50 border border-sky-200 rounded-lg p-3 font-mono">
             {nc.clampAllowance} mm
           </p>
@@ -594,7 +597,7 @@ function DataPreview({
       {/* クランプ・備考 */}
       {showClamp && nc.clampNote && (
         <div>
-          <p className="text-xs font-bold text-slate-500 mb-1">クランプ・備考</p>
+          <p className="text-xs font-bold text-slate-500 mb-1">{tr("ncPrintPage.clampNoteLabel3", "クランプ・備考")}</p>
           <pre className="text-xs text-slate-700 bg-yellow-50 border border-yellow-200 rounded-lg p-3 whitespace-pre-wrap font-sans leading-relaxed">
             {nc.clampNote}
           </pre>
@@ -604,12 +607,12 @@ function DataPreview({
       {/* 加工リスト */}
       {showTools && nc.tools.length > 0 && (
         <div>
-          <p className="text-xs font-bold text-slate-500 mb-1">加工リスト（{nc.tools.length} 本）</p>
+          <p className="text-xs font-bold text-slate-500 mb-1">{tr("ncPrintPage.toolListLabel2", "加工リスト（{n} 本）").replace("{n}", String(nc.tools.length))}</p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
-                  {["No", "加工種別", "チップ型番", "ホルダー型番", "ノーズR", "T番号"].map(h => (
+                  {[tr("ncPrintPage.colNo2","No"), tr("ncPrintPage.colProcessType","加工種別"), tr("ncPrintPage.colChipModel","チップ型番"), tr("ncPrintPage.colHolderModel","ホルダー型番"), tr("ncPrintPage.colNoseR2","ノーズR"), tr("ncPrintPage.colTNumber","T番号")].map(h => (
                     <th key={h} className="px-2 py-1.5 text-left font-bold border-b border-slate-200 text-[10px]">{h}</th>
                   ))}
                 </tr>
@@ -633,7 +636,7 @@ function DataPreview({
 
       {!showTools && nc.tools.length > 0 && (
         <p className="text-xs text-slate-400 italic">
-          ※ 加工リスト {nc.tools.length} 本（オプションにより非表示）
+          {tr("ncPrintPage.toolListHiddenNote", "※ 加工リスト {n} 本（オプションにより非表示）").replace("{n}", String(nc.tools.length))}
         </p>
       )}
     </div>
