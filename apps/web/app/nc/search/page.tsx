@@ -3,9 +3,11 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ncApi, NcSearchResult, RecentAccess } from "@/lib/api";
 import { toJstMonthDayTimeString } from "@/lib/dateUtils";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
-const STATUS_LABEL: Record<string, string> = {
-  NEW: "新規", PENDING_APPROVAL: "未承認", APPROVED: "承認済", CHANGING: "変更中",
+const STATUS_KEY: Record<string, string> = {
+  NEW: "search.statusNew", PENDING_APPROVAL: "search.statusPendingApproval",
+  APPROVED: "search.statusApproved", CHANGING: "search.statusChanging",
 };
 const STATUS_COLOR: Record<string, string> = {
   NEW: "bg-blue-100 text-blue-700", PENDING_APPROVAL: "bg-amber-100 text-amber-700",
@@ -26,6 +28,7 @@ function groupByPart(results: NcSearchResult[]): PartGroup[] {
 }
 export default function NcSearchPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [ncIdInput,      setNcIdInput]      = useState("");
   const [partIdInput,    setPartIdInput]    = useState("");
   const [drawingNoInput, setDrawingNoInput] = useState("");
@@ -80,68 +83,68 @@ export default function NcSearchPage() {
       <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
         {adminInfo?.logoPath && <img src={adminInfo.logoPath.replace(/^apps\/web\/public/,"").replace(/^\/+/,"/")} alt="logo" className="h-7 object-contain" />}
         <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
-        <span className="text-base font-medium">{adminInfo?.companyName ?? "NC 旋盤管理システム"}</span>
+        <span className="text-base font-medium">{adminInfo?.companyName ?? t("search.ncSystemTitle", "NC 旋盤管理システム")}</span>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => router.push("/nc")} className="text-xs bg-slate-600 hover:bg-slate-500 text-white font-bold px-3 py-1.5 rounded-lg transition-colors">← ダッシュボードへ</button>
-          <span className="text-[10px] text-slate-400 bg-slate-700 px-2 py-0.5 rounded">認証不要</span>
+          <button onClick={() => router.push("/nc")} className="text-xs bg-slate-600 hover:bg-slate-500 text-white font-bold px-3 py-1.5 rounded-lg transition-colors">{t("search.backToDashboard", "← ダッシュボードへ")}</button>
+          <span className="text-[10px] text-slate-400 bg-slate-700 px-2 py-0.5 rounded">{t("search.noAuthRequired", "認証不要")}</span>
           {isAdmin && <div className="flex items-center gap-2 pl-2 border-l border-slate-700">
-            <span className="text-[11px] text-slate-300">管理者</span>
-            <button onClick={() => router.push("/admin")} className="text-xs bg-sky-600 hover:bg-sky-700 px-2 py-0.5 rounded font-medium">管理画面</button>
+            <span className="text-[11px] text-slate-300">{t("search.adminBadge", "管理者")}</span>
+            <button onClick={() => router.push("/admin")} className="text-xs bg-sky-600 hover:bg-sky-700 px-2 py-0.5 rounded font-medium">{t("search.adminPanelLink", "管理画面")}</button>
           </div>}
         </div>
       </header>
       <div className="flex flex-1 min-h-0">
         <aside className="w-[240px] shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
           <div className="p-4 space-y-2">
-            <h2 className="text-sm font-bold text-slate-700">NC 部品検索</h2>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide pt-1">ID 直接指定</div>
+            <h2 className="text-sm font-bold text-slate-700">{t("search.ncPartSearch", "NC 部品検索")}</h2>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide pt-1">{t("search.idDirect", "ID 直接指定")}</div>
             <div>
-              <label className="text-sm font-bold text-slate-700 block mb-1">NC ID（K_id）</label>
-              <input type="number" value={ncIdInput} onChange={e => setNcIdInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="例: 92" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+              <label className="text-sm font-bold text-slate-700 block mb-1">{t("search.ncIdWithKId", "NC ID（K_id）")}</label>
+              <input type="number" value={ncIdInput} onChange={e => setNcIdInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="92" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
             </div>
             <div>
-              <label className="text-sm font-bold text-slate-700 block mb-1">部品ID</label>
-              <input type="number" value={partIdInput} onChange={e => setPartIdInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="例: 3807" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
-              <div className="text-[10px] text-slate-400 mt-0.5">※複数工程は別行で表示</div>
+              <label className="text-sm font-bold text-slate-700 block mb-1">{t("search.partIdLabel", "部品ID")}</label>
+              <input type="number" value={partIdInput} onChange={e => setPartIdInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="3807" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+              <div className="text-[10px] text-slate-400 mt-0.5">{t("search.multiProcessNote", "※複数工程は別行で表示")}</div>
             </div>
             <div className="border-t border-slate-100 pt-2">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">テキスト条件</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">{t("search.textCondition", "テキスト条件")}</div>
               <div className="space-y-2">
                 <div>
-                  <label className="text-sm font-bold text-slate-700 block mb-1">図面番号</label>
+                  <label className="text-sm font-bold text-slate-700 block mb-1">{t("search.drawingNoLabel", "図面番号")}</label>
                   <input type="text" value={drawingNoInput} onChange={e => setDrawingNoInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="F67487" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
                 </div>
                 <div>
-                  <label className="text-sm font-bold text-slate-700 block mb-1">名称</label>
-                  <input type="text" value={nameInput} onChange={e => setNameInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="部品名称の一部" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+                  <label className="text-sm font-bold text-slate-700 block mb-1">{t("search.nameLabel", "名称")}</label>
+                  <input type="text" value={nameInput} onChange={e => setNameInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder={t("search.namePlaceholder", "部品名称の一部")} className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
                 </div>
                 <div>
-                  <label className="text-sm font-bold text-slate-700 block mb-1">納入先</label>
+                  <label className="text-sm font-bold text-slate-700 block mb-1">{t("search.clientLabel", "納入先")}</label>
                   <select value={clientInput} onChange={e => setClientInput(e.target.value)} className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-400">
-                    <option value="">— すべて —</option>
+                    <option value="">{t("search.allOption", "— すべて —")}</option>
                     {clientNames.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm font-bold text-slate-700 block mb-1">主機種型式</label>
-                  <input type="text" value={machineInput} onChange={e => setMachineInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="例: SL-25" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+                  <label className="text-sm font-bold text-slate-700 block mb-1">{t("search.machineTypeLabel", "主機種型式")}</label>
+                  <input type="text" value={machineInput} onChange={e => setMachineInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="SL-25" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
                 </div>
               </div>
             </div>
-            <button onClick={handleSearch} disabled={loading} className="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white py-2 rounded-lg text-sm font-bold transition-colors mt-1">{loading ? "検索中..." : "● 検索"}</button>
-            {results.length > 0 && <button onClick={() => { setNcIdInput(""); setPartIdInput(""); setDrawingNoInput(""); setNameInput(""); setClientInput(""); setMachineInput(""); setResults([]); setTotal(null); }} className="w-full border border-slate-200 text-slate-500 hover:bg-slate-50 py-1.5 rounded-lg text-xs">クリア</button>}
-            {total !== null && <div className="text-xs text-slate-500 bg-slate-50 rounded p-2">{total > 0 ? <span><b className="text-slate-700">{total}</b> 件ヒット</span> : <span className="text-red-500">0件（条件を変更してください）</span>}</div>}
+            <button onClick={handleSearch} disabled={loading} className="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white py-2 rounded-lg text-sm font-bold transition-colors mt-1">{loading ? t("search.searching", "検索中...") : t("search.searchButton", "● 検索")}</button>
+            {results.length > 0 && <button onClick={() => { setNcIdInput(""); setPartIdInput(""); setDrawingNoInput(""); setNameInput(""); setClientInput(""); setMachineInput(""); setResults([]); setTotal(null); }} className="w-full border border-slate-200 text-slate-500 hover:bg-slate-50 py-1.5 rounded-lg text-xs">{t("search.clearButton", "クリア")}</button>}
+            {total !== null && <div className="text-xs text-slate-500 bg-slate-50 rounded p-2">{total > 0 ? <span>{t("search.hitCount","{n} 件ヒット").replace("{n}", String(total))}</span> : <span className="text-red-500">{t("search.noHit", "0件（条件を変更してください）")}</span>}</div>}
 
-            {isAdmin && <div className="pt-2 border-t border-slate-100 text-center"><button onClick={() => router.push("/admin")} className="text-xs text-sky-500 hover:underline">▶ 管理画面へ</button></div>}
+            {isAdmin && <div className="pt-2 border-t border-slate-100 text-center"><button onClick={() => router.push("/admin")} className="text-xs text-sky-500 hover:underline">{t("search.adminPanelLinkArrow", "▶ 管理画面へ")}</button></div>}
           </div>
         </aside>
         <main className="w-[460px] shrink-0 border-r border-slate-200 flex flex-col overflow-hidden">
           <div className="px-4 py-2.5 border-b border-slate-100 bg-white shrink-0 flex items-center justify-between">
-            <span className="text-sm font-bold text-slate-700">検索結果</span>
-            {total !== null && total > 0 && <span className="text-xs text-slate-400">{total}件</span>}
+            <span className="text-sm font-bold text-slate-700">{t("search.resultTitle", "検索結果")}</span>
+            {total !== null && total > 0 && <span className="text-xs text-slate-400">{t("search.hitCountShort","{n}件").replace("{n}", String(total))}</span>}
           </div>
           <div className="flex-1 overflow-y-auto">
-            {results.length === 0 && total === null && <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2"><div className="text-4xl">🔍</div><p className="text-sm">左の検索フォームから検索してください</p></div>}
+            {results.length === 0 && total === null && <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2"><div className="text-4xl">🔍</div><p className="text-sm">{t("search.emptyStatePrompt", "左の検索フォームから検索してください")}</p></div>}
             {groups.map((g, gi) => (
               <div key={gi} className="border-b-2 border-slate-300">
                 <div className="px-4 py-2 bg-green-50 flex items-center gap-3 border-b border-slate-200">
@@ -157,12 +160,12 @@ export default function NcSearchPage() {
                     <div key={r.id} onClick={() => handleSelect(r.id)}
                       className={`px-4 py-2 flex items-center gap-3 cursor-pointer transition-colors border-b border-dashed border-slate-200 ${selected===r.id ? "bg-sky-50" : "hover:bg-slate-50"}`}>
                       <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold shrink-0 ${colorClass}`}>{ri+1}</span>
-                      <span className="font-mono text-xs text-slate-600 shrink-0">NC ID : {r.nc_id}</span>
+                      <span className="font-mono text-xs text-slate-600 shrink-0">{t("search.ncIdColon","NC ID : {id}").replace("{id}", String(r.nc_id))}</span>
                       {r.machine_code && <span className="text-sm text-slate-700 font-medium shrink-0">{r.machine_code}</span>}
                       {(r as any).machining_time_sec && <span className="text-xs text-slate-400 shrink-0">⏱ {fmtTime((r as any).machining_time_sec)}</span>}
                       <span className="ml-auto flex items-center gap-2">
                         {r.version && <span className="text-xs text-slate-400">Ver. {r.version}</span>}
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${STATUS_COLOR[r.status]??"bg-slate-100 text-slate-600"}`}>{STATUS_LABEL[r.status]??r.status}</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${STATUS_COLOR[r.status]??"bg-slate-100 text-slate-600"}`}>{STATUS_KEY[r.status] ? t(STATUS_KEY[r.status]) : r.status}</span>
                       </span>
                     </div>
                   );
@@ -173,7 +176,7 @@ export default function NcSearchPage() {
         </main>
         <section className="flex-1 overflow-y-auto p-5">
           {recent.length > 0 ? (<>
-            <h3 className="text-sm font-bold text-slate-600 mb-3">最近のアクセス <span className="font-normal text-slate-400 text-xs">直近5件の操作履歴</span></h3>
+            <h3 className="text-sm font-bold text-slate-600 mb-3">{t("search.recentAccess", "最近のアクセス")} <span className="font-normal text-slate-400 text-xs">{t("search.recentAccess5", "直近5件の操作履歴")}</span></h3>
             <div className="space-y-2">
               {recent.map((r: any,i) => (
                 <div key={i} onClick={() => handleSelect(r.nc_id)} className="bg-white border border-slate-200 rounded-lg px-4 py-3 cursor-pointer hover:border-sky-300 hover:shadow-sm transition-all flex items-center gap-3">
@@ -185,13 +188,13 @@ export default function NcSearchPage() {
                     <div className="text-xs text-slate-500 truncate">{r.part_name}</div>
                   </div>
                   <div className="text-right shrink-0">
-                    {r.operator_name && <div className="text-[11px] text-slate-500">👤 {r.operator_name}</div>}
+                    {r.operator_name && <div className="text-[11px] text-slate-500">{t("search.operatorPrefix","👤 {name}").replace("{name}", r.operator_name)}</div>}
                     {r.accessed_at && <div className="text-[10px] text-slate-400">{toJstMonthDayTimeString(r.accessed_at)}</div>}
                   </div>
                 </div>
               ))}
             </div>
-          </>) : (<div className="flex flex-col items-center justify-center h-full text-slate-300 gap-3"><div className="text-5xl">📋</div><p className="text-sm">操作履歴はまだありません</p></div>)}
+          </>) : (<div className="flex flex-col items-center justify-center h-full text-slate-300 gap-3"><div className="text-5xl">📋</div><p className="text-sm">{t("search.noHistoryYet", "操作履歴はまだありません")}</p></div>)}
         </section>
       </div>
     </div>
