@@ -1779,15 +1779,17 @@ private buildSetupSheetHtml(data: any, opts: any): string {
     });
     if (recs.length === 0) return null;
 
+    // v094バグ修正: NCにはMC側のような複数ファイルフォルダ構成は存在せず、
+    // resolveUploadNamingでisFolderは常にfalseを返す。しかしncFile.folderNameには
+    // サーバー内部の保存パス組み立て用の値(NcMachiningDetail.folderName由来)が
+    // 常に入るため、これをそのままUploadAgentへ渡すとPG->USB書き出し時に
+    // 単体ファイルなのに不要なサブフォルダがUSB側に作られてしまっていた。
+    // NCではfolderNameをUploadAgentへ一切渡さない。
     const files: Array<{ name: string; folderName?: string; content: string }> = [];
     for (const rec of recs) {
       if (!fs.existsSync(rec.filePath)) continue;
       const buf = fs.readFileSync(rec.filePath);
-      if (rec.folderName) {
-        files.push({ name: rec.originalName, folderName: rec.folderName, content: buf.toString('base64') });
-      } else {
-        files.push({ name: rec.originalName, content: buf.toString('base64') });
-      }
+      files.push({ name: rec.originalName, content: buf.toString('base64') });
     }
     if (files.length === 0) return null;
     return { files };
