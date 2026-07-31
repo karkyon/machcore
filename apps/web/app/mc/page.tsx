@@ -464,7 +464,7 @@ export default function McDashboard() {
           <span className="text-slate-400 text-xs">|</span>
           <span className="text-sm font-medium">{t("dashboard.mcTitle", "MC マシニング ダッシュボード")}</span>
           <div className="ml-auto flex items-center gap-2 text-xs">
-            <LanguageSwitcher compact />
+            <LanguageSwitcher compact hidden />
             {lastAt && <span className="text-slate-400">{t("dashboard.updatedAt", "更新: {time}").replace("{time}", toJstTimeString(lastAt) ?? "")}</span>}
             <button onClick={load} className="bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 rounded transition-colors text-slate-300">
               {t("dashboard.refresh", "↺ 更新")}

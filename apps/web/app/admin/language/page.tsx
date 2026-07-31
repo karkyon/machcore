@@ -10,7 +10,7 @@ const getToken = () => sessionStorage.getItem("admin_token") ?? "";
 export default function AdminLanguagePage() {
   const router = useRouter();
   const pathname = usePathname();
-  const { t, lang, dictionaries, reloadCustomDictionaries } = useLanguage();
+  const { t, lang, setLang, dictionaries, reloadCustomDictionaries } = useLanguage();
 
   const [defaultLang, setDefaultLang] = useState<"ja" | "vi">("ja");
   const [loading, setLoading] = useState(true);
@@ -37,6 +37,7 @@ export default function AdminLanguagePage() {
     try {
       await languageApi.setDefault(l, getToken());
       setDefaultLang(l);
+      setLang(l); // この管理画面自体の表示も即座に切り替える
       showToast(t("common.saveSuccess", "保存しました"), true);
     } catch {
       showToast(t("common.saveFailed", "保存に失敗しました"), false);

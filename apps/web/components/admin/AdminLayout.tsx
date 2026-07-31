@@ -42,7 +42,7 @@ export function AdminLayout({ pathname, children }: AdminLayoutProps) {
           <span className="text-sm font-bold text-slate-800 tracking-wide">{t("adminLayout.panelTitle", "MachCore 管理パネル")}</span>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <LanguageSwitcher compact />
+          <LanguageSwitcher compact hidden />
           <button onClick={() => router.push(sessionStorage.getItem("admin_origin") === "nc" ? "/nc" : "/mc")}
             className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded transition-colors">{t("common.backToDashboard", "← ダッシュボード")}</button>
           <button onClick={() => { sessionStorage.removeItem("admin_token"); router.push("/admin/login"); }}

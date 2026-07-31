@@ -90,7 +90,7 @@
     "uploadSuccess": "Đã tải lên từ điển",
     "uploadFailed": "Tải lên từ điển thất bại. Vui lòng kiểm tra định dạng JSON",
     "invalidJson": "Định dạng tệp JSON không hợp lệ",
-    "switchNote": "Bạn có thể thay đổi ngôn ngữ hiển thị bất cứ lúc nào từ nút chuyển ngôn ngữ ở góc trên bên phải (lưu theo thiết bị/cá nhân)."
+    "switchNote": "Khi lưu cài đặt này, thay đổi sẽ được áp dụng ngay cho tất cả màn hình MC/NC hiển thị tiếp theo. Không có cài đặt riêng theo từng người dùng hoặc thiết bị."
   },
   "dashboard": {
     "switchLanguage": "Chuyển ngôn ngữ",

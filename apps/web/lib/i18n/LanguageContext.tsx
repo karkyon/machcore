@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import jaBase from "./dictionaries/ja.json";
 import viBase from "./dictionaries/vi.json";
 
@@ -49,9 +50,15 @@ const LanguageContext = createContext<LanguageContextType>({
   reloadCustomDictionaries: async () => {},
 });
 
-const STORAGE_KEY = "machcore_lang";
-
+/**
+ * [仕様変更] 表示言語は個人・端末ごとの設定(localStorage)を廃止し、
+ * 管理画面(/admin/language)で設定した既定言語(system_settings.default_language)
+ * に完全に一元化した。ページ遷移(pathname変化)のたびにサーバーへ最新の
+ * 既定言語を問い合わせるため、管理者が言語設定を切り替えた直後から、
+ * 次にアクセスする全ユーザーのMC/NC画面に即座に反映される。
+ */
 export function LanguageProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [lang, setLangState] = useState<LangCode>("ja");
   const [customJa, setCustomJa] = useState<Dict | null>(null);
   const [customVi, setCustomVi] = useState<Dict | null>(null);
@@ -64,26 +71,24 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       setCustomJa(data?.custom_dictionaries?.ja ?? null);
       setCustomVi(data?.custom_dictionaries?.vi ?? null);
-      const stored = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-      if (stored === "ja" || stored === "vi") {
-        setLangState(stored);
-      } else if (data?.default_language === "ja" || data?.default_language === "vi") {
+      if (data?.default_language === "ja" || data?.default_language === "vi") {
         setLangState(data.default_language);
       }
     } catch {
-      // サーバー未応答時は日本語既定 + ローカル保存値で継続
-      const stored = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-      if (stored === "ja" || stored === "vi") setLangState(stored);
+      // サーバー未応答時は直前の表示言語のまま継続する
     } finally {
       setReady(true);
     }
   }, []);
 
-  useEffect(() => { loadServerConfig(); }, [loadServerConfig]);
+  // 初回マウント時、および画面遷移(pathname変化)のたびにサーバーの既定言語を再取得する。
+  // これにより「管理画面で言語を切り替えた直後、次に表示される画面から反映される」を実現する。
+  useEffect(() => { loadServerConfig(); }, [pathname, loadServerConfig]);
 
+  // [仕様変更] 個人設定の永続化(localStorage)は行わない。
+  // setLang はその場限りの表示切替(管理画面でのプレビュー等)のみに用いる。
   const setLang = useCallback((l: LangCode) => {
     setLangState(l);
-    if (typeof window !== "undefined") localStorage.setItem(STORAGE_KEY, l);
     if (typeof document !== "undefined") document.documentElement.lang = l === "vi" ? "vi" : "ja";
   }, []);
 

@@ -2,14 +2,17 @@
 import { useLanguage } from "../../lib/i18n/LanguageContext";
 
 /**
- * 言語切替スイッチャー。日本語/ベトナム語をワンクリックで切り替える。
- * 選択結果は端末(localStorage)に保存され、次回アクセス時も維持される。
+ * 言語切替スイッチャー。
+ * [仕様変更] 個人・端末ごとの言語切替は廃止し、表示言語は管理画面
+ * (/admin/language)の既定言語設定に一元化した。このコンポーネントは
+ * 削除せず残しつつ、通常の呼び出し箇所では hidden=true を指定して
+ * 非表示にする(将来的な個別プレビュー等での再利用に備えるため)。
  */
-export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
+export function LanguageSwitcher({ compact = false, hidden = false }: { compact?: boolean; hidden?: boolean }) {
   const { lang, setLang, t } = useLanguage();
 
   return (
-    <div className={`inline-flex items-center rounded-lg border border-slate-200 bg-white overflow-hidden ${compact ? "text-[11px]" : "text-xs"}`}
+    <div className={`${hidden ? "hidden" : "inline-flex"} items-center rounded-lg border border-slate-200 bg-white overflow-hidden ${compact ? "text-[11px]" : "text-xs"}`}
       title={t("dashboard.switchLanguage", "言語切替")}>
       <button
         type="button"
