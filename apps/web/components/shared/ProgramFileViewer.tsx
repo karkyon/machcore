@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { agentPgToUsb, isAgentOnline } from "@/lib/upload-agent";
+import { agentPgToUsb, isAgentOnline, translateAgentError } from "@/lib/upload-agent";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 /**
@@ -264,7 +264,8 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
       // 常にMC用エンドポイントへ問い合わせて404になるバグがあったため修正。
       const result = await agentPgToUsb(ticket, apiBaseUrl, system);
       if (!result.success) {
-        showToast(`❌ ${result.error ?? tr("programFileViewer.usbExportFailedLabel2","USBへの書き出しに失敗しました")}`);
+        const fallback = result.error ?? tr("programFileViewer.usbExportFailedLabel2","USBへの書き出しに失敗しました");
+        showToast(`❌ ${translateAgentError(tr, result.errorCode, result.errorParams, fallback) ?? fallback}`);
         return;
       }
       showToast(tr("programFileViewer.usbExportSuccessLabel2","✅ USBへ書き出しました（{n}件）").replace("{n}", String(result.copiedFiles.length)));

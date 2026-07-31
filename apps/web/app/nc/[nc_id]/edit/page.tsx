@@ -3,7 +3,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react";
 import { ncApi, machinesApi, filesApi, usersApi, NcDetail, Machine, UpdateNcBody, UserInfo } from "@/lib/api";
 import { toJstDateString } from "@/lib/dateUtils";
-import { isAgentOnline, agentPickAndUpload, agentCheckUsbTarget, agentAutoUpload } from "@/lib/upload-agent";
+import { isAgentOnline, agentPickAndUpload, agentCheckUsbTarget, agentAutoUpload, translateAgentError } from "@/lib/upload-agent";
 import { StatusBadge } from "@/components/nc/StatusBadge";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
 import { NcPartHeader } from "@/components/nc/NcPartHeader";
@@ -250,7 +250,11 @@ export default function NcEditPage() {
       const result = await agentPickAndUpload(ticket, fileType, uploadPath);
 
       if (result.cancelled) { setUploadMsg(null); return; }
-      if (!result.success) { setUploadMsg(`❌ ${result.error ?? tr("ncEdit.uploadFailedGeneric", "アップロードに失敗しました")}`); return; }
+      if (!result.success) {
+        const fallback1 = result.error ?? tr("ncEdit.uploadFailedGeneric", "アップロードに失敗しました");
+        setUploadMsg(`❌ ${translateAgentError(tr, result.errorCode, result.errorParams, fallback1) ?? fallback1}`);
+        return;
+      }
 
       const res = await ncApi.findOne(ncId);
       setDetail(res.data);
@@ -307,7 +311,8 @@ export default function NcEditPage() {
       setUploadMsg(tr("ncEdit.checkingUsbFile", "⏳ USB内のファイルを確認しています..."));
       const check = await agentCheckUsbTarget(expectedName, isFolderMode);
       if (!check.success || !check.exists) {
-        const msg = check.error ?? tr("ncEdit.usbFolderNotFound","USBフォルダ内に「{name}」が見つかりません").replace("{name}", expectedName);
+        const fallback2 = tr("ncEdit.usbFolderNotFound","USBフォルダ内に「{name}」が見つかりません").replace("{name}", expectedName);
+        const msg = translateAgentError(tr, check.errorCode, check.errorParams, check.error) ?? fallback2;
         setUploadMsg(`❌ ${msg}`);
         setPgUploading(false);
         return;
@@ -326,7 +331,8 @@ export default function NcEditPage() {
 
       if (result.cancelled) { setUploadMsg(null); return; }
       if (!result.success) {
-        setUploadMsg(`❌ ${result.error ?? tr("ncEdit.uploadFailedGeneric", "アップロードに失敗しました")}`);
+        const fallback3 = result.error ?? tr("ncEdit.uploadFailedGeneric", "アップロードに失敗しました");
+        setUploadMsg(`❌ ${translateAgentError(tr, result.errorCode, result.errorParams, fallback3) ?? fallback3}`);
         return;
       }
 

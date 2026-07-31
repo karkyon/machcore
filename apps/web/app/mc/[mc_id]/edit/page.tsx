@@ -1,5 +1,5 @@
 "use client";
-import { isAgentOnline, agentPickAndUpload, agentPickFolderAndUpload, agentCheckUsbTarget, agentAutoUpload } from "@/lib/upload-agent";
+import { isAgentOnline, agentPickAndUpload, agentPickFolderAndUpload, agentCheckUsbTarget, agentAutoUpload, translateAgentError } from "@/lib/upload-agent";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mcApi, mcFilesApi, machinesApi, usersApi, clampMasterApi, McDetail, Machine, UserInfo } from "@/lib/api";
@@ -598,7 +598,8 @@ export default function McEditPage() {
         return;
       }
       if (!result.success) {
-        setFileUploadMsg(`❌ ${result.error ?? tr("mcEdit.uploadFailedGeneric", "アップロードに失敗しました")}`);
+        const fallback1 = result.error ?? tr("mcEdit.uploadFailedGeneric", "アップロードに失敗しました");
+        setFileUploadMsg(`❌ ${translateAgentError(tr, result.errorCode, result.errorParams, fallback1) ?? fallback1}`);
         return;
       }
 
@@ -657,7 +658,8 @@ export default function McEditPage() {
         return;
       }
       if (!result.success) {
-        showToast(`❌ ${result.error ?? tr("mcEdit.replaceFailedGeneric", "差し替えに失敗しました")}`);
+        const fallback2 = result.error ?? tr("mcEdit.replaceFailedGeneric", "差し替えに失敗しました");
+        showToast(`❌ ${translateAgentError(tr, result.errorCode, result.errorParams, fallback2) ?? fallback2}`);
         return;
       }
 
@@ -893,7 +895,8 @@ export default function McEditPage() {
 
       const check = await agentCheckUsbTarget(expectedName, isFolderMode);
       if (!check.success || !check.exists) {
-        const msg = check.error ?? tr("mcEdit.usbFolderNotFound","USBフォルダ内に「{name}」が見つかりません").replace("{name}", expectedName);
+        const fallback3 = tr("mcEdit.usbFolderNotFound","USBフォルダ内に「{name}」が見つかりません").replace("{name}", expectedName);
+        const msg = translateAgentError(tr, check.errorCode, check.errorParams, check.error) ?? fallback3;
         showToast(`❌ ${msg}`);
         setPgUploading(false);
         return;
@@ -911,7 +914,8 @@ export default function McEditPage() {
 
       if (result.cancelled) { setPgUploading(false); return; }
       if (!result.success) {
-        showToast(`❌ ${result.error ?? tr("mcEdit.uploadFailedGeneric", "アップロードに失敗しました")}`);
+        const fallback4 = result.error ?? tr("mcEdit.uploadFailedGeneric", "アップロードに失敗しました");
+        showToast(`❌ ${translateAgentError(tr, result.errorCode, result.errorParams, fallback4) ?? fallback4}`);
         setPgUploading(false);
         return;
       }

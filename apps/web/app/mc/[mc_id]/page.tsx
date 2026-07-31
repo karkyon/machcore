@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import ApprovalModal from "@/components/shared/ApprovalModal";
-import { isAgentOnline, agentPgToUsb } from "@/lib/upload-agent";
+import { isAgentOnline, agentPgToUsb, translateAgentError } from "@/lib/upload-agent";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -240,7 +240,9 @@ export default function McDetailPage() {
       if (result.success) {
         showToast(tr("mcDetailPage.usbTransferSuccess","✅ USBへ転送しました（{n}件）").replace("{n}", String(result.copiedFiles.length)));
       } else {
-        showToast(tr("mcDetailPage.usbTransferFailed","❌ 転送に失敗しました: {msg}").replace("{msg}", result.error ?? tr("mcDetailPage.unknownError","不明なエラー")));
+        const fallback1 = result.error ?? tr("mcDetailPage.unknownError","不明なエラー");
+        const msg1 = translateAgentError(tr, result.errorCode, result.errorParams, fallback1) ?? fallback1;
+        showToast(tr("mcDetailPage.usbTransferFailed","❌ 転送に失敗しました: {msg}").replace("{msg}", msg1));
       }
     } finally {
       setPgToUsbBusy(false);
@@ -1483,7 +1485,8 @@ export default function McDetailPage() {
                       const apiBaseUrl = window.location.origin + "/api";
                       const result = await agentPgToUsb(ticket, apiBaseUrl, "mc");
                       if (!result.success) {
-                        showToast(`❌ ${result.error ?? tr("mcDetailPage.usbExportFailedLabel","USBへの書き出しに失敗しました").replace("❌ ", "")}`);
+                        const fallback2 = result.error ?? tr("mcDetailPage.usbExportFailedLabel","USBへの書き出しに失敗しました").replace("❌ ", "");
+                        showToast(`❌ ${translateAgentError(tr, result.errorCode, result.errorParams, fallback2) ?? fallback2}`);
                         return;
                       }
                       showToast(tr("mcDetailPage.usbExportSuccessLabel","✅ USBへ書き出しました（{n}件）").replace("{n}", String(result.copiedFiles.length)));

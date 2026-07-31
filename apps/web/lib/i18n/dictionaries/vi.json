@@ -2213,5 +2213,25 @@
     "cancelButton10": "Hủy",
     "approvingLabel": "Đang duyệt...",
     "approveButton2": "Duyệt"
+  },
+  "agentErrors": {
+    "agentNotRunning": "UploadAgent chưa được khởi động",
+    "agentCommunicationError": "Giao tiếp với UploadAgent thất bại: {detail}",
+    "usbDestNotConfigured": "Chưa thiết lập thư mục đích USB (vui lòng thiết lập trong màn hình cài đặt)",
+    "usbDestNotFound": "Không tìm thấy thư mục đích USB: {path} (vui lòng kiểm tra USB đã được kết nối chưa)",
+    "usbSrcNotConfigured": "Chưa thiết lập thư mục nguồn USB (vui lòng thiết lập trong màn hình cài đặt)",
+    "usbSrcNotFound": "Không tìm thấy thư mục nguồn USB: {path} (vui lòng kiểm tra USB đã được kết nối chưa)",
+    "usbItemNotFoundFolder": "Không tìm thấy thư mục 「{name}」 trong USB",
+    "usbItemNotFoundFile": "Không tìm thấy tệp 「{name}」 trong USB",
+    "folderNoFiles": "Không có tệp nào trong thư mục",
+    "folderNoMatchingFiles": "Không tìm thấy tệp {typeLabel} trong thư mục (0/{total} tệp)",
+    "folderReadError": "Đọc thư mục thất bại: {detail}",
+    "ticketFetchFailed": "Lấy thông tin vé thất bại (HTTP {status}): {detail}",
+    "responseParseFailed": "Phân tích phản hồi thất bại: {detail}",
+    "noFileInfo": "Không lấy được thông tin tệp",
+    "noProgramFiles": "Không tìm thấy tệp chương trình",
+    "copyFailed": "Sao chép tệp thất bại",
+    "uploadPartialFailure": "Tải lên một phần hoặc toàn bộ tệp bị thất bại",
+    "unexpectedError": "{detail}"
   }
 }

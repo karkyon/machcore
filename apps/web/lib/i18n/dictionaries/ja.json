@@ -2213,5 +2213,25 @@
     "cancelButton10": "キャンセル",
     "approvingLabel": "承認中...",
     "approveButton2": "承認する"
+  },
+  "agentErrors": {
+    "agentNotRunning": "UploadAgentが起動していません",
+    "agentCommunicationError": "UploadAgentとの通信に失敗しました: {detail}",
+    "usbDestNotConfigured": "USB転送先フォルダが設定されていません（設定画面で設定してください）",
+    "usbDestNotFound": "USB転送先フォルダが見つかりません: {path}（USBが接続されているか確認してください）",
+    "usbSrcNotConfigured": "USB取込元フォルダが設定されていません（設定画面で設定してください）",
+    "usbSrcNotFound": "USB取込元フォルダが見つかりません: {path}（USBが接続されているか確認してください）",
+    "usbItemNotFoundFolder": "USBフォルダ内に「{name}」フォルダが見つかりません",
+    "usbItemNotFoundFile": "USBフォルダ内に「{name}」ファイルが見つかりません",
+    "folderNoFiles": "フォルダ内にファイルがありません",
+    "folderNoMatchingFiles": "フォルダ内に{typeLabel}ファイルが見つかりません（全{total}件中0件）",
+    "folderReadError": "フォルダ読み取り失敗: {detail}",
+    "ticketFetchFailed": "チケット情報取得失敗 (HTTP {status}): {detail}",
+    "responseParseFailed": "レスポンス解析失敗: {detail}",
+    "noFileInfo": "ファイル情報が取得できませんでした",
+    "noProgramFiles": "プログラムファイルが見つかりません",
+    "copyFailed": "ファイルのコピーに失敗しました",
+    "uploadPartialFailure": "一部または全部のファイルのアップロードに失敗しました",
+    "unexpectedError": "{detail}"
   }
 }
