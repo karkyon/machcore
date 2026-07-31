@@ -3,8 +3,9 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { nowJstDateString } from "@/lib/dateUtils";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
-const DOW = ["日", "月", "火", "水", "木", "金", "土"];
+const DOW_KEYS = ["adminCalendar.dow0","adminCalendar.dow1","adminCalendar.dow2","adminCalendar.dow3","adminCalendar.dow4","adminCalendar.dow5","adminCalendar.dow6"];
 
 const apiFetch = async (path: string, opts?: RequestInit) => {
   const token = sessionStorage.getItem("admin_token") ?? "";
@@ -21,6 +22,7 @@ type CalEntry = { id: number; work_date: string; is_holiday: boolean; note: stri
 export default function CalendarPage() {
   const router   = useRouter();
   const pathname = usePathname();
+  const { t } = useLanguage();
   const today    = new Date();
   const [year,   setYear]   = useState(today.getFullYear());
   const [month,  setMonth]  = useState(today.getMonth() + 1);
@@ -36,7 +38,7 @@ export default function CalendarPage() {
     try {
       const d = await apiFetch(`/admin/calendar?year=${year}&month=${month}`);
       setEntries(d.data ?? []);
-    } catch (e: any) { showToast("取得失敗: " + e.message, false); }
+    } catch (e: any) { showToast(t("adminCalendar.fetchFailed","取得失敗: {msg}").replace("{msg}", e.message), false); }
     finally { setLoading(false); }
   }, [year, month]);
 
@@ -49,7 +51,7 @@ export default function CalendarPage() {
         body: JSON.stringify({ work_date: dateStr, is_holiday: !currentIsHoliday, note: note ?? null }),
       });
       await fetchEntries();
-    } catch (e: any) { showToast("更新失敗: " + e.message, false); }
+    } catch (e: any) { showToast(t("adminCalendar.updateFailed","更新失敗: {msg}").replace("{msg}", e.message), false); }
   };
 
   const setHoliday = async (dateStr: string, isHoliday: boolean, note?: string) => {
@@ -59,17 +61,17 @@ export default function CalendarPage() {
         body: JSON.stringify({ work_date: dateStr, is_holiday: isHoliday, note: note ?? null }),
       });
       await fetchEntries();
-      showToast(isHoliday ? "休日に設定しました" : "営業日に設定しました");
-    } catch (e: any) { showToast("更新失敗: " + e.message, false); }
+      showToast(isHoliday ? t("adminCalendar.setHoliday","休日に設定しました") : t("adminCalendar.setBusiness","営業日に設定しました"));
+    } catch (e: any) { showToast(t("adminCalendar.updateFailed","更新失敗: {msg}").replace("{msg}", e.message), false); }
   };
 
   const bulkWeekend = async () => {
-    if (!confirm(`${year}年の土日を全て休日として一括登録しますか？`)) return;
+    if (!confirm(t("adminCalendar.bulkWeekendConfirm", "{year}年の土日を全て休日として一括登録しますか？").replace("{year}", String(year)))) return;
     try {
       const d = await apiFetch("/admin/calendar/bulk-weekend", { method: "POST", body: JSON.stringify({ year }) });
       showToast(d.message);
       await fetchEntries();
-    } catch (e: any) { showToast("失敗: " + e.message, false); }
+    } catch (e: any) { showToast(t("adminCalendar.bulkFailed","失敗: {msg}").replace("{msg}", e.message), false); }
   };
 
   // カレンダーグリッド生成
@@ -88,45 +90,45 @@ export default function CalendarPage() {
         <main className="flex-1 overflow-hidden flex flex-col p-4 gap-2">
           <div className="flex flex-col gap-2 min-h-0 flex-1">
             <div className="flex items-center justify-between shrink-0">
-              <h1 className="text-xl font-bold text-slate-800">営業カレンダー</h1>
+              <h1 className="text-xl font-bold text-slate-800">{t("adminCalendar.title", "営業カレンダー")}</h1>
               <div className="flex items-center gap-2">
                 <button onClick={bulkWeekend}
                   className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-bold">
-                  {year}年の土日を一括休日登録
+                  {t("adminCalendar.bulkWeekendButton", "{year}年の土日を一括休日登録").replace("{year}", String(year))}
                 </button>
               </div>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 p-2">
               <div className="flex items-center justify-between mb-1">
-                <button onClick={prevMonth} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-sm font-medium transition-colors shadow-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>前月</button>
+                <button onClick={prevMonth} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-sm font-medium transition-colors shadow-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>{t("adminCalendar.prevMonth", "前月")}</button>
                 <div className="flex items-center gap-3">
                   <select value={year} onChange={e => setYear(parseInt(e.target.value))}
                     className="text-sm border border-slate-200 rounded px-2 py-1 focus:outline-none">
                     {Array.from({length: 5}, (_, i) => today.getFullYear() - 2 + i).map(y => (
-                      <option key={y} value={y}>{y}年</option>
+                      <option key={y} value={y}>{t("adminCalendar.yearSuffix","{y}年").replace("{y}", String(y))}</option>
                     ))}
                   </select>
                   <select value={month} onChange={e => setMonth(parseInt(e.target.value))}
                     className="text-sm border border-slate-200 rounded px-2 py-1 focus:outline-none">
                     {Array.from({length: 12}, (_, i) => i + 1).map(m => (
-                      <option key={m} value={m}>{m}月</option>
+                      <option key={m} value={m}>{t("adminCalendar.monthSuffix","{m}月").replace("{m}", String(m))}</option>
                     ))}
                   </select>
                 </div>
-                <button onClick={nextMonth} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-sm font-medium transition-colors shadow-sm">次月<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+                <button onClick={nextMonth} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-sm font-medium transition-colors shadow-sm">{t("adminCalendar.nextMonth", "次月")}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
               </div>
 
               <div className="grid grid-cols-7 gap-0.5 mb-1">
-                {DOW.map((d, i) => (
-                  <div key={d} className={"text-center text-xs font-bold py-1 " + (i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-slate-500")}>
-                    {d}
+                {DOW_KEYS.map((dk, i) => (
+                  <div key={dk} className={"text-center text-xs font-bold py-1 " + (i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-slate-500")}>
+                    {t(dk)}
                   </div>
                 ))}
               </div>
 
               {loading ? (
-                <div className="flex items-center justify-center h-48 text-slate-400">読み込み中...</div>
+                <div className="flex items-center justify-center h-48 text-slate-400">{t("adminCalendar.loading", "読み込み中...")}</div>
               ) : (
                 <div className="grid grid-cols-7 gap-0.5">
                   {Array.from({length: firstDow}).map((_, i) => <div key={"empty"+i} />)}
@@ -141,14 +143,14 @@ export default function CalendarPage() {
 
                     return (
                       <button key={d} onClick={() => setHoliday(dt, !isHoliday, entry?.note ?? undefined)}
-                        title={entry?.note ?? (isWeekend ? (dow===0?"日曜":"土曜") : "")}
+                        title={entry?.note ?? (isWeekend ? (dow===0?t("adminCalendar.sunday","日曜"):t("adminCalendar.saturday","土曜")) : "")}
                         className={"relative h-12 rounded flex flex-col items-center justify-center text-xs font-bold transition-colors border " +
                           (isToday ? "ring-2 ring-sky-400 " : "") +
                           (isHoliday
                             ? "bg-red-50 border-red-200 text-red-600 hover:bg-red-100"
                             : "bg-white border-slate-200 text-slate-700 hover:bg-teal-50 hover:border-teal-300")}>
                         <span>{d}</span>
-                        {isHoliday && <span className="text-[9px] font-normal mt-0.5">{entry?.note ? entry.note.slice(0,4) : (isWeekend ? (dow===0?"日":"土") : "休")}</span>}
+                        {isHoliday && <span className="text-[9px] font-normal mt-0.5">{entry?.note ? entry.note.slice(0,4) : (isWeekend ? (dow===0?t("adminCalendar.sundayShort","日"):t("adminCalendar.saturdayShort","土")) : t("adminCalendar.holidayShort","休"))}</span>}
                       </button>
                     );
                   })}
@@ -157,18 +159,18 @@ export default function CalendarPage() {
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <h2 className="text-xs font-bold text-slate-600 mb-3">凡例・操作方法</h2>
+              <h2 className="text-xs font-bold text-slate-600 mb-3">{t("adminCalendar.legendTitle", "凡例・操作方法")}</h2>
               <div className="flex items-center gap-6 text-xs text-slate-500">
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 rounded bg-red-50 border border-red-200"></div>
-                  <span>休日（タイムカード自動生成スキップ）</span>
+                  <span>{t("adminCalendar.legendHoliday", "休日（タイムカード自動生成スキップ）")}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 rounded bg-white border border-slate-200"></div>
-                  <span>営業日（タイムカード自動生成対象）</span>
+                  <span>{t("adminCalendar.legendBusiness", "営業日（タイムカード自動生成対象）")}</span>
                 </div>
               </div>
-              <p className="text-xs text-slate-400 mt-2">※ 日付をクリックして休日/営業日を切り替えます</p>
+              <p className="text-xs text-slate-400 mt-2">{t("adminCalendar.operationHint", "※ 日付をクリックして休日/営業日を切り替えます")}</p>
             </div>
           </div>
         </main>
