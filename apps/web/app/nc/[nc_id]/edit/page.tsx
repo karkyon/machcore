@@ -13,6 +13,11 @@ import ApprovalModal from "@/components/shared/ApprovalModal";
 import ProgramFileViewer from "@/components/shared/ProgramFileViewer";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 
+const KANRYO_TYPE_KEYS: Record<string, string> = {
+  "大変更": "ncEditUi.typeMajorChange", "小変更": "ncEditUi.typeMinorChange", "追加": "ncEditUi.typeAdd",
+  "修正": "ncEditUi.typeFix", "削除": "ncEditUi.typeDelete", "訂正": "ncEditUi.typeCorrection",
+};
+
 export default function NcEditPage() {
   const { t: tr } = useLanguage();
   const { nc_id } = useParams();
@@ -838,21 +843,21 @@ export default function NcEditPage() {
                     {/* [v101] 掴代(専用フィールド。旧ACC_Lathe.Clamp) */}
                     <div>
                       <label className="text-xs text-slate-500 block mb-1">
-                        掴代 <span className="text-slate-400">(mm)</span>
+                        {tr("ncEditUi.clampAllowanceLabel", "掴代")} <span className="text-slate-400">(mm)</span>
                         {dirty.has("clampAllowance") && <span className="text-orange-500 ml-1">●</span>}
                       </label>
                       <input
                         value={clampAllowance}
                         onChange={e => { setClampAllowance(e.target.value); markDirty("clampAllowance"); }}
                         className={fieldCls("clampAllowance")}
-                        placeholder="例: 専用 / 9~10"
+                        placeholder={tr("ncEditUi.clampAllowancePlaceholder", "例: 専用 / 9~10")}
                       />
                     </div>
 
                     {/* クランプ / 備考 */}
                     <div>
                       <label className="text-xs text-slate-500 block mb-1">
-                        クランプ / 備考
+                        {tr("ncEditUi.clampNoteLabel", "クランプ / 備考")}
                         {dirty.has("clampNote") && <span className="text-orange-500 ml-1">●</span>}
                       </label>
                       <textarea
@@ -861,7 +866,7 @@ export default function NcEditPage() {
                         value={clampNote}
                         onChange={e => { setClampNote(e.target.value); markDirty("clampNote"); }}
                         className={`${fieldCls("clampNote")} resize-y`}
-                        placeholder="クランプ条件・注意事項など"
+                        placeholder={tr("ncEditUi.clampNotePlaceholder", "クランプ条件・注意事項など")}
                       />
                       <p className="text-[10px] text-slate-400 mt-0.5 text-right">{clampNote.length} / 2000</p>
                     </div>
@@ -873,7 +878,7 @@ export default function NcEditPage() {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="text-xs text-slate-500 block mb-1">
-                              作成者（段取シート作成者）
+                              {tr("ncEditUi.creatorLabel", "作成者（段取シート作成者）")}
                               {dirty.has("creatorId") && <span className="text-orange-500 ml-1">●</span>}
                             </label>
                             <select
@@ -881,17 +886,17 @@ export default function NcEditPage() {
                               onChange={e => { setCreatorId(e.target.value); markDirty("creatorId"); }}
                               className={fieldCls("creatorId")}
                             >
-                              <option value="">— 選択 —</option>
+                              <option value="">{tr("ncEditUi.selectOption", "— 選択 —")}</option>
                               {users
                                 .filter(u => u.isActive || String(u.id) === creatorId)
                                 .map(u => (
-                                  <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（無効）" : ""}</option>
+                                  <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? tr("ncEditUi.inactiveSuffix","（無効）") : ""}</option>
                                 ))}
                             </select>
                           </div>
                           <div>
                             <label className="text-xs text-slate-500 block mb-1">
-                              作成日（シート作成日）
+                              {tr("ncEditUi.createdDateLabel", "作成日（シート作成日）")}
                               {dirty.has("sheetCreatedAt") && <span className="text-orange-500 ml-1">●</span>}
                             </label>
                             <input
@@ -906,13 +911,13 @@ export default function NcEditPage() {
                         {/* [v096] オペレーター・入力日・承認者・承認日(読み取り専用、MC側と同一構成) */}
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="text-xs text-slate-500 block mb-1">オペレーター</label>
+                            <label className="text-xs text-slate-500 block mb-1">{tr("ncEditUi.operatorLabel", "オペレーター")}</label>
                             <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded">
                               {detail?.registrar?.name ?? "—"}
                             </div>
                           </div>
                           <div>
-                            <label className="text-xs text-slate-500 block mb-1">入力日</label>
+                            <label className="text-xs text-slate-500 block mb-1">{tr("ncEditUi.inputDateLabel", "入力日")}</label>
                             <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded font-mono">
                               {toJstDateString(detail?.registeredAt) ?? "—"}
                             </div>
@@ -920,15 +925,15 @@ export default function NcEditPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="text-xs text-slate-500 block mb-1">承認者</label>
+                            <label className="text-xs text-slate-500 block mb-1">{tr("ncEditUi.approverLabel", "承認者")}</label>
                             <div className={`px-3 py-2 text-sm border rounded ${detail?.approver ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-bold" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-                              {detail?.approver?.name ?? "未承認"}
+                              {detail?.approver?.name ?? tr("ncEditUi.notApproved", "未承認")}
                             </div>
                           </div>
                           <div>
-                            <label className="text-xs text-slate-500 block mb-1">承認日</label>
+                            <label className="text-xs text-slate-500 block mb-1">{tr("ncEditUi.approvedDateLabel", "承認日")}</label>
                             <div className={`px-3 py-2 text-sm border rounded font-mono ${detail?.approvedAt ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-                              {toJstDateString(detail?.approvedAt) ?? "未承認"}
+                              {toJstDateString(detail?.approvedAt) ?? tr("ncEditUi.notApproved", "未承認")}
                             </div>
                           </div>
                         </div>
@@ -936,7 +941,7 @@ export default function NcEditPage() {
 
                       {/* NCプログラム操作パネル [v084] MC側と同じ共通コンポーネント(ProgramFileViewer)に接続 */}
                       <div className="rounded-xl p-2.5 space-y-1.5 shrink-0" style={{background:"#0f172a", border:"1.5px solid #1e40af"}}>
-                        <div className="text-[10px] text-sky-400 font-bold text-center tracking-wide mb-1">NCプログラム</div>
+                        <div className="text-[10px] text-sky-400 font-bold text-center tracking-wide mb-1">{tr("ncEditUi.ncProgramLabel", "NCプログラム")}</div>
                         <button
                           onClick={() => {
                             if (!token) { setAuthOpen(true); return; }
@@ -946,7 +951,7 @@ export default function NcEditPage() {
                           style={{background:"#164e63", color:"#67e8f9"}}
                         >
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                          📄 PGエディタを開く
+                          {tr("ncEditUi.openPgEditor", "📄 PGエディタを開く")}
                         </button>
                         <button
                           onClick={handlePgUploadFromUSB}
@@ -955,9 +960,9 @@ export default function NcEditPage() {
                           style={{background:"#065f46", color:"#6ee7b7"}}
                         >
                           {pgUploading && <span className="inline-block w-3 h-3 border-2 border-emerald-300 border-t-transparent rounded-full animate-spin" />}
-                          {pgUploading ? "⏳ 登録中..." : "📥 USBから登録"}
+                          {pgUploading ? tr("ncEditUi.registeringInProgress","⏳ 登録中...") : tr("ncEditUi.registerFromUsb","📥 USBから登録")}
                         </button>
-                        <p className="text-[9px] text-slate-500 text-center">保存 / USBへ書き出し(UA経由)はエディタ内で行えます</p>
+                        <p className="text-[9px] text-slate-500 text-center">{tr("ncEditUi.editorSaveHint", "保存 / USBへ書き出し(UA経由)はエディタ内で行えます")}</p>
                       </div>
                     </div>
                   </div>
@@ -965,12 +970,12 @@ export default function NcEditPage() {
                   {/* 右カラム: ファイル操作 */}
                   <div className="space-y-3">
                     <div>
-                      <label className="text-xs text-slate-500 block mb-1">図枚数</label>
+                      <label className="text-xs text-slate-500 block mb-1">{tr("ncEditUi.drawingCountLabel", "図枚数")}</label>
                       <input type="number" readOnly value={d.drawingCount}
                         className="border border-slate-200 rounded px-3 py-2 text-sm w-full bg-slate-50 text-slate-500" />
                     </div>
                     <div>
-                      <label className="text-xs text-slate-500 block mb-1">写真枚数</label>
+                      <label className="text-xs text-slate-500 block mb-1">{tr("ncEditUi.photoCountLabel", "写真枚数")}</label>
                       <input type="number" readOnly value={d.photoCount}
                         className="border border-slate-200 rounded px-3 py-2 text-sm w-full bg-slate-50 text-slate-500" />
                     </div>
@@ -981,7 +986,7 @@ export default function NcEditPage() {
                         className="w-full border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
                       >
                         {uploading && <span className="inline-block w-3 h-3 border-2 border-teal-700 border-t-transparent rounded-full animate-spin" />}
-                        📷 写真を取り込む
+                        {tr("ncEditUi.importPhoto", "📷 写真を取り込む")}
                       </button>
                       <button
                         onClick={() => requestNcUpload("DRAWING")}
@@ -989,14 +994,14 @@ export default function NcEditPage() {
                         className="w-full border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
                       >
                         {uploading && <span className="inline-block w-3 h-3 border-2 border-purple-700 border-t-transparent rounded-full animate-spin" />}
-                        📄 図を取り込む
+                        {tr("ncEditUi.importDrawing", "📄 図を取り込む")}
                       </button>
                       {uploadMsg && (
                         <p className={`text-[11px] text-center font-bold ${uploadMsg.startsWith("⏳") ? "text-amber-600 animate-pulse" : uploadMsg.startsWith("❌") ? "text-red-600" : "text-teal-600"}`}>
                           {uploadMsg}
                         </p>
                       )}
-                      <p className="text-[10px] text-slate-400 text-center">UploadAgentでファイル選択ダイアログが開きます</p>
+                      <p className="text-[10px] text-slate-400 text-center">{tr("ncEditUi.agentDialogHint", "UploadAgentでファイル選択ダイアログが開きます")}</p>
                     </div>
                   </div>
                 </div>
@@ -1007,7 +1012,7 @@ export default function NcEditPage() {
                     {/* 加工リスト(MC側ツーリングタブと同等: 行追加・削除・上下移動) */}
                     <div className="bg-white rounded-xl border border-slate-200">
                       <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-600">加工リスト ({toolingRows.length}レコード)</span>
+                        <span className="text-xs font-bold text-slate-600">{tr("ncEditUi.processListTitle","加工リスト ({n}レコード)").replace("{n}", String(toolingRows.length))}</span>
                         <div className="flex items-center gap-2">
                           {toolingSaveMsg && <span className="text-[11px] text-slate-500">{toolingSaveMsg}</span>}
                           <button
@@ -1023,15 +1028,15 @@ export default function NcEditPage() {
                                   t_number:     t.t_number     || undefined,
                                   note:         t.note         || undefined,
                                 })), token);
-                                setToolingSaveMsg("✅ 加工リストを保存しました");
+                                setToolingSaveMsg(tr("ncEditUi.saveProcessListSuccess", "✅ 加工リストを保存しました"));
                                 setTimeout(() => setToolingSaveMsg(null), 3000);
-                              } catch { setToolingSaveMsg("❌ 保存に失敗しました"); setTimeout(() => setToolingSaveMsg(null), 3000); }
+                              } catch { setToolingSaveMsg(tr("ncEditUi.saveFailedShort", "❌ 保存に失敗しました")); setTimeout(() => setToolingSaveMsg(null), 3000); }
                             }}
                             className="px-3 py-1 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors">
-                            ✓ 加工リストを保存
+                            {tr("ncEditUi.saveProcessList", "✓ 加工リストを保存")}
                           </button>
                           <button onClick={() => setToolingRows(prev => [...prev, { sort_order: (prev.length + 1) * 10, process_type: "", chip_model: "", holder_model: "", nose_r: "", t_number: "", note: "" }])}
-                            className="text-xs text-teal-600 font-bold">+ 追加</button>
+                            className="text-xs text-teal-600 font-bold">{tr("ncEditUi.addRow", "+ 追加")}</button>
                         </div>
                       </div>
                       <div className="overflow-x-auto">
@@ -1050,13 +1055,13 @@ export default function NcEditPage() {
                           <thead className="bg-teal-50">
                             <tr>
                               <th className="px-1 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
-                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">加工</th>
-                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">形状（チップ）</th>
-                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">ホルダー</th>
-                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">ノーズR</th>
-                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">T NO</th>
-                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">備考</th>
-                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">順番</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("ncEditUi.colProcess", "加工")}</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("ncEditUi.colChipShape", "形状（チップ）")}</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("ncEditUi.colHolder", "ホルダー")}</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("ncEditUi.colNoseR", "ノーズR")}</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("ncEditUi.colTNo", "T NO")}</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("ncEditUi.colNote", "備考")}</th>
+                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("ncEditUi.colOrder", "順番")}</th>
                               <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
                             </tr>
                           </thead>
@@ -1106,12 +1111,12 @@ export default function NcEditPage() {
                                 <div className="flex gap-1">
                                   <select value={s1} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, process_type: combine(e.target.value, s2)} : x))}
                                     className="w-1/2 border border-slate-200 rounded px-1 py-1 text-xs bg-white">
-                                    <option value="">（加）</option>
+                                    <option value="">{tr("ncEditUi.processS1Placeholder", "（加）")}</option>
                                     {withCurrent(toolMasters.shave1, s1).map(v => <option key={v} value={v}>{v}</option>)}
                                   </select>
                                   <select value={s2} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, process_type: combine(s1, e.target.value)} : x))}
                                     className="w-1/2 border border-slate-200 rounded px-1 py-1 text-xs bg-white">
-                                    <option value="">（工）</option>
+                                    <option value="">{tr("ncEditUi.processS2Placeholder", "（工）")}</option>
                                     {withCurrent(toolMasters.shave2, s2).map(v => <option key={v} value={v}>{v}</option>)}
                                   </select>
                                 </div>
@@ -1139,7 +1144,7 @@ export default function NcEditPage() {
                               <td className="px-1 py-1"><input value={t.sort_order != null ? String(t.sort_order) : ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, sort_order: e.target.value === "" ? 0 : Number(e.target.value)} : x))}
                                 className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-right" type="number" /></td>
                               <td className="px-1 py-1 text-center"><button onClick={() => setToolingRows(r => r.filter((_,j) => j !== i))}
-                                className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">削除</button></td>
+                                className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">{tr("ncEditUi.deleteRow", "削除")}</button></td>
                             </tr>
                             );
                           })}
@@ -1167,15 +1172,15 @@ export default function NcEditPage() {
                   disabled={saving || (dirty.size === 0 && !isProvisionalLocked)}
                   className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-bold text-sm rounded-lg transition-colors"
                 >
-                  {(sbMode || sbRepeatMode) ? "STEP1完了 → STEP2(作業記録)へ" : "✓ 作業完了（登録）"}
+                  {(sbMode || sbRepeatMode) ? tr("ncEditUi.step1CompleteButton","STEP1完了 → STEP2(作業記録)へ") : tr("ncEditUi.workCompleteButton","✓ 作業完了（登録）")}
                 </button>
-                <div className="text-xs text-amber-700">← 登録と同時に変更履歴に記録されます</div>
+                <div className="text-xs text-amber-700">{tr("ncEditUi.historyRecordHint", "← 登録と同時に変更履歴に記録されます")}</div>
                 <div className="flex-1"></div>
                 <button
                   onClick={handleCancel}
                   className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-bold text-sm rounded-lg transition-colors"
                 >
-                  ✗ キャンセル（変更を破棄）
+                  {tr("ncEditUi.cancelDiscard", "✗ キャンセル（変更を破棄）")}
                 </button>
               </div>
 
@@ -1190,20 +1195,20 @@ export default function NcEditPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
             <div className="bg-slate-800 px-5 py-3">
-              <h2 className="text-base font-bold text-white">終了確認 — 変更内容を記録</h2>
-              <p className="text-xs text-slate-400 mt-0.5">この変更をどの種類として登録しますか？バージョンが更新されます。</p>
+              <h2 className="text-base font-bold text-white">{tr("ncEditUi.endConfirmTitle", "終了確認 — 変更内容を記録")}</h2>
+              <p className="text-xs text-slate-400 mt-0.5">{tr("ncEditUi.endConfirmDesc")}</p>
             </div>
             <div className="p-5 space-y-4">
               {/* [防御的修正] 万一sbMode/sbRepeatModeが同時に真になっても
                   リピート(sbRepeatMode)を優先し、通常の種別選択UIを表示する。 */}
               {(sbMode && !sbRepeatMode) ? (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-                  <p className="text-sm font-bold text-blue-700 mb-1">変更種別: 新規登録</p>
-                  <p className="text-xs text-blue-600">バージョン更新後、STEP2(作業記録)へ進みます</p>
+                  <p className="text-sm font-bold text-blue-700 mb-1">{tr("ncEditUi.changeTypeNewLabel", "変更種別: 新規登録")}</p>
+                  <p className="text-xs text-blue-600">{tr("ncEditUi.versionUpdateStep2Note", "バージョン更新後、STEP2(作業記録)へ進みます")}</p>
                 </div>
               ) : (
               <div>
-                <label className="text-xs font-bold text-slate-500 block mb-2">作業種別 *</label>
+                <label className="text-xs font-bold text-slate-500 block mb-2">{tr("ncEditUi.workTypeLabel", "作業種別 *")}</label>
                 <div className="grid grid-cols-3 gap-2">
                   {["大変更","小変更","追加","修正","削除","訂正"].map(t => (
                     <button key={t} type="button"
@@ -1214,39 +1219,39 @@ export default function NcEditPage() {
                             : "bg-sky-600 text-white border-sky-600"
                           : "bg-white text-slate-600 border-slate-300 hover:border-sky-400"
                       }`}>
-                      {t}
+                      {tr(KANRYO_TYPE_KEYS[t] ?? "", t)}
                     </button>
                   ))}
                 </div>
                 {kanryoType === "大変更" ? (
-                  <p className="text-xs text-red-600 mt-1.5 font-bold">⚠️ 大変更: バージョンの整数部が+1（例: 1.0001 → 2.0001）</p>
+                  <p className="text-xs text-red-600 mt-1.5 font-bold">{tr("ncEditUi.majorChangeWarning", "⚠️ 大変更: バージョンの整数部が+1（例: 1.0001 → 2.0001）")}</p>
                 ) : (
-                  <p className="text-xs text-sky-600 mt-1.5">小変更系: 100分の1位が+0.01（例: 1.0001 → 1.0101）</p>
+                  <p className="text-xs text-sky-600 mt-1.5">{tr("ncEditUi.minorChangeNote", "小変更系: 100分の1位が+0.01（例: 1.0001 → 1.0101）")}</p>
                 )}
               </div>
               )}
               <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1.5">内容（任意）</label>
+                <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("ncEditUi.contentOptionalLabel", "内容（任意）")}</label>
                 <textarea value={kanryoDetail} onChange={e => setKanryoDetail(e.target.value)}
-                  rows={2} placeholder={sbMode ? "登録内容の補足（任意）" : "変更の詳細内容を入力..."}
+                  rows={2} placeholder={sbMode ? tr("ncEditUi.sbDetailPlaceholder", "登録内容の補足（任意）") : tr("ncEditUi.detailPlaceholder", "変更の詳細内容を入力...")}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none" />
               </div>
             </div>
             <div className="px-5 pb-5 flex gap-3">
               <button onClick={handleKanryoOk}
                 className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl text-sm transition-colors">
-                {(sbMode || sbRepeatMode) ? "OK — 作業記録へ" : "OK — 登録する"}
+                {(sbMode || sbRepeatMode) ? tr("ncEditUi.okToWorkRecord","OK — 作業記録へ") : tr("ncEditUi.okRegister","OK — 登録する")}
               </button>
               {!(sbMode || sbRepeatMode) && (
               <button onClick={handleKanryoTempSave}
-                title="バージョンを変更せず、入力内容だけを保存します"
+                title={tr("ncEditUi.tempSaveHint", "バージョンを変更せず、入力内容だけを保存します")}
                 className="px-4 py-3 border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 font-bold text-sm rounded-xl transition-colors whitespace-nowrap">
-                💾 一時保存
+                {tr("ncEditUi.tempSave", "💾 一時保存")}
               </button>
               )}
               <button onClick={handleKanryoCancel}
                 className="px-5 py-3 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
-                {(sbMode || sbRepeatMode) ? "スキップ（作業記録なし）" : "キャンセル（変更を取り消す）"}
+                {(sbMode || sbRepeatMode) ? tr("ncEditUi.skipNoWorkRecord","スキップ（作業記録なし）") : tr("ncEditUi.cancelDiscardChange","キャンセル（変更を取り消す）")}
               </button>
             </div>
           </div>
