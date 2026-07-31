@@ -2164,5 +2164,18 @@
     "noDataMsg": "データがありません",
     "autoGenNote": "毎朝5:00に自動生成されます",
     "updateButton2": "更新"
+  },
+  "approvalModal": {
+    "approveFailedDefault": "承認に失敗しました",
+    "approveTitle": "承認する",
+    "approveDesc": "承認資格を持つ担当者を選択してパスワードを入力してください",
+    "approverLabel5": "承認者",
+    "loadingDots2b": "読み込み中...",
+    "noApproverUsers": "承認資格を持つユーザーが登録されていません。管理者にユーザ管理画面(承認資格)の設定を依頼してください。",
+    "passwordForLabel": "パスワード（{name}）",
+    "passwordPlaceholder2": "パスワードを入力",
+    "cancelButton10": "キャンセル",
+    "approvingLabel": "承認中...",
+    "approveButton2": "承認する"
   }
 }

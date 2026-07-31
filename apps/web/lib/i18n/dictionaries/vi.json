@@ -2164,5 +2164,18 @@
     "noDataMsg": "Không có dữ liệu",
     "autoGenNote": "Tự động tạo lúc 5:00 sáng mỗi ngày",
     "updateButton2": "Cập nhật"
+  },
+  "approvalModal": {
+    "approveFailedDefault": "Duyệt thất bại",
+    "approveTitle": "Duyệt",
+    "approveDesc": "Vui lòng chọn người phụ trách có quyền duyệt và nhập mật khẩu",
+    "approverLabel5": "Người duyệt",
+    "loadingDots2b": "Đang tải...",
+    "noApproverUsers": "Chưa có người dùng nào có quyền duyệt. Vui lòng yêu cầu quản trị viên thiết lập quyền duyệt tại màn hình quản lý người dùng.",
+    "passwordForLabel": "Mật khẩu（{name}）",
+    "passwordPlaceholder2": "Nhập mật khẩu",
+    "cancelButton10": "Hủy",
+    "approvingLabel": "Đang duyệt...",
+    "approveButton2": "Duyệt"
   }
 }

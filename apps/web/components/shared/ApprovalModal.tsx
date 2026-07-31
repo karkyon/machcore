@@ -5,6 +5,7 @@
 // (旧ACCESS「承認します」フォーム相当。編集中のログインセッションとは無関係)。
 import { useState, useEffect } from "react";
 import { usersApi, mcApi, ncApi, UserInfo } from "@/lib/api";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type Props = {
   isOpen: boolean;
@@ -15,6 +16,7 @@ type Props = {
 };
 
 export default function ApprovalModal({ isOpen, system, programId, onSuccess, onCancel }: Props) {
+  const { t: tr } = useLanguage();
   const [approvers, setApprovers] = useState<UserInfo[]>([]);
   const [selected, setSelected] = useState<UserInfo | null>(null);
   const [password, setPassword] = useState("");
@@ -47,7 +49,7 @@ export default function ApprovalModal({ isOpen, system, programId, onSuccess, on
       }
       onSuccess();
     } catch (e: any) {
-      const msg = e?.response?.data?.message ?? "承認に失敗しました";
+      const msg = e?.response?.data?.message ?? tr("approvalModal.approveFailedDefault","承認に失敗しました");
       setError(Array.isArray(msg) ? msg.join(", ") : msg);
       setPassword("");
     } finally {
@@ -61,20 +63,20 @@ export default function ApprovalModal({ isOpen, system, programId, onSuccess, on
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
         <div className="bg-emerald-700 px-6 py-4">
-          <h2 className="text-white font-bold text-lg">承認する</h2>
+          <h2 className="text-white font-bold text-lg">{tr("approvalModal.approveTitle", "承認する")}</h2>
           <p className="text-emerald-100 text-xs mt-1">
-            承認資格を持つ担当者を選択してパスワードを入力してください
+            {tr("approvalModal.approveDesc", "承認資格を持つ担当者を選択してパスワードを入力してください")}
           </p>
         </div>
 
         <div className="p-6 space-y-5">
           <div>
-            <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">承認者</p>
+            <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">{tr("approvalModal.approverLabel5", "承認者")}</p>
             {loadingList ? (
-              <p className="text-sm text-slate-400">読み込み中...</p>
+              <p className="text-sm text-slate-400">{tr("approvalModal.loadingDots2b", "読み込み中...")}</p>
             ) : approvers.length === 0 ? (
               <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-                承認資格を持つユーザーが登録されていません。管理者にユーザ管理画面(承認資格)の設定を依頼してください。
+                {tr("approvalModal.noApproverUsers", "承認資格を持つユーザーが登録されていません。管理者にユーザ管理画面(承認資格)の設定を依頼してください。")}
               </p>
             ) : (
               <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
@@ -98,7 +100,7 @@ export default function ApprovalModal({ isOpen, system, programId, onSuccess, on
           {selected && (
             <div>
               <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">
-                パスワード（{selected.name}）
+                {tr("approvalModal.passwordForLabel", "パスワード（{name}）").replace("{name}", selected.name)}
               </p>
               <input
                 type="password"
@@ -107,7 +109,7 @@ export default function ApprovalModal({ isOpen, system, programId, onSuccess, on
                 onKeyDown={e => e.key === "Enter" && handleSubmit()}
                 autoFocus
                 className="w-full border border-slate-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                placeholder="パスワードを入力"
+                placeholder={tr("approvalModal.passwordPlaceholder2", "パスワードを入力")}
               />
             </div>
           )}
@@ -121,14 +123,14 @@ export default function ApprovalModal({ isOpen, system, programId, onSuccess, on
               onClick={onCancel}
               className="flex-1 px-4 py-2 rounded-lg border border-slate-300 text-slate-600 text-sm font-medium hover:bg-slate-50"
             >
-              キャンセル
+              {tr("approvalModal.cancelButton10", "キャンセル")}
             </button>
             <button
               onClick={handleSubmit}
               disabled={!selected || !password || loading}
               className="flex-1 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {loading ? "承認中..." : "承認する"}
+              {loading ? tr("approvalModal.approvingLabel", "承認中...") : tr("approvalModal.approveButton2", "承認する")}
             </button>
           </div>
         </div>
