@@ -1102,23 +1102,23 @@ export default function McEditPage() {
           <span className="w-5 h-5 rounded-full bg-teal-500 flex items-center justify-center shrink-0">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
           </span>
-          MC詳細
+          {tr("mcEditUi.mcDetail", "MC詳細")}
         </button>
         <span className="text-slate-600">|</span>
         <button onClick={() => guardedNavigate("/mc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-          ダッシュボードへ
+          {tr("mcEditUi.toDashboard", "ダッシュボードへ")}
         </button>
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
-        <span className="text-sm font-medium flex items-center gap-1.5">変更・登録</span>
+        <span className="text-sm font-medium flex items-center gap-1.5">{tr("mcEditUi.editRegister", "変更・登録")}</span>
         <span className="ml-auto">
           {isAuthenticated && operator && (
             <span className="text-[11px] bg-red-600 text-white px-2 py-0.5 rounded font-bold animate-pulse">
-              作業中: {operator.name} {fmtElapsed(elapsed)}
+              {tr("mcEditUi.working", "作業中: {name} {time}").replace("{name}", operator.name).replace("{time}", fmtElapsed(elapsed))}
             </span>
           )}
           {!isAuthenticated && (
-            <span className="text-[11px] bg-slate-600 text-white px-2 py-0.5 rounded">🔒 認証待ち</span>
+            <span className="text-[11px] bg-slate-600 text-white px-2 py-0.5 rounded">{tr("mcEditUi.waitingAuth", "🔒 認証待ち")}</span>
           )}
         </span>
       </header>
@@ -1145,18 +1145,18 @@ export default function McEditPage() {
                   onClick={() => setApprovalModalOpen(true)}
                   className="text-xs font-bold px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
                 >
-                  ✓ 承認
+                  {tr("mcEditUi.approve", "✓ 承認")}
                 </button>
               )}
             </div>
           </div>
           <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
-            {(detail as any)?.mcProcessNo != null && <span className="font-bold text-teal-700 text-sm">工程No: {(detail as any).mcProcessNo}</span>}
+            {(detail as any)?.mcProcessNo != null && <span className="font-bold text-teal-700 text-sm">{tr("mcEditUi.processNo","工程No: {n}").replace("{n}", String((detail as any).mcProcessNo))}</span>}
             <span className="text-slate-400">|</span>
-            <span>MCID: <span className="text-slate-700">{d.legacyMcid ?? "—"}</span></span>
+            <span>{tr("mcEditUi.mcIdLabel", "MCID:")} <span className="text-slate-700">{d.legacyMcid ?? "—"}</span></span>
             <span className="text-slate-400">|</span>
-            <span>加工ID: <span className="text-slate-700">{d.machiningId}</span></span>
-            {d.part.partId && <><span className="text-slate-400">|</span><span>部品ID: <span className="text-slate-700">{d.part.partId}</span></span></>}
+            <span>{tr("mcEditUi.machiningIdLabel", "加工ID:")} <span className="text-slate-700">{d.machiningId}</span></span>
+            {d.part.partId && <><span className="text-slate-400">|</span><span>{tr("mcEditUi.partIdLabel", "部品ID:")} <span className="text-slate-700">{d.part.partId}</span></span></>}
           </div>
         </div>
       )}
@@ -1165,19 +1165,19 @@ export default function McEditPage() {
       <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
         <button onClick={() => !(sbMode || sbRepeatMode) && guardedNavigate(`/mc/${mcId}`)}
           className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 rounded-t-md transition-colors " + ((sbMode || sbRepeatMode) ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>MC詳細
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>{tr("mcEditUi.mcDetail", "MC詳細")}
         </button>
         <button onClick={() => !(sbMode || sbRepeatMode) && router.push(`/mc/${mcId}/edit`)}
           className="px-4 py-1.5 text-[12px] font-bold flex items-center gap-1.5 rounded-t-md border border-b-0 border-[#1b2a41] bg-[#1b2a41] text-white transition-colors">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>{tr("mcEditUi.editRegister", "変更・登録")}
         </button>
         <button onClick={() => !(sbMode || sbRepeatMode) && guardedNavigate(`/mc/${mcId}/print`)}
           className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + ((sbMode || sbRepeatMode) ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>{tr("mcEditUi.setupSheetTab", "段取シート")}
         </button>
         <button onClick={() => !(sbMode || sbRepeatMode) && guardedNavigate(`/mc/${mcId}/record`)}
           className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t-md border border-b-0 transition-colors " + ((sbMode || sbRepeatMode) ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>{tr("mcEditUi.workRecordTab", "作業記録")}
         </button>
       </nav>
 
@@ -1186,8 +1186,8 @@ export default function McEditPage() {
         <div className={`${sbRepeatMode ? "bg-amber-700" : "bg-blue-700"} text-white px-5 py-2 flex items-center justify-between text-xs shrink-0`}>
           <div className="flex items-center gap-3">
             <span className="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center font-bold shrink-0">1</span>
-            <span className="font-bold">{sbRepeatMode ? "段取シートバック リピート: マシニング情報を確認・編集してください" : "段取シートバック STEP1: 基本情報・ツーリング・図写真などを登録してください"}</span>
-            <span className={sbRepeatMode ? "text-amber-300" : "text-blue-300"}>→ {sbRepeatMode ? "更新後、変更内容を登録してSTEP2(作業記録)へ遷移します" : "登録完了後 STEP2(作業記録)へ自動遷移します"}</span>
+            <span className="font-bold">{sbRepeatMode ? tr("mcEditUi.sbRepeatBannerText","段取シートバック リピート: マシニング情報を確認・編集してください") : tr("mcEditUi.sbNewBannerText","段取シートバック STEP1: 基本情報・ツーリング・図写真などを登録してください")}</span>
+            <span className={sbRepeatMode ? "text-amber-300" : "text-blue-300"}>{sbRepeatMode ? tr("mcEditUi.sbRepeatNextText","→ 更新後、変更内容を登録してSTEP2(作業記録)へ遷移します") : tr("mcEditUi.sbNewNextText","→ 登録完了後 STEP2(作業記録)へ自動遷移します")}</span>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => {
@@ -1200,11 +1200,11 @@ export default function McEditPage() {
                 router.push("/mc");
               }}
               className="text-blue-200 hover:text-white text-xs px-3 py-1 rounded border border-blue-400 hover:border-white transition-colors">
-              キャンセル（中断）
+              {tr("mcEditUi.cancelInterrupt", "キャンセル（中断）")}
             </button>
             <button onClick={handleSave} disabled={saving}
               className="bg-white text-blue-700 px-4 py-1 rounded font-bold hover:bg-blue-50 disabled:opacity-50 text-sm">
-              {saving ? "保存中..." : (sbRepeatMode ? "更新完了 → 変更登録・STEP2へ" : "STEP1完了 → STEP2(作業記録)へ")}
+              {saving ? tr("mcEditUi.saving","保存中...") : (sbRepeatMode ? tr("mcEditUi.sbRepeatCompleteButton","更新完了 → 変更登録・STEP2へ") : tr("mcEditUi.sbStep1CompleteButton","STEP1完了 → STEP2(作業記録)へ"))}
             </button>
           </div>
         </div>
@@ -1213,7 +1213,7 @@ export default function McEditPage() {
         <div className="bg-red-600 text-white px-5 py-1.5 flex items-center justify-between text-xs shrink-0">
           <div className="flex items-center gap-3">
             <span className="w-2 h-2 bg-red-300 rounded-full animate-pulse" />
-            <span>編集セッション: {operator?.name ?? "（作業中）"}</span>
+            <span>{tr("mcEditUi.editSessionLabel", "編集セッション: {name}").replace("{name}", operator?.name ?? tr("mcEditUi.workingParen","（作業中）"))}</span>
           </div>
           <div className="flex gap-3">
             <button onClick={async () => {
@@ -1224,10 +1224,10 @@ export default function McEditPage() {
                 logout();
                 router.push(`/mc/${mcId}`);
               }}
-              className="text-red-200 hover:text-white">キャンセル</button>
+              className="text-red-200 hover:text-white">{tr("mcEditUi.cancel", "キャンセル")}</button>
             <button onClick={handleSave} disabled={saving}
               className="bg-white text-red-700 px-3 py-0.5 rounded font-bold hover:bg-red-50 disabled:opacity-50">
-              {saving ? "保存中..." : sbMode ? "STEP1完了 → STEP2(作業記録)へ" : "作業完了（登録）"}
+              {saving ? tr("mcEditUi.saving","保存中...") : sbMode ? tr("mcEditUi.sbStep1CompleteButton","STEP1完了 → STEP2(作業記録)へ") : tr("mcEditUi.workComplete","作業完了（登録）")}
             </button>
           </div>
         </div>
@@ -1241,19 +1241,19 @@ export default function McEditPage() {
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             </div>
             <div>
-              <h2 className="text-slate-700 font-bold text-lg mb-1">変更・登録 — 作業開始前</h2>
-              <p className="text-slate-400 text-sm">現在のデータを確認しています。変更・登録を行うには担当者の確認（パスワード）が必要です。</p>
+              <h2 className="text-slate-700 font-bold text-lg mb-1">{tr("mcEditUi.lockedTitle", "変更・登録 — 作業開始前")}</h2>
+              <p className="text-slate-400 text-sm">{tr("mcEditUi.lockedDesc")}</p>
             </div>
             <div className="border border-slate-200 rounded-xl overflow-hidden text-sm">
               <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200">
-                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">MC工程No</div><div className="font-bold text-teal-700">{(detail as any).mcProcessNo ?? "—"}</div></div>
-                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">バージョン</div><div className="font-mono font-bold">{(detail as any).version ?? "—"}</div></div>
-                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">機械</div><div className="font-bold">{detail.machine?.machineCode ?? "—"}</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.mcProcessNoLabel", "MC工程No")}</div><div className="font-bold text-teal-700">{(detail as any).mcProcessNo ?? "—"}</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.versionLabel", "バージョン")}</div><div className="font-mono font-bold">{(detail as any).version ?? "—"}</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.machineLabel", "機械")}</div><div className="font-bold">{detail.machine?.machineCode ?? "—"}</div></div>
               </div>
               <div className="grid grid-cols-3 divide-x divide-slate-200">
-                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">主Oナンバ</div><div className="font-mono font-bold">{detail.oNumber ?? "—"}</div></div>
-                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">サイクルタイム/1P</div><div className="font-bold text-xs">{detail.cycleTimeSec != null ? (() => { const ct=detail.cycleTimeSec; const h=Math.floor(ct/3600); const m=Math.floor((ct%3600)/60); const s=ct%60; return `${h}H ${String(m).padStart(2,"0")}M ${String(s).padStart(2,"0")}S`; })() : "—"}</div></div>
-                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">加工個数/1サイクル</div><div className="font-bold">{detail.machiningQty ?? 1} 個</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.mainONumberLabel", "主Oナンバ")}</div><div className="font-mono font-bold">{detail.oNumber ?? "—"}</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.cycleTimeLabel", "サイクルタイム/1P")}</div><div className="font-bold text-xs">{detail.cycleTimeSec != null ? (() => { const ct=detail.cycleTimeSec; const h=Math.floor(ct/3600); const m=Math.floor((ct%3600)/60); const s=ct%60; return `${h}H ${String(m).padStart(2,"0")}M ${String(s).padStart(2,"0")}S`; })() : "—"}</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.machiningQtyLabel", "加工個数/1サイクル")}</div><div className="font-bold">{detail.machiningQty ?? 1} {tr("mcEditUi.unitPieces", "個")}</div></div>
               </div>
             </div>
             <button
@@ -1261,9 +1261,9 @@ export default function McEditPage() {
               className="flex items-center gap-2 px-6 py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl text-sm transition-colors mx-auto"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              この作業を開始する（担当者確認）
+              {tr("mcEditUi.startWorkButton", "この作業を開始する（担当者確認）")}
             </button>
-            <div className="text-xs text-slate-400">担当者の選択とパスワード確認後に編集できます</div>
+            <div className="text-xs text-slate-400">{tr("mcEditUi.startWorkHint", "担当者の選択とパスワード確認後に編集できます")}</div>
           </div>
         </div>
       )}
@@ -1273,13 +1273,13 @@ export default function McEditPage() {
         <div className="flex flex-1 overflow-hidden">
                     {/* セクションタブ */}
           <div className="w-44 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 gap-0.5 overflow-y-auto">
-            <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">編集メニュー</div>
+            <div className="px-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{tr("mcEditUi.editMenuTitle", "編集メニュー")}</div>
             {([
-              ["basic",   "基本情報",        "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2-2h2a2 2 0 0 0 2 2"],
-              ["tooling", "ツーリング",       "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37a1.724 1.724 0 0 0 2.572-1.065z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"],
-              ["offset",  "ワークオフセット", "M4 6h16M4 10h16M4 14h16M4 18h16"],
-              ["index",   "インデックスPG",   "M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"],
-              ["files",   "図・写真",         "M4 16l4.586-4.586a2 2 0 0 1 2.828 0L16 16m-2-2l1.586-1.586a2 2 0 0 1 2.828 0L20 14m-6-6h.01M6 20h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"],
+              ["basic",   tr("mcEditUi.sectionBasic","基本情報"),        "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2-2h2a2 2 0 0 0 2 2"],
+              ["tooling", tr("mcEditUi.sectionTooling","ツーリング"),       "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37a1.724 1.724 0 0 0 2.572-1.065z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"],
+              ["offset",  tr("mcEditUi.sectionOffset","ワークオフセット"), "M4 6h16M4 10h16M4 14h16M4 18h16"],
+              ["index",   tr("mcEditUi.sectionIndex","インデックスPG"),   "M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"],
+              ["files",   tr("mcEditUi.sectionFiles","図・写真"),         "M4 16l4.586-4.586a2 2 0 0 1 2.828 0L16 16m-2-2l1.586-1.586a2 2 0 0 1 2.828 0L20 14m-6-6h.01M6 20h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"],
             ] as [string, string, string][]).map(([k, l, icon]) => (
               <button key={k} onClick={() => { setActiveSection(k as any); }}
                 className={`mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors text-left ${
@@ -1305,26 +1305,26 @@ export default function McEditPage() {
               <div className="max-w-2xl space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">機械</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.machineLabel", "機械")}</label>
                     <select value={machineId} onChange={e => { setMachineId(e.target.value); }} data-fi="true"
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
-                      <option value="">— 選択 —</option>
+                      <option value="">{tr("mcEditUi.selectOption", "— 選択 —")}</option>
                       {displayMachines
                         .filter(m => m.isActive !== false || String(m.id) === machineId)
                         .map(m => (
-                        <option key={m.id} value={String(m.id)}>{m.machineCode}{m.isActive === false ? "（非稼働）" : ""}</option>
+                        <option key={m.id} value={String(m.id)}>{m.machineCode}{m.isActive === false ? tr("mcEditUi.inactiveSuffix","（非稼働）") : ""}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">主Oナンバ</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.mainONumberLabel", "主Oナンバ")}</label>
                     <input value={oNumber} onChange={e => { setONumber(e.target.value); }} data-fi="true"
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
                   </div>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-bold text-slate-500">クランプ</label>
+                    <label className="text-xs font-bold text-slate-500">{tr("mcEditUi.clampLabel", "クランプ")}</label>
                     <button type="button" onClick={async () => {
                     setClampItem(clampNote);
                     if (!clampMasterData) {
@@ -1337,7 +1337,7 @@ export default function McEditPage() {
                   }}
                       className="flex items-center gap-1 text-xs px-2.5 py-1 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-300 rounded-lg font-medium transition-colors">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
-                      クランプ アイテム選択
+                      {tr("mcEditUi.clampItemSelect", "クランプ アイテム選択")}
                     </button>
                   </div>
                   <textarea value={clampNote} onChange={e => setClampNote(e.target.value)} rows={3}
@@ -1345,7 +1345,7 @@ export default function McEditPage() {
                 </div>
                 <div className="flex items-end gap-6">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-2">サイクルタイム/1P</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-2">{tr("mcEditUi.cycleTimeLabel", "サイクルタイム/1P")}</label>
                     <div className="flex items-center gap-2">
                       <input type="number" min={0} data-fi="true" value={cycleH} onChange={e => setCycleH(Number(e.target.value))}
                         className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
@@ -1375,7 +1375,7 @@ export default function McEditPage() {
                     <label className="text-xs font-bold text-slate-500 block mb-1">作成者（段取シート作成者）</label>
                     <select value={creatorId} onChange={e => setCreatorId(e.target.value)}
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
-                      <option value="">— 選択 —</option>
+                      <option value="">{tr("mcEditUi.selectOption", "— 選択 —")}</option>
                       {displayCreatorUsers
                         .filter(u => u.isActive || String(u.id) === creatorId)
                         .map(u => (
@@ -1422,7 +1422,7 @@ export default function McEditPage() {
                       <label className="text-xs font-bold text-slate-500 block mb-1">PG作成者</label>
                       <select value={pgCreatedBy} onChange={e => setPgCreatedBy(e.target.value)}
                         className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
-                        <option value="">— 選択 —</option>
+                        <option value="">{tr("mcEditUi.selectOption", "— 選択 —")}</option>
                         {displayPgUsers
                           .filter(u => u.isActive || String(u.id) === pgCreatedBy)
                           .map(u => (
