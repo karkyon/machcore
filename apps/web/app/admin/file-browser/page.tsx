@@ -4,14 +4,15 @@ import { useRouter, usePathname } from "next/navigation";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { fbGetCache, fbSetCache, fbSearchCache, type FbIndexItem, type FbTab } from "@/lib/file-browser-index";
 import { toJstDateTimeString, toJstMonthDayTimeString } from "@/lib/dateUtils";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type FileNode = { name: string; path: string; type: "file" | "dir"; size?: number; mtime?: string; hasChildren?: boolean; children?: FileNode[]; loaded?: boolean };
 type TabType = "photos" | "drawings" | "programs" | "nc_photos" | "nc_drawings" | "nc_programs";
 type TrashItem = { id: string; originalPath: string; trashPath: string; name: string; type: "file" | "dir"; deletedAt: string; existsInTrash: boolean };
 
-const TAB_LABELS: Record<TabType, string> = {
-  photos: "MC写真", drawings: "MC図", programs: "MCプログラム",
-  nc_photos: "NC写真", nc_drawings: "NC図", nc_programs: "NCプログラム",
+const TAB_LABEL_KEYS: Record<TabType, {k:string,f:string}> = {
+  photos: {k:"adminFileBrowser.tabPhotos",f:"MC写真"}, drawings: {k:"adminFileBrowser.tabDrawings",f:"MC図"}, programs: {k:"adminFileBrowser.tabPrograms",f:"MCプログラム"},
+  nc_photos: {k:"adminFileBrowser.tabNcPhotos",f:"NC写真"}, nc_drawings: {k:"adminFileBrowser.tabNcDrawings",f:"NC図"}, nc_programs: {k:"adminFileBrowser.tabNcPrograms",f:"NCプログラム"},
 };
 const TAB_COLORS: Record<TabType, string> = {
   photos:      "bg-rose-50 text-rose-700 border-rose-300",
@@ -94,6 +95,8 @@ function TreeNode({ node, depth, onSelect, onExpand, selectedPath, searchKw, act
 export default function FileBrowserPage() {
   const router   = useRouter();
   const pathname = usePathname();
+  const { t } = useLanguage();
+  const TAB_LABELS: Record<TabType, string> = Object.fromEntries(Object.entries(TAB_LABEL_KEYS).map(([k,v]) => [k, t(v.k, v.f)])) as Record<TabType, string>;
   const [system, setSystem]       = useState<"MC" | "NC">("MC");
   const [tab, setTab]             = useState<TabType>("photos");
   const [trees, setTrees]         = useState<Record<TabType, FileNode[]>>({ photos: [], drawings: [], programs: [], nc_photos: [], nc_drawings: [], nc_programs: [] });
@@ -141,7 +144,7 @@ export default function FileBrowserPage() {
     try {
       const data = await apiFetch("/api/admin/files/trash-list");
       setTrashItems(data.items ?? []);
-    } catch (e: any) { showToast("ゴミ箱取得失敗: " + e.message, false); }
+    } catch (e: any) { showToast(t("adminFileBrowser.trashFetchFailed","ゴミ箱取得失敗: {msg}").replace("{msg}", e.message), false); }
     finally { setTrashLoading(false); }
   }, [apiFetch]);
 
@@ -153,21 +156,21 @@ export default function FileBrowserPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      showToast("復元しました");
+      showToast(t("adminFileBrowser.restored", "復元しました"));
       await loadTrash();
       await loadRoots();
-    } catch (e: any) { showToast("復元失敗: " + e.message, false); }
+    } catch (e: any) { showToast(t("adminFileBrowser.restoreFailed","復元失敗: {msg}").replace("{msg}", e.message), false); }
     finally { setTrashBusyId(null); }
   };
 
   const handlePurgeTrash = async (id: string) => {
-    if (!window.confirm("完全に削除します。元に戻せません。よろしいですか？")) return;
+    if (!window.confirm(t("adminFileBrowser.purgeConfirm", "完全に削除します。元に戻せません。よろしいですか？"))) return;
     setTrashBusyId(id);
     try {
       await apiFetch(`/api/admin/files/trash-purge?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      showToast("完全に削除しました");
+      showToast(t("adminFileBrowser.purged", "完全に削除しました"));
       await loadTrash();
-    } catch (e: any) { showToast("完全削除失敗: " + e.message, false); }
+    } catch (e: any) { showToast(t("adminFileBrowser.purgeFailed","完全削除失敗: {msg}").replace("{msg}", e.message), false); }
     finally { setTrashBusyId(null); }
   };
 
@@ -191,34 +194,34 @@ export default function FileBrowserPage() {
         nc_drawings: data.nc_drawings?.path ?? "",
         nc_programs: data.nc_programs?.path ?? "",
       });
-    } catch (e: any) { showToast("ツリー取得失敗: " + e.message, false); }
+    } catch (e: any) { showToast(t("adminFileBrowser.treeFetchFailed","ツリー取得失敗: {msg}").replace("{msg}", e.message), false); }
     finally { setRootLoading(false); }
   };
 
   // 指定タブのフラットインデックスをサーバーから取得し、IndexedDB+メモリへキャッシュする(ReCache)。
-  const buildIndexForTab = useCallback(async (t: TabType) => {
+  const buildIndexForTab = useCallback(async (tabArg: TabType) => {
     setIndexBuilding(true);
     try {
-      const data = await apiFetch(`/api/admin/files/index?tab=${t}`);
+      const data = await apiFetch(`/api/admin/files/index?tab=${tabArg}`);
       const items: FbIndexItem[] = data.items ?? [];
-      await fbSetCache(t as FbTab, data.rootPath ?? "", items);
-      setFbIndexCache(prev => ({ ...prev, [t]: items }));
+      await fbSetCache(tabArg as FbTab, data.rootPath ?? "", items);
+      setFbIndexCache(prev => ({ ...prev, [tabArg]: items }));
       setIndexCachedAt(Date.now());
     } catch (e: any) {
-      showToast("検索インデックス構築失敗: " + e.message, false);
+      showToast(t("adminFileBrowser.indexBuildFailed","検索インデックス構築失敗: {msg}").replace("{msg}", e.message), false);
     } finally {
       setIndexBuilding(false);
     }
   }, [apiFetch]);
 
   // タブを開いた時、IndexedDBキャッシュが無ければ自動構築。あればそれをメモリへ読み込む。
-  const ensureIndexForTab = useCallback(async (t: TabType) => {
-    const cached = await fbGetCache(t as FbTab);
+  const ensureIndexForTab = useCallback(async (tabArg: TabType) => {
+    const cached = await fbGetCache(tabArg as FbTab);
     if (cached && cached.items.length > 0) {
-      setFbIndexCache(prev => ({ ...prev, [t]: cached.items }));
+      setFbIndexCache(prev => ({ ...prev, [tabArg]: cached.items }));
       setIndexCachedAt(cached.cachedAt);
     } else {
-      await buildIndexForTab(t);
+      await buildIndexForTab(tabArg);
     }
   }, [buildIndexForTab]);
 
@@ -252,7 +255,7 @@ export default function FileBrowserPage() {
         [tab]: patchTree(prev[tab]),
       }));
       return children;
-    } catch (e: any) { showToast("展開失敗: " + e.message, false); return []; }
+    } catch (e: any) { showToast(t("adminFileBrowser.expandFailed","展開失敗: {msg}").replace("{msg}", e.message), false); return []; }
   }, [tab, apiFetch]);
 
   // ツリー内の現在のノードを探索し、すでに読み込み済み(loaded)かを判定するヘルパー
@@ -379,21 +382,21 @@ export default function FileBrowserPage() {
   const handleDelete = async (node: FileNode) => {
     try {
       await apiFetch(`/api/admin/files/delete?path=${encodeURIComponent(node.path)}`, { method: "DELETE" });
-      showToast("ゴミ箱へ移動しました: " + node.name);
+      showToast(t("adminFileBrowser.movedToTrash","ゴミ箱へ移動しました: {name}").replace("{name}", node.name));
       setDelConfirm(null);
       if (selected?.path === node.path) { setSelected(null); setPreview(null); }
       await loadRoots();
       await loadTrash();
-    } catch (e: any) { showToast("削除失敗: " + e.message, false); }
+    } catch (e: any) { showToast(t("adminFileBrowser.deleteFailed","削除失敗: {msg}").replace("{msg}", e.message), false); }
   };
 
   const handleUpload = async (file: File) => {
-    if (!uploadDir) { showToast("アップロード先ディレクトリを選択してください", false); return; }
+    if (!uploadDir) { showToast(t("adminFileBrowser.selectUploadDir", "アップロード先ディレクトリを選択してください"), false); return; }
     setUploading(true);
     try {
       const fd = new FormData(); fd.append("file", file); fd.append("dest_dir", uploadDir); fd.append("file_name", file.name);
       await apiFetch("/api/admin/files/upload", { method: "POST", headers: { Authorization: `Bearer ${getToken()}` }, body: fd });
-      showToast("アップロード完了: " + file.name);
+      showToast(t("adminFileBrowser.uploadComplete","アップロード完了: {name}").replace("{name}", file.name));
       // 親ディレクトリを再ロード
       if (uploadDir) {
         const patchTree = (nodes: FileNode[]): FileNode[] =>
@@ -406,7 +409,7 @@ export default function FileBrowserPage() {
         // すぐ展開
         expandNode({ path: uploadDir, name: "", type: "dir", loaded: true });
       }
-    } catch (e: any) { showToast("アップロード失敗: " + e.message, false); }
+    } catch (e: any) { showToast(t("adminFileBrowser.uploadFailed","アップロード失敗: {msg}").replace("{msg}", e.message), false); }
     finally { setUploading(false); }
   };
 
@@ -417,7 +420,7 @@ export default function FileBrowserPage() {
     <AdminLayout pathname={pathname}>
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-200 bg-white flex items-center gap-3 shrink-0 flex-wrap">
-          <h1 className="text-lg font-bold text-slate-800">ファイルブラウザ</h1>
+          <h1 className="text-lg font-bold text-slate-800">{t("adminFileBrowser.title", "ファイルブラウザ")}</h1>
           <div className="flex items-center gap-2">
             {/* MC/NC トグル(デフォルト:MC) */}
             <div className="flex items-center bg-slate-100 rounded-full p-0.5 border border-slate-200">
@@ -448,26 +451,26 @@ export default function FileBrowserPage() {
             <button onClick={() => { setTrashOpen(true); loadTrash(); }}
               className={"px-3 py-1 text-xs font-bold rounded-full border transition-colors " +
                 (trashItems.length > 0 ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100" : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200")}>
-              🗑️ ゴミ箱{trashItems.length > 0 ? ` (${trashItems.length})` : ""}
+              {t("adminFileBrowser.trash", "🗑️ ゴミ箱{count}").replace("{count}", trashItems.length > 0 ? ` (${trashItems.length})` : "")}
             </button>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
             <input value={searchKw} onChange={e => setSearchKw(e.target.value)} onKeyDown={handleSearchKeyDown}
-              placeholder="ファイル名・フォルダ名検索…Enterで次候補"
+              placeholder={t("adminFileBrowser.searchPlaceholder", "ファイル名・フォルダ名検索…Enterで次候補")}
               className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-sky-400" />
             {searchKw.trim() && (
               <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                {indexBuilding ? "検索インデックス構築中…" : searchHits.length > 0 ? `${searchHitIndex + 1} / ${searchHits.length} 件` : "0件"}
+                {indexBuilding ? t("adminFileBrowser.indexBuilding","検索インデックス構築中…") : searchHits.length > 0 ? t("adminFileBrowser.hitCount","{i} / {n} 件").replace("{i}", String(searchHitIndex + 1)).replace("{n}", String(searchHits.length)) : t("adminFileBrowser.noHit","0件")}
               </span>
             )}
           </div>
           <button onClick={handleRefresh} disabled={rootLoading || indexBuilding}
             className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg border border-slate-200 transition-colors">
-            {rootLoading || indexBuilding ? "更新中…" : "↺ 更新"}
+            {rootLoading || indexBuilding ? t("adminFileBrowser.updating","更新中…") : t("adminFileBrowser.refresh","↺ 更新")}
           </button>
           {indexCachedAt && !indexBuilding && (
             <span className="text-[10px] text-slate-300 whitespace-nowrap">
-              索引: {toJstMonthDayTimeString(indexCachedAt)}更新
+              {t("adminFileBrowser.indexUpdated", "索引: {time}更新").replace("{time}", toJstMonthDayTimeString(indexCachedAt) ?? "")}
             </span>
           )}
         </div>
@@ -481,12 +484,12 @@ export default function FileBrowserPage() {
         {delConfirm && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
             <div className="bg-white rounded-xl shadow-2xl p-6 w-96">
-              <h2 className="text-base font-bold text-red-700 mb-3">ゴミ箱へ移動の確認</h2>
-              <p className="text-sm text-slate-600 mb-1">以下をゴミ箱へ移動します（後で復元できます）:</p>
+              <h2 className="text-base font-bold text-red-700 mb-3">{t("adminFileBrowser.trashConfirmTitle", "ゴミ箱へ移動の確認")}</h2>
+              <p className="text-sm text-slate-600 mb-1">{t("adminFileBrowser.trashConfirmDesc", "以下をゴミ箱へ移動します（後で復元できます）:")}</p>
               <p className="text-xs font-mono bg-slate-50 rounded p-2 text-slate-800 break-all mb-4">{delConfirm.path}</p>
               <div className="flex gap-2 justify-end">
-                <button onClick={() => setDelConfirm(null)} className="px-4 py-2 bg-slate-100 text-slate-600 text-sm font-bold rounded-lg hover:bg-slate-200">キャンセル</button>
-                <button onClick={() => handleDelete(delConfirm)} className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700">ゴミ箱へ移動</button>
+                <button onClick={() => setDelConfirm(null)} className="px-4 py-2 bg-slate-100 text-slate-600 text-sm font-bold rounded-lg hover:bg-slate-200">{t("adminFileBrowser.cancel", "キャンセル")}</button>
+                <button onClick={() => handleDelete(delConfirm)} className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700">{t("adminFileBrowser.moveToTrash", "ゴミ箱へ移動")}</button>
               </div>
             </div>
           </div>
@@ -496,14 +499,14 @@ export default function FileBrowserPage() {
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
               <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between shrink-0">
-                <h2 className="text-base font-bold text-slate-800">🗑️ ゴミ箱</h2>
+                <h2 className="text-base font-bold text-slate-800">{t("adminFileBrowser.trashTitle", "🗑️ ゴミ箱")}</h2>
                 <button onClick={() => setTrashOpen(false)} className="text-slate-400 hover:text-slate-700 text-lg font-bold">✕</button>
               </div>
               <div className="flex-1 overflow-y-auto p-4">
                 {trashLoading ? (
-                  <div className="text-center text-slate-400 text-xs py-8">読込中…</div>
+                  <div className="text-center text-slate-400 text-xs py-8">{t("adminFileBrowser.loading", "読込中…")}</div>
                 ) : trashItems.length === 0 ? (
-                  <div className="text-center text-slate-400 text-xs py-8">ゴミ箱は空です</div>
+                  <div className="text-center text-slate-400 text-xs py-8">{t("adminFileBrowser.trashEmpty", "ゴミ箱は空です")}</div>
                 ) : (
                   <div className="space-y-2">
                     {trashItems.map(item => (
@@ -511,17 +514,17 @@ export default function FileBrowserPage() {
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-bold text-slate-700 truncate">{item.type === "dir" ? "📁" : "📄"} {item.name}</p>
                           <p className="text-[10px] text-slate-400 font-mono truncate">{item.originalPath}</p>
-                          <p className="text-[10px] text-slate-400">削除日時: {toJstDateTimeString(item.deletedAt)}</p>
-                          {!item.existsInTrash && <p className="text-[10px] text-red-500 font-bold">⚠ ゴミ箱内の実体が見つかりません</p>}
+                          <p className="text-[10px] text-slate-400">{t("adminFileBrowser.deletedAt", "削除日時: {time}").replace("{time}", toJstDateTimeString(item.deletedAt) ?? "")}</p>
+                          {!item.existsInTrash && <p className="text-[10px] text-red-500 font-bold">{t("adminFileBrowser.notFoundInTrash", "⚠ ゴミ箱内の実体が見つかりません")}</p>}
                         </div>
                         <div className="flex gap-1.5 shrink-0">
                           <button disabled={trashBusyId === item.id || !item.existsInTrash} onClick={() => handleRestoreTrash(item.id)}
                             className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-lg hover:bg-emerald-100 disabled:opacity-40">
-                            ↺ 復元
+                            {t("adminFileBrowser.restore", "↺ 復元")}
                           </button>
                           <button disabled={trashBusyId === item.id} onClick={() => handlePurgeTrash(item.id)}
                             className="px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 text-xs font-bold rounded-lg hover:bg-red-100 disabled:opacity-40">
-                            完全削除
+                            {t("adminFileBrowser.purge", "完全削除")}
                           </button>
                         </div>
                       </div>
@@ -541,21 +544,21 @@ export default function FileBrowserPage() {
             </div>
             <div className="flex-1 overflow-y-auto py-1">
               {rootLoading ? (
-                <div className="flex items-center justify-center h-20 text-slate-400 text-xs">読込中…</div>
+                <div className="flex items-center justify-center h-20 text-slate-400 text-xs">{t("adminFileBrowser.loading", "読込中…")}</div>
               ) : currentTree.length === 0 ? (
-                <div className="flex items-center justify-center h-20 text-slate-400 text-xs">ファイルがありません</div>
+                <div className="flex items-center justify-center h-20 text-slate-400 text-xs">{t("adminFileBrowser.noFiles", "ファイルがありません")}</div>
               ) : currentTree.map((node, i) => (
                 <TreeNode key={i} node={node} depth={0} onSelect={handleSelect} onExpand={handleExpand} selectedPath={selected?.path ?? ""} searchKw={searchKw} activeHitPath={activeHitPath} onSearchEnterNext={goToNextHit} />
               ))}
             </div>
             <div className="border-t border-slate-200 p-2 shrink-0">
               <p className="text-[10px] text-slate-400 mb-1 font-bold">
-                📤 先: {uploadDir ? <span className="font-mono text-slate-600">{uploadDir.split("/").slice(-2).join("/")}</span> : <span className="text-slate-300">ディレクトリを選択</span>}
+                {t("adminFileBrowser.uploadDestLabel", "📤 先:")} {uploadDir ? <span className="font-mono text-slate-600">{uploadDir.split("/").slice(-2).join("/")}</span> : <span className="text-slate-300">{t("adminFileBrowser.selectDirectory", "ディレクトリを選択")}</span>}
               </p>
               <button onClick={() => uploadRef.current?.click()} disabled={!uploadDir || uploading}
                 className={"w-full py-1.5 text-xs font-bold rounded-lg border transition-colors " +
                   (uploadDir ? "bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100" : "bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed")}>
-                {uploading ? "アップロード中…" : "+ ファイルを登録"}
+                {uploading ? t("adminFileBrowser.uploading","アップロード中…") : t("adminFileBrowser.registerFile","+ ファイルを登録")}
               </button>
               <input ref={uploadRef} type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { handleUpload(f); e.target.value = ""; } }} />
             </div>
@@ -571,21 +574,21 @@ export default function FileBrowserPage() {
                   <p className="text-[10px] text-slate-300 font-mono truncate w-full">{selected.path}</p>
                   <div className="ml-auto flex gap-1.5">
                     {selected.type === "file" && (
-                      <button onClick={handleDownload} className="px-3 py-1 bg-sky-50 text-sky-700 text-xs font-bold rounded-lg border border-sky-200 hover:bg-sky-100">⬇ DL</button>
+                      <button onClick={handleDownload} className="px-3 py-1 bg-sky-50 text-sky-700 text-xs font-bold rounded-lg border border-sky-200 hover:bg-sky-100">{t("adminFileBrowser.downloadShort", "⬇ DL")}</button>
                     )}
-                    <button onClick={() => setDelConfirm(selected)} className="px-3 py-1 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-200 hover:bg-red-100">🗑 削除</button>
+                    <button onClick={() => setDelConfirm(selected)} className="px-3 py-1 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-200 hover:bg-red-100">{t("adminFileBrowser.deleteShort", "🗑 削除")}</button>
                   </div>
                 </div>
                 <div className="flex-1 overflow-auto bg-slate-50 flex items-start justify-center p-4">
                   {prevLoading ? (
-                    <div className="flex items-center justify-center h-32 text-slate-400 text-sm">プレビュー読込中…</div>
+                    <div className="flex items-center justify-center h-32 text-slate-400 text-sm">{t("adminFileBrowser.previewLoading", "プレビュー読込中…")}</div>
                   ) : selected.type === "dir" ? (
                     <div className="text-center text-slate-400 mt-20">
                       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto mb-3 text-slate-300"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                       <p className="text-sm font-bold text-slate-500">{selected.name}</p>
                     </div>
                   ) : !preview || preview.type === "none" ? (
-                    <div className="text-center text-slate-400 mt-20"><p className="text-sm">プレビュー非対応: {extOf(selected.name)}</p></div>
+                    <div className="text-center text-slate-400 mt-20"><p className="text-sm">{t("adminFileBrowser.previewUnsupported", "プレビュー非対応: {ext}").replace("{ext}", extOf(selected.name))}</p></div>
                   ) : preview.type === "image" ? (
                     <img src={preview.url} alt={selected.name} className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-md" />
                   ) : preview.type === "pdf" ? (
@@ -599,7 +602,7 @@ export default function FileBrowserPage() {
               <div className="flex-1 flex items-center justify-center text-slate-300">
                 <div className="text-center">
                   <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mx-auto mb-4"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"/></svg>
-                  <p className="text-sm">左のツリーからファイルまたはディレクトリを選択</p>
+                  <p className="text-sm">{t("adminFileBrowser.selectPrompt", "左のツリーからファイルまたはディレクトリを選択")}</p>
                 </div>
               </div>
             )}
