@@ -9,12 +9,14 @@ import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import ApprovalModal from "@/components/shared/ApprovalModal";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 const STATUS_LABEL: Record<string, string> = {
   NEW: "新規", PENDING_APPROVAL: "未承認", APPROVED: "承認済", CHANGING: "変更中",
 };
 
 export default function McEditPage() {
+  const { t: tr } = useLanguage();
   const { mc_id } = useParams<{ mc_id: string }>();
   const mcId  = parseInt(mc_id);
   const router = useRouter();
@@ -81,7 +83,7 @@ export default function McEditPage() {
       const d = await r.json();
       pgFullReset(d.content ?? "", d.original_name ?? f.original_name ?? "");
       setPgActiveFileId(f.id);
-    } catch { showToast("❌ 読み込みに失敗しました"); }
+    } catch { showToast(tr("mcEdit.loadFailed", "❌ 読み込みに失敗しました")); }
     finally { setPgLoading(false); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mcId]);
@@ -91,7 +93,7 @@ export default function McEditPage() {
     if (!isAuthenticated) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = "作業が完了していません。このページを離れますか？";
+      e.returnValue = tr("mcEdit.leaveConfirm", "作業が完了していません。このページを離れますか？");
       return e.returnValue;
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -319,7 +321,7 @@ export default function McEditPage() {
   // SPA内遷移(タブ切替・ダッシュボードへ等)用: 未保存の変更があれば確認ダイアログを出し、
   // キャンセルされたら遷移を中止する。
   const guardedNavigate = (path: string) => {
-    if (isEditDirty() && !window.confirm("保存されていない変更があります。このまま移動すると変更内容は失われます。よろしいですか？")) return;
+    if (isEditDirty() && !window.confirm(tr("mcEdit.unsavedChangesConfirm", "保存されていない変更があります。このまま移動すると変更内容は失われます。よろしいですか？"))) return;
     router.push(path);
   };
 
@@ -531,7 +533,7 @@ export default function McEditPage() {
 
   // ── UploadAgent連携: ワンタイムチケット発行 ──
   const issueUploadTicket = async (params: { fileType?: 'PHOTO' | 'DRAWING' | 'PROGRAM'; replaceFileId?: number; isFolderUpload?: boolean }) => {
-    if (!token) throw new Error("認証が必要です");
+    if (!token) throw new Error(tr("mcEdit.authRequired", "認証が必要です"));
     const res = await fetch(`/api/mc/${mcId}/files/upload-ticket`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -541,7 +543,7 @@ export default function McEditPage() {
         is_folder_upload: params.isFolderUpload,
       }),
     });
-    if (!res.ok) throw new Error(`チケット発行失敗: HTTP ${res.status}`);
+    if (!res.ok) throw new Error(tr("mcEdit.ticketIssueFailed","チケット発行失敗: HTTP {code}").replace("{code}", String(res.status)));
     const json = await res.json();
     return json as {
       ticket: string;
@@ -559,11 +561,11 @@ export default function McEditPage() {
     // ボタン多重クリック防止: 即座に処理中状態にする（Agent疎通確認より前）
     setActiveUploadFileType(fileType);
     setFileUploading(true);
-    setFileUploadMsg("⏳ UploadAgentに接続中...");
+    setFileUploadMsg(tr("mcEdit.connectingAgent", "⏳ UploadAgentに接続中..."));
 
     const agentOnline = await isAgentOnline();
     if (!agentOnline) {
-      const msg = "❌ UploadAgentが起動していません。アップロードには UploadAgent の起動が必要です。\nタスクトレイを確認し、UploadAgent を起動してください。";
+      const msg = tr("mcEdit.agentNotRunning", "❌ UploadAgentが起動していません。アップロードには UploadAgent の起動が必要です。\nタスクトレイを確認し、UploadAgent を起動してください。");
       setFileUploadMsg(msg);
       setFileUploading(false);
       window.alert(msg);
@@ -572,12 +574,12 @@ export default function McEditPage() {
 
     setFileUploadMsg(null);
     const ok = window.confirm(
-      `【アップロード元ファイルの削除確認】\n` +
-      `選択したファイルをアップロードします。アップロード完了後、元ファイルはゴミ箱フォルダへ自動移動されます（格納先はUploadAgentの設定で確認・変更できます）。\n続行しますか？`
+      tr("mcEdit.deleteConfirmUploadTitle", "【アップロード元ファイルの削除確認】\n") +
+      tr("mcEdit.deleteConfirmUploadBody", "選択したファイルをアップロードします。アップロード完了後、元ファイルはゴミ箱フォルダへ自動移動されます（格納先はUploadAgentの設定で確認・変更できます）。\n続行しますか？")
     );
     if (!ok) { setFileUploading(false); return; }
 
-    setFileUploadMsg("⏳ UploadAgentでファイル選択ダイアログを開いています...");
+    setFileUploadMsg(tr("mcEdit.openingFileDialog", "⏳ UploadAgentでファイル選択ダイアログを開いています..."));
     try {
       const ticketJson = await issueUploadTicket({ fileType, isFolderUpload: mode === "folder" });
       const ticket = ticketJson.ticket;
@@ -592,7 +594,7 @@ export default function McEditPage() {
         return;
       }
       if (!result.success) {
-        setFileUploadMsg(`❌ ${result.error ?? "アップロードに失敗しました"}`);
+        setFileUploadMsg(`❌ ${result.error ?? tr("mcEdit.uploadFailedGeneric", "アップロードに失敗しました")}`);
         return;
       }
 
@@ -602,13 +604,13 @@ export default function McEditPage() {
       const n = result.files.length;
       const dupCount = result.files.filter(f => f.duplicateHandled).length;
       const delFailCount = result.files.filter(f => !f.localDeleted).length;
-      let msg = `✅ ${n}件アップロード完了`;
-      if (dupCount > 0) msg += `（重複${dupCount}件は既存ファイルをゴミ箱へ退避）`;
-      if (delFailCount > 0) msg += ` ⚠️ ${delFailCount}件は元ファイルの削除に失敗 - 手動削除してください`;
+      let msg = tr("mcEdit.uploadCompleteCount","✅ {n}件アップロード完了").replace("{n}", String(n));
+      if (dupCount > 0) msg += tr("mcEdit.dupMovedToTrash","（重複{n}件は既存ファイルをゴミ箱へ退避）").replace("{n}", String(dupCount));
+      if (delFailCount > 0) msg += tr("mcEdit.delFailWarning"," ⚠️ {n}件は元ファイルの削除に失敗 - 手動削除してください").replace("{n}", String(delFailCount));
       setFileUploadMsg(msg);
     } catch (err: any) {
       console.error("[AGENT_UPLOAD] エラー:", err);
-      setFileUploadMsg("❌ アップロード失敗: " + (err.message ?? "不明なエラー"));
+      setFileUploadMsg(tr("mcEdit.uploadFailedPrefix","❌ アップロード失敗: {msg}").replace("{msg}", err.message ?? tr("mcEdit.unknownError","不明なエラー")));
     } finally {
       setFileUploading(false);
       setTimeout(() => setFileUploadMsg(null), 6000);
@@ -617,16 +619,16 @@ export default function McEditPage() {
 
   // ── 差し替え（Agent側でダイアログ表示〜アップロード〜削除まで完結） ──
   const requestReplaceUpload = async (fileId: number, fileType: 'PHOTO' | 'DRAWING') => {
-    if (!token) { showToast("認証が必要です"); return; }
+    if (!token) { showToast(tr("mcEdit.authRequired", "認証が必要です")); return; }
     if (replacingId !== null) { return; }
 
     // ボタン多重クリック防止: 即座に処理中状態にする
     setReplacingId(fileId);
-    showToast("⏳ UploadAgentに接続中...");
+    showToast(tr("mcEdit.connectingAgent", "⏳ UploadAgentに接続中..."));
 
     const agentOnline = await isAgentOnline();
     if (!agentOnline) {
-      const msg = "❌ UploadAgentが起動していません。差し替えには UploadAgent の起動が必要です。";
+      const msg = tr("mcEdit.agentNotRunningReplace", "❌ UploadAgentが起動していません。差し替えには UploadAgent の起動が必要です。");
       showToast(msg);
       setReplacingId(null);
       window.alert(msg);
@@ -634,12 +636,12 @@ export default function McEditPage() {
     }
 
     const ok = window.confirm(
-      `【差し替え確認】\n選択したファイルで既存ファイルを差し替えます。\n` +
-      `既存ファイルはサーバの /trash フォルダへ、選択した元ファイルはゴミ箱フォルダへ、それぞれ移動されます（格納先はUploadAgentの設定で確認・変更できます）。\n続行しますか？`
+      tr("mcEdit.replaceConfirmTitle", "【差し替え確認】\n選択したファイルで既存ファイルを差し替えます。\n") +
+      tr("mcEdit.replaceConfirmBody", "既存ファイルはサーバの /trash フォルダへ、選択した元ファイルはゴミ箱フォルダへ、それぞれ移動されます（格納先はUploadAgentの設定で確認・変更できます）。\n続行しますか？")
     );
     if (!ok) { setReplacingId(null); return; }
 
-    showToast("⏳ UploadAgentでファイル選択ダイアログを開いています...");
+    showToast(tr("mcEdit.openingFileDialog", "⏳ UploadAgentでファイル選択ダイアログを開いています..."));
     try {
       const ticketJson = await issueUploadTicket({ fileType, replaceFileId: fileId });
       const ticket = ticketJson.ticket;
@@ -651,7 +653,7 @@ export default function McEditPage() {
         return;
       }
       if (!result.success) {
-        showToast(`❌ ${result.error ?? "差し替えに失敗しました"}`);
+        showToast(`❌ ${result.error ?? tr("mcEdit.replaceFailedGeneric", "差し替えに失敗しました")}`);
         return;
       }
 
@@ -660,12 +662,12 @@ export default function McEditPage() {
 
       const u = result.files[0];
       const msg = u?.localDeleted
-        ? `✅ 差し替え完了（${u.originalName}）元ファイルをゴミ箱に移動しました`
-        : `✅ 差し替え完了（${u?.originalName ?? ""}）⚠️ 元ファイルの削除に失敗 - 手動削除してください`;
+        ? tr("mcEdit.replaceCompleteMoved","✅ 差し替え完了（{name}）元ファイルをゴミ箱に移動しました").replace("{name}", u.originalName)
+        : tr("mcEdit.replaceCompleteFailed","✅ 差し替え完了（{name}）⚠️ 元ファイルの削除に失敗 - 手動削除してください").replace("{name}", u?.originalName ?? "");
       showToast(msg);
     } catch (e: any) {
       console.error("[AGENT_REPLACE] エラー:", e);
-      showToast("❌ 差し替え失敗: " + (e.message ?? "不明なエラー"));
+      showToast(tr("mcEdit.replaceFailedPrefix","❌ 差し替え失敗: {msg}").replace("{msg}", e.message ?? tr("mcEdit.unknownError","不明なエラー")));
     } finally {
       setReplacingId(null);
     }
@@ -859,11 +861,11 @@ export default function McEditPage() {
   const MAX_PG_BYTES = 10 * 1024 * 1024; // PG上限10MB
 
   const handlePgUploadFromUSB = async () => {
-    if (!token) { showToast("❌ 認証が必要です"); return; }
+    if (!token) { showToast("❌ " + tr("mcEdit.authRequired", "認証が必要です")); return; }
     const isFolderMode = !!(detail as any)?.pgIsFolder;
     const pgAgentOnline = await isAgentOnline();
     if (!pgAgentOnline) {
-      const msg = "❌ UploadAgentが起動していません。PGファイルのアップロードには UploadAgent の起動が必要です。";
+      const msg = tr("mcEdit.agentNotRunningPg", "❌ UploadAgentが起動していません。PGファイルのアップロードには UploadAgent の起動が必要です。");
       showToast(msg);
       window.alert(msg);
       return;
@@ -880,24 +882,24 @@ export default function McEditPage() {
       const expectedName = isFolderMode ? ticketJson.expected_folder_name : ticketJson.expected_file_name;
 
       if (!expectedName) {
-        showToast("❌ 対象ファイル名/フォルダ名の解決に失敗しました");
+        showToast(tr("mcEdit.resolveFileNameFailed", "❌ 対象ファイル名/フォルダ名の解決に失敗しました"));
         setPgUploading(false);
         return;
       }
 
       const check = await agentCheckUsbTarget(expectedName, isFolderMode);
       if (!check.success || !check.exists) {
-        const msg = check.error ?? `USBフォルダ内に「${expectedName}」が見つかりません`;
+        const msg = check.error ?? tr("mcEdit.usbFolderNotFound","USBフォルダ内に「{name}」が見つかりません").replace("{name}", expectedName);
         showToast(`❌ ${msg}`);
         setPgUploading(false);
         return;
       }
 
       const ok = window.confirm(
-        `【PGファイルアップロード - 元ファイル削除確認】\n` +
-        `USB内に${isFolderMode ? "フォルダ" : "ファイル"}「${expectedName}」を検出しました。\n` +
-        `この機械(${isFolderMode ? "📁 フォルダ単位" : "📄 単体ファイル"})の命名規則に従い、そのままアップロードします。\n` +
-        `アップロード完了後、元ファイルはゴミ箱(.machcore_trash)へ自動移動されます。\n続行しますか？`
+        tr("mcEdit.pgUploadDeleteConfirmTitle", "【PGファイルアップロード - 元ファイル削除確認】\n") +
+        tr("mcEdit.pgUploadDetected", "USB内に{unit}「{name}」を検出しました。\n").replace("{unit}", isFolderMode ? tr("mcEdit.folderUnit","フォルダ") : tr("mcEdit.fileUnit","ファイル")).replace("{name}", expectedName) +
+        tr("mcEdit.pgUploadNamingRule", "この機械({mode})の命名規則に従い、そのままアップロードします。\n").replace("{mode}", isFolderMode ? tr("mcEdit.folderModeLabel","📁 フォルダ単位") : tr("mcEdit.fileModeLabel","📄 単体ファイル")) +
+        tr("mcEdit.pgUploadAutoMove", "アップロード完了後、元ファイルはゴミ箱(.machcore_trash)へ自動移動されます。\n続行しますか？")
       );
       if (!ok) { setPgUploading(false); return; }
 
@@ -905,7 +907,7 @@ export default function McEditPage() {
 
       if (result.cancelled) { setPgUploading(false); return; }
       if (!result.success) {
-        showToast(`❌ ${result.error ?? "アップロードに失敗しました"}`);
+        showToast(`❌ ${result.error ?? tr("mcEdit.uploadFailedGeneric", "アップロードに失敗しました")}`);
         setPgUploading(false);
         return;
       }
@@ -923,19 +925,19 @@ export default function McEditPage() {
 
       const n2 = result.files.length;
       const delFailCount = result.files.filter((f: any) => !f.localDeleted).length;
-      let msg = `✅ ${n2}件登録完了`;
-      if (delFailCount > 0) msg += ` ⚠️ ${delFailCount}件は元ファイルの削除に失敗 - 手動削除してください`;
-      else msg += "。元ファイルをゴミ箱に移動しました";
+      let msg = tr("mcEdit.registerCompleteCount","✅ {n}件登録完了").replace("{n}", String(n2));
+      if (delFailCount > 0) msg += tr("mcEdit.delFailWarning"," ⚠️ {n}件は元ファイルの削除に失敗 - 手動削除してください").replace("{n}", String(delFailCount));
+      else msg += tr("mcEdit.movedToTrashSuffix", "。元ファイルをゴミ箱に移動しました");
       showToast(msg);
     } catch (e: any) {
       console.error("[PG_UPLOAD] エラー:", e);
-      showToast("❌ アップロード失敗: " + (e.message || "不明なエラー"));
+      showToast(tr("mcEdit.uploadFailedPrefix","❌ アップロード失敗: {msg}").replace("{msg}", e.message || tr("mcEdit.unknownError","不明なエラー")));
     } finally {
       setPgUploading(false);
     }
   };
   const handleSave = async () => {
-    if (!token) { setSaveError("認証が必要です"); return; }
+    if (!token) { setSaveError(tr("mcEdit.authRequired", "認証が必要です")); return; }
     setSaving(true); setSaveError(null);
     try {
       const cycleTimeSec = cycleH * 3600 + cycleM * 60 + cycleS;
@@ -983,16 +985,16 @@ export default function McEditPage() {
           note:   r.note   ?? undefined,
         })), token);
       }
-      showToast("✅ 保存しました");
+      showToast(tr("mcEdit.saved", "✅ 保存しました"));
       // 保存が成功したのでスナップショットを更新し、以降を「未保存なし」状態に戻す
       initialSnapshotRef.current = buildEditSnapshot();
       // 新規(sbMode)/リピート(sbRepeatMode)/通常: いずれも終了確認モーダルを表示
       // 新規は変更内容を「新規登録」に固定
-      if (sbMode) setKanryoType("新規登録");
+      if (sbMode) setKanryoType(tr("mcEdit.newRegistrationType", "新規登録"));
       setPendingBody({ savedMcId: mcId, isSbMode: sbMode });
       setShowKanryoModal(true);
     } catch (e: any) {
-      const errMsg = e?.response?.data?.message ?? e?.message ?? "保存に失敗しました";
+      const errMsg = e?.response?.data?.message ?? e?.message ?? tr("mcEdit.saveFailedGeneric", "保存に失敗しました");
       console.error("[STEP1] handleSave error:", e?.response?.status, errMsg, e?.response?.data);
       setSaveError(errMsg);
     } finally {
@@ -1012,7 +1014,7 @@ export default function McEditPage() {
       const savedId = pendingBody.savedMcId;
       const wasSbMode = pendingBody.isSbMode;
       setPendingBody(null);
-      showToast(`✅ ${kanryoType}として登録しました`);
+      showToast(tr("mcEdit.registeredAsType","✅ {type}として登録しました").replace("{type}", kanryoType));
 
       if (!isSb) {
         // ★通常編集: 段取シートバックのsessionStorageキーには一切触れず、
@@ -1033,7 +1035,7 @@ export default function McEditPage() {
       sbFlowCompletedRef.current = true; // [v068] 正規のSTEP2引き継ぎとして記録
       setTimeout(() => router.push(`/mc/${savedId}/record`), 800);
     } catch (e: any) {
-      const errMsg = e?.response?.data?.message ?? e?.message ?? "バージョン更新に失敗";
+      const errMsg = e?.response?.data?.message ?? e?.message ?? tr("mcEdit.versionUpdateFailed", "バージョン更新に失敗");
       setSaveError(errMsg);
       setShowKanryoModal(false);
     }
@@ -1048,7 +1050,7 @@ export default function McEditPage() {
     const savedId = pendingBody.savedMcId;
     setShowKanryoModal(false);
     setPendingBody(null);
-    showToast("💾 一時保存しました（バージョン変更なし）");
+    showToast(tr("mcEdit.tempSaved", "💾 一時保存しました（バージョン変更なし）"));
     logout();
     setTimeout(() => router.push(`/mc/${savedId}`), 600);
   };
@@ -1059,7 +1061,7 @@ export default function McEditPage() {
       const res = await mcApi.parseTooling(mcId, toolingText, token);
       const items = ((res as any).data ?? res).items ?? [];
       setParseResult(items);
-    } catch { alert("解析に失敗しました"); }
+    } catch { alert(tr("mcEdit.analyzeFailedAlert", "解析に失敗しました")); }
   };
 
   const applyParseResult = () => {
@@ -1080,11 +1082,11 @@ export default function McEditPage() {
     })));
     setParseResult(null);
     setToolingText("");
-    showToast("ツーリングデータを取り込みました");
+    showToast(tr("mcEdit.toolingImported", "ツーリングデータを取り込みました"));
   };
 
   if (!detail) return (
-    <div className="h-screen flex items-center justify-center text-slate-400">読み込み中…</div>
+    <div className="h-screen flex items-center justify-center text-slate-400">{tr("mcEdit.loadingScreen", "読み込み中…")}</div>
   );
 
   const d = detail;
@@ -1393,14 +1395,14 @@ export default function McEditPage() {
                   <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-600">プログラム情報</span>
                     <button onClick={() => {
-                      if (!token) { showToast("❌ 認証が必要です"); return; }
+                      if (!token) { showToast("❌ " + tr("mcEdit.authRequired", "認証が必要です")); return; }
                       setNewPgViewerOpen(true); // [v079] 新共通コンポーネントを開く
                     }}
                       className="px-3 py-1 text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white rounded-lg transition-colors">
                       📄 PGエディタを開く
                     </button>
                     <button onClick={() => {
-                      if (!token) { showToast("❌ 認証が必要です"); return; }
+                      if (!token) { showToast("❌ " + tr("mcEdit.authRequired", "認証が必要です")); return; }
                       if (!("showOpenFilePicker" in window)) { showToast("❌ Chrome/Edgeが必要です"); return; }
                       handlePgUploadFromUSB();
                     }} disabled={pgUploading}
@@ -1709,7 +1711,7 @@ export default function McEditPage() {
                           })));
                           setParseResult(null);
                           setToolingText("");
-                          showToast("ツーリングデータを取り込みました");
+                          showToast(tr("mcEdit.toolingImported", "ツーリングデータを取り込みました"));
                         }}
                         className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-6 py-2 rounded-lg font-bold">
                         ✅ {parseResult.length}本を取り込む
@@ -1729,7 +1731,7 @@ export default function McEditPage() {
                     <span className="text-xs font-bold text-slate-600">ワークオフセット ({offsetRows.length}レコード)</span>
                     <div className="flex items-center gap-2">
                       <button onClick={async () => {
-                        if (!token) { showToast("❌ 認証が必要です"); return; }
+                        if (!token) { showToast("❌ " + tr("mcEdit.authRequired", "認証が必要です")); return; }
                         try {
                           await mcApi.saveWorkOffsets(mcId, offsetRows.map((o: any) => ({
                             g_code:   o.g_code   ?? o.gCode   ?? "",
@@ -1831,7 +1833,7 @@ export default function McEditPage() {
                     <span className="text-xs font-bold text-slate-600">インデックスプログラム ({indexRows.length}レコード)</span>
                     <div className="flex items-center gap-2">
                       <button onClick={async () => {
-                        if (!token) { showToast("❌ 認証が必要です"); return; }
+                        if (!token) { showToast("❌ " + tr("mcEdit.authRequired", "認証が必要です")); return; }
                         try {
                           await mcApi.saveIndexPrograms(mcId, indexRows.map((r: any, idx: number) => ({
                             sort_order: idx,
@@ -2267,7 +2269,7 @@ export default function McEditPage() {
                   💾 USB/指定先に保存
                 </button>
                 <button onClick={async () => {
-                  if (!token) { showToast("❌ 認証が必要です"); return; }
+                  if (!token) { showToast("❌ " + tr("mcEdit.authRequired", "認証が必要です")); return; }
                   setPgSaving(true);
                   try {
                     const saveUrl = pgActiveFileId != null
