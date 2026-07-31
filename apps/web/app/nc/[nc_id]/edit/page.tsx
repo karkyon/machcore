@@ -606,24 +606,24 @@ export default function NcEditPage() {
                 <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
                 </span>
-                NC詳細
+                {tr("ncEditUi.ncDetail", "NC詳細")}
               </button>
               <span className="text-slate-600">|</span>
             </>
           )}
           <button onClick={() => guardedNavigate("/nc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>ダッシュボードへ
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>{tr("ncEditUi.toDashboard", "ダッシュボードへ")}
           </button>
           <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
-          <span className="text-sm font-medium flex items-center gap-1.5">変更・登録</span>
+          <span className="text-sm font-medium flex items-center gap-1.5">{tr("ncEditUi.editRegister", "変更・登録")}</span>
           <span className="ml-auto">
             {isAuthenticated && operator ? (
               <span className="text-[11px] bg-red-600 text-white px-3 py-1 rounded font-bold animate-pulse">
-                作業中: {operator.name}　{fmtElapsed(elapsed)}
+                {tr("ncEditUi.working", "作業中: {name}　{time}").replace("{name}", operator.name).replace("{time}", fmtElapsed(elapsed))}
               </span>
             ) : (
               <span className="text-[11px] text-slate-400 bg-slate-700 px-2 py-1 rounded">
-                🔒 認証待ち
+                {tr("ncEditUi.waitingAuth", "🔒 認証待ち")}
               </span>
             )}
           </span>
@@ -637,8 +637,8 @@ export default function NcEditPage() {
           <div className={`${sbRepeatMode ? "bg-amber-600" : "bg-blue-600"} text-white px-5 py-2 flex items-center justify-between text-xs shrink-0`}>
             <div className="flex items-center gap-3">
               <span className="bg-white/20 text-white rounded-full w-5 h-5 flex items-center justify-center font-bold shrink-0">1</span>
-              <span className="font-bold">{sbRepeatMode ? "段取シートバック リピート: 旋盤情報を確認・編集してください" : "段取シートバック STEP1: 旋盤情報・ツーリングなどを登録してください"}</span>
-              <span className="opacity-80">→ {sbRepeatMode ? "更新後、変更内容を登録してSTEP2(作業記録)へ遷移します" : "登録完了後 STEP2(作業記録)へ自動遷移します"}</span>
+              <span className="font-bold">{sbRepeatMode ? tr("ncEditUi.sbRepeatBannerText","段取シートバック リピート: 旋盤情報を確認・編集してください") : tr("ncEditUi.sbNewBannerText","段取シートバック STEP1: 旋盤情報・ツーリングなどを登録してください")}</span>
+              <span className="opacity-80">{sbRepeatMode ? tr("ncEditUi.sbRepeatNextText","→ 更新後、変更内容を登録してSTEP2(作業記録)へ遷移します") : tr("ncEditUi.sbNewNextText","→ 登録完了後 STEP2(作業記録)へ自動遷移します")}</span>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => {
@@ -651,11 +651,11 @@ export default function NcEditPage() {
                   router.push("/nc");
                 }}
                 className="text-white/80 hover:text-white text-xs px-3 py-1 rounded border border-white/40 hover:border-white transition-colors">
-                キャンセル（中断）
+                {tr("ncEditUi.cancelInterrupt", "キャンセル（中断）")}
               </button>
               <button onClick={handleSave} disabled={saving}
                 className="bg-white text-slate-800 px-4 py-1 rounded font-bold hover:bg-slate-100 disabled:opacity-50 text-sm">
-                {saving ? "保存中..." : (sbRepeatMode ? "更新完了 → 変更登録・STEP2へ" : "STEP1完了 → STEP2(作業記録)へ")}
+                {saving ? tr("ncEditUi.saving","保存中...") : (sbRepeatMode ? tr("ncEditUi.sbRepeatCompleteButton","更新完了 → 変更登録・STEP2へ") : tr("ncEditUi.sbStep1CompleteButton","STEP1完了 → STEP2(作業記録)へ"))}
               </button>
             </div>
           </div>
@@ -663,8 +663,8 @@ export default function NcEditPage() {
         {/* [仮登録] 未確定状態の案内バナー */}
         {isProvisionalLocked && (
           <div className="bg-slate-100 border-b border-slate-200 px-4 py-2 text-xs text-slate-500 flex items-center gap-2 shrink-0">
-            <span className="font-bold text-slate-600">🔒 仮登録（未確定）</span>
-            この画面で「✓ 作業完了（登録）」を行うまで、段取シート・作業記録タブは利用できません。確定せずにこの画面を離れると登録内容は破棄されます。
+            <span className="font-bold text-slate-600">{tr("ncEditUi.provisionalLockedLabel", "🔒 仮登録（未確定）")}</span>
+            {tr("ncEditUi.provisionalLockedDesc")}
           </div>
         )}
 
@@ -672,26 +672,26 @@ export default function NcEditPage() {
         <nav className="bg-white border-b border-[#d0d8e4] px-4 flex gap-1.5 items-end shrink-0 pt-1.5">
           <button onClick={() => { if (!sbTabLocked) guardedNavigate(`/nc/${ncId}`); }}
             disabled={sbTabLocked}
-            title={sbTabLocked ? "登録確定後に利用できます" : undefined}
+            title={sbTabLocked ? tr("ncEditUi.availableAfterConfirm", "登録確定後に利用できます") : undefined}
             className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${sbTabLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>NC詳細
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>{tr("ncEditUi.ncDetail", "NC詳細")}
           </button>
           <button onClick={() => router.push(`/nc/${ncId}/edit`)}
             className="px-4 py-1.5 text-[12px] font-bold flex items-center gap-1.5 rounded-t border border-b-0 border-[#1b2a41] bg-[#1b2a41] text-white">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>{tr("ncEditUi.editRegister", "変更・登録")}
             {isAuthenticated && <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse ml-0.5" />}
           </button>
           <button onClick={() => { if (!sbTabLocked) guardedNavigate(`/nc/${ncId}/print`); }}
             disabled={sbTabLocked}
-            title={sbTabLocked ? "登録確定後に利用できます" : undefined}
+            title={sbTabLocked ? tr("ncEditUi.availableAfterConfirm", "登録確定後に利用できます") : undefined}
             className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${sbTabLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>{tr("ncEditUi.setupSheetTab", "段取シート")}
           </button>
           <button onClick={() => { if (!sbTabLocked) guardedNavigate(`/nc/${ncId}/record`); }}
             disabled={sbTabLocked}
-            title={sbTabLocked ? "登録確定後に利用できます" : undefined}
+            title={sbTabLocked ? tr("ncEditUi.availableAfterConfirm", "登録確定後に利用できます") : undefined}
             className={`px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors ${sbTabLocked ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-50" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]"}`}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>作業記録
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>{tr("ncEditUi.workRecordTab", "作業記録")}
           </button>
         </nav>
 
@@ -705,27 +705,27 @@ export default function NcEditPage() {
                 <div className="w-14 h-14 rounded-full bg-red-50 border border-red-200 flex items-center justify-center">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#991b1b" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 </div>
-                <div className="font-bold text-slate-700 text-base">変更・登録 — 作業開始前</div>
+                <div className="font-bold text-slate-700 text-base">{tr("ncEditUi.lockedTitle", "変更・登録 — 作業開始前")}</div>
                 <div className="text-slate-500 text-sm max-w-sm">
-                  現在のデータを確認しています。変更・登録を行うには担当者の確認（パスワード）が必要です。
+                  {tr("ncEditUi.lockedDesc")}
                 </div>
                 {/* データサマリー 50%透過 */}
                 <div className="w-full max-w-md rounded-xl border border-slate-200 overflow-hidden opacity-50 pointer-events-none text-xs">
                   <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200">
-                    <div className="p-2.5"><div className="text-slate-400">機械</div><div className="font-bold">{d.machine?.machineCode ?? "—"}</div></div>
-                    <div className="p-2.5"><div className="text-slate-400">ファイル名</div><div className="font-mono font-bold">{d.fileName ?? "—"}</div></div>
-                    <div className="p-2.5"><div className="text-slate-400">加工時間</div><div className="font-mono font-bold">{d.machiningTime != null ? `${d.machiningTime} 分` : "—"}</div></div>
+                    <div className="p-2.5"><div className="text-slate-400">{tr("ncEditUi.machineLabel", "機械")}</div><div className="font-bold">{d.machine?.machineCode ?? "—"}</div></div>
+                    <div className="p-2.5"><div className="text-slate-400">{tr("ncEditUi.fileNameLabel", "ファイル名")}</div><div className="font-mono font-bold">{d.fileName ?? "—"}</div></div>
+                    <div className="p-2.5"><div className="text-slate-400">{tr("ncEditUi.machiningTimeLabel", "加工時間")}</div><div className="font-mono font-bold">{d.machiningTime != null ? tr("ncEditUi.minutesUnit","{n} 分").replace("{n}", String(d.machiningTime)) : "—"}</div></div>
                   </div>
-                  <div className="p-2.5"><div className="text-slate-400">備考</div><div className="text-slate-600">{d.clampNote ? d.clampNote.slice(0,40)+"…" : "—"}</div></div>
+                  <div className="p-2.5"><div className="text-slate-400">{tr("ncEditUi.noteLabel", "備考")}</div><div className="text-slate-600">{d.clampNote ? d.clampNote.slice(0,40)+"…" : "—"}</div></div>
                 </div>
                 <button
                   onClick={() => setAuthOpen(true)}
                   className="flex items-center gap-2 px-6 py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl text-sm transition-colors"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  この作業を開始する（担当者確認）
+                  {tr("ncEditUi.startWorkButton", "この作業を開始する（担当者確認）")}
                 </button>
-                <div className="text-xs text-slate-400">担当者の選択とパスワード確認後に編集できます</div>
+                <div className="text-xs text-slate-400">{tr("ncEditUi.startWorkHint", "担当者の選択とパスワード確認後に編集できます")}</div>
               </div>
             </div>
           )}
@@ -738,8 +738,8 @@ export default function NcEditPage() {
               <div className="bg-red-600 rounded-xl px-5 py-3 flex items-center gap-3">
                 <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse shrink-0"></div>
                 <div className="flex-1">
-                  <div className="text-white font-bold text-sm">変更・登録 作業中</div>
-                  <div className="text-red-200 text-xs">{operator?.name}（{operator?.role}）— 作業開始から {fmtElapsed(elapsed)}</div>
+                  <div className="text-white font-bold text-sm">{tr("ncEditUi.workingSessionTitle", "変更・登録 作業中")}</div>
+                  <div className="text-red-200 text-xs">{tr("ncEditUi.workingSince","{name}（{role}）— 作業開始から {time}").replace("{name}", operator?.name ?? "").replace("{role}", operator?.role ?? "").replace("{time}", fmtElapsed(elapsed))}</div>
                 </div>
                 <div className="text-white font-mono text-sm font-bold">{fmtElapsed(elapsed)}</div>
               </div>
@@ -753,7 +753,7 @@ export default function NcEditPage() {
               <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
                 <div className="flex items-center gap-1.5 mb-4 text-xs font-bold text-amber-600">
                   <div className="w-2 h-2 bg-amber-400 rounded-full"></div>
-                  編集モード — 変更した項目はオレンジ枠で表示
+                  {tr("ncEditUi.editModeLabel", "編集モード — 変更した項目はオレンジ枠で表示")}
                 </div>
 
                 <div className="grid grid-cols-3 gap-5">
@@ -764,27 +764,27 @@ export default function NcEditPage() {
                     {/* 行1: 工程L | 機械 | 加工時間 | フォルダ名 */}
                     <div className="grid grid-cols-4 gap-3">
                       <div>
-                        <label className="text-xs text-slate-500 block mb-1">工程 L <span className="text-red-400 text-[10px]">変更不可</span></label>
+                        <label className="text-xs text-slate-500 block mb-1">{tr("ncEditUi.processLLabel", "工程 L")} <span className="text-red-400 text-[10px]">{tr("ncEditUi.notChangeable", "変更不可")}</span></label>
                         <input
                           value={`L${d.processL}`} readOnly
                           className="border border-slate-200 rounded px-3 py-2 text-sm w-full bg-slate-50 text-slate-400 cursor-not-allowed"
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-500 block mb-1">機械 <span className="text-red-400">*</span></label>
+                        <label className="text-xs text-slate-500 block mb-1">{tr("ncEditUi.machineLabel", "機械")} <span className="text-red-400">*</span></label>
                         <select
                           value={machineId}
                           onChange={e => { setMachineId(e.target.value === "" ? "" : Number(e.target.value)); markDirty("machineId"); }}
                           className={fieldCls("machineId")}
                         >
-                          <option value="">— 選択 —</option>
+                          <option value="">{tr("ncEditUi.selectOption", "— 選択 —")}</option>
                           {machines.map(m => (
                             <option key={m.id} value={m.id}>{m.machineCode}</option>
                           ))}
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-slate-500 block mb-1">加工時間（分）</label>
+                        <label className="text-xs text-slate-500 block mb-1">{tr("ncEditUi.machiningTimeMinLabel", "加工時間（分）")}</label>
                         <input
                           type="number" min={0}
                           value={machiningTime}
@@ -794,13 +794,13 @@ export default function NcEditPage() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-500 block mb-1">フォルダ名 <span className="text-red-400">*</span></label>
+                        <label className="text-xs text-slate-500 block mb-1">{tr("ncEditUi.folderNameLabel", "フォルダ名")} <span className="text-red-400">*</span></label>
                         <input
                           type="text" maxLength={50}
                           value={folderName}
                           onChange={e => { setFolderName(e.target.value); markDirty("folderName"); }}
                           className={fieldCls("folderName", "font-mono")}
-                          placeholder="例: 旭A"
+                          placeholder={tr("ncEditUi.folderNamePlaceholder", "例: 旭A")}
                         />
                       </div>
                     </div>
@@ -809,7 +809,7 @@ export default function NcEditPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs text-slate-500 block mb-1">
-                          ファイル名 / O番号 <span className="text-red-400">*</span>
+                          {tr("ncEditUi.fileNameSlashONoLabel", "ファイル名 / O番号")} <span className="text-red-400">*</span>
                           {dirty.has("fileName") && <span className="text-orange-500 ml-1">●</span>}
                         </label>
                         <input
@@ -817,12 +817,12 @@ export default function NcEditPage() {
                           value={fileName}
                           onChange={e => { setFileName(e.target.value); markDirty("fileName"); }}
                           className={fieldCls("fileName", "font-mono")}
-                          placeholder="例: 7065"
+                          placeholder={tr("ncEditUi.fileNamePlaceholder", "例: 7065")}
                         />
                       </div>
                       <div>
                         <label className="text-xs text-slate-500 block mb-1">
-                          Ver <span className="text-red-400">*</span>
+                          {tr("ncEditUi.verLabel", "Ver")} <span className="text-red-400">*</span>
                           {dirty.has("version") && <span className="text-orange-500 ml-1">●</span>}
                         </label>
                         <input
