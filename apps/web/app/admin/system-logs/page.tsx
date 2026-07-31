@@ -2,6 +2,7 @@
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 const LEVEL_COLOR: Record<string, string> = {
   INFO:  "bg-blue-100 text-blue-700",
@@ -41,6 +42,7 @@ const apiFetch = async (path: string, opts?: RequestInit) => {
 export default function SystemLogsPage() {
   const router   = useRouter();
   const pathname = usePathname();
+  const { t } = useLanguage();
   const [logs,    setLogs]    = useState<SysLog[]>([]);
   const [total,   setTotal]   = useState(0);
   const [loading, setLoading] = useState(false);
@@ -71,7 +73,7 @@ export default function SystemLogsPage() {
       setTotal(d.total ?? 0);
       setPage(p);
     } catch (e: any) {
-      showToast(`取得失敗: ${e.message}`, false);
+      showToast(t("adminSystemLogs.fetchFailed","取得失敗: {msg}").replace("{msg}", e.message), false);
     } finally { setLoading(false); }
   }, [router, fLevel, fCategory, fDateFrom, fDateTo]);
 
@@ -84,12 +86,12 @@ export default function SystemLogsPage() {
   }, [autoRefresh, fetchLogs]);
 
   const handlePurge = async () => {
-    if (!confirm("30日以前のログを削除しますか？")) return;
+    if (!confirm(t("adminSystemLogs.purgeConfirm", "30日以前のログを削除しますか？"))) return;
     try {
       const d = await apiFetch("/admin/system-logs/purge?days=30", { method: "DELETE" });
       showToast(d.message);
       fetchLogs(1);
-    } catch (e: any) { showToast(`削除失敗: ${e.message}`, false); }
+    } catch (e: any) { showToast(t("adminSystemLogs.deleteFailed","削除失敗: {msg}").replace("{msg}", e.message), false); }
   };
 
   const fmtDt = (s: string) => {
@@ -111,54 +113,54 @@ export default function SystemLogsPage() {
 
         <main className="flex-1 overflow-hidden flex flex-col p-5 gap-3">
           <div className="flex items-center justify-between shrink-0">
-            <h1 className="text-xl font-bold text-slate-800">システムログ</h1>
+            <h1 className="text-xl font-bold text-slate-800">{t("adminSystemLogs.title", "システムログ")}</h1>
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
                   <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)}
                     className="rounded" />
-                  自動更新（5秒）
+                  {t("adminSystemLogs.autoRefresh", "自動更新（5秒）")}
                 </label>
                 <button onClick={() => fetchLogs(page)}
                   className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-bold">
-                  更新
+                  {t("adminSystemLogs.refresh", "更新")}
                 </button>
                 <button onClick={handlePurge}
                   className="text-xs px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded font-bold">
-                  30日以前を削除
+                  {t("adminSystemLogs.purgeButton", "30日以前を削除")}
                 </button>
               </div>
           </div>
           <div className="flex flex-wrap gap-2 bg-white p-3 rounded-xl border border-slate-200 shrink-0">
             <select value={fLevel} onChange={e => setFLevel(e.target.value)}
                 className="text-xs border border-slate-200 rounded px-2 py-1.5 focus:outline-none">
-                {LEVELS.map(l => <option key={l} value={l}>{l || "レベル: すべて"}</option>)}
+                {LEVELS.map(l => <option key={l} value={l}>{l || t("adminSystemLogs.levelAll", "レベル: すべて")}</option>)}
               </select>
             <select value={fCategory} onChange={e => setFCategory(e.target.value)}
                 className="text-xs border border-slate-200 rounded px-2 py-1.5 focus:outline-none">
-                {CATEGORIES.map(c => <option key={c} value={c}>{c || "カテゴリ: すべて"}</option>)}
+                {CATEGORIES.map(c => <option key={c} value={c}>{c || t("adminSystemLogs.categoryAll", "カテゴリ: すべて")}</option>)}
               </select>
             <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)}
                 className="text-xs border border-slate-200 rounded px-2 py-1.5 focus:outline-none" />
             <span className="text-xs text-slate-400">〜</span>
             <input type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)}
                 className="text-xs border border-slate-200 rounded px-2 py-1.5 focus:outline-none" />
-            <span className="text-xs text-slate-400 self-center">全 {total} 件</span>
+            <span className="text-xs text-slate-400 self-center">{t("adminSystemLogs.totalCount","全 {n} 件").replace("{n}", String(total))}</span>
           </div>
 
           <div className="flex-1 overflow-y-auto bg-white rounded-xl border border-slate-200">
             {loading ? (
-              <div className="flex items-center justify-center h-32 text-slate-400 text-sm">読み込み中...</div>
+              <div className="flex items-center justify-center h-32 text-slate-400 text-sm">{t("adminSystemLogs.loading", "読み込み中...")}</div>
             ) : logs.length === 0 ? (
-              <div className="flex items-center justify-center h-32 text-slate-400 text-sm">ログがありません</div>
+              <div className="flex items-center justify-center h-32 text-slate-400 text-sm">{t("adminSystemLogs.noLogs", "ログがありません")}</div>
             ) : (
               <table className="w-full text-xs border-collapse">
                 <thead className="bg-slate-50 sticky top-0 z-10">
                   <tr className="border-b border-slate-200">
-                    <th className="px-3 py-2 text-left font-bold text-slate-500 w-36">日時</th>
-                    <th className="px-3 py-2 text-left font-bold text-slate-500 w-16">レベル</th>
-                    <th className="px-3 py-2 text-left font-bold text-slate-500 w-24">カテゴリ</th>
-                    <th className="px-3 py-2 text-left font-bold text-slate-500">メッセージ</th>
-                    <th className="px-3 py-2 text-center font-bold text-slate-500 w-14">詳細</th>
+                    <th className="px-3 py-2 text-left font-bold text-slate-500 w-36">{t("adminSystemLogs.colDatetime", "日時")}</th>
+                    <th className="px-3 py-2 text-left font-bold text-slate-500 w-16">{t("adminSystemLogs.colLevel", "レベル")}</th>
+                    <th className="px-3 py-2 text-left font-bold text-slate-500 w-24">{t("adminSystemLogs.colCategory", "カテゴリ")}</th>
+                    <th className="px-3 py-2 text-left font-bold text-slate-500">{t("adminSystemLogs.colMessage", "メッセージ")}</th>
+                    <th className="px-3 py-2 text-center font-bold text-slate-500 w-14">{t("adminSystemLogs.colDetail", "詳細")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -205,10 +207,10 @@ export default function SystemLogsPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 py-3 border-t border-slate-200 shrink-0">
               <button onClick={() => fetchLogs(page - 1)} disabled={page <= 1}
-                className="text-xs px-3 py-1.5 rounded border border-slate-200 disabled:opacity-40">前へ</button>
+                className="text-xs px-3 py-1.5 rounded border border-slate-200 disabled:opacity-40">{t("adminSystemLogs.prevPage", "前へ")}</button>
               <span className="text-xs text-slate-600">{page} / {totalPages}</span>
               <button onClick={() => fetchLogs(page + 1)} disabled={page >= totalPages}
-                className="text-xs px-3 py-1.5 rounded border border-slate-200 disabled:opacity-40">次へ</button>
+                className="text-xs px-3 py-1.5 rounded border border-slate-200 disabled:opacity-40">{t("adminSystemLogs.nextPage", "次へ")}</button>
             </div>
           )}
         </main>

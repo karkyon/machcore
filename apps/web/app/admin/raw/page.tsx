@@ -3,6 +3,7 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { toJstDateString } from "@/lib/dateUtils";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 const TABLES = [
   "users", "machines", "parts", "nc_programs",
@@ -12,6 +13,7 @@ const TABLES = [
 export default function AdminRawPage() {
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useLanguage();
   const [table,   setTable]   = useState(TABLES[0]);
   const [page,    setPage]    = useState(1);
   const [limit]               = useState(50);
@@ -78,41 +80,41 @@ export default function AdminRawPage() {
     <AdminLayout pathname={pathname}>
       <main className="flex-1 overflow-hidden flex flex-col p-5 gap-3">
         <div className="flex items-center justify-between shrink-0">
-          <h1 className="text-xl font-bold text-slate-800">RAWデータ</h1>
+          <h1 className="text-xl font-bold text-slate-800">{t("adminRaw.title", "RAWデータ")}</h1>
         </div>
         {/* コントロール */}
         <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-2 shrink-0">
           <div className="flex flex-wrap items-center gap-2">
-            <label className="text-xs font-bold text-slate-500">テーブル:</label>
+            <label className="text-xs font-bold text-slate-500">{t("adminRaw.tableLabel", "テーブル:")}</label>
             <select value={table} onChange={e => { setTable(e.target.value); setPage(1); setFilter(""); setDateFrom(""); setDateTo(""); setFieldKey(""); setFieldVal(""); }}
               className="text-sm border border-slate-300 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
               {TABLES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
             <input type="text" value={filter} onChange={e => setFilter(e.target.value)}
-              placeholder="キーワードフィルタ" className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 w-52 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
-            <span className="text-xs text-slate-500">DB: {total.toLocaleString()}件 / 表示: {filtered.length}件</span>
-            <button onClick={() => fetchData(table, page)} className="text-xs bg-sky-600 text-white px-3 py-1.5 rounded-lg hover:bg-sky-700">🔄 再取得</button>
+              placeholder={t("adminRaw.keywordPlaceholder", "キーワードフィルタ")} className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 w-52 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+            <span className="text-xs text-slate-500">{t("adminRaw.countText","DB: {total}件 / 表示: {n}件").replace("{total}", total.toLocaleString()).replace("{n}", String(filtered.length))}</span>
+            <button onClick={() => fetchData(table, page)} className="text-xs bg-sky-600 text-white px-3 py-1.5 rounded-lg hover:bg-sky-700">{t("adminRaw.refetch", "🔄 再取得")}</button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="text-xs font-bold text-slate-500">日付範囲:</label>
+            <label className="text-xs font-bold text-slate-500">{t("adminRaw.dateRangeLabel", "日付範囲:")}</label>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
               className="text-sm border border-slate-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
             <span className="text-xs text-slate-400">〜</span>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
               className="text-sm border border-slate-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
             {cols.length > 0 && <>
-              <label className="text-xs font-bold text-slate-500 ml-2">フィールド指定:</label>
+              <label className="text-xs font-bold text-slate-500 ml-2">{t("adminRaw.fieldSelectLabel", "フィールド指定:")}</label>
               <select value={fieldKey} onChange={e => setFieldKey(e.target.value)}
                 className="text-sm border border-slate-300 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none w-40">
-                <option value="">-- 列選択 --</option>
+                <option value="">{t("adminRaw.columnSelectPlaceholder", "-- 列選択 --")}</option>
                 {cols.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
               <input type="text" value={fieldVal} onChange={e => setFieldVal(e.target.value)}
-                placeholder="値を入力" className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 w-40 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+                placeholder={t("adminRaw.valuePlaceholder", "値を入力")} className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 w-40 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
             </>}
             {(dateFrom || dateTo || fieldKey || filter) && (
               <button onClick={() => { setFilter(""); setDateFrom(""); setDateTo(""); setFieldKey(""); setFieldVal(""); }}
-                className="text-xs text-slate-500 hover:text-red-500 px-2 py-1 border border-slate-300 rounded-lg">✕ クリア</button>
+                className="text-xs text-slate-500 hover:text-red-500 px-2 py-1 border border-slate-300 rounded-lg">{t("adminRaw.clear", "✕ クリア")}</button>
             )}
           </div>
         </div>
@@ -127,9 +129,9 @@ export default function AdminRawPage() {
         {/* テーブル: stickyヘッダー方式（列幅が揃う） */}
         <div className="flex-1 overflow-auto bg-white rounded-xl border border-slate-200">
           {loading ? (
-            <div className="py-20 text-center text-slate-400">読み込み中…</div>
+            <div className="py-20 text-center text-slate-400">{t("adminRaw.loading", "読み込み中…")}</div>
           ) : filtered.length === 0 ? (
-            <div className="py-20 text-center text-slate-400">データなし</div>
+            <div className="py-20 text-center text-slate-400">{t("adminRaw.noData", "データなし")}</div>
           ) : (
             <table className="text-xs whitespace-nowrap w-full">
               <thead className="bg-slate-50 sticky top-0 z-10">
@@ -164,12 +166,12 @@ export default function AdminRawPage() {
           <div className="flex items-center gap-2 justify-center shrink-0">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
               className="px-3 py-1 text-sm bg-white border border-slate-300 rounded disabled:opacity-40">
-              ← 前
+              {t("adminRaw.prevPage", "← 前")}
             </button>
             <span className="text-sm text-slate-600">{page} / {totalPages}</span>
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
               className="px-3 py-1 text-sm bg-white border border-slate-300 rounded disabled:opacity-40">
-              次 →
+              {t("adminRaw.nextPage", "次 →")}
             </button>
           </div>
         )}
