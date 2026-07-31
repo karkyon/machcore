@@ -93,6 +93,16 @@
     "switchNote": "Bạn có thể thay đổi ngôn ngữ hiển thị bất cứ lúc nào từ nút chuyển ngôn ngữ ở góc trên bên phải (lưu theo thiết bị/cá nhân)."
   },
   "dashboard": {
-    "switchLanguage": "Chuyển ngôn ngữ"
+    "switchLanguage": "Chuyển ngôn ngữ",
+    "mcTitle": "Bảng điều khiển MC (Gia công)",
+    "ncTitle": "Bảng điều khiển NC (Tiện)",
+    "mcSection": "MC (Gia công)",
+    "ncSection": "NC (Tiện)",
+    "partSearch": "Tìm kiếm chi tiết",
+    "newRegister": "Đăng ký mới",
+    "adminSection": "Quản trị",
+    "adminPanel": "Bảng quản trị",
+    "refresh": "↺ Làm mới",
+    "updatedAt": "Cập nhật: {time}"
   }
 }

@@ -35,3 +35,4 @@ uploads/
 fix_v*.py
 diag_v*.py
 cleanup_v*.py
+*.bak_i18n_*

@@ -93,6 +93,16 @@
     "switchNote": "画面右上の言語切替からいつでも表示言語を変更できます（個人設定・端末に保存されます）。"
   },
   "dashboard": {
-    "switchLanguage": "言語切替"
+    "switchLanguage": "言語切替",
+    "mcTitle": "MC マシニング ダッシュボード",
+    "ncTitle": "NC 旋盤 ダッシュボード",
+    "mcSection": "MC マシニング",
+    "ncSection": "NC 旋盤",
+    "partSearch": "部品検索",
+    "newRegister": "新規登録",
+    "adminSection": "管理",
+    "adminPanel": "管理パネル",
+    "refresh": "↺ 更新",
+    "updatedAt": "更新: {time}"
   }
 }
