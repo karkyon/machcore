@@ -15,6 +15,9 @@ import { useLanguage } from "@/lib/i18n/LanguageContext";
 const STATUS_LABEL: Record<string, string> = {
   NEW: "新規", PENDING_APPROVAL: "未承認", APPROVED: "承認済", CHANGING: "変更中",
 };
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  NEW: "mcDetailPage.statusNew2", PENDING_APPROVAL: "mcDetailPage.statusPendingApproval2", APPROVED: "mcDetailPage.statusApproved2", CHANGING: "mcDetailPage.statusChanging2",
+};
 const STATUS_COLOR: Record<string, string> = {
   NEW: "bg-blue-100 text-blue-700", PENDING_APPROVAL: "bg-amber-100 text-amber-700",
   APPROVED: "bg-emerald-100 text-emerald-700", CHANGING: "bg-red-100 text-red-700",
@@ -679,12 +682,12 @@ export default function McDetailPage() {
                       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
                         g.id === d.id ? "bg-teal-50 border border-teal-200" : "bg-white"}`}>
                       <span className="font-mono text-teal-600 font-bold text-xs">MCID:{g.legacyMcid ?? "—"}</span>
-                      {g.part.partId && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-mono shrink-0">部品ID:{g.part.partId}</span>}
+                      {g.part.partId && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-mono shrink-0">{tr("mcDetailPage.partIdPrefix8","部品ID:")}{g.part.partId}</span>}
                       <span className="font-mono text-slate-700 font-bold text-xs">{g.part.drawingNo}</span>
                       <span className="text-slate-600 text-xs">{g.part.name}</span>
-                      <span className="text-[10px] text-slate-400 font-mono">加工ID:{g.machiningId}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{tr("mcDetailPage.machiningIdPrefix4","加工ID:")}{g.machiningId}</span>
                       <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded font-bold ${STATUS_COLOR[g.status] ?? ""}`}>
-                        {STATUS_LABEL[g.status] ?? g.status}
+                        {tr(STATUS_LABEL_KEYS[g.status] ?? "", g.status)}
                       </span>
                       {g.id === d.id && <span className="text-[10px] text-teal-600 font-bold">{tr("mcDetailPage.currentArrow", "← 現在")}</span>}
                     </div>

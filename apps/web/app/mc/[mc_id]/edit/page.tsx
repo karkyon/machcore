@@ -994,7 +994,7 @@ export default function McEditPage() {
       initialSnapshotRef.current = buildEditSnapshot();
       // 新規(sbMode)/リピート(sbRepeatMode)/通常: いずれも終了確認モーダルを表示
       // 新規は変更内容を「新規登録」に固定
-      if (sbMode) setKanryoType(tr("mcEdit.newRegistrationType", "新規登録"));
+      if (sbMode) setKanryoType("新規登録"); // 内部値は常に日本語固定(バックエンド送信用・KANRYO_TYPE_KEYS等との比較に使用するため翻訳しない)
       setPendingBody({ savedMcId: mcId, isSbMode: sbMode });
       setShowKanryoModal(true);
     } catch (e: any) {
@@ -1018,7 +1018,7 @@ export default function McEditPage() {
       const savedId = pendingBody.savedMcId;
       const wasSbMode = pendingBody.isSbMode;
       setPendingBody(null);
-      showToast(tr("mcEdit.registeredAsType","✅ {type}として登録しました").replace("{type}", kanryoType));
+      showToast(tr("mcEdit.registeredAsType","✅ {type}として登録しました").replace("{type}", tr(KANRYO_TYPE_KEYS[kanryoType] ?? "mcEdit.newRegistrationType", kanryoType)));
 
       if (!isSb) {
         // ★通常編集: 段取シートバックのsessionStorageキーには一切触れず、
@@ -2120,22 +2120,22 @@ export default function McEditPage() {
                 </div>
               )}
               <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1.5">内容（任意）</label>
+                <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcEditUi.contentOptionalLabel", "内容（任意）")}</label>
                 <textarea value={kanryoDetail} onChange={e => setKanryoDetail(e.target.value)}
-                  rows={2} placeholder={pendingBody?.isSbMode ? "登録内容の補足（任意）" : "変更の詳細内容を入力..."}
+                  rows={2} placeholder={pendingBody?.isSbMode ? tr("mcEditUi.sbDetailPlaceholder", "登録内容の補足（任意）") : tr("mcEditUi.detailPlaceholder", "変更の詳細内容を入力...")}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none" />
               </div>
             </div>
             <div className="px-5 pb-5 flex gap-3">
               <button onClick={handleKanryoOk}
                 className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm transition-colors">
-                {(pendingBody?.isSbMode || sbRepeatMode) ? "OK — 作業記録へ" : "OK — 登録する"}
+                {(pendingBody?.isSbMode || sbRepeatMode) ? tr("mcEditUi.okToWorkRecord", "OK — 作業記録へ") : tr("mcEditUi.okRegister", "OK — 登録する")}
               </button>
               {!(pendingBody?.isSbMode || sbRepeatMode) && (
                 <button onClick={handleKanryoTempSave}
-                  title="バージョンを変更せず、入力内容だけを保存します"
+                  title={tr("mcEditUi.tempSaveHint", "バージョンを変更せず、入力内容だけを保存します")}
                   className="px-4 py-3 border border-teal-300 text-teal-700 bg-teal-50 hover:bg-teal-100 font-bold text-sm rounded-xl transition-colors whitespace-nowrap">
-                  💾 一時保存
+                  {tr("mcEditUi.tempSave", "💾 一時保存")}
                 </button>
               )}
               <button onClick={async () => {
@@ -2164,7 +2164,7 @@ export default function McEditPage() {
                   }
                 }}
                 className="px-5 py-3 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
-                {(pendingBody?.isSbMode || sbRepeatMode) ? "スキップ（作業記録なし）" : "キャンセル（変更を取り消す）"}
+                {(pendingBody?.isSbMode || sbRepeatMode) ? tr("mcEditUi.skipNoWorkRecord", "スキップ（作業記録なし）") : tr("mcEditUi.cancelDiscardChange", "キャンセル（変更を取り消す）")}
               </button>
             </div>
           </div>
@@ -2737,10 +2737,9 @@ export default function McEditPage() {
         const handleApply = () => {
           if (clampNote && clampNote.trim() !== "" && clampNote !== clampItem) {
             if (!window.confirm(
-              "現在のクランプ欄に文字が入力されています。\n\n" +
-              "【現在】" + clampNote.slice(0, 50) + (clampNote.length > 50 ? "…" : "") + "\n\n" +
-              "【新しい内容】" + (clampItem || "（空）") + "\n\n" +
-              "上書きしますか？"
+              tr("mcEditUi.clampOverwriteConfirm","現在のクランプ欄に文字が入力されています。\n\n【現在】{current}\n\n【新しい内容】{next}\n\n上書きしますか？")
+                .replace("{current}", clampNote.slice(0, 50) + (clampNote.length > 50 ? "…" : ""))
+                .replace("{next}", clampItem || tr("mcEditUi.emptyPlaceholder","（空）"))
             )) return;
           }
           setClampNote(clampItem);
@@ -2764,10 +2763,10 @@ export default function McEditPage() {
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0">
                 <div className="flex items-center gap-2">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-orange-500"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                  <span className="font-bold text-slate-700 text-sm">アイテム選択</span>
+                  <span className="font-bold text-slate-700 text-sm">{tr("mcEditUi.clampItemModalTitle", "アイテム選択")}</span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-[10px] font-bold text-slate-500">選択</span>
+                  <span className="text-[10px] font-bold text-slate-500">{tr("mcEditUi.selectLabel2", "選択")}</span>
                   {([1, 2] as const).map(v => (
                     <label key={v} className="flex items-center gap-1 cursor-pointer">
                       <input type="radio" checked={clampSelection === v} onChange={() => { setClampSelection(v); setClampItem(buildClampPreview({ selection: v })); }} className="accent-blue-600 w-3 h-3" />
@@ -2784,10 +2783,10 @@ export default function McEditPage() {
                 <div className="flex gap-3">
                   {/* バイス ListBox */}
                   <div className="flex-1">
-                    <div className={lblCls}>バイス</div>
+                    <div className={lblCls}>{tr("mcEditUi.viseLabel", "バイス")}</div>
                     <div className="border border-slate-300 rounded overflow-auto bg-white" style={{height:"130px"}}>
                       <div className={rowCls(clampVise === "")} onClick={() => { setClampVise(""); setClampItem(buildClampPreview({ vise: "" })); }}>
-                        <span className="text-slate-400">— なし —</span>
+                        <span className="text-slate-400">{tr("mcEditUi.noneOptionShort", "— なし —")}</span>
                       </div>
                       {VISE_ROWS.map((r, i) => (
                         <div key={i} className={rowCls(clampVise === r.name)} onClick={() => { setClampVise(r.name); setClampItem(buildClampPreview({ vise: r.name })); }}>
@@ -2801,8 +2800,8 @@ export default function McEditPage() {
                   {/* テールストック / 治具 */}
                   <div className="flex flex-col gap-2 shrink-0" style={{width:"140px"}}>
                     {([
-                      { label: "テールストック", val: clampTailstock, set: setClampTailstock, key: "tailstock" as const },
-                      { label: "治具",           val: clampJig,       set: setClampJig,       key: "jig" as const },
+                      { label: tr("mcEditUi.tailstockLabel","テールストック"), val: clampTailstock, set: setClampTailstock, key: "tailstock" as const },
+                      { label: tr("mcEditUi.jigLabel","治具"),           val: clampJig,       set: setClampJig,       key: "jig" as const },
                     ] as { label: string; val: 1|2; set: (v:1|2)=>void; key: "tailstock"|"jig" }[]).map(({ label, val, set, key }) => (
                       <div key={label} className="border border-slate-200 rounded-lg px-2.5 py-2 bg-slate-50">
                         <div className="text-[10px] font-bold text-slate-500 mb-1.5">{label}</div>
@@ -2810,7 +2809,7 @@ export default function McEditPage() {
                           {([1, 2] as const).map(v => (
                             <label key={v} className="flex items-center gap-1.5 cursor-pointer">
                               <input type="radio" checked={val === v} onChange={() => { set(v); setClampItem(buildClampPreview({ [key]: v } as any)); }} className="accent-blue-600 w-3 h-3" />
-                              <span className="text-xs">{v === 1 ? "使用する" : "使用しない"}</span>
+                              <span className="text-xs">{v === 1 ? tr("mcEditUi.useIt", "使用する") : tr("mcEditUi.notUseIt", "使用しない")}</span>
                             </label>
                           ))}
                         </div>
@@ -2823,10 +2822,10 @@ export default function McEditPage() {
                 <div className="flex gap-3">
                   {/* 敷板 */}
                   <div style={{width:"100px"}} className="shrink-0">
-                    <div className={lblCls}>敷板</div>
+                    <div className={lblCls}>{tr("mcEditUi.shikiLabel", "敷板")}</div>
                     <div className="border border-slate-300 rounded overflow-auto bg-white" style={{height:"120px"}}>
                       <div className={rowCls(clampShiki === "")} onClick={() => { setClampShiki(""); setClampItem(buildClampPreview({ shiki: "" })); }}>
-                        <span className="text-slate-400 text-xs">— なし —</span>
+                        <span className="text-slate-400 text-xs">{tr("mcEditUi.noneOptionShort", "— なし —")}</span>
                       </div>
                       {SHIKI_LIST.map((v, i) => (
                         <div key={i} className={rowCls(clampShiki === v)} onClick={() => { setClampShiki(v); setClampItem(buildClampPreview({ shiki: v })); }}>
@@ -2837,10 +2836,10 @@ export default function McEditPage() {
                   </div>
                   {/* チャック ListBox */}
                   <div className="flex-1">
-                    <div className={lblCls}>チャック</div>
+                    <div className={lblCls}>{tr("mcEditUi.chuckLabel", "チャック")}</div>
                     <div className="border border-slate-300 rounded overflow-auto bg-white" style={{height:"120px"}}>
                       <div className={rowCls(clampChuck === "")} onClick={() => { setClampChuck(""); setClampItem(buildClampPreview({ chuck: "" })); }}>
-                        <span className="text-slate-400">— なし —</span>
+                        <span className="text-slate-400">{tr("mcEditUi.noneOptionShort", "— なし —")}</span>
                       </div>
                       {CHUCK_ROWS.map((r, i) => (
                         <div key={i} className={rowCls(clampChuck === r.name)} onClick={() => { setClampChuck(r.name); setClampItem(buildClampPreview({ chuck: r.name })); }}>
@@ -2853,10 +2852,10 @@ export default function McEditPage() {
                   </div>
                   {/* 爪 */}
                   <div style={{width:"90px"}} className="shrink-0">
-                    <div className={lblCls}>爪</div>
+                    <div className={lblCls}>{tr("mcEditUi.tsumeLabel", "爪")}</div>
                     <div className="border border-slate-300 rounded overflow-auto bg-white" style={{height:"120px"}}>
                       <div className={rowCls(clampTsume === "")} onClick={() => { setClampTsume(""); setClampItem(buildClampPreview({ tsume: "" })); }}>
-                        <span className="text-slate-400 text-xs">— なし —</span>
+                        <span className="text-slate-400 text-xs">{tr("mcEditUi.noneOptionShort", "— なし —")}</span>
                       </div>
                       {TSUME_LIST.map((v, i) => (
                         <div key={i} className={rowCls(clampTsume === v)} onClick={() => { setClampTsume(v); setClampItem(buildClampPreview({ tsume: v })); }}>
@@ -2871,10 +2870,10 @@ export default function McEditPage() {
                 <div className="flex gap-3">
                   {/* インデックス ListBox */}
                   <div className="flex-1">
-                    <div className={lblCls}>インデックス</div>
+                    <div className={lblCls}>{tr("mcEditUi.indexLabel2", "インデックス")}</div>
                     <div className="border border-slate-300 rounded overflow-auto bg-white" style={{height:"120px"}}>
                       <div className={rowCls(clampIndex === "")} onClick={() => { setClampIndex(""); setClampItem(buildClampPreview({ index: "" })); }}>
-                        <span className="text-slate-400">— なし —</span>
+                        <span className="text-slate-400">{tr("mcEditUi.noneOptionShort", "— なし —")}</span>
                       </div>
                       {INDEX_ROWS.map((r, i) => (
                         <div key={i} className={rowCls(clampIndex === r.name)} onClick={() => { setClampIndex(r.name); setClampItem(buildClampPreview({ index: r.name })); }}>
@@ -2887,10 +2886,10 @@ export default function McEditPage() {
                   </div>
                   {/* その他 */}
                   <div style={{width:"130px"}} className="shrink-0">
-                    <div className={lblCls}>その他</div>
+                    <div className={lblCls}>{tr("mcEditUi.otherLabel", "その他")}</div>
                     <div className="border border-slate-300 rounded overflow-auto bg-white" style={{height:"120px"}}>
                       <div className={rowCls(clampOther === "")} onClick={() => { setClampOther(""); setClampItem(buildClampPreview({ other: "" })); }}>
-                        <span className="text-slate-400 text-xs">— なし —</span>
+                        <span className="text-slate-400 text-xs">{tr("mcEditUi.noneOptionShort", "— なし —")}</span>
                       </div>
                       {OTHER_LIST.map((v, i) => (
                         <div key={i} className={rowCls(clampOther === v)} onClick={() => { setClampOther(v); setClampItem(buildClampPreview({ other: v })); }}>
@@ -2903,12 +2902,12 @@ export default function McEditPage() {
 
                 {/* アイテム（手入力可・リストボックス選択で自動追従） */}
                 <div>
-                  <div className={lblCls}>アイテム</div>
+                  <div className={lblCls}>{tr("mcEditUi.clampItemLabel", "アイテム")}</div>
                   <textarea
                     value={clampItem}
                     onChange={e => setClampItem(e.target.value)}
                     rows={2}
-                    placeholder="（リストから選択、または直接入力してください）"
+                    placeholder={tr("mcEditUi.clampItemPlaceholder", "（リストから選択、または直接入力してください）")}
                     className={`w-full px-2 py-2 rounded border text-xs font-mono resize-none focus:ring-2 focus:ring-orange-400 focus:outline-none ${clampItem ? "bg-orange-50 border-orange-300 text-orange-900" : "bg-slate-50 border-slate-200 text-slate-400"}`}
                   />
                 </div>
@@ -2918,16 +2917,16 @@ export default function McEditPage() {
               <div className="flex justify-between items-center px-4 py-3 border-t border-slate-200 shrink-0">
                 <button onClick={handleClear}
                   className="text-xs px-3 py-1.5 rounded border border-slate-300 text-slate-500 hover:bg-slate-50 transition-colors">
-                  クリア
+                  {tr("mcEditUi.clearButton3b", "クリア")}
                 </button>
                 <div className="flex gap-2">
                   <button onClick={() => setClampModalOpen(false)}
                     className="text-xs px-4 py-1.5 rounded border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors">
-                    キャンセル
+                    {tr("mcEditUi.cancelButton11", "キャンセル")}
                   </button>
                   <button onClick={handleApply} disabled={!preview}
                     className="text-xs px-5 py-1.5 rounded bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-bold transition-colors">
-                    クランプ　入力
+                    {tr("mcEditUi.clampInputButton", "クランプ　入力")}
                   </button>
                 </div>
               </div>
