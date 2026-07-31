@@ -2,15 +2,19 @@
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
-const CATEGORIES = [
-  { key: "vise",  label: "バイス",     cols: ["name","model","maker"] },
-  { key: "chuck", label: "チャック",   cols: ["name","size","maker"] },
-  { key: "tsume", label: "爪",         cols: ["name"] },
-  { key: "shiki", label: "敷板",       cols: ["name"] },
-  { key: "index", label: "インデックス", cols: ["name","machine","model"] },
+const CATEGORY_KEYS = [
+  { key: "vise",  labelKey: "adminClampMaster.catVise",  labelFallback: "バイス",     cols: ["name","model","maker"] },
+  { key: "chuck", labelKey: "adminClampMaster.catChuck", labelFallback: "チャック",   cols: ["name","size","maker"] },
+  { key: "tsume", labelKey: "adminClampMaster.catTsume", labelFallback: "爪",         cols: ["name"] },
+  { key: "shiki", labelKey: "adminClampMaster.catShiki", labelFallback: "敷板",       cols: ["name"] },
+  { key: "index", labelKey: "adminClampMaster.catIndex", labelFallback: "インデックス", cols: ["name","machine","model"] },
 ];
-const COL_LABEL: Record<string,string> = { name:"名称", model:"型式", maker:"メーカー", size:"サイズ", machine:"搭載機" };
+const COL_LABEL_KEY: Record<string,{k:string,f:string}> = {
+  name:{k:"adminClampMaster.colName",f:"名称"}, model:{k:"adminClampMaster.colModel",f:"型式"},
+  maker:{k:"adminClampMaster.colMaker",f:"メーカー"}, size:{k:"adminClampMaster.colSize",f:"サイズ"}, machine:{k:"adminClampMaster.colMachine",f:"搭載機"},
+};
 
 type Item = { id: number; name: string; model?: string|null; maker?: string|null; size?: string|null; machine?: string|null; sortOrder: number; isActive: boolean };
 
@@ -27,6 +31,9 @@ const apiFetch = async (path: string, opts?: RequestInit) => {
 export default function ClampMasterPage() {
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useLanguage();
+  const CATEGORIES = CATEGORY_KEYS.map(c => ({ ...c, label: t(c.labelKey, c.labelFallback) }));
+  const COL_LABEL: Record<string,string> = Object.fromEntries(Object.entries(COL_LABEL_KEY).map(([k,v]) => [k, t(v.k, v.f)]));
   const [catKey, setCatKey] = useState("vise");
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
@@ -62,14 +69,14 @@ export default function ClampMasterPage() {
         sort_order: editForm.sortOrder ? parseInt(editForm.sortOrder) : undefined,
         is_active: editForm.isActive !== undefined ? editForm.isActive === "true" : undefined,
       })});
-      showToast("保存しました");
+      showToast(t("adminClampMaster.saveSuccess", "保存しました"));
       setEditId(null);
       fetchItems();
     } catch (e: any) { showToast(e.message, false); }
   };
 
   const handleCreate = async () => {
-    if (!newForm.name?.trim()) { showToast("名称を入力してください", false); return; }
+    if (!newForm.name?.trim()) { showToast(t("adminClampMaster.nameRequired", "名称を入力してください"), false); return; }
     try {
       await apiFetch(`/admin/clamp-master/${catKey}`, { method:"POST", body: JSON.stringify({
         name: newForm.name,
@@ -80,7 +87,7 @@ export default function ClampMasterPage() {
         sort_order: items.length * 10 + 10,
         is_active: true,
       })});
-      showToast("追加しました");
+      showToast(t("adminClampMaster.addSuccess", "追加しました"));
       setShowNew(false);
       setNewForm({});
       fetchItems();
@@ -88,10 +95,10 @@ export default function ClampMasterPage() {
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`「${name}」を削除しますか？`)) return;
+    if (!confirm(t("adminClampMaster.deleteConfirm", "「{name}」を削除しますか？").replace("{name}", name))) return;
     try {
       await apiFetch(`/admin/clamp-master/${catKey}/${id}`, { method:"DELETE" });
-      showToast("削除しました");
+      showToast(t("adminClampMaster.deleteSuccess", "削除しました"));
       fetchItems();
     } catch (e: any) { showToast(e.message, false); }
   };
@@ -105,11 +112,11 @@ export default function ClampMasterPage() {
 
         <main className="flex-1 overflow-hidden flex flex-col p-5 gap-4">
           <div className="flex items-center justify-between shrink-0">
-            <h1 className="text-xl font-bold text-slate-800">クランプ マスタ管理</h1>
+            <h1 className="text-xl font-bold text-slate-800">{t("adminClampMaster.title", "クランプ マスタ管理")}</h1>
             <button onClick={() => { setShowNew(true); setNewForm({}); }}
               className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold rounded-lg">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
-              新規追加
+              {t("adminClampMaster.addNew", "新規追加")}
             </button>
           </div>
 
@@ -126,7 +133,7 @@ export default function ClampMasterPage() {
           {/* 新規追加フォーム */}
           {showNew && (
             <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 shrink-0">
-              <div className="text-sm font-bold text-sky-700 mb-3">新規 {cat.label} 追加</div>
+              <div className="text-sm font-bold text-sky-700 mb-3">{t("adminClampMaster.newItemTitle","新規 {cat} 追加").replace("{cat}", cat.label)}</div>
               <div className="flex gap-3 flex-wrap">
                 {cat.cols.map(col => (
                   <div key={col} className="flex-1 min-w-[120px]">
@@ -137,8 +144,8 @@ export default function ClampMasterPage() {
                 ))}
               </div>
               <div className="flex gap-2 mt-3">
-                <button onClick={handleCreate} className="px-4 py-1.5 bg-sky-600 text-white text-sm font-bold rounded-lg hover:bg-sky-700">追加</button>
-                <button onClick={() => setShowNew(false)} className="px-4 py-1.5 border border-slate-300 text-slate-600 text-sm rounded-lg hover:bg-slate-50">キャンセル</button>
+                <button onClick={handleCreate} className="px-4 py-1.5 bg-sky-600 text-white text-sm font-bold rounded-lg hover:bg-sky-700">{t("adminClampMaster.add", "追加")}</button>
+                <button onClick={() => setShowNew(false)} className="px-4 py-1.5 border border-slate-300 text-slate-600 text-sm rounded-lg hover:bg-slate-50">{t("adminClampMaster.cancel", "キャンセル")}</button>
               </div>
             </div>
           )}
@@ -146,18 +153,18 @@ export default function ClampMasterPage() {
           {/* 一覧テーブル */}
           <div className="flex-1 overflow-auto bg-white rounded-xl border border-slate-200">
             {loading ? (
-              <div className="p-8 text-center text-slate-400">読み込み中...</div>
+              <div className="p-8 text-center text-slate-400">{t("adminClampMaster.loading", "読み込み中...")}</div>
             ) : (
               <table className="w-full text-sm border-collapse">
                 <thead className="bg-slate-50 sticky top-0 z-10">
                   <tr>
-                    <th className="px-3 py-2.5 text-left font-bold text-slate-600 border-b border-slate-200 w-12">ID</th>
+                    <th className="px-3 py-2.5 text-left font-bold text-slate-600 border-b border-slate-200 w-12">{t("adminClampMaster.colId", "ID")}</th>
                     {cat.cols.map(col => (
                       <th key={col} className="px-3 py-2.5 text-left font-bold text-slate-600 border-b border-slate-200">{COL_LABEL[col]??col}</th>
                     ))}
-                    <th className="px-3 py-2.5 text-center font-bold text-slate-600 border-b border-slate-200 w-16">順番</th>
-                    <th className="px-3 py-2.5 text-center font-bold text-slate-600 border-b border-slate-200 w-16">有効</th>
-                    <th className="px-3 py-2.5 text-center font-bold text-slate-600 border-b border-slate-200 w-24">操作</th>
+                    <th className="px-3 py-2.5 text-center font-bold text-slate-600 border-b border-slate-200 w-16">{t("adminClampMaster.colOrder", "順番")}</th>
+                    <th className="px-3 py-2.5 text-center font-bold text-slate-600 border-b border-slate-200 w-16">{t("adminClampMaster.colStatus", "有効")}</th>
+                    <th className="px-3 py-2.5 text-center font-bold text-slate-600 border-b border-slate-200 w-24">{t("adminClampMaster.colAction", "操作")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -179,16 +186,16 @@ export default function ClampMasterPage() {
                           <td className="px-3 py-1.5 text-center">
                             <select value={editForm.isActive??"true"} onChange={e => setEditForm(p=>({...p,isActive:e.target.value}))}
                               className="border border-slate-300 rounded px-2 py-1 text-sm">
-                              <option value="true">有効</option>
-                              <option value="false">無効</option>
+                              <option value="true">{t("adminClampMaster.active","有効")}</option>
+                              <option value="false">{t("adminClampMaster.inactive","無効")}</option>
                             </select>
                           </td>
                           <td className="px-3 py-1.5 text-center">
                             <div className="flex gap-1 justify-center">
                               <button onClick={() => handleSave(item.id)}
-                                className="px-2.5 py-1 bg-teal-600 text-white text-xs font-bold rounded hover:bg-teal-700">保存</button>
+                                className="px-2.5 py-1 bg-teal-600 text-white text-xs font-bold rounded hover:bg-teal-700">{t("adminClampMaster.save", "保存")}</button>
                               <button onClick={() => setEditId(null)}
-                                className="px-2.5 py-1 border border-slate-300 text-slate-600 text-xs rounded hover:bg-slate-50">取消</button>
+                                className="px-2.5 py-1 border border-slate-300 text-slate-600 text-xs rounded hover:bg-slate-50">{t("adminClampMaster.undo", "取消")}</button>
                             </div>
                           </td>
                         </>
@@ -201,7 +208,7 @@ export default function ClampMasterPage() {
                           <td className="px-3 py-2 text-center font-mono text-slate-400">{item.sortOrder}</td>
                           <td className="px-3 py-2 text-center">
                             <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${item.isActive?"bg-green-100 text-green-700":"bg-slate-100 text-slate-500"}`}>
-                              {item.isActive?"有効":"無効"}
+                              {item.isActive?t("adminClampMaster.active","有効"):t("adminClampMaster.inactive","無効")}
                             </span>
                           </td>
                           <td className="px-3 py-2 text-center">
@@ -211,9 +218,9 @@ export default function ClampMasterPage() {
                                 sortOrder: String(item.sortOrder),
                                 isActive: String(item.isActive),
                               }); }}
-                                className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded hover:bg-slate-200 border border-slate-300">編集</button>
+                                className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded hover:bg-slate-200 border border-slate-300">{t("adminClampMaster.edit", "編集")}</button>
                               <button onClick={() => handleDelete(item.id, item.name)}
-                                className="px-2.5 py-1 bg-red-50 text-red-600 text-xs font-bold rounded hover:bg-red-100 border border-red-200">削除</button>
+                                className="px-2.5 py-1 bg-red-50 text-red-600 text-xs font-bold rounded hover:bg-red-100 border border-red-200">{t("adminClampMaster.delete", "削除")}</button>
                             </div>
                           </td>
                         </>
@@ -221,7 +228,7 @@ export default function ClampMasterPage() {
                     </tr>
                   ))}
                   {items.length === 0 && (
-                    <tr><td colSpan={cat.cols.length + 4} className="px-3 py-8 text-center text-slate-400">データがありません</td></tr>
+                    <tr><td colSpan={cat.cols.length + 4} className="px-3 py-8 text-center text-slate-400">{t("adminClampMaster.noData", "データがありません")}</td></tr>
                   )}
                 </tbody>
               </table>

@@ -4,18 +4,19 @@ import { useRouter } from "next/navigation";
 import { adminLogsApi, type AdminLog } from "@/lib/api";
 import { toJstDateTimeString } from "@/lib/dateUtils";
 import axios from "axios";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
-const ACTION_OPTIONS = [
-  { value: "",              label: "すべて" },
-  { value: "LOGIN",         label: "管理者ログイン" },
-  { value: "SESSION_START", label: "作業開始" },
-  { value: "SESSION_END",   label: "作業終了" },
-  { value: "EDIT_SAVE",     label: "NC情報編集" },
-  { value: "USB_DOWNLOAD",  label: "PGファイルDL" },
-  { value: "SETUP_PRINT",   label: "段取シート印刷" },
-  { value: "WORK_RECORD",   label: "作業記録" },
-  { value: "FILE_UPLOAD",   label: "ファイルUP" },
-  { value: "FILE_DELETE",   label: "ファイル削除" },
+const ACTION_OPTION_KEYS = [
+  { value: "",              key: "adminLogs.actAll",          fallback: "すべて" },
+  { value: "LOGIN",         key: "adminLogs.actLogin",         fallback: "管理者ログイン" },
+  { value: "SESSION_START", key: "adminLogs.actSessionStart",  fallback: "作業開始" },
+  { value: "SESSION_END",   key: "adminLogs.actSessionEnd",    fallback: "作業終了" },
+  { value: "EDIT_SAVE",     key: "adminLogs.actEditSave",      fallback: "NC情報編集" },
+  { value: "USB_DOWNLOAD",  key: "adminLogs.actUsbDownload",   fallback: "PGファイルDL" },
+  { value: "SETUP_PRINT",   key: "adminLogs.actSetupPrint",    fallback: "段取シート印刷" },
+  { value: "WORK_RECORD",   key: "adminLogs.actWorkRecord",    fallback: "作業記録" },
+  { value: "FILE_UPLOAD",   key: "adminLogs.actFileUpload",    fallback: "ファイルUP" },
+  { value: "FILE_DELETE",   key: "adminLogs.actFileDelete",    fallback: "ファイル削除" },
 ];
 
 const ACTION_BADGE: Record<string, string> = {
@@ -32,6 +33,8 @@ const ACTION_BADGE: Record<string, string> = {
 
 export default function AdminLogsPage() {
   const router = useRouter();
+  const { t } = useLanguage();
+  const ACTION_OPTIONS = ACTION_OPTION_KEYS.map(o => ({ value: o.value, label: t(o.key, o.fallback) }));
   const [logs,      setLogs]      = useState<AdminLog[]>([]);
   const [total,     setTotal]     = useState(0);
   const [loading,   setLoading]   = useState(false);
@@ -66,7 +69,7 @@ export default function AdminLogsPage() {
       setPage(p);
     } catch(e: any) {
       if (e?.response?.status === 401) router.push("/admin/login");
-      else setError("取得失敗");
+      else setError(t("adminLogs.fetchFailed", "取得失敗"));
     } finally { setLoading(false); }
   }, [token, filterAction, filterNcId, filterDateFrom, filterDateTo, router]);
 
@@ -80,47 +83,47 @@ export default function AdminLogsPage() {
       <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => router.push("/admin/users")}
-            className="text-slate-400 hover:text-white text-sm">← 管理者メニュー</button>
+            className="text-slate-400 hover:text-white text-sm">{t("adminLogs.backToAdminMenu", "← 管理者メニュー")}</button>
           <span className="text-slate-600">|</span>
-          <h1 className="font-bold text-lg">🔍 操作ログ</h1>
+          <h1 className="font-bold text-lg">{t("adminLogs.title", "🔍 操作ログ")}</h1>
         </div>
-        <span className="text-slate-400 text-sm">全 {total.toLocaleString()} 件</span>
+        <span className="text-slate-400 text-sm">{t("adminLogs.totalCount","全 {n} 件").replace("{n}", total.toLocaleString())}</span>
       </div>
 
       {/* フィルター */}
       <div className="bg-white border-b px-6 py-4 flex flex-wrap gap-3 items-end">
         <div>
-          <label className="block text-xs text-slate-500 mb-1">操作種別</label>
+          <label className="block text-xs text-slate-500 mb-1">{t("adminLogs.actionTypeLabel", "操作種別")}</label>
           <select value={filterAction} onChange={e => setFilterAction(e.target.value)}
             className="border rounded px-2 py-1.5 text-sm text-slate-700 bg-white">
             {ACTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs text-slate-500 mb-1">NC_ID</label>
+          <label className="block text-xs text-slate-500 mb-1">{t("adminLogs.ncIdLabel", "NC_ID")}</label>
           <input type="number" value={filterNcId} onChange={e => setFilterNcId(e.target.value)}
             placeholder="例: 3120" className="border rounded px-2 py-1.5 text-sm w-28" />
         </div>
         <div>
-          <label className="block text-xs text-slate-500 mb-1">日付（From）</label>
+          <label className="block text-xs text-slate-500 mb-1">{t("adminLogs.dateFromLabel", "日付（From）")}</label>
           <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)}
             className="border rounded px-2 py-1.5 text-sm" />
         </div>
         <div>
-          <label className="block text-xs text-slate-500 mb-1">日付（To）</label>
+          <label className="block text-xs text-slate-500 mb-1">{t("adminLogs.dateToLabel", "日付（To）")}</label>
           <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)}
             className="border rounded px-2 py-1.5 text-sm" />
         </div>
         <button onClick={() => fetch(1)}
           className="px-4 py-1.5 bg-sky-600 text-white text-sm rounded hover:bg-sky-700">
-          検索
+          {t("adminLogs.search", "検索")}
         </button>
         <button onClick={() => {
             setFilterAction(""); setFilterNcId("");
             setFilterDateFrom(""); setFilterDateTo("");
           }}
           className="px-3 py-1.5 text-sm text-slate-500 border rounded hover:bg-slate-50">
-          クリア
+          {t("adminLogs.clear", "クリア")}
         </button>
       </div>
 
@@ -128,20 +131,20 @@ export default function AdminLogsPage() {
       <div className="p-6">
         {error && <div className="text-red-500 text-sm mb-4">{error}</div>}
         {loading ? (
-          <div className="text-slate-400 text-center py-20">読み込み中...</div>
+          <div className="text-slate-400 text-center py-20">{t("adminLogs.loading", "読み込み中...")}</div>
         ) : (
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
             <table className="w-full text-xs border-collapse">
               <thead className="bg-slate-100 text-slate-600">
                 <tr>
-                  {["日時", "操作", "担当者", "NC_ID", "部品・図番", "詳細"].map(h => (
+                  {[t("adminLogs.colDatetime","日時"), t("adminLogs.colAction","操作"), t("adminLogs.colOperator","担当者"), t("adminLogs.colNcId","NC_ID"), t("adminLogs.colPartDrawing","部品・図番"), t("adminLogs.colDetail","詳細")].map(h => (
                     <th key={h} className="px-3 py-2 text-left font-bold border-b border-slate-200">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {logs.length === 0 ? (
-                  <tr><td colSpan={6} className="px-3 py-10 text-center text-slate-400">該当なし</td></tr>
+                  <tr><td colSpan={6} className="px-3 py-10 text-center text-slate-400">{t("adminLogs.noMatch", "該当なし")}</td></tr>
                 ) : logs.map((log, i) => {
                   const badgeCls = ACTION_BADGE[log.action_type] ?? "bg-slate-100 text-slate-500";
                   const label    = ACTION_OPTIONS.find(o => o.value === log.action_type)?.label ?? log.action_type;
@@ -180,10 +183,10 @@ export default function AdminLogsPage() {
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 mt-4">
             <button disabled={page <= 1} onClick={() => fetch(page - 1)}
-              className="px-3 py-1 text-sm border rounded disabled:opacity-40 hover:bg-slate-100">← 前</button>
+              className="px-3 py-1 text-sm border rounded disabled:opacity-40 hover:bg-slate-100">{t("adminLogs.prevPage", "← 前")}</button>
             <span className="text-sm text-slate-600">{page} / {totalPages}</span>
             <button disabled={page >= totalPages} onClick={() => fetch(page + 1)}
-              className="px-3 py-1 text-sm border rounded disabled:opacity-40 hover:bg-slate-100">次 →</button>
+              className="px-3 py-1 text-sm border rounded disabled:opacity-40 hover:bg-slate-100">{t("adminLogs.nextPage", "次 →")}</button>
           </div>
         )}
       </div>
