@@ -5,6 +5,7 @@ import { mcApi, machinesApi, Machine } from "@/lib/api";
 import { calcProgramFileNaming } from "@/lib/programFileNaming";
 import AuthModal from "@/components/auth/AuthModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type PartResult = {
   id: number;
@@ -15,6 +16,7 @@ type PartResult = {
 };
 
 export default function McNewPage() {
+  const { t: tr } = useLanguage();
   const router = useRouter();
   const { token: authToken, operator: authOperator, isAuthenticated } = useAuth();
 
@@ -79,10 +81,10 @@ export default function McNewPage() {
   const handleSubmit = async () => {
     // ユーザー認証チェック（AuthContextのisAuthenticated + authToken両方確認）
     if (!authToken || !isAuthenticated) { setAuthOpen(true); return; }
-    if (!selectedPart)       { setSaveError("部品を選択してください"); return; }
-    if (!machiningId)        { setSaveError("加工IDを取得できませんでした"); return; }
-    if (!mcProcessNo.trim()) { setSaveError("工程Noを入力してください（必須）"); return; }
-    if (!machineId)          { setSaveError("機械を選択してください（必須）"); return; }
+    if (!selectedPart)       { setSaveError(tr("mcNewPage.selectPartRequired","部品を選択してください")); return; }
+    if (!machiningId)        { setSaveError(tr("mcNewPage.machiningIdFetchFailed","加工IDを取得できませんでした")); return; }
+    if (!mcProcessNo.trim()) { setSaveError(tr("mcNewPage.processNoRequired","工程Noを入力してください（必須）")); return; }
+    if (!machineId)          { setSaveError(tr("mcNewPage.machineRequired","機械を選択してください（必須）")); return; }
 
     // MCレコードはここでは作成しない（加工IDは仮押さえのみ）
     // 直接印刷ボタン押下時に1トランザクションで確定する
@@ -120,20 +122,20 @@ export default function McNewPage() {
         <button onClick={() => router.push("/")}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium transition-colors shrink-0">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-          ダッシュボードへ戻る
+          {tr("mcNewPage.backToDashboardLink5", "ダッシュボードへ戻る")}
         </button>
         <button onClick={() => router.push("/mc/search")}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 border border-slate-500 rounded-lg text-xs font-medium transition-colors shrink-0">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-          MC検索に戻る
+          {tr("mcNewPage.backToMcSearchLink", "MC検索に戻る")}
         </button>
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
         <span className="text-slate-400 text-xs">|</span>
-        <span className="text-sm font-medium">MC 新規登録（仮登録）</span>
+        <span className="text-sm font-medium">{tr("mcNewPage.mcNewTitle", "MC 新規登録（仮登録）")}</span>
         <span className="ml-auto">
           {isAuthenticated && authOperator
-            ? <span className="text-[11px] bg-teal-700 text-white px-2.5 py-1 rounded font-bold">✓ 認証済: {authOperator.name}</span>
-            : <button onClick={() => setAuthOpen(true)} className="text-[11px] bg-amber-600 hover:bg-amber-500 text-white px-2.5 py-1 rounded font-bold transition-colors">🔒 要認証 — クリックして認証</button>
+            ? <span className="text-[11px] bg-teal-700 text-white px-2.5 py-1 rounded font-bold">{tr("mcNewPage.authenticatedLabel", "✓ 認証済: {name}").replace("{name}", authOperator.name)}</span>
+            : <button onClick={() => setAuthOpen(true)} className="text-[11px] bg-amber-600 hover:bg-amber-500 text-white px-2.5 py-1 rounded font-bold transition-colors">{tr("mcNewPage.authRequiredButton", "🔒 要認証 — クリックして認証")}</button>
           }
         </span>
       </header>
@@ -141,34 +143,34 @@ export default function McNewPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <aside className="w-[280px] shrink-0 bg-white border-r border-slate-200 flex flex-col">
           <div className="p-3 border-b border-slate-100 space-y-2">
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide">① 部品を選択</h2>
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide">{tr("mcNewPage.step1SelectPart", "① 部品を選択")}</h2>
             <div className="flex gap-1.5">
               <select value={searchType} onChange={e => setSearchType(e.target.value as any)}
                 className="border border-slate-300 rounded px-1.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400 shrink-0">
-                <option value="drawing_no">図面番号</option>
-                <option value="part_id">部品ID</option>
-                <option value="part_name">名称</option>
+                <option value="drawing_no">{tr("mcNewPage.drawingNoOption", "図面番号")}</option>
+                <option value="part_id">{tr("mcNewPage.partIdOption", "部品ID")}</option>
+                <option value="part_name">{tr("mcNewPage.partNameOption", "名称")}</option>
               </select>
               <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handlePartSearch()}
-                placeholder="検索ワード"
+                placeholder={tr("mcNewPage.searchWordPlaceholder", "検索ワード")}
                 className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400" />
             </div>
             <button onClick={handlePartSearch} disabled={partLoading || !searchQ.trim()}
               className="w-full py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-bold text-xs transition-colors">
-              {partLoading ? "検索中…" : "検索"}
+              {partLoading ? tr("mcNewPage.searchingLabel2", "検索中…") : tr("mcNewPage.searchButton3", "検索")}
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
             {parts.length === 0 && !partLoading && (
-              <p className="text-xs text-slate-400 text-center mt-10">検索結果がありません</p>
+              <p className="text-xs text-slate-400 text-center mt-10">{tr("mcNewPage.noSearchResults", "検索結果がありません")}</p>
             )}
             {parts.map(p => (
               <button key={p.id} onClick={() => setSelectedPart(p)}
                 className={`w-full text-left px-3 py-2.5 border-b border-slate-100 hover:bg-teal-50 transition-colors ${selectedPart?.drawing_no === p.drawing_no ? "bg-teal-50 border-l-4 border-l-teal-500" : ""}`}>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs font-bold text-teal-700">{p.drawing_no}</span>
-                  {p.part_id && <span className="font-mono text-[10px] text-slate-400">部品ID:{p.part_id}</span>}
+                  {p.part_id && <span className="font-mono text-[10px] text-slate-400">{tr("mcNewPage.partIdPrefix3", "部品ID:")}{p.part_id}</span>}
                 </div>
                 <div className="text-xs text-slate-600 truncate">{p.name}</div>
                 {p.client_name && <div className="text-[10px] text-slate-400">{p.client_name}</div>}
@@ -183,7 +185,7 @@ export default function McNewPage() {
               <div className="flex-1">
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-teal-700 font-bold text-lg">{selectedPart.drawing_no}</span>
-                  {selectedPart.part_id && <span className="font-mono text-slate-500 font-bold text-lg">部品ID: {selectedPart.part_id}</span>}
+                  {selectedPart.part_id && <span className="font-mono text-slate-500 font-bold text-lg">{tr("mcNewPage.partIdPrefix4", "部品ID: ")}{selectedPart.part_id}</span>}
                 </div>
                 <div className="text-sm text-slate-600">{selectedPart.name}</div>
                 {selectedPart.client_name && <div className="text-xs text-slate-400">{selectedPart.client_name}</div>}
@@ -192,27 +194,27 @@ export default function McNewPage() {
             </div>
           ) : (
             <div className="bg-slate-100 border-2 border-dashed border-slate-300 rounded-xl p-4 mb-5 text-sm text-slate-400 text-center">
-              ← 左ペインで部品を検索・選択してください
+              {tr("mcNewPage.selectPartFromLeftHint", "← 左ペインで部品を検索・選択してください")}
             </div>
           )}
 
-          <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">② 加工情報を入力</h2>
+          <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">{tr("mcNewPage.step2InputMachiningInfo", "② 加工情報を入力")}</h2>
           <div className="grid grid-cols-2 gap-3 max-w-xl">
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">加工ID</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">{tr("mcNewPage.machiningIdLabel3", "加工ID")}</label>
               <div className="flex items-center gap-2 h-9">
                 {nextIdLoading ? (
-                  <span className="text-sm text-slate-400">取得中...</span>
+                  <span className="text-sm text-slate-400">{tr("mcNewPage.fetchingLabel", "取得中...")}</span>
                 ) : (
                   <span className="font-mono text-lg font-bold text-teal-700">{machiningId ?? "—"}</span>
                 )}
-                <span className="text-xs text-slate-400">（自動採番）</span>
+                <span className="text-xs text-slate-400">{tr("mcNewPage.autoNumberingNote", "（自動採番）")}</span>
               </div>
             </div>
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">
-                {programNaming ? programNaming.label : "ファイル名／フォルダ名"}
-                <span className="text-slate-400 font-normal">（機械選択後に自動設定）</span>
+                {programNaming ? (programNaming.isFolder ? tr("mcNewPage.folderNameLabel", "フォルダ名") : tr("mcNewPage.fileNameLabel2", "ファイル名")) : tr("mcNewPage.fileNameOrFolderName", "ファイル名／フォルダ名")}
+                <span className="text-slate-400 font-normal">{tr("mcNewPage.autoSetAfterMachineNote", "（機械選択後に自動設定）")}</span>
               </label>
               <div className="flex items-center gap-2 h-9">
                 <span className="font-mono text-base font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 select-none">
@@ -221,48 +223,48 @@ export default function McNewPage() {
               </div>
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">工程No <span className="text-red-500">*</span></label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">{tr("mcNewPage.processNoLabel5", "工程No ")}<span className="text-red-500">*</span></label>
               <input type="text" value={mcProcessNo} onChange={e => setMcProcessNo(e.target.value)}
-                placeholder="例: 1（負値・小数も可）"
+                placeholder={tr("mcNewPage.processNoPlaceholder", "例: 1（負値・小数も可）")}
                 className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 ${!mcProcessNo.trim() ? "border-red-300 bg-red-50" : "border-slate-300"}`} />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">機械 <span className="text-red-500">*</span></label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">{tr("mcNewPage.machineLabel7", "機械 ")}<span className="text-red-500">*</span></label>
               <select value={machineId} onChange={e => setMachineId(e.target.value)}
                 className={`w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-400 ${!machineId ? "border-red-300 bg-red-50" : "border-slate-300"}`}>
-                <option value="">-- 未設定 --</option>
+                <option value="">{tr("mcNewPage.notSetOption", "-- 未設定 --")}</option>
                 {machines.map(m => (
                   <option key={m.id} value={String(m.id)}>{m.machineName ?? m.machineCode}</option>
                 ))}
               </select>
               {programNaming && (
                 <div className={`mt-1.5 flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border ${programNaming.isFolder ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-teal-50 border-teal-200 text-teal-700"}`}>
-                  <span>{programNaming.isFolder ? "📁 フォルダ単位" : "📄 単体ファイル"}</span>
+                  <span>{programNaming.isFolder ? tr("mcNewPage.folderUnitBadge2", "📁 フォルダ単位") : tr("mcNewPage.singleFileBadge2", "📄 単体ファイル")}</span>
                   <span className="text-slate-400">|</span>
                   <span className="font-mono font-bold">{programNaming.value}</span>
                 </div>
               )}
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">メインOナンバ</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">{tr("mcNewPage.mainONumberLabel3", "メインOナンバ")}</label>
               <input type="text" value={oNumber} onChange={e => setONumber(e.target.value)}
-                placeholder="例: O7266"
+                placeholder={tr("mcNewPage.oNumberPlaceholder", "例: O7266")}
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">加工個数</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">{tr("mcNewPage.machiningQtyLabel3", "加工個数")}</label>
               <div className="flex items-center gap-2">
                 <input type="number" value={machiningQty} onChange={e => setMachiningQty(e.target.value)} min="1"
                   className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
-                <span className="text-xs text-slate-500">個/サイクル</span>
+                <span className="text-xs text-slate-500">{tr("mcNewPage.unitPerCycle", "個/サイクル")}</span>
               </div>
             </div>
           </div>
 
           <div className="mt-4 max-w-xl">
-            <label className="text-xs font-bold text-slate-700 block mb-1">備考</label>
+            <label className="text-xs font-bold text-slate-700 block mb-1">{tr("mcNewPage.noteLabel5", "備考")}</label>
             <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} maxLength={2000}
-              placeholder="特記事項・注意事項"
+              placeholder={tr("mcNewPage.notePlaceholder3", "特記事項・注意事項")}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none" />
           </div>
 
@@ -276,26 +278,26 @@ export default function McNewPage() {
             {!actuallyAuthenticated ? (
               <button onClick={() => setAuthOpen(true)}
                 className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
-                🔒 先に認証してください
+                {tr("mcNewPage.authFirstButton", "🔒 先に認証してください")}
               </button>
             ) : (
               <button onClick={handleSubmit} disabled={saving || !canSubmit}
                 className="flex-1 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-bold text-sm transition-colors">
-                {saving ? "登録中…" : "✓ 仮登録 → 段取シート発行へ"}
+                {saving ? tr("mcNewPage.registeringLabel2", "登録中…") : tr("mcNewPage.provisionalRegisterButton", "✓ 仮登録 → 段取シート発行へ")}
               </button>
             )}
             <button onClick={() => router.push("/mc/search")}
               className="px-5 py-3 rounded-xl border border-slate-300 text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors">
-              キャンセル
+              {tr("mcNewPage.cancelButton6", "キャンセル")}
             </button>
           </div>
 
           <div className="mt-5 max-w-xl bg-slate-100 rounded-xl p-3 text-xs text-slate-500 space-y-0.5">
-            <p className="font-bold text-slate-600 mb-1">仮登録後の流れ</p>
-            <p>① 仮登録完了 → 段取シートページへ表示</p>
-            <p>② 段取シートを印刷して現場へ配布</p>
-            <p>③ MC詳細でマシニング情報の登録及びツーリング・ワークオフセット・プログラムファイルなどを登録</p>
-            <p>④ 承認者が承認 → ステータスが「承認済」に変わります</p>
+            <p className="font-bold text-slate-600 mb-1">{tr("mcNewPage.flowAfterRegisterTitle", "仮登録後の流れ")}</p>
+            <p>{tr("mcNewPage.flowStep1", "① 仮登録完了 → 段取シートページへ表示")}</p>
+            <p>{tr("mcNewPage.flowStep2", "② 段取シートを印刷して現場へ配布")}</p>
+            <p>{tr("mcNewPage.flowStep3", "③ MC詳細でマシニング情報の登録及びツーリング・ワークオフセット・プログラムファイルなどを登録")}</p>
+            <p>{tr("mcNewPage.flowStep4", "④ 承認者が承認 → ステータスが「承認済」に変わります")}</p>
           </div>
         </main>
       </div>
