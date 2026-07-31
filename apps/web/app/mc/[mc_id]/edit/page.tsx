@@ -1359,32 +1359,32 @@ export default function McEditPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">加工個数/1サイクル</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.machiningQtyLabel2", "加工個数/1サイクル")}</label>
                     <input type="number" min={1} data-fi="true" value={machiningQty} onChange={e => setMachiningQty(Number(e.target.value))}
                       className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm text-center focus:ring-2 focus:ring-teal-400 focus:outline-none" />
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">備考</label>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.noteLabel", "備考")}</label>
                   <textarea value={note} onChange={e => setNote(e.target.value)} rows={3}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none resize-none" />
                 </div>
                 {/* 作成者・作成日 */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">作成者（段取シート作成者）</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.creatorLabel", "作成者（段取シート作成者）")}</label>
                     <select value={creatorId} onChange={e => setCreatorId(e.target.value)}
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
                       <option value="">{tr("mcEditUi.selectOption", "— 選択 —")}</option>
                       {displayCreatorUsers
                         .filter(u => u.isActive || String(u.id) === creatorId)
                         .map(u => (
-                          <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（無効）" : ""}</option>
+                          <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? tr("mcEditUi.inactiveSuffix2","（無効）") : ""}</option>
                         ))}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">作成日（シート作成日）</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.createdDateLabel", "作成日（シート作成日）")}</label>
                     <input type="date" value={sheetCreatedAt} onChange={e => setSheetCreatedAt(e.target.value)}
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
                   </div>
@@ -1393,71 +1393,71 @@ export default function McEditPage() {
                 {/* PG情報 */}
                 <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                   <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-600">プログラム情報</span>
+                    <span className="text-xs font-bold text-slate-600">{tr("mcEditUi.programInfoTitle", "プログラム情報")}</span>
                     <button onClick={() => {
                       if (!token) { showToast("❌ " + tr("mcEdit.authRequired", "認証が必要です")); return; }
                       setNewPgViewerOpen(true); // [v079] 新共通コンポーネントを開く
                     }}
                       className="px-3 py-1 text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white rounded-lg transition-colors">
-                      📄 PGエディタを開く
+                      {tr("mcEditUi.openPgEditor", "📄 PGエディタを開く")}
                     </button>
                     <button onClick={() => {
                       if (!token) { showToast("❌ " + tr("mcEdit.authRequired", "認証が必要です")); return; }
-                      if (!("showOpenFilePicker" in window)) { showToast("❌ Chrome/Edgeが必要です"); return; }
+                      if (!("showOpenFilePicker" in window)) { showToast(tr("mcEditUi.chromeEdgeRequired", "❌ Chrome/Edgeが必要です")); return; }
                       handlePgUploadFromUSB();
                     }} disabled={pgUploading}
                       className="px-3 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50">
-                      {pgUploading ? "⏳ 登録中..." : `📥 USBから登録${(detail as any)?.pgIsFolder ? "（📁フォルダ単位）" : "（📄単体ファイル）"}`}
+                      {pgUploading ? tr("mcEditUi.registeringInProgress","⏳ 登録中...") : tr("mcEditUi.registerFromUsb","📥 USBから登録{mode}").replace("{mode}", (detail as any)?.pgIsFolder ? tr("mcEditUi.folderModeParen","（📁フォルダ単位）") : tr("mcEditUi.fileModeParen","（📄単体ファイル）"))}
                     </button>
                   </div>
                   <div className="px-4 py-2 border-b border-slate-100 bg-white">
                     <span className="text-[11px] text-slate-500">
-                      登録状態：{pgFileInfo
-                        ? <span className="font-mono font-bold text-slate-700">{pgFileInfo.originalName}{pgFileInfo.fileCount > 1 ? `（他${pgFileInfo.fileCount - 1}件）` : ""}</span>
-                        : <span className="text-slate-400">未登録</span>}
+                      {tr("mcEditUi.registrationStatus", "登録状態：")}{pgFileInfo
+                        ? <span className="font-mono font-bold text-slate-700">{pgFileInfo.originalName}{pgFileInfo.fileCount > 1 ? tr("mcEditUi.otherFilesCount","（他{n}件）").replace("{n}", String(pgFileInfo.fileCount - 1)) : ""}</span>
+                        : <span className="text-slate-400">{tr("mcEditUi.notRegistered", "未登録")}</span>}
                     </span>
                   </div>
                   <div className="px-4 py-3 grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1">PG作成者</label>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.pgCreatorLabel", "PG作成者")}</label>
                       <select value={pgCreatedBy} onChange={e => setPgCreatedBy(e.target.value)}
                         className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
                         <option value="">{tr("mcEditUi.selectOption", "— 選択 —")}</option>
                         {displayPgUsers
                           .filter(u => u.isActive || String(u.id) === pgCreatedBy)
                           .map(u => (
-                            <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? "（無効）" : ""}</option>
+                            <option key={u.id} value={String(u.id)}>{u.name}{u.isActive === false ? tr("mcEditUi.inactiveSuffix2","（無効）") : ""}</option>
                           ))}
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1">PG更新日時</label>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.pgUpdatedAtLabel", "PG更新日時")}</label>
                       <div className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-600 font-mono">
                         {pgUpdatedAtDisp || "—"}
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-0.5">※ PGアップロード時に自動更新</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{tr("mcEditUi.pgAutoUpdateHint", "※ PGアップロード時に自動更新")}</p>
                     </div>
                   </div>
                 </div>
                 {/* オペレーター・入力日・承認者・承認日(読み取り専用) */}
                 <div className="grid grid-cols-2 gap-4 pt-1">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">オペレーター</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.operatorLabel", "オペレーター")}</label>
                     <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700">{detail?.registrar?.name ?? "—"}</div>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">入力日</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.inputDateLabel", "入力日")}</label>
                     <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-mono">{toJstDateString(detail?.registeredAt) ?? "—"}</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">承認者</label>
-                    <div className={`px-3 py-2 text-sm border rounded-lg ${detail?.approver ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-bold" : "bg-slate-50 border-slate-200 text-slate-400"}`}>{detail?.approver?.name ?? "未承認"}</div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.approverLabel", "承認者")}</label>
+                    <div className={`px-3 py-2 text-sm border rounded-lg ${detail?.approver ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-bold" : "bg-slate-50 border-slate-200 text-slate-400"}`}>{detail?.approver?.name ?? tr("mcEditUi.notApproved", "未承認")}</div>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">承認日</label>
-                    <div className={`px-3 py-2 text-sm border rounded-lg font-mono ${detail?.approvedAt ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>{toJstDateString(detail?.approvedAt) ?? "未承認"}</div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.approvedDateLabel", "承認日")}</label>
+                    <div className={`px-3 py-2 text-sm border rounded-lg font-mono ${detail?.approvedAt ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>{toJstDateString(detail?.approvedAt) ?? tr("mcEditUi.notApproved", "未承認")}</div>
                   </div>
                 </div>
               </div>
@@ -1470,11 +1470,11 @@ export default function McEditPage() {
                 {/* ツーリングリスト */}
                 <div className="bg-white rounded-xl border border-slate-200">
                   <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-600">ツーリングリスト ({toolingRows.length}レコード)</span>
+                    <span className="text-xs font-bold text-slate-600">{tr("mcEditUi.toolingListTitle","ツーリングリスト ({n}レコード)").replace("{n}", String(toolingRows.length))}</span>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={async () => {
-                          if (!token) { alert("認証が必要です"); return; }
+                          if (!token) { alert(tr("mcEdit.authRequired", "認証が必要です")); return; }
                           try {
                             await mcApi.saveTooling(mcId, toolingRows.map((t, idx) => ({
                               sort_order:       t.sort_order       ?? idx,
@@ -1490,14 +1490,14 @@ export default function McEditPage() {
                               note:             t.note             ?? undefined,
                               raw_program_line: t.raw_program_line ?? undefined,
                             })), token);
-                            showToast("✅ ツーリングを保存しました");
-                          } catch { showToast("❌ 保存に失敗しました"); }
+                            showToast(tr("mcEditUi.saveToolingSuccess", "✅ ツーリングを保存しました"));
+                          } catch { showToast(tr("mcEditUi.saveFailedShort", "❌ 保存に失敗しました")); }
                         }}
                         className="px-3 py-1 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors">
-                        ✓ ツーリングを保存
+                        {tr("mcEditUi.saveTooling", "✓ ツーリングを保存")}
                       </button>
                       <button onClick={() => setToolingRows(prev => [...prev, { sort_order: (prev.length + 1) * 10, tool_no: "", tool_name: "", length_offset_no: "", dia_offset_no: "" }])}
-                        className="text-xs text-teal-600 font-bold">+ 追加</button>
+                        className="text-xs text-teal-600 font-bold">{tr("mcEditUi.addRow", "+ 追加")}</button>
                     </div>
                   </div>
                   <div className="overflow-y-auto max-h-[55vh]">
@@ -1518,15 +1518,15 @@ export default function McEditPage() {
                       <thead className="bg-teal-50 sticky top-0 z-10">
                         <tr>
                           <th className="px-1 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">N</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">工具</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">T</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">H</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">D</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">D値</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">SUB</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">コメント</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">順番</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("mcEditUi.colN", "N")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("mcEditUi.colTool", "工具")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("mcEditUi.colT", "T")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("mcEditUi.colH", "H")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("mcEditUi.colD", "D")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("mcEditUi.colDValue", "D値")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("mcEditUi.colSub", "SUB")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("mcEditUi.colComment", "コメント")}</th>
+                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("mcEditUi.colOrder", "順番")}</th>
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
                         </tr>
                       </thead>
@@ -1587,7 +1587,7 @@ export default function McEditPage() {
                           <td className="px-1 py-1"><input value={t.sort_order != null ? String(t.sort_order) : ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, sort_order: e.target.value === "" ? 0 : Number(e.target.value)} : x))}
                             className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-right" type="number" /></td>
                           <td className="px-1 py-1 text-center"><button onClick={() => setToolingRows(r => r.filter((_,j) => j !== i))}
-                            className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">削除</button></td>
+                            className="px-2 py-1 text-[11px] font-bold bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-300 hover:border-red-500 rounded transition-colors">{tr("mcEditUi.toolingDelete", "削除")}</button></td>
                         </tr>
                       ))}
                       </tbody>
@@ -1597,7 +1597,7 @@ export default function McEditPage() {
 
                 {/* プログラム読取り（リストの下） */}
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                  <p className="text-xs font-bold text-amber-700 mb-3">ツーリングプログラム読取り（MC専用機能）</p>
+                  <p className="text-xs font-bold text-amber-700 mb-3">{tr("mcEditUi.toolingProgramReadTitle", "ツーリングプログラム読取り（MC専用機能）")}</p>
                   <div className="flex items-center gap-3 mb-3 flex-wrap">
                     <button
                       onClick={() => {
@@ -1607,12 +1607,12 @@ export default function McEditPage() {
                       }}
                       disabled={!pgFileInfo}
                       className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap">
-                      📄 プログラムファイルを読み込み
+                      {tr("mcEditUi.loadProgramFile", "📄 プログラムファイルを読み込み")}
                     </button>
                     <span className="text-xs text-amber-700">
-                      プログラムファイル：{pgFileInfo
+                      {tr("mcEditUi.programFileLabel", "プログラムファイル：")}{pgFileInfo
                         ? <span className="font-mono font-bold">{pgFileInfo.originalName}</span>
-                        : <span className="text-amber-400">未登録（基本情報タブで登録してください）</span>}
+                        : <span className="text-amber-400">{tr("mcEditUi.notRegisteredHint", "未登録（基本情報タブで登録してください）")}</span>}
                     </span>
                   </div>
                   {toolingPgLoaded && (
@@ -1621,16 +1621,16 @@ export default function McEditPage() {
                   )}
                   <div className="flex gap-2">
                   <button onClick={handleParseTooling} disabled={!toolingPgLoaded}
-                      className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-4 py-2 rounded-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed">解析・プレビュー</button>
+                      className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-4 py-2 rounded-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed">{tr("mcEditUi.analyzePreview", "解析・プレビュー")}</button>
                     {parseResult && (
                       <button onClick={applyParseResult}
                         className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-4 py-2 rounded-lg font-bold">
-                        {parseResult.length}本を取り込む
+                        {tr("mcEditUi.importCount","{n}本を取り込む").replace("{n}", String(parseResult.length))}
                       </button>
                     )}
                   </div>
                   {parseResult && (
-                    <div className="mt-3 text-xs text-amber-700 font-bold">{parseResult.length}本の工具を検出しました。内容を確認して「取り込む」で確定します。</div>
+                    <div className="mt-3 text-xs text-amber-700 font-bold">{tr("mcEditUi.detectedCount","{n}本の工具を検出しました。内容を確認して「取り込む」で確定します。").replace("{n}", String(parseResult.length))}</div>
                   )}
                 </div>
 
@@ -1638,11 +1638,11 @@ export default function McEditPage() {
                 {parseResult && parseResult.length > 0 && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
                     <div className="bg-amber-100 px-4 py-2 border-b border-amber-200 flex items-center justify-between">
-                      <span className="text-xs font-bold text-amber-800">📋 解析プレビュー（{parseResult.length}件）— 取り込み前に確認</span>
+                      <span className="text-xs font-bold text-amber-800">{tr("mcEditUi.analysisPreviewTitle","📋 解析プレビュー（{n}件）— 取り込み前に確認").replace("{n}", String(parseResult.length))}</span>
                       <button
                         onClick={() => setParseResult(null)}
                         className="text-xs text-amber-600 hover:text-amber-800 font-bold px-2 py-0.5 rounded hover:bg-amber-200">
-                        ✕ 閉じる
+                        {tr("mcEditUi.close", "✕ 閉じる")}
                       </button>
                     </div>
                     <div className="overflow-y-auto max-h-[40vh]">
@@ -1664,13 +1664,13 @@ export default function McEditPage() {
                             <th className="px-2 py-1.5 text-center text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">#</th>
                             <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">N</th>
                             <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">T</th>
-                            <th className="px-2 py-1.5 text-left text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">工具名</th>
+                            <th className="px-2 py-1.5 text-left text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">{tr("mcEditUi.colToolName", "工具名")}</th>
                             <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">H</th>
                             <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">D</th>
-                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">D値</th>
-                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">SUB</th>
-                            <th className="px-2 py-1.5 text-left text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">コメント</th>
-                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">順番</th>
+                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">{tr("mcEditUi.colDValue", "D値")}</th>
+                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">{tr("mcEditUi.colSub", "SUB")}</th>
+                            <th className="px-2 py-1.5 text-left text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">{tr("mcEditUi.colComment", "コメント")}</th>
+                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">{tr("mcEditUi.colOrder", "順番")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1714,7 +1714,7 @@ export default function McEditPage() {
                           showToast(tr("mcEdit.toolingImported", "ツーリングデータを取り込みました"));
                         }}
                         className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-6 py-2 rounded-lg font-bold">
-                        ✅ {parseResult.length}本を取り込む
+                        ✅ {tr("mcEditUi.importCount","{n}本を取り込む").replace("{n}", String(parseResult.length))}
                       </button>
                     </div>
                   </div>
@@ -1749,7 +1749,7 @@ export default function McEditPage() {
                         ✓ ワークオフセットを保存
                       </button>
                       <button onClick={() => setOffsetRows(prev => (() => { const n = prev.length; const gc = n === 0 ? "EXT" : `G${Math.min(54 + (n - 1), 59)}`; return [...prev, { g_code: gc }]; })())}
-                        className="text-xs text-teal-600 font-bold">+ 追加</button>
+                        className="text-xs text-teal-600 font-bold">{tr("mcEditUi.addRow", "+ 追加")}</button>
                     </div>
                   </div>
                   <div className="overflow-y-auto max-h-[55vh]">
@@ -1849,7 +1849,7 @@ export default function McEditPage() {
                         ✓ インデックスPGを保存
                       </button>
                       <button onClick={() => setIndexRows(prev => [...prev, { sort_order: prev.length, axis_0: "", axis_1: "", axis_2: "" }])}
-                        className="text-xs text-teal-600 font-bold">+ 追加</button>
+                        className="text-xs text-teal-600 font-bold">{tr("mcEditUi.addRow", "+ 追加")}</button>
                     </div>
                   </div>
                   <div className="overflow-y-auto max-h-[55vh]">
