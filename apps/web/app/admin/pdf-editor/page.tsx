@@ -2,22 +2,23 @@
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 // PDF座標系は常に A4 595×842 固定
 const A4_W = 595, A4_H = 842;
 // pdf-lib 座標系: Y は下からの距離。SVG描画用に変換
 const toSvgY = (y: number, size: number) => A4_H - y - size;
 
-const NEW_TEMPLATES = [
-  { tpl: "mc_setup_p1", label: "P1 ツーリング面", pg: 1, color: "teal"   },
-  { tpl: "mc_setup_p2", label: "P2 作業記録",     pg: 2, color: "orange" },
+const NEW_TEMPLATE_KEYS = [
+  { tpl: "mc_setup_p1", labelKey: "adminPdfEditor.tplMcSetupP1", labelFallback: "P1 ツーリング面", pg: 1, color: "teal"   },
+  { tpl: "mc_setup_p2", labelKey: "adminPdfEditor.tplMcSetupP2", labelFallback: "P2 作業記録",     pg: 2, color: "orange" },
 ];
-const REPEAT_TEMPLATES = [
-  { tpl: "repeat_header",  label: "ヘッダ固定部", color: "violet" },
-  { tpl: "repeat_tooling", label: "ツーリング列", color: "violet" },
-  { tpl: "repeat_wo",      label: "WO枠",         color: "violet" },
-  { tpl: "repeat_ip",      label: "IP列",         color: "violet" },
-  { tpl: "repeat_p2",      label: "作業記録",     color: "indigo" },
+const REPEAT_TEMPLATE_KEYS = [
+  { tpl: "repeat_header",  labelKey: "adminPdfEditor.tplRepeatHeader",  labelFallback: "ヘッダ固定部", color: "violet" },
+  { tpl: "repeat_tooling", labelKey: "adminPdfEditor.tplRepeatTooling", labelFallback: "ツーリング列", color: "violet" },
+  { tpl: "repeat_wo",      labelKey: "adminPdfEditor.tplRepeatWo",      labelFallback: "WO枠",         color: "violet" },
+  { tpl: "repeat_ip",      labelKey: "adminPdfEditor.tplRepeatIp",      labelFallback: "IP列",         color: "violet" },
+  { tpl: "repeat_p2",      labelKey: "adminPdfEditor.tplRepeatP2",      labelFallback: "作業記録",     color: "indigo" },
 ];
 
 type TplInfo = { id: number; name: string; filePath: string; description: string };
@@ -52,6 +53,9 @@ const apiFetch = async (path: string, opts?: RequestInit) => {
 export default function PdfEditorPage() {
   const router   = useRouter();
   const pathname = usePathname();
+  const { t } = useLanguage();
+  const NEW_TEMPLATES = NEW_TEMPLATE_KEYS.map(x => ({ tpl: x.tpl, label: t(x.labelKey, x.labelFallback), pg: x.pg, color: x.color }));
+  const REPEAT_TEMPLATES = REPEAT_TEMPLATE_KEYS.map(x => ({ tpl: x.tpl, label: t(x.labelKey, x.labelFallback), color: x.color }));
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [pdfjsReady,  setPdfjsReady]  = useState(false);
@@ -187,7 +191,7 @@ export default function PdfEditorPage() {
         _ea: f.isActive,
         _dirty: false,
       })));
-    } catch (e: any) { showToast(`読み込み失敗: ${e.message}`, false); }
+    } catch (e: any) { showToast(t("adminPdfEditor.loadFailed","読み込み失敗: {msg}").replace("{msg}", e.message), false); }
     finally { setLoading(false); }
   };
 
@@ -203,14 +207,14 @@ export default function PdfEditorPage() {
       });
       setFields(prev => prev.map(p => p.id === f.id
         ? { ...p, x: f._ex!, y: f._ey!, fontSize: f._es!, isActive: f._ea!, _dirty: false } : p));
-      showToast(`✅ 「${f.label}」保存`, true);
+      showToast(t("adminPdfEditor.savedField","✅ 「{label}」保存").replace("{label}", f.label), true);
     } catch (e: any) { showToast(`❌ ${e.message}`, false); }
     finally { setSaving(false); }
   };
 
   const saveAll = async () => {
     const dirty = fields.filter(f => f._dirty);
-    if (!dirty.length) { showToast("変更なし", true); return; }
+    if (!dirty.length) { showToast(t("adminPdfEditor.noChanges", "変更なし"), true); return; }
     setSaving(true);
     let ok = 0, ng = 0;
     await Promise.allSettled(dirty.map(f =>
@@ -221,7 +225,7 @@ export default function PdfEditorPage() {
     ));
     setFields(prev => prev.map(f => f._dirty
       ? { ...f, x: f._ex!, y: f._ey!, fontSize: f._es!, isActive: f._ea!, _dirty: false } : f));
-    showToast(ng === 0 ? `✅ ${ok}件保存` : `⚠️ ${ok}件成功/${ng}件失敗`, ng === 0);
+    showToast(ng === 0 ? t("adminPdfEditor.savedCount","✅ {ok}件保存").replace("{ok}", String(ok)) : t("adminPdfEditor.partialFailed","⚠️ {ok}件成功/{ng}件失敗").replace("{ok}", String(ok)).replace("{ng}", String(ng)), ng === 0);
     setSaving(false);
   };
 
@@ -240,13 +244,13 @@ export default function PdfEditorPage() {
       // ⑥修正: Uint8Array として保持（ArrayBuffer detach を防ぐ）
       setPdfData(new Uint8Array(ab));
       if (isRepeat) setPreviewPage(1);
-    } catch (e: any) { showToast(`プレビュー失敗: ${e.message}`, false); }
+    } catch (e: any) { showToast(t("adminPdfEditor.previewFailed","プレビュー失敗: {msg}").replace("{msg}", e.message), false); }
     finally { setPdfLoading(false); }
   };
 
   // 全体プレビュー（リピート段取シート）
   const loadFullPreview = async () => {
-    if (!mcIdInput) { showToast("全体プレビューにはMC_IDを入力してください", false); return; }
+    if (!mcIdInput) { showToast(t("adminPdfEditor.fullPreviewMcIdRequired", "全体プレビューにはMC_IDを入力してください"), false); return; }
     setPdfLoading(true);
     try {
       // MC_IDは内部ID or legacyMcid どちらでも対応（API側でフォールバック検索）
@@ -257,13 +261,13 @@ export default function PdfEditorPage() {
       setPreviewPage(1);
       setPdfTotalPages(1);
       setIsPreviewMode(true);
-    } catch (e: any) { showToast(`全体プレビュー失敗: ${e.message}`, false); }
+    } catch (e: any) { showToast(t("adminPdfEditor.fullPreviewFailed","全体プレビュー失敗: {msg}").replace("{msg}", e.message), false); }
     finally { setPdfLoading(false); }
   };
 
   // 全体プレビュー（新規段取シート）
   const loadNewFullPreview = async () => {
-    if (!mcIdInput) { showToast("全体プレビューにはMC_IDまたは部品IDを入力してください", false); return; }
+    if (!mcIdInput) { showToast(t("adminPdfEditor.fullPreviewMcIdOrPartIdRequired", "全体プレビューにはMC_IDまたは部品IDを入力してください"), false); return; }
     setPdfLoading(true);
     try {
       // 数値ならMC_ID(内部ID or legacyMcid)、文字列なら部品IDとして扱う
@@ -278,13 +282,13 @@ export default function PdfEditorPage() {
       setPreviewPage(1);
       setPdfTotalPages(1);
       setIsPreviewMode(true);
-    } catch (e: any) { showToast(`全体プレビュー失敗: ${e.message}`, false); }
+    } catch (e: any) { showToast(t("adminPdfEditor.fullPreviewFailed","全体プレビュー失敗: {msg}").replace("{msg}", e.message), false); }
     finally { setPdfLoading(false); }
   };
 
   const handleUpload = async (file: File) => {
     const tplInfo = tplInfoMap[selTpl];
-    if (!tplInfo) { showToast("テンプレートIDが不明です", false); return; }
+    if (!tplInfo) { showToast(t("adminPdfEditor.templateIdUnknown", "テンプレートIDが不明です"), false); return; }
     setUploading(true);
     try {
       const token = sessionStorage.getItem("admin_token") ?? "";
@@ -296,8 +300,8 @@ export default function PdfEditorPage() {
         body: fd,
       });
       if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.message ?? `HTTP ${res.status}`); }
-      showToast("✅ テンプレートPDFを更新しました", true);
-    } catch (e: any) { showToast(`❌ アップロード失敗: ${e.message}`, false); }
+      showToast(t("adminPdfEditor.templatePdfUpdated", "✅ テンプレートPDFを更新しました"), true);
+    } catch (e: any) { showToast(t("adminPdfEditor.uploadFailed","❌ アップロード失敗: {msg}").replace("{msg}", e.message), false); }
     finally { setUploading(false); }
   };
 
@@ -367,14 +371,14 @@ export default function PdfEditorPage() {
 
             {/* トップタブ */}
             <div className="shrink-0 flex border-b border-slate-200">
-              {(["new", "repeat"] as const).map(t => (
-                <button key={t} onClick={() => setSheetType(t)}
+              {(["new", "repeat"] as const).map(st => (
+                <button key={st} onClick={() => setSheetType(st)}
                   className={`flex-1 py-2 text-[11px] font-bold transition-colors ${
-                    sheetType === t
-                      ? t === "new" ? "bg-teal-600 text-white" : "bg-violet-600 text-white"
+                    sheetType === st
+                      ? st === "new" ? "bg-teal-600 text-white" : "bg-violet-600 text-white"
                       : "bg-slate-50 text-slate-500 hover:bg-slate-100"
                   }`}>
-                  {t === "new" ? "新規段取シート" : "リピート段取シート"}
+                  {st === "new" ? t("adminPdfEditor.tabNew", "新規段取シート") : t("adminPdfEditor.tabRepeat", "リピート段取シート")}
                 </button>
               ))}
             </div>
@@ -383,7 +387,7 @@ export default function PdfEditorPage() {
             <div className="shrink-0 p-2 border-b border-slate-100">
               {sheetType === "new" ? (
                 <div className="flex gap-1">
-                  {NEW_TEMPLATES.map(({ tpl, label, pg, color }) => (
+                  {NEW_TEMPLATES.map(({ tpl, label, pg, color }: any) => (
                     <button key={tpl} onClick={() => { setSelTpl(tpl); setPreviewPage(pg); }}
                       className={`flex-1 ${tplBtnCls(tpl, color)}`}>
                       {label}
@@ -392,7 +396,7 @@ export default function PdfEditorPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-1">
-                  {REPEAT_TEMPLATES.map(({ tpl, label, color }) => (
+                  {REPEAT_TEMPLATES.map(({ tpl, label, color }: any) => (
                     <button key={tpl} onClick={() => { setSelTpl(tpl); setPreviewPage(1); }}
                       className={tplBtnCls(tpl, color)}>
                       {label}
@@ -406,7 +410,7 @@ export default function PdfEditorPage() {
             <div className="shrink-0 px-2 py-1.5 border-b border-slate-100 bg-slate-50">
               <div className="flex items-center gap-1.5">
                 <div className="flex-1 min-w-0">
-                  <span className="text-[9px] text-slate-500 font-bold">テンプレートPDF</span>
+                  <span className="text-[9px] text-slate-500 font-bold">{t("adminPdfEditor.templatePdfLabel", "テンプレートPDF")}</span>
                   {tplInfoMap[selTpl] && (
                     <div className="text-[9px] text-slate-400 truncate font-mono">{tplInfoMap[selTpl].filePath}</div>
                   )}
@@ -418,7 +422,7 @@ export default function PdfEditorPage() {
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
                   </svg>
-                  {uploading ? "送信中…" : "PDF差し替え"}
+                  {uploading ? t("adminPdfEditor.sending","送信中…") : t("adminPdfEditor.replacePdf","PDF差し替え")}
                 </button>
               </div>
             </div>
@@ -426,7 +430,7 @@ export default function PdfEditorPage() {
             {/* MC_ID + PDF生成 + 全体プレビュー */}
             <div className="shrink-0 px-2 py-1.5 border-b border-slate-100 space-y-1">
               <input type="text" value={mcIdInput} onChange={e => setMcIdInput(e.target.value)}
-                placeholder={sheetType === "new" ? "MC_ID or 部品ID" : "MC_ID（legacyMCID可）"}
+                placeholder={sheetType === "new" ? t("adminPdfEditor.mcIdOrPartId", "MC_ID or 部品ID") : t("adminPdfEditor.mcIdLegacyOk", "MC_ID（legacyMCID可）")}
                 className="w-full border border-slate-300 rounded px-2 py-1 text-xs" />
               <div className="flex gap-1.5">
                 <button onClick={loadPreview} disabled={pdfLoading}
@@ -435,7 +439,7 @@ export default function PdfEditorPage() {
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                     <polyline points="14,2 14,8 20,8"/>
                   </svg>
-                  {pdfLoading ? "生成中…" : "テンプレート表示"}
+                  {pdfLoading ? t("adminPdfEditor.generating","生成中…") : t("adminPdfEditor.showTemplate","テンプレート表示")}
                 </button>
                 <button
                   onClick={sheetType === "repeat" ? loadFullPreview : loadNewFullPreview}
@@ -445,7 +449,7 @@ export default function PdfEditorPage() {
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                     <circle cx="12" cy="12" r="3"/>
                   </svg>
-                  {pdfLoading ? "生成中…" : "全体プレビュー"}
+                  {pdfLoading ? t("adminPdfEditor.generating","生成中…") : t("adminPdfEditor.fullPreview","全体プレビュー")}
                 </button>
               </div>
               {/* ページ切替バー: 常時表示 */}
@@ -453,7 +457,7 @@ export default function PdfEditorPage() {
                 <button onClick={() => setPreviewPage(p => Math.max(1, p - 1))}
                   disabled={previewPage <= 1}
                   className="px-3 py-1 text-xs bg-slate-200 hover:bg-slate-300 rounded font-bold disabled:opacity-30">
-                  ◀ 前
+                  {t("adminPdfEditor.prevPage", "◀ 前")}
                 </button>
                 <span className="text-xs font-bold text-slate-700 min-w-[60px] text-center bg-white border border-slate-200 rounded px-2 py-0.5">
                   {previewPage} / {pdfTotalPages}
@@ -461,14 +465,14 @@ export default function PdfEditorPage() {
                 <button onClick={() => setPreviewPage(p => Math.min(pdfTotalPages, p + 1))}
                   disabled={previewPage >= pdfTotalPages}
                   className="px-3 py-1 text-xs bg-slate-200 hover:bg-slate-300 rounded font-bold disabled:opacity-30">
-                  次 ▶
+                  {t("adminPdfEditor.nextPage", "次 ▶")}
                 </button>
               </div>
             </div>
 
             {/* 倍率 + 一括保存 */}
             <div className="shrink-0 px-2 py-1 border-b border-slate-100 flex items-center gap-1 flex-wrap">
-              <span className="text-[9px] text-slate-500 font-bold">倍率:</span>
+              <span className="text-[9px] text-slate-500 font-bold">{t("adminPdfEditor.scaleLabel", "倍率:")}</span>
               {[0.75, 1.0, 1.25, 1.5].map(s => (
                 <button key={s} onClick={() => setScale(s)}
                   className={`px-2 py-0.5 text-[9px] rounded border ${scale === s ? "bg-sky-600 text-white border-sky-600" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
@@ -478,7 +482,7 @@ export default function PdfEditorPage() {
               {fields.filter(f => f._dirty).length > 0 && (
                 <button onClick={saveAll} disabled={saving || isPreviewMode}
                   className="ml-auto px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold rounded disabled:opacity-40 whitespace-nowrap">
-                  {saving ? "保存中…" : `💾 一括保存(${fields.filter(f => f._dirty).length})`}
+                  {saving ? t("adminPdfEditor.saving","保存中…") : t("adminPdfEditor.bulkSave","💾 一括保存({n})").replace("{n}", String(fields.filter(f => f._dirty).length))}
                 </button>
               )}
             </div>
@@ -486,22 +490,22 @@ export default function PdfEditorPage() {
             {/* フィールドリスト: プレビューモード時は操作無効 */}
             <div className={`flex-1 overflow-y-auto${isPreviewMode ? " opacity-40 pointer-events-none select-none" : ""}`}>
               {loading ? (
-                <div className="p-4 text-center text-slate-400 text-xs">読み込み中…</div>
+                <div className="p-4 text-center text-slate-400 text-xs">{t("adminPdfEditor.loading", "読み込み中…")}</div>
               ) : fields.length === 0 ? (
                 <div className="p-4 text-center text-slate-400 text-xs">
-                  フィールドなし<br/>
-                  <span className="text-[9px]">PDF生成後にフィールドが表示されます</span>
+                  {t("adminPdfEditor.noFields", "フィールドなし")}<br/>
+                  <span className="text-[9px]">{t("adminPdfEditor.noFieldsHint", "PDF生成後にフィールドが表示されます")}</span>
                 </div>
               ) : (
                 <table className="w-full border-collapse text-[10px]">
                   <thead className="sticky top-0 bg-slate-50 z-10">
                     <tr className="border-b border-slate-200">
                       <th className="px-1 py-1 text-center w-6">✓</th>
-                      <th className="px-2 py-1 text-left">フィールド</th>
+                      <th className="px-2 py-1 text-left">{t("adminPdfEditor.colField", "フィールド")}</th>
                       <th className="py-1 text-center w-14">X</th>
                       <th className="py-1 text-center w-14">Y</th>
                       <th className="py-1 text-center w-12">PT</th>
-                      <th className="py-1 text-center w-10">保存</th>
+                      <th className="py-1 text-center w-10">{t("adminPdfEditor.colSave", "保存")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -537,7 +541,7 @@ export default function PdfEditorPage() {
                             {f._dirty && (
                               <button onClick={() => saveOne(f)}
                                 className="px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] rounded">
-                                保存
+                                {t("adminPdfEditor.save", "保存")}
                               </button>
                             )}
                           </td>
@@ -580,8 +584,8 @@ export default function PdfEditorPage() {
                   <polyline points="14,2 14,8 20,8"/>
                   <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
                 </svg>
-                <p className="text-sm">「PDF生成」ボタンを押してください</p>
-                <p className="text-xs text-slate-300">選択中: {selTpl}</p>
+                <p className="text-sm">{t("adminPdfEditor.pressGeneratePdf", "「PDF生成」ボタンを押してください")}</p>
+                <p className="text-xs text-slate-300">{t("adminPdfEditor.selecting", "選択中: {tpl}").replace("{tpl}", selTpl)}</p>
               </div>
             ) : (
               // ④修正: relative コンテナに canvas + SVG を重ねる
