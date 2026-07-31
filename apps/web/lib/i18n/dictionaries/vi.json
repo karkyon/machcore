@@ -516,7 +516,8 @@
     "noMatch": "Không có kết quả",
     "prevPage": "← Trước",
     "nextPage": "Sau →",
-    "fetchFailed": "Lấy dữ liệu thất bại"
+    "fetchFailed": "Lấy dữ liệu thất bại",
+    "ncIdPlaceholder": "VD: 3120"
   },
   "adminClampMaster": {
     "catVise": "Ê tô",

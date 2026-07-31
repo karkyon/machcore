@@ -102,7 +102,7 @@ export default function AdminLogsPage() {
         <div>
           <label className="block text-xs text-slate-500 mb-1">{t("adminLogs.ncIdLabel", "NC_ID")}</label>
           <input type="number" value={filterNcId} onChange={e => setFilterNcId(e.target.value)}
-            placeholder="例: 3120" className="border rounded px-2 py-1.5 text-sm w-28" />
+            placeholder={t("adminLogs.ncIdPlaceholder", "例: 3120")} className="border rounded px-2 py-1.5 text-sm w-28" />
         </div>
         <div>
           <label className="block text-xs text-slate-500 mb-1">{t("adminLogs.dateFromLabel", "日付（From）")}</label>

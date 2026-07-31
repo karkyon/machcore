@@ -516,7 +516,8 @@
     "noMatch": "該当なし",
     "prevPage": "← 前",
     "nextPage": "次 →",
-    "fetchFailed": "取得失敗"
+    "fetchFailed": "取得失敗",
+    "ncIdPlaceholder": "例: 3120"
   },
   "adminClampMaster": {
     "catVise": "バイス",
