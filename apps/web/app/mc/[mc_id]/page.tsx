@@ -512,37 +512,37 @@ export default function McDetailPage() {
           <div className="max-w-3xl space-y-5">
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 px-4 py-2 border-b border-slate-200">
-                <span className="text-xs font-bold text-slate-600">基本情報</span>
+                <span className="text-xs font-bold text-slate-600">{tr("mcDetailPage.contentBasicInfoTitle", "基本情報")}</span>
               </div>
               <div className="divide-y divide-slate-100">
                 {/* ── 行1: 工程No・バージョン・機械 ── */}
                 <div className="grid grid-cols-3 divide-x divide-slate-100">
                   <div className="px-4 py-3 bg-slate-50">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">MC工程No</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.mcProcessNoLabel2", "MC工程No")}</div>
                     <div className="font-mono font-bold text-teal-700 text-xl leading-none">{d.mcProcessNo ?? "—"}</div>
                   </div>
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">バージョン</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.versionLabel2", "バージョン")}</div>
                     <div className="font-mono font-bold text-slate-800 text-base">{d.version}</div>
                   </div>
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">機械</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.machineLabel2", "機械")}</div>
                     <div className="font-medium text-slate-800">{d.machine?.machineName ?? d.machine?.machineCode ?? "—"}</div>
                   </div>
                 </div>
                 {/* ── 行2: Oナンバ・サイクルタイム・加工個数 ── */}
                 <div className="grid grid-cols-3 divide-x divide-slate-100">
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">主Oナンバ</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.mainONumberLabel", "主Oナンバ")}</div>
                     <div className="font-mono font-semibold text-slate-800">{d.oNumber ?? "—"}</div>
                   </div>
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">サイクルタイム/1P</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.cycleTimePerPieceLabel", "サイクルタイム/1P")}</div>
                     <div className="font-mono font-semibold text-slate-800">{fmtCycle(d.cycleTimeSec)}</div>
                   </div>
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">加工個数/1サイクル</div>
-                    <div className="font-semibold text-slate-800">{d.machiningQty ?? 1} 個</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.machiningQtyPerCycleLabel", "加工個数/1サイクル")}</div>
+                    <div className="font-semibold text-slate-800">{d.machiningQty ?? 1} {tr("mcDetailPage.unitPieceSuffix", "個")}</div>
                   </div>
                 </div>
                 {/* ── 行2.5: プログラムファイル / PG作成者 / SAVE DATE（3列統合。旧Accessﾏｼﾆﾝｸﾞ画面相当）── */}
@@ -551,18 +551,18 @@ export default function McDetailPage() {
                   return (
                     <div className="grid grid-cols-3 divide-x divide-slate-100 bg-amber-50/40">
                       <div className="px-4 py-3">
-                        <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">プログラムファイル</div>
+                        <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">{tr("mcDetailPage.programFileLabel2", "プログラムファイル")}</div>
                         {pgFile ? (
                           <>
                             <div className="font-mono font-semibold text-slate-800 text-sm flex items-center gap-1.5 flex-wrap">
                               {pgFile.original_name}
                               {d.pgIsFolder ? (
                                 <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-700 border border-violet-200">
-                                  📁 フォルダ単位{d.pgFolderName ? `: ${d.pgFolderName}` : ""}
+                                  {tr("mcDetailPage.folderUnitBadge", "📁 フォルダ単位")}{d.pgFolderName ? `: ${d.pgFolderName}` : ""}
                                 </span>
                               ) : (
                                 <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-100 text-sky-700 border border-sky-200">
-                                  📄 単体ファイル
+                                  {tr("mcDetailPage.singleFileBadge", "📄 単体ファイル")}
                                 </span>
                               )}
                             </div>
@@ -572,15 +572,15 @@ export default function McDetailPage() {
                             </button>
                           </>
                         ) : (
-                          <div className="text-slate-400 text-sm">未登録</div>
+                          <div className="text-slate-400 text-sm">{tr("mcDetailPage.notRegisteredShort", "未登録")}</div>
                         )}
                       </div>
                       <div className="px-4 py-3">
-                        <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">PG作成者</div>
+                        <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">{tr("mcDetailPage.pgCreatorLabel2", "PG作成者")}</div>
                         <div className="text-slate-800 text-sm">{d.pgCreator?.name ?? "—"}</div>
                       </div>
                       <div className="px-4 py-3">
-                        <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">SAVE DATE</div>
+                        <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">{tr("mcDetailPage.saveDateLabel", "SAVE DATE")}</div>
                         <div className="font-mono text-slate-800 text-sm">
                           {d.pgUpdatedAt ? toJstDateTimeString(d.pgUpdatedAt) : "—"}
                         </div>
@@ -591,7 +591,7 @@ export default function McDetailPage() {
                 {/* ── 行3: 共通部品コード + バッジ群 ── */}
                 <div className="px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">
                   <div>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">共通部品コード</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.commonPartCodeLabel", "共通部品コード")}</div>
                     <div className="font-mono text-slate-700">{d.commonPartCode ?? "—"}</div>
                   </div>
                   <div className="flex flex-wrap gap-2 ml-auto">
@@ -599,47 +599,47 @@ export default function McDetailPage() {
                       RC <span className="text-sm">{d.rc ?? 0}</span>
                     </span>
                     <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${d.hasIndexProgram ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>
-                      IP {d.hasIndexProgram ? "有" : "無"}
+                      IP {d.hasIndexProgram ? tr("mcDetailPage.hasShort", "有") : tr("mcDetailPage.noneShort", "無")}
                     </span>
                     <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${d.hasWorkOffset ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>
-                      WD {d.hasWorkOffset ? "有" : "無"}
+                      WD {d.hasWorkOffset ? tr("mcDetailPage.hasShort", "有") : tr("mcDetailPage.noneShort", "無")}
                     </span>
                     <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${d.files.filter(f => f.file_type === "PHOTO").length > 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>
-                      写真 {d.files.filter(f => f.file_type === "PHOTO").length}
+                      {tr("mcDetailPage.photoCountBadge", "写真 {n}").replace("{n}", String(d.files.filter(f => f.file_type === "PHOTO").length))}
                     </span>
                     <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${d.files.filter(f => f.file_type === "DRAWING").length > 0 ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>
-                      図 {d.files.filter(f => f.file_type === "DRAWING").length}
+                      {tr("mcDetailPage.drawingCountBadge", "図 {n}").replace("{n}", String(d.files.filter(f => f.file_type === "DRAWING").length))}
                     </span>
                   </div>
                 </div>
                 {/* ── 行4: 作成・承認情報 ── */}
                 <div className="grid grid-cols-2 divide-x divide-slate-100">
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">作成者（シート）</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.creatorSheetLabel", "作成者（シート）")}</div>
                     <div className="text-slate-800">{d.creator?.name ?? "—"}</div>
                   </div>
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">作成日（シート）</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.createdDateSheetLabel", "作成日（シート）")}</div>
                     <div className="font-mono text-slate-800">{d.sheetCreatedAt ? fmtDate(d.sheetCreatedAt) : "—"}</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 divide-x divide-slate-100">
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">オペレーター</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.operatorLabel2", "オペレーター")}</div>
                     <div className="text-slate-800">{d.registrar?.name ?? "—"}</div>
                   </div>
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">入力日</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.inputDateLabel2", "入力日")}</div>
                     <div className="font-mono text-slate-800">{fmtDate(d.registeredAt)}</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 divide-x divide-slate-100">
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">承認者</div>
-                    <div className={d.approver ? "text-emerald-700 font-bold" : "text-slate-400"}>{d.approver?.name ?? "未承認"}</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.approverLabel2", "承認者")}</div>
+                    <div className={d.approver ? "text-emerald-700 font-bold" : "text-slate-400"}>{d.approver?.name ?? tr("mcDetailPage.notApprovedShort", "未承認")}</div>
                   </div>
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">承認日</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.approvedDateLabel2", "承認日")}</div>
                     <div className="font-mono text-slate-800">{d.approvedAt ? fmtDate(d.approvedAt) : "—"}</div>
                   </div>
                 </div>
@@ -647,13 +647,13 @@ export default function McDetailPage() {
                 {/* PG作成者/Save Dateは基本情報先頭の「プログラムファイル」3列ブロックに統合済みのため、ここには表示しない */}
                 {d.clampNote && (
                   <div className="px-4 py-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">クランプ</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.clampLabel2", "クランプ")}</div>
                     <div className="whitespace-pre-wrap text-slate-700 text-sm">{d.clampNote}</div>
                   </div>
                 )}
                 {d.note && (
                   <div className="px-4 py-3 bg-amber-50">
-                    <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">備考</div>
+                    <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">{tr("mcDetailPage.noteLabel2", "備考")}</div>
                     <div className="whitespace-pre-wrap text-slate-700 text-sm">{d.note}</div>
                   </div>
                 )}
@@ -664,14 +664,14 @@ export default function McDetailPage() {
             <div className="bg-white rounded-xl border border-pink-200 overflow-hidden">
               <div className="bg-pink-50 px-4 py-2 border-b border-pink-200 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-pink-700">共通加工グループ（加工ID: {d.machiningId}）</span>
+                  <span className="text-xs font-bold text-pink-700">{tr("mcDetailPage.commonGroupTitle", "共通加工グループ（加工ID: {id}）").replace("{id}", String(d.machiningId))}</span>
                   {d.commonPartCode && <span className="text-[10px] font-mono bg-pink-200 text-pink-800 px-1.5 py-0.5 rounded">{d.commonPartCode}</span>}
-                  <span className="text-[10px] text-pink-500">{d.commonGroup.length}件</span>
+                  <span className="text-[10px] text-pink-500">{tr("mcDetailPage.itemsCountSuffix", "{n}件").replace("{n}", String(d.commonGroup.length))}</span>
                 </div>
 
               </div>
               {d.commonGroup.length === 0 ? (
-                <div className="px-4 py-3 text-xs text-slate-400">共通登録はありません</div>
+                <div className="px-4 py-3 text-xs text-slate-400">{tr("mcDetailPage.noCommonRegistration", "共通登録はありません")}</div>
               ) : (
                 <div className="p-2">
                   {d.commonGroup.map(g => (
@@ -686,7 +686,7 @@ export default function McDetailPage() {
                       <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded font-bold ${STATUS_COLOR[g.status] ?? ""}`}>
                         {STATUS_LABEL[g.status] ?? g.status}
                       </span>
-                      {g.id === d.id && <span className="text-[10px] text-teal-600 font-bold">← 現在</span>}
+                      {g.id === d.id && <span className="text-[10px] text-teal-600 font-bold">{tr("mcDetailPage.currentArrow", "← 現在")}</span>}
                     </div>
                   ))}
                 </div>
@@ -700,26 +700,26 @@ export default function McDetailPage() {
           <div className="max-w-5xl mx-auto">
             <div className="bg-white rounded-xl border border-slate-200">
               <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between rounded-t-xl">
-                <span className="text-xs font-bold text-slate-600">ツーリングリスト ({d.tooling.length}レコード)</span>
+                <span className="text-xs font-bold text-slate-600">{tr("mcDetailPage.toolingListTitle2", "ツーリングリスト ({n}レコード)").replace("{n}", String(d.tooling.length))}</span>
                 <button onClick={() => router.push(`/mc/${mcId}/edit`)}
-                  className="text-xs text-teal-600 hover:text-teal-700 font-bold">✏️ 編集</button>
+                  className="text-xs text-teal-600 hover:text-teal-700 font-bold">{tr("mcDetailPage.editButtonShort", "✏️ 編集")}</button>
               </div>
               {d.tooling.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-sm">ツーリングデータがありません</div>
+                <div className="p-8 text-center text-slate-400 text-sm">{tr("mcDetailPage.noToolingData", "ツーリングデータがありません")}</div>
               ) : (
                 <div className="overflow-y-auto max-h-[60vh] rounded-b-xl">
                   <table className="text-xs w-full border-collapse">
                     <thead className="bg-teal-50 text-teal-700 sticky top-0 z-10">
                       <tr>
                         <th className="px-3 py-2 text-left font-bold border-b border-teal-100 w-20 whitespace-nowrap">N</th>
-                        <th className="px-3 py-2 text-left font-bold border-b border-teal-100 w-36 whitespace-nowrap">工具</th>
+                        <th className="px-3 py-2 text-left font-bold border-b border-teal-100 w-36 whitespace-nowrap">{tr("mcDetailPage.colToolShort", "工具")}</th>
                         <th className="px-3 py-2 text-center font-bold border-b border-teal-100 w-12 whitespace-nowrap">T</th>
                         <th className="px-3 py-2 text-center font-bold border-b border-teal-100 w-12 whitespace-nowrap">H</th>
                         <th className="px-3 py-2 text-center font-bold border-b border-teal-100 w-12 whitespace-nowrap">D</th>
-                        <th className="px-3 py-2 text-center font-bold border-b border-teal-100 w-14 whitespace-nowrap">D値</th>
+                        <th className="px-3 py-2 text-center font-bold border-b border-teal-100 w-14 whitespace-nowrap">{tr("mcDetailPage.colDValueShort", "D値")}</th>
                         <th className="px-3 py-2 text-center font-bold border-b border-teal-100 w-14 whitespace-nowrap">SUB</th>
-                        <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">コメント</th>
-                        <th className="px-3 py-2 text-right font-bold border-b border-teal-100 w-12 whitespace-nowrap">順番</th>
+                        <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">{tr("mcDetailPage.colCommentShort", "コメント")}</th>
+                        <th className="px-3 py-2 text-right font-bold border-b border-teal-100 w-12 whitespace-nowrap">{tr("mcDetailPage.colOrderShort", "順番")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -749,11 +749,11 @@ export default function McDetailPage() {
           <div className="max-w-3xl mx-auto">
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-600">ワークオフセット ({d.workOffsets.length}レコード)</span>
-                <button onClick={() => router.push(`/mc/${mcId}/edit`)} className="text-xs text-teal-600 font-bold">✏️ 編集</button>
+                <span className="text-xs font-bold text-slate-600">{tr("mcDetailPage.offsetListTitle2", "ワークオフセット ({n}レコード)").replace("{n}", String(d.workOffsets.length))}</span>
+                <button onClick={() => router.push(`/mc/${mcId}/edit`)} className="text-xs text-teal-600 font-bold">{tr("mcDetailPage.editButtonShort", "✏️ 編集")}</button>
               </div>
               {d.workOffsets.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-sm">ワークオフセットデータがありません</div>
+                <div className="p-8 text-center text-slate-400 text-sm">{tr("mcDetailPage.noOffsetData", "ワークオフセットデータがありません")}</div>
               ) : (
                 <div className="overflow-y-auto max-h-[55vh]">
                 <table className="w-full text-xs">
@@ -789,21 +789,21 @@ export default function McDetailPage() {
           <div className="max-w-3xl mx-auto">
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-600">インデックスプログラム ({d.indexPrograms.length}レコード)</span>
-                <button onClick={() => router.push(`/mc/${mcId}/edit`)} className="text-xs text-teal-600 font-bold">✏️ 編集</button>
+                <span className="text-xs font-bold text-slate-600">{tr("mcDetailPage.indexListTitle2", "インデックスプログラム ({n}レコード)").replace("{n}", String(d.indexPrograms.length))}</span>
+                <button onClick={() => router.push(`/mc/${mcId}/edit`)} className="text-xs text-teal-600 font-bold">{tr("mcDetailPage.editButtonShort", "✏️ 編集")}</button>
               </div>
               {d.indexPrograms.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-sm">インデックスプログラムがありません</div>
+                <div className="p-8 text-center text-slate-400 text-sm">{tr("mcDetailPage.noIndexData", "インデックスプログラムがありません")}</div>
               ) : (
                 <div className="overflow-y-auto max-h-[55vh]">
                 <table className="w-full text-xs">
                   <thead className="bg-teal-50 text-teal-700 sticky top-0 z-10">
                     <tr>
                       <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">STEP/N</th>
-                      <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">第0軸</th>
-                      <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">第1軸</th>
-                      <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">第2軸</th>
-                      <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">備考</th>
+                      <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">{tr("mcDetailPage.colAxis0Short", "第0軸")}</th>
+                      <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">{tr("mcDetailPage.colAxis1Short", "第1軸")}</th>
+                      <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">{tr("mcDetailPage.colAxis2Short", "第2軸")}</th>
+                      <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">{tr("mcDetailPage.noteLabel2", "備考")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1141,7 +1141,7 @@ export default function McDetailPage() {
         {mainTab === "history" && (
           <div className="max-w-3xl mx-auto">
             <div className="flex gap-2 mb-4">
-              {[["change","変更履歴"],["work","作業記録"],["print","印刷履歴"]].map(([k, l]) => (
+              {[["change", tr("mcDetailPage.tabChangeHistory", "変更履歴")],["work", tr("mcDetailPage.tabWorkRecord", "作業記録")],["print", tr("mcDetailPage.tabPrintHistory", "印刷履歴")]].map(([k, l]) => (
                 <button key={k} onClick={() => setHistTab(k)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                     histTab === k ? "bg-teal-600 text-white border-teal-600" : "border-slate-300 text-slate-500 hover:border-teal-400"}`}>
@@ -1149,11 +1149,11 @@ export default function McDetailPage() {
                 </button>
               ))}
             </div>
-            {histLoading && <div className="text-center py-8 text-slate-400">読み込み中…</div>}
+            {histLoading && <div className="text-center py-8 text-slate-400">{tr("mcDetailPage.loadingEllipsis", "読み込み中…")}</div>}
             {!histLoading && histTab === "change" && (
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 {!changes || changes.length === 0 ? (
-                  <div className="p-8 text-center text-slate-400 text-sm">変更履歴がありません</div>
+                  <div className="p-8 text-center text-slate-400 text-sm">{tr("mcDetailPage.noChangeHistory", "変更履歴がありません")}</div>
                 ) : changes.map((c: any, i) => (
                   <div key={c.id} className={`px-4 py-3 border-b border-slate-100 text-sm ${i % 2 === 0 ? "bg-white" : "bg-slate-50"}`}>
                     <div className="flex items-center gap-3 flex-wrap">
@@ -1162,7 +1162,7 @@ export default function McDetailPage() {
                         c.change_type === "APPROVAL" ? "bg-green-100 text-green-700" :
                         c.change_type === "NEW_REGISTRATION" ? "bg-blue-100 text-blue-700" :
                         "bg-amber-100 text-amber-700"}`}>
-                        {c.change_type === "APPROVAL" ? "承認" : c.change_type === "NEW_REGISTRATION" ? "新規登録" : "変更"}
+                        {c.change_type === "APPROVAL" ? tr("mcDetailPage.changeTypeApproval", "承認") : c.change_type === "NEW_REGISTRATION" ? tr("mcDetailPage.changeTypeNewReg", "新規登録") : tr("mcDetailPage.changeTypeChange", "変更")}
                       </span>
                       <span className="text-slate-600 font-bold">{c.operator_name ?? "—"}</span>
                       <span className="text-slate-700 flex-1">{c.change_detail ?? "—"}</span>
@@ -1175,7 +1175,7 @@ export default function McDetailPage() {
             {!histLoading && histTab === "work" && (
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 {!works || works.length === 0 ? (
-                  <div className="p-8 text-center text-slate-400 text-sm">作業記録がありません</div>
+                  <div className="p-8 text-center text-slate-400 text-sm">{tr("mcDetailPage.noWorkRecord", "作業記録がありません")}</div>
                 ) : works.map((r: McWorkRecord, i) => {
                   const fmtMin = (m: number | null) => {
                     if (m == null) return null;
@@ -1203,49 +1203,49 @@ export default function McDetailPage() {
                       <span className="font-mono text-slate-400 shrink-0 text-[11px]">{fmtDate(r.work_date)}</span>
                       {r.machine_code && <span className="px-1.5 py-0.5 bg-teal-50 border border-teal-200 rounded text-teal-700 font-mono font-bold text-[10px]">{r.machine_code}</span>}
                       {r.quantity != null && <span className="ml-auto font-bold text-slate-700 shrink-0">W: <span className="text-teal-700">{r.quantity}</span></span>}
-                      {r.setup_work_count != null && <span className="text-slate-400 text-[10px] shrink-0">段取W: {r.setup_work_count}</span>}
+                      {r.setup_work_count != null && <span className="text-slate-400 text-[10px] shrink-0">{tr("mcDetailPage.setupWorkCountLabel", "段取W: {n}").replace("{n}", String(r.setup_work_count))}</span>}
                     </div>
                     {/* 段取セクション */}
                     <div className="bg-blue-50 rounded px-2 py-1 mb-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-blue-700 text-[11px] shrink-0">段取</span>
+                        <span className="font-bold text-blue-700 text-[11px] shrink-0">{tr("mcDetailPage.setupLabel", "段取")}</span>
                         {setupNames.length > 0
                           ? setupNames.map((n,j) => <span key={j} className="font-bold text-blue-800 text-[11px]">{n}</span>)
                           : <span className="text-slate-400 text-[10px]">—</span>}
                         {fmtMin(r.setup_time_min) && <span className="ml-auto font-mono font-bold text-blue-700">{fmtMin(r.setup_time_min)}</span>}
                         {r.interrupt_setup_min != null && r.interrupt_setup_min > 0 && (
-                          <span className="text-orange-500 text-[10px]">中断 {r.interrupt_setup_min}分</span>
+                          <span className="text-orange-500 text-[10px]">{tr("mcDetailPage.interruptLabel", "中断 {n}分").replace("{n}", String(r.interrupt_setup_min))}</span>
                         )}
                       </div>
                       {(r.started_at || r.checked_at) && (
                         <div className="flex items-center gap-3 text-[10px] text-blue-500 mt-0.5 flex-wrap">
-                          {r.started_at && <span>開始: <span className="font-mono">{fmtDT(r.started_at)}</span></span>}
-                          {r.checked_at && <span>ﾁｪｯｸ: <span className="font-mono">{fmtDT(r.checked_at)}</span></span>}
+                          {r.started_at && <span>{tr("mcDetailPage.startedLabel", "開始:")} <span className="font-mono">{fmtDT(r.started_at)}</span></span>}
+                          {r.checked_at && <span>{tr("mcDetailPage.checkedLabel", "ﾁｪｯｸ:")} <span className="font-mono">{fmtDT(r.checked_at)}</span></span>}
                         </div>
                       )}
                     </div>
                     {/* 量産セクション */}
                     <div className="bg-green-50 rounded px-2 py-1 mb-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-green-700 text-[11px] shrink-0">量産</span>
+                        <span className="font-bold text-green-700 text-[11px] shrink-0">{tr("mcDetailPage.productionLabel", "量産")}</span>
                         {prodNames.length > 0
                           ? prodNames.map((n,j) => <span key={j} className="font-bold text-green-800 text-[11px]">{n}</span>)
                           : <span className="text-slate-400 text-[10px]">—</span>}
                         {fmtMin(r.machining_time_min) && <span className="ml-auto font-mono font-bold text-green-700">{fmtMin(r.machining_time_min)}</span>}
                         {r.interrupt_work_min != null && r.interrupt_work_min > 0 && (
-                          <span className="text-orange-500 text-[10px]">中断 {r.interrupt_work_min}分</span>
+                          <span className="text-orange-500 text-[10px]">{tr("mcDetailPage.interruptLabel", "中断 {n}分").replace("{n}", String(r.interrupt_work_min))}</span>
                         )}
                       </div>
                       {(r.checked_at || r.finished_at) && (
                         <div className="flex items-center gap-3 text-[10px] text-green-600 mt-0.5 flex-wrap">
-                          {r.checked_at  && <span>開始: <span className="font-mono">{fmtDT(r.checked_at)}</span></span>}
-                          {r.finished_at && <span>終了: <span className="font-mono">{fmtDT(r.finished_at)}</span></span>}
+                          {r.checked_at  && <span>{tr("mcDetailPage.startedLabel", "開始:")} <span className="font-mono">{fmtDT(r.checked_at)}</span></span>}
+                          {r.finished_at && <span>{tr("mcDetailPage.finishedLabel", "終了:")} <span className="font-mono">{fmtDT(r.finished_at)}</span></span>}
                         </div>
                       )}
                     </div>
                     {/* 集計行: 総時間・C/T */}
                     <div className="flex items-center gap-3 text-[10px] text-slate-500 px-1 flex-wrap">
-                      {totalMin > 0 && <span>総時間: <span className="font-mono font-bold text-slate-700">{fmtMin(totalMin)}</span></span>}
+                      {totalMin > 0 && <span>{tr("mcDetailPage.totalTimeLabel", "総時間:")} <span className="font-mono font-bold text-slate-700">{fmtMin(totalMin)}</span></span>}
                       {r.cycle_time_sec != null && <span>C/T: <span className="font-mono font-bold">{fmtSec(r.cycle_time_sec)}</span></span>}
                     </div>
                     {/* Prg行 */}
@@ -1266,29 +1266,29 @@ export default function McDetailPage() {
             {!histLoading && histTab === "print" && (
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 {!prints || prints.length === 0 ? (
-                  <div className="p-8 text-center text-slate-400 text-sm">印刷履歴がありません</div>
+                  <div className="p-8 text-center text-slate-400 text-sm">{tr("mcDetailPage.noPrintHistory", "印刷履歴がありません")}</div>
                 ) : prints.map((p: McSetupSheetLog, i) => (
                   <div key={p.id} className={`px-4 py-3 border-b border-slate-100 text-xs ${i % 2 === 0 ? "bg-white" : "bg-slate-50"}`}>
                     <div className="flex items-center gap-3">
                       {p.sheet_type === 'NEW' ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-700 border border-teal-200">新規段取</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-700 border border-teal-200">{tr("mcDetailPage.newSetupBadge", "新規段取")}</span>
                       ) : p.sheet_type === 'REPEAT' ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">リピート</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">{tr("mcDetailPage.repeatBadge", "リピート")}</span>
                       ) : null}
                       {p.is_reference && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">参考</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">{tr("mcDetailPage.referenceBadge", "参考")}</span>
                       )}
                       <span className="text-slate-400">{toJstDateTimeString(p.printed_at)}</span>
                       <span className="text-slate-600">{p.operator_name ?? "—"}</span>
                       {(p as any).machine_code && <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 font-mono text-[10px]">{(p as any).machine_code}</span>}
                       {p.purpose === 'reference' && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600">参考資料</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600">{tr("mcDetailPage.referenceDocBadge", "参考資料")}</span>
                       )}
                       {p.purpose === 'continuous' && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700">連続使用</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700">{tr("mcDetailPage.continuousUseBadge", "連続使用")}</span>
                       )}
                       {p.quantity != null && (
-                        <span className="text-slate-500">W数: <span className="font-bold text-slate-700">{p.quantity}</span></span>
+                        <span className="text-slate-500">{tr("mcDetailPage.quantityWLabel", "W数:")} <span className="font-bold text-slate-700">{p.quantity}</span></span>
                       )}
                       {p.version && <span className="font-mono text-slate-400">Ver.{p.version}</span>}
                       {p.is_lost ? (
@@ -1297,7 +1297,7 @@ export default function McDetailPage() {
                         //   常時見えるテキストとして表示する(理由バッジ＋詳細コメント)。
                         <span className="ml-auto flex items-center gap-1.5 flex-wrap justify-end">
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-white border border-slate-800">
-                            紛失: {p.lost_reason ?? "理由未記載"}
+                            {tr("mcDetailPage.lostLabel", "紛失:")} {p.lost_reason ?? tr("mcDetailPage.lostReasonUnrecorded", "理由未記載")}
                           </span>
                           {p.lost_detail && (
                             <span className="text-[10px] text-slate-500 max-w-[280px] truncate" title={p.lost_detail}>
@@ -1306,7 +1306,7 @@ export default function McDetailPage() {
                           )}
                         </span>
                       ) : !p.work_collected && (
-                        <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">未回収</span>
+                        <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">{tr("mcDetailPage.notCollectedBadge", "未回収")}</span>
                       )}
                     </div>
                   </div>
@@ -1323,7 +1323,7 @@ export default function McDetailPage() {
             {d.part.drawingNo && (
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs font-bold text-white bg-indigo-600 px-2.5 py-0.5 rounded-full">📋 図面</span>
+                  <span className="text-xs font-bold text-white bg-indigo-600 px-2.5 py-0.5 rounded-full">{tr("mcDetailPage.drawingBadge", "📋 図面")}</span>
                   <span className="text-xs text-slate-400">{d.part.drawingNo}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
@@ -1343,20 +1343,20 @@ export default function McDetailPage() {
                       finally { setDrawingLoading(false); }
                     }}>
                     <div className="aspect-square bg-indigo-50 flex items-center justify-center overflow-hidden">
-                      <img src={`/api/mc/${mcId}/drawing-image?imgType=TN`} alt={`図面 ${d.part.drawingNo}`}
+                      <img src={`/api/mc/${mcId}/drawing-image?imgType=TN`} alt={tr("mcDetailPage.drawingAlt", "図面 {no}").replace("{no}", d.part.drawingNo)}
                         className="w-full h-full object-contain" loading="lazy"
                         onError={e => {
                           const el=e.target as HTMLImageElement; el.style.display="none";
                           const p=el.parentElement;
                           if(p && !p.querySelector(".no-tn-msg")){
                             const m=document.createElement("span"); m.className="no-tn-msg text-[10px] text-slate-400 text-center px-2";
-                            m.textContent="図面取得不可"; p.appendChild(m);
+                            m.textContent=tr("mcDetailPage.drawingUnavailable","図面取得不可"); p.appendChild(m);
                           }
                         }} />
                     </div>
                     <div className="px-2 py-1.5 bg-indigo-50 border-t border-indigo-200">
                       <p className="text-[11px] text-indigo-800 font-bold truncate">{d.part.drawingNo}</p>
-                      <p className="text-[10px] text-slate-400">クリックで拡大表示</p>
+                      <p className="text-[10px] text-slate-400">{tr("mcDetailPage.clickToEnlarge", "クリックで拡大表示")}</p>
                     </div>
                   </div>
                 </div>
@@ -1365,9 +1365,9 @@ export default function McDetailPage() {
             {d.files.filter(f => f.file_type === "PHOTO" || f.file_type === "DRAWING").length === 0 ? (
               <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
                 <div className="text-4xl mb-3">📁</div>
-                <p className="text-slate-400 text-sm">ファイルがありません</p>
+                <p className="text-slate-400 text-sm">{tr("mcDetailPage.noFiles", "ファイルがありません")}</p>
                 <button onClick={() => router.push(`/mc/${mcId}/edit`)}
-                  className="mt-4 text-teal-600 text-sm hover:underline">編集画面でアップロード →</button>
+                  className="mt-4 text-teal-600 text-sm hover:underline">{tr("mcDetailPage.uploadInEditScreen", "編集画面でアップロード →")}</button>
               </div>
             ) : (
               <div>
@@ -1375,8 +1375,8 @@ export default function McDetailPage() {
                 {d.files.filter(f => f.file_type === "PHOTO").length > 0 && (
                   <div className="mb-6">
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="text-xs font-bold text-white bg-teal-600 px-2.5 py-0.5 rounded-full">📷 写真</span>
-                      <span className="text-xs text-slate-400">{d.files.filter(f => f.file_type === "PHOTO").length}枚</span>
+                      <span className="text-xs font-bold text-white bg-teal-600 px-2.5 py-0.5 rounded-full">{tr("mcDetailPage.photoBadge", "📷 写真")}</span>
+                      <span className="text-xs text-slate-400">{tr("mcDetailPage.sheetsCountSuffix", "{n}枚").replace("{n}", String(d.files.filter(f => f.file_type === "PHOTO").length))}</span>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       {d.files.filter(f => f.file_type === "PHOTO").map(f => (
@@ -1400,8 +1400,8 @@ export default function McDetailPage() {
                 {d.files.filter(f => f.file_type === "DRAWING").length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="text-xs font-bold text-white bg-purple-600 px-2.5 py-0.5 rounded-full">📐 図</span>
-                      <span className="text-xs text-slate-400">{d.files.filter(f => f.file_type === "DRAWING").length}枚</span>
+                      <span className="text-xs font-bold text-white bg-purple-600 px-2.5 py-0.5 rounded-full">{tr("mcDetailPage.drawingBadge2", "📐 図")}</span>
+                      <span className="text-xs text-slate-400">{tr("mcDetailPage.sheetsCountSuffix", "{n}枚").replace("{n}", String(d.files.filter(f => f.file_type === "DRAWING").length))}</span>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       {d.files.filter(f => f.file_type === "DRAWING").map(f => (
@@ -1447,7 +1447,7 @@ export default function McDetailPage() {
             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700 bg-slate-800 shrink-0 rounded-t-xl">
               <div className="flex items-center gap-3">
                 <span className="text-slate-400 text-lg">📄</span>
-                <span className="font-bold text-slate-100">PGビューア（参照専用）</span>
+                <span className="font-bold text-slate-100">{tr("mcDetailPage.pgViewerTitle", "PGビューア（参照専用）")}</span>
                 {pgOrigName && (
                   <span className="text-xs text-slate-300 font-mono bg-slate-700 px-2.5 py-1 rounded-lg border border-slate-600">
                     {pgOrigName}
@@ -1455,10 +1455,10 @@ export default function McDetailPage() {
                 )}
                 {pgFileCount > 1 && (
                   <span className="text-xs text-amber-300 bg-amber-900/40 px-2 py-0.5 rounded border border-amber-700">
-                    計{pgFileCount}ファイル
+                    {tr("mcDetailPage.totalFilesLabel", "計{n}ファイル").replace("{n}", String(pgFileCount))}
                   </span>
                 )}
-                <span className="text-xs text-slate-500">{(pgContent ?? "").split('\n').length}行 / {(pgContent ?? "").length}文字</span>
+                <span className="text-xs text-slate-500">{tr("mcDetailPage.lineCharCountLabel", "{lines}行 / {chars}文字").replace("{lines}", String((pgContent ?? "").split('\n').length)).replace("{chars}", String((pgContent ?? "").length))}</span>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -1468,36 +1468,36 @@ export default function McDetailPage() {
                     try {
                       const online = await isAgentOnline();
                       if (!online) {
-                        window.alert("UploadAgentが起動していません。タスクトレイを確認し、UploadAgentを起動してください。");
+                        window.alert(tr("mcDetailPage.agentNotRunningAlert","UploadAgentが起動していません。タスクトレイを確認し、UploadAgentを起動してください。"));
                         return;
                       }
                       const res = await fetch(`/api/mc/${mcId}/pg-to-usb-ticket`, {
                         method: "POST",
                         headers: { Authorization: `Bearer ${token}` },
                       });
-                      if (!res.ok) throw new Error(`チケット発行失敗: HTTP ${res.status}`);
+                      if (!res.ok) throw new Error(tr("mcDetailPage.ticketIssueFailedHttp","チケット発行失敗: HTTP {status}").replace("{status}", String(res.status)));
                       const { ticket } = await res.json();
                       const apiBaseUrl = window.location.origin + "/api";
                       const result = await agentPgToUsb(ticket, apiBaseUrl, "mc");
                       if (!result.success) {
-                        showToast(`❌ ${result.error ?? "USBへの書き出しに失敗しました"}`);
+                        showToast(`❌ ${result.error ?? tr("mcDetailPage.usbExportFailedLabel","USBへの書き出しに失敗しました").replace("❌ ", "")}`);
                         return;
                       }
-                      showToast(`✅ USBへ書き出しました（${result.copiedFiles.length}件）`);
+                      showToast(tr("mcDetailPage.usbExportSuccessLabel","✅ USBへ書き出しました（{n}件）").replace("{n}", String(result.copiedFiles.length)));
                     } catch (e: any) {
-                      showToast(`❌ ${e?.message ?? "USBへの書き出しに失敗しました"}`);
+                      showToast(`❌ ${e?.message ?? tr("mcDetailPage.usbExportFailedLabel","USBへの書き出しに失敗しました").replace("❌ ", "")}`);
                     } finally { setPgUsbBusy(false); }
                   }}
                   disabled={pgUsbBusy}
                   className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50"
                 >
-                  {pgUsbBusy ? "⏳ 書き出し中..." : `💾 USBへ書き出し(UA経由)${pgFileCount > 1 ? "（全ファイル）" : ""}`}
+                  {pgUsbBusy ? tr("mcDetailPage.exportingLabel","⏳ 書き出し中...") : `${tr("mcDetailPage.exportToUsbLabel","💾 USBへ書き出し(UA経由)")}${pgFileCount > 1 ? tr("mcDetailPage.allFilesParen","（全ファイル）") : ""}`}
                 </button>
                 <button
                   onClick={() => setPgViewerOpen(false)}
                   className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-lg transition-colors"
                 >
-                  閉じる
+                  {tr("mcDetailPage.closeLabel2", "閉じる")}
                 </button>
               </div>
             </div>
@@ -1505,13 +1505,13 @@ export default function McDetailPage() {
               {pgFileList.length > 1 && (
                 <div className="w-60 shrink-0 border-r border-slate-700 bg-slate-800 overflow-y-auto py-1">
                   {pgFileListLoading ? (
-                    <div className="p-3 text-[11px] text-slate-400">読込中...</div>
+                    <div className="p-3 text-[11px] text-slate-400">{tr("mcDetailPage.loadingShort2", "読込中...")}</div>
                   ) : (() => {
                     const groups: Record<string, any[]> = {};
                     pgFileList.forEach((f: any) => {
                       const parts = String(f.file_path ?? "").split("/").filter(Boolean);
                       const dir = parts.length > 2 ? parts[parts.length - 2] : "";
-                      const key = dir || "（ルート）";
+                      const key = dir || tr("mcDetailPage.rootFolderLabel","（ルート）");
                       (groups[key] = groups[key] ?? []).push(f);
                     });
                     return Object.entries(groups).map(([dir, fs]) => (
@@ -1585,7 +1585,7 @@ export default function McDetailPage() {
           onClick={() => { setDrawingModal(false); setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}>
           <div className="bg-white flex flex-col w-screen h-screen" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-slate-50 shrink-0 gap-2">
-              <p className="text-sm font-bold text-slate-700">📋 図面 — {d.part.drawingNo}</p>
+              <p className="text-sm font-bold text-slate-700">{tr("mcDetailPage.drawingModalTitle", "📋 図面 — {no}").replace("{no}", d.part.drawingNo)}</p>
               <div className="flex items-center gap-1.5 shrink-0">
                 {/* ズームコントロール */}
                 <button onClick={() => { setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}
@@ -1607,7 +1607,7 @@ export default function McDetailPage() {
                 {drawingBlobUrl && (
                   <a href={drawingBlobUrl} download={`drawing-${d.part.drawingNo}.jpg`}
                     className="px-2.5 py-1 text-xs font-bold rounded border bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100">
-                    ⬇ ダウンロード
+                    {tr("mcDetailPage.downloadLabel", "⬇ ダウンロード")}
                   </a>
                 )}
                 <button onClick={() => { setDrawingModal(false); setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}
@@ -1644,7 +1644,7 @@ export default function McDetailPage() {
               {drawingLoading ? (
                 <div className="flex flex-col items-center gap-3 text-slate-400">
                   <div className="w-8 h-8 border-2 border-slate-500 border-t-white rounded-full animate-spin" />
-                  <span className="text-sm">図面を取得中…</span>
+                  <span className="text-sm">{tr("mcDetailPage.fetchingDrawing", "図面を取得中…")}</span>
                 </div>
               ) : drawingBlobUrl ? (
                 <div
@@ -1659,7 +1659,7 @@ export default function McDetailPage() {
                 >
                   <img
                     src={drawingBlobUrl}
-                    alt={`図面 ${d.part.drawingNo}`}
+                    alt={tr("mcDetailPage.drawingAlt", "図面 {no}").replace("{no}", d.part.drawingNo)}
                     draggable={false}
                     style={
                       drawingZoom === "fit"
@@ -1670,8 +1670,8 @@ export default function McDetailPage() {
                 </div>
               ) : (
                 <p className="text-slate-400 text-sm text-center px-8">
-                  図面を取得できませんでした<br />
-                  <span className="text-xs text-slate-500">（Ridocサーバー未応答またはRIDOC_API_URL未設定）</span>
+                  {tr("mcDetailPage.drawingFetchFailed", "図面を取得できませんでした")}<br />
+                  <span className="text-xs text-slate-500">{tr("mcDetailPage.ridocServerNote", "（Ridocサーバー未応答またはRIDOC_API_URL未設定）")}</span>
                 </p>
               )}
             </div>
@@ -1699,11 +1699,11 @@ export default function McDetailPage() {
               <div className="flex items-center gap-1.5 shrink-0">
                 <button onClick={() => setPreviewZoom("fit")}
                   className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${previewZoom === "fit" ? "bg-teal-600 text-white border-teal-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
-                  画面内
+                  {tr("mcDetailPage.fitScreenLabel", "画面内")}
                 </button>
                 <button onClick={() => setPreviewZoom("real")}
                   className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors ${previewZoom === "real" ? "bg-teal-600 text-white border-teal-600" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}>
-                  実寸(100%)
+                  {tr("mcDetailPage.realSizeLabel", "実寸(100%)")}
                 </button>
                 <button onClick={() => setPreviewZoom(z => {
                   const cur = typeof z === "number" ? z : z === "real" ? 100 : 100;
@@ -1720,11 +1720,11 @@ export default function McDetailPage() {
                 <button onClick={() => {
                   const w = window.open("");
                   if (w) { w.document.write(`<img src="/api/mc/${mcId}/files/${previewFile.id}/serve" onload="window.print();window.close()">`); }
-                }} className="px-2.5 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">🖨 印刷</button>
+                }} className="px-2.5 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">{tr("mcDetailPage.printLabel", "🖨 印刷")}</button>
                 {isAuthenticated && (
                   <a href={`/api/mc/${mcId}/files/${previewFile.id}/serve`} download={previewFile.original_name}
                     className="px-2.5 py-1 text-xs font-bold rounded border bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100">
-                    ✏️ 編集用DL
+                    {tr("mcDetailPage.editDownloadLabel", "✏️ 編集用DL")}
                   </a>
                 )}
                 <button onClick={() => { setPreviewFile(null); setPreviewZoom("fit"); }}
@@ -1775,8 +1775,8 @@ export default function McDetailPage() {
             <div className="bg-red-600 px-5 py-4 flex items-center gap-3 shrink-0">
               <span className="text-2xl">⚠️</span>
               <div>
-                <p className="text-white font-bold text-base">スペシャル段取シート</p>
-                <p className="text-red-100 text-xs">過去にクレーム・トラブル実績のある製品です</p>
+                <p className="text-white font-bold text-base">{tr("mcDetailPage.specialSheetTitle", "スペシャル段取シート")}</p>
+                <p className="text-red-100 text-xs">{tr("mcDetailPage.specialSheetDesc", "過去にクレーム・トラブル実績のある製品です")}</p>
               </div>
             </div>
             <div className="overflow-y-auto flex-1 p-5 space-y-3">
@@ -1788,7 +1788,7 @@ export default function McDetailPage() {
                   {s.pdf_path && (
                     <a href={`/api/admin/special-sheets/${s.id}/pdf`} target="_blank"
                       className="mt-2 inline-flex items-center gap-1 text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 font-bold">
-                      📄 SPシートPDF を表示
+                      {tr("mcDetailPage.specialSheetPdfLink", "📄 SPシートPDF を表示")}
                     </a>
                   )}
                 </div>
@@ -1797,7 +1797,7 @@ export default function McDetailPage() {
             <div className="border-t border-slate-200 px-5 py-3 flex justify-end shrink-0">
               <button onClick={() => setSpBadge(prev => prev ? { ...prev, _open: false } as any : prev)}
                 className="px-5 py-2 bg-slate-700 text-white rounded-lg text-sm font-bold hover:bg-slate-800">
-                閉じる
+                {tr("mcDetailPage.closeLabel2", "閉じる")}
               </button>
             </div>
           </div>
