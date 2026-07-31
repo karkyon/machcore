@@ -212,10 +212,89 @@ export async function agentAutoUpload(ticket: string, fileType: string, name: st
   }
 }
 
+/** errorCode -> [ja.json/vi.jsonのagentErrorsキー, 日本語デフォルト文言] のテーブル。 */
+const AGENT_ERROR_TEMPLATES: Record<string, [string, string]> = {
+  AGENT_NOT_RUNNING:        ["agentNotRunning",        "UploadAgentが起動していません"],
+  AGENT_COMMUNICATION_ERROR:["agentCommunicationError","UploadAgentとの通信に失敗しました: {detail}"],
+  USB_DEST_NOT_CONFIGURED:  ["usbDestNotConfigured",   "USB転送先フォルダが設定されていません（設定画面で設定してください）"],
+  USB_DEST_NOT_FOUND:       ["usbDestNotFound",        "USB転送先フォルダが見つかりません: {path}（USBが接続されているか確認してください）"],
+  USB_SRC_NOT_CONFIGURED:   ["usbSrcNotConfigured",    "USB取込元フォルダが設定されていません（設定画面で設定してください）"],
+  USB_SRC_NOT_FOUND:        ["usbSrcNotFound",         "USB取込元フォルダが見つかりません: {path}（USBが接続されているか確認してください）"],
+  USB_ITEM_NOT_FOUND_FOLDER:["usbItemNotFoundFolder",  "USBフォルダ内に「{name}」フォルダが見つかりません"],
+  USB_ITEM_NOT_FOUND_FILE:  ["usbItemNotFoundFile",    "USBフォルダ内に「{name}」ファイルが見つかりません"],
+  FOLDER_NO_FILES:          ["folderNoFiles",          "フォルダ内にファイルがありません"],
+  FOLDER_NO_MATCHING_FILES: ["folderNoMatchingFiles",  "フォルダ内に{typeLabel}ファイルが見つかりません（全{total}件中0件）"],
+  FOLDER_READ_ERROR:        ["folderReadError",        "フォルダ読み取り失敗: {detail}"],
+  TICKET_FETCH_FAILED:      ["ticketFetchFailed",      "チケット情報取得失敗 (HTTP {status}): {detail}"],
+  RESPONSE_PARSE_FAILED:    ["responseParseFailed",    "レスポンス解析失敗: {detail}"],
+  NO_FILE_INFO:             ["noFileInfo",             "ファイル情報が取得できませんでした"],
+  NO_PROGRAM_FILES:         ["noProgramFiles",         "プログラムファイルが見つかりません"],
+  COPY_FAILED:              ["copyFailed",             "ファイルのコピーに失敗しました"],
+  UPLOAD_PARTIAL_FAILURE:   ["uploadPartialFailure",   "一部または全部のファイルのアップロードに失敗しました"],
+  UNEXPECTED_ERROR:         ["unexpectedError",        "{detail}"],
+};
+
+/**
+ * [多言語対応・旧Agent互換] UploadAgent(C#)側をリビルド/再配置しなくても翻訳できるよう、
+ * Agentが返す「生の日本語エラー文字列」をパターン認識してerrorCode+paramsへ変換する。
+ * UploadCoordinator.cs内の実際のフォーマット文字列と1:1で対応させている。
+ * 新しいAgent(errorCode対応版)を使っている場合はこの関数は使われない(errorCodeが優先される)。
+ */
+function parseKnownAgentErrorText(raw?: string | null): { code: string; params: Record<string, string> } | null {
+  if (!raw) return null;
+  const exact: Record<string, string> = {
+    "Agent未起動": "AGENT_NOT_RUNNING",
+    "USB転送先フォルダが設定されていません（設定画面で設定してください）": "USB_DEST_NOT_CONFIGURED",
+    "USB取込元フォルダが設定されていません（設定画面で設定してください）": "USB_SRC_NOT_CONFIGURED",
+    "フォルダ内にファイルがありません": "FOLDER_NO_FILES",
+    "ファイル情報が取得できませんでした": "NO_FILE_INFO",
+    "プログラムファイルが見つかりません": "NO_PROGRAM_FILES",
+    "ファイルのコピーに失敗しました": "COPY_FAILED",
+    "一部または全部のファイルのアップロードに失敗しました": "UPLOAD_PARTIAL_FAILURE",
+  };
+  if (exact[raw]) return { code: exact[raw], params: {} };
+
+  const patterns: Array<{ re: RegExp; code: string; params: (m: RegExpMatchArray) => Record<string, string> }> = [
+    // "USB転送先フォルダが見つかりません: F:\（USBが接続されているか確認してください）"
+    { re: /^USB転送先フォルダが見つかりません: (.+?)(?:（USBが接続されているか確認してください）)?$/,
+      code: "USB_DEST_NOT_FOUND", params: (m) => ({ path: m[1] }) },
+    // "USB取込元フォルダが見つかりません: F:\（USBが接続されているか確認してください）" または末尾の（）なし版
+    { re: /^USB取込元フォルダが見つかりません: (.+?)(?:（USBが接続されているか確認してください）)?$/,
+      code: "USB_SRC_NOT_FOUND", params: (m) => ({ path: m[1] }) },
+    // "USBフォルダ内に「1846.WPD」フォルダが見つかりません"
+    { re: /^USBフォルダ内に「(.+)」フォルダが見つかりません$/,
+      code: "USB_ITEM_NOT_FOUND_FOLDER", params: (m) => ({ name: m[1] }) },
+    // "USBフォルダ内に「1846.WPD」ファイルが見つかりません"
+    { re: /^USBフォルダ内に「(.+)」ファイルが見つかりません$/,
+      code: "USB_ITEM_NOT_FOUND_FILE", params: (m) => ({ name: m[1] }) },
+    // "フォルダ内に写真(jpg/jpeg/png)ファイルが見つかりません（全12件中0件）"
+    { re: /^フォルダ内に(.+)ファイルが見つかりません（全(\d+)件中0件）$/,
+      code: "FOLDER_NO_MATCHING_FILES", params: (m) => ({ typeLabel: m[1], total: m[2] }) },
+    // "フォルダ読み取り失敗: <詳細>"
+    { re: /^フォルダ読み取り失敗: (.+)$/,
+      code: "FOLDER_READ_ERROR", params: (m) => ({ detail: m[1] }) },
+    // "チケット情報取得失敗 (HTTP 500): <本文>"
+    { re: /^チケット情報取得失敗 \(HTTP (\d+)\): ([\s\S]+)$/,
+      code: "TICKET_FETCH_FAILED", params: (m) => ({ status: m[1], detail: m[2] }) },
+    // "レスポンス解析失敗: <詳細>"
+    { re: /^レスポンス解析失敗: (.+)$/,
+      code: "RESPONSE_PARSE_FAILED", params: (m) => ({ detail: m[1] }) },
+  ];
+
+  for (const p of patterns) {
+    const m = raw.match(p.re);
+    if (m) return { code: p.code, params: p.params(m) };
+  }
+  return null;
+}
+
 /**
  * [多言語対応] UploadAgentから返るerrorCode(+errorParams)を、現在の表示言語に応じた
- * メッセージへ変換する。errorCodeが無い場合(旧バージョンのAgentと通信した場合)は
- * fallback(通常は生のresult.error、あるいは各画面の汎用エラー文言)をそのまま返す。
+ * メッセージへ変換する。
+ * - 新しいAgent(errorCode対応版)からの応答: errorCodeをそのまま使う。
+ * - 古いAgent(errorCode未対応・リビルドしていない場合)からの応答: fallback(生の日本語error文字列)を
+ *   parseKnownAgentErrorText()でパターン認識し、認識できればそれでも翻訳する。
+ * - どちらにも該当しない場合のみ、fallbackをそのまま返す(未知のエラー文はそのまま表示)。
  *
  * 使い方: translateAgentError(tr, result.errorCode, result.errorParams, result.error) ?? tr("xxx.generic", "...")
  */
@@ -225,54 +304,23 @@ export function translateAgentError(
   errorParams?: Record<string, string> | null,
   fallback?: string,
 ): string | undefined {
-  if (!errorCode) return fallback;
-  const params = errorParams ?? {};
-  const apply = (key: string, def: string): string => {
-    let msg = tr(`agentErrors.${key}`, def);
-    for (const [k, v] of Object.entries(params)) {
-      msg = msg.split(`{${k}}`).join(v ?? "");
-    }
-    return msg;
-  };
+  let code = errorCode;
+  let params = errorParams ?? {};
 
-  switch (errorCode) {
-    case "AGENT_NOT_RUNNING":
-      return apply("agentNotRunning", "UploadAgentが起動していません");
-    case "AGENT_COMMUNICATION_ERROR":
-      return apply("agentCommunicationError", "UploadAgentとの通信に失敗しました: {detail}");
-    case "USB_DEST_NOT_CONFIGURED":
-      return apply("usbDestNotConfigured", "USB転送先フォルダが設定されていません（設定画面で設定してください）");
-    case "USB_DEST_NOT_FOUND":
-      return apply("usbDestNotFound", "USB転送先フォルダが見つかりません: {path}（USBが接続されているか確認してください）");
-    case "USB_SRC_NOT_CONFIGURED":
-      return apply("usbSrcNotConfigured", "USB取込元フォルダが設定されていません（設定画面で設定してください）");
-    case "USB_SRC_NOT_FOUND":
-      return apply("usbSrcNotFound", "USB取込元フォルダが見つかりません: {path}（USBが接続されているか確認してください）");
-    case "USB_ITEM_NOT_FOUND_FOLDER":
-      return apply("usbItemNotFoundFolder", "USBフォルダ内に「{name}」フォルダが見つかりません");
-    case "USB_ITEM_NOT_FOUND_FILE":
-      return apply("usbItemNotFoundFile", "USBフォルダ内に「{name}」ファイルが見つかりません");
-    case "FOLDER_NO_FILES":
-      return apply("folderNoFiles", "フォルダ内にファイルがありません");
-    case "FOLDER_NO_MATCHING_FILES":
-      return apply("folderNoMatchingFiles", "フォルダ内に{typeLabel}ファイルが見つかりません（全{total}件中0件）");
-    case "FOLDER_READ_ERROR":
-      return apply("folderReadError", "フォルダ読み取り失敗: {detail}");
-    case "TICKET_FETCH_FAILED":
-      return apply("ticketFetchFailed", "チケット情報取得失敗 (HTTP {status}): {detail}");
-    case "RESPONSE_PARSE_FAILED":
-      return apply("responseParseFailed", "レスポンス解析失敗: {detail}");
-    case "NO_FILE_INFO":
-      return apply("noFileInfo", "ファイル情報が取得できませんでした");
-    case "NO_PROGRAM_FILES":
-      return apply("noProgramFiles", "プログラムファイルが見つかりません");
-    case "COPY_FAILED":
-      return apply("copyFailed", "ファイルのコピーに失敗しました");
-    case "UPLOAD_PARTIAL_FAILURE":
-      return apply("uploadPartialFailure", "一部または全部のファイルのアップロードに失敗しました");
-    case "UNEXPECTED_ERROR":
-      return apply("unexpectedError", "{detail}");
-    default:
-      return fallback;
+  if (!code) {
+    const parsed = parseKnownAgentErrorText(fallback);
+    if (!parsed) return fallback;
+    code = parsed.code;
+    params = parsed.params;
   }
+
+  const template = AGENT_ERROR_TEMPLATES[code];
+  if (!template) return fallback;
+  const [key, def] = template;
+
+  let msg = tr(`agentErrors.${key}`, def);
+  for (const [k, v] of Object.entries(params)) {
+    msg = msg.split(`{${k}}`).join(v ?? "");
+  }
+  return msg;
 }
