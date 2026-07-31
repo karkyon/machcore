@@ -11,8 +11,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import ApprovalModal from "@/components/shared/ApprovalModal";
 import ProgramFileViewer from "@/components/shared/ProgramFileViewer";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export default function NcEditPage() {
+  const { t: tr } = useLanguage();
   const { nc_id } = useParams();
   const router    = useRouter();
   const ncId      = Number(nc_id);
@@ -87,7 +89,7 @@ export default function NcEditPage() {
   //    タブ切替・ダッシュボードへ等のSPA内遷移で、保存前に離脱しようとした場合に
   //    確認ダイアログを出し、キャンセルされたら遷移を中止する。
   const guardedNavigate = (path: string) => {
-    if (dirty.size > 0 && !window.confirm("保存されていない変更があります。このまま移動すると変更内容は失われます。よろしいですか？")) return;
+    if (dirty.size > 0 && !window.confirm(tr("ncEdit.unsavedChangesConfirm", "保存されていない変更があります。このまま移動すると変更内容は失われます。よろしいですか？"))) return;
     router.push(path);
   };
 
@@ -172,7 +174,7 @@ export default function NcEditPage() {
         fetch(`/api/nc/${ncId}/finalize`, {
           method:  "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenRef.current}` },
-          body:    JSON.stringify({ change_type: "不明", change_detail: "変更理由未入力（モーダル入力途中で離脱）" }),
+          body:    JSON.stringify({ change_type: "不明", change_detail: tr("ncEdit.unspecifiedReasonDetail", "変更理由未入力（モーダル入力途中で離脱）") }),
           keepalive: true,
         }).catch(() => {});
       }
@@ -207,13 +209,13 @@ export default function NcEditPage() {
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
 
   const issueNcUploadTicket = async (fileType: "PHOTO" | "DRAWING") => {
-    if (!token) throw new Error("認証が必要です");
+    if (!token) throw new Error(tr("ncEdit.authRequired", "認証が必要です"));
     const res = await fetch(`/api/nc/${ncId}/files/upload-ticket`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ file_type: fileType }),
     });
-    if (!res.ok) throw new Error(`チケット発行失敗: HTTP ${res.status}`);
+    if (!res.ok) throw new Error(tr("ncEdit.ticketIssueFailed","チケット発行失敗: HTTP {code}").replace("{code}", String(res.status)));
     const json = await res.json();
     return { ticket: json.ticket as string, uploadPath: json.upload_path as string | undefined };
   };
@@ -221,11 +223,11 @@ export default function NcEditPage() {
   const requestNcUpload = useCallback(async (fileType: "PHOTO" | "DRAWING") => {
     if (!token || uploading) return;
     setUploading(true);
-    setUploadMsg("⏳ UploadAgentに接続中...");
+    setUploadMsg(tr("ncEdit.connectingAgent", "⏳ UploadAgentに接続中..."));
 
     const agentOnline = await isAgentOnline();
     if (!agentOnline) {
-      const msg = "❌ UploadAgentが起動していません。タスクトレイを確認し、UploadAgent を起動してください。";
+      const msg = tr("ncEdit.agentNotRunning", "❌ UploadAgentが起動していません。タスクトレイを確認し、UploadAgent を起動してください。");
       setUploadMsg(msg);
       setUploading(false);
       window.alert(msg);
@@ -233,23 +235,23 @@ export default function NcEditPage() {
     }
 
     const ok = window.confirm(
-      "【アップロード元ファイルの削除確認】\n選択したファイルをアップロードします。アップロード完了後、元ファイルはゴミ箱フォルダへ自動移動されます。\n続行しますか？"
+      tr("ncEdit.deleteConfirmUpload", "【アップロード元ファイルの削除確認】\n選択したファイルをアップロードします。アップロード完了後、元ファイルはゴミ箱フォルダへ自動移動されます。\n続行しますか？")
     );
     if (!ok) { setUploading(false); setUploadMsg(null); return; }
 
-    setUploadMsg("⏳ UploadAgentでファイル選択ダイアログを開いています...");
+    setUploadMsg(tr("ncEdit.openingFileDialog", "⏳ UploadAgentでファイル選択ダイアログを開いています..."));
     try {
       const { ticket, uploadPath } = await issueNcUploadTicket(fileType);
       const result = await agentPickAndUpload(ticket, fileType, uploadPath);
 
       if (result.cancelled) { setUploadMsg(null); return; }
-      if (!result.success) { setUploadMsg(`❌ ${result.error ?? "アップロードに失敗しました"}`); return; }
+      if (!result.success) { setUploadMsg(`❌ ${result.error ?? tr("ncEdit.uploadFailedGeneric", "アップロードに失敗しました")}`); return; }
 
       const res = await ncApi.findOne(ncId);
       setDetail(res.data);
-      setUploadMsg(`✅ ${result.files.length}件アップロード完了`);
+      setUploadMsg(tr("ncEdit.uploadCompleteCount","✅ {n}件アップロード完了").replace("{n}", String(result.files.length)));
     } catch (e: any) {
-      setUploadMsg("❌ アップロード失敗: " + (e.message ?? "不明なエラー"));
+      setUploadMsg(tr("ncEdit.uploadFailedPrefix","❌ アップロード失敗: {msg}").replace("{msg}", e.message ?? tr("ncEdit.unknownError","不明なエラー")));
     } finally {
       setUploading(false);
       setTimeout(() => setUploadMsg(null), 5000);
@@ -267,11 +269,11 @@ export default function NcEditPage() {
     if (pgUploading) return;
 
     setPgUploading(true);
-    setUploadMsg("⏳ UploadAgentに接続中...");
+    setUploadMsg(tr("ncEdit.connectingAgent", "⏳ UploadAgentに接続中..."));
 
     const agentOnline = await isAgentOnline();
     if (!agentOnline) {
-      const msg = "❌ UploadAgentが起動していません。PGファイルのアップロードには UploadAgent の起動が必要です。";
+      const msg = tr("ncEdit.agentNotRunningPg", "❌ UploadAgentが起動していません。PGファイルのアップロードには UploadAgent の起動が必要です。");
       setUploadMsg(msg);
       setPgUploading(false);
       window.alert(msg);
@@ -284,7 +286,7 @@ export default function NcEditPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ file_type: "PROGRAM" }),
       });
-      if (!res.ok) throw new Error(`チケット発行失敗: HTTP ${res.status}`);
+      if (!res.ok) throw new Error(tr("ncEdit.ticketIssueFailed","チケット発行失敗: HTTP {code}").replace("{code}", String(res.status)));
       const ticketJson = await res.json();
       const ticket = ticketJson.ticket as string;
       const uploadPath = ticketJson.upload_path as string | undefined;
@@ -292,34 +294,34 @@ export default function NcEditPage() {
       const expectedName: string | null = isFolderMode ? ticketJson.expected_folder_name : ticketJson.expected_file_name;
 
       if (!expectedName) {
-        setUploadMsg("❌ 対象ファイル名/フォルダ名の解決に失敗しました");
+        setUploadMsg(tr("ncEdit.resolveFileNameFailed", "❌ 対象ファイル名/フォルダ名の解決に失敗しました"));
         setPgUploading(false);
         return;
       }
 
-      setUploadMsg("⏳ USB内のファイルを確認しています...");
+      setUploadMsg(tr("ncEdit.checkingUsbFile", "⏳ USB内のファイルを確認しています..."));
       const check = await agentCheckUsbTarget(expectedName, isFolderMode);
       if (!check.success || !check.exists) {
-        const msg = check.error ?? `USBフォルダ内に「${expectedName}」が見つかりません`;
+        const msg = check.error ?? tr("ncEdit.usbFolderNotFound","USBフォルダ内に「{name}」が見つかりません").replace("{name}", expectedName);
         setUploadMsg(`❌ ${msg}`);
         setPgUploading(false);
         return;
       }
 
       const ok = window.confirm(
-        `【PGファイルアップロード - 元ファイル削除確認】\n` +
-        `USB内に${isFolderMode ? "フォルダ" : "ファイル"}「${expectedName}」を検出しました。\n` +
-        `この機械(${isFolderMode ? "📁 フォルダ単位" : "📄 単体ファイル"})の命名規則に従い、そのままアップロードします。\n` +
-        `アップロード完了後、元ファイルはゴミ箱(.machcore_trash)へ自動移動されます。\n続行しますか？`
+        tr("ncEdit.pgUploadDeleteConfirmTitle", "【PGファイルアップロード - 元ファイル削除確認】\n") +
+        tr("ncEdit.pgUploadDetected", "USB内に{unit}「{name}」を検出しました。\n").replace("{unit}", isFolderMode ? tr("ncEdit.folderUnit","フォルダ") : tr("ncEdit.fileUnit","ファイル")).replace("{name}", expectedName) +
+        tr("ncEdit.pgUploadNamingRule", "この機械({mode})の命名規則に従い、そのままアップロードします。\n").replace("{mode}", isFolderMode ? tr("ncEdit.folderModeLabel","📁 フォルダ単位") : tr("ncEdit.fileModeLabel","📄 単体ファイル")) +
+        tr("ncEdit.pgUploadAutoMove", "アップロード完了後、元ファイルはゴミ箱(.machcore_trash)へ自動移動されます。\n続行しますか？")
       );
       if (!ok) { setPgUploading(false); setUploadMsg(null); return; }
 
-      setUploadMsg("⏳ アップロード中...");
+      setUploadMsg(tr("ncEdit.uploadingInProgress", "⏳ アップロード中..."));
       const result = await agentAutoUpload(ticket, "PROGRAM", expectedName, isFolderMode, uploadPath);
 
       if (result.cancelled) { setUploadMsg(null); return; }
       if (!result.success) {
-        setUploadMsg(`❌ ${result.error ?? "アップロードに失敗しました"}`);
+        setUploadMsg(`❌ ${result.error ?? tr("ncEdit.uploadFailedGeneric", "アップロードに失敗しました")}`);
         return;
       }
 
@@ -328,13 +330,13 @@ export default function NcEditPage() {
 
       const n2 = result.files.length;
       const delFailCount = result.files.filter((f: any) => !f.localDeleted).length;
-      let msg = `✅ ${n2}件登録完了`;
-      if (delFailCount > 0) msg += ` ⚠️ ${delFailCount}件は元ファイルの削除に失敗 - 手動削除してください`;
-      else msg += "。元ファイルをゴミ箱に移動しました";
+      let msg = tr("ncEdit.registerCompleteCount","✅ {n}件登録完了").replace("{n}", String(n2));
+      if (delFailCount > 0) msg += tr("ncEdit.delFailWarning"," ⚠️ {n}件は元ファイルの削除に失敗 - 手動削除してください").replace("{n}", String(delFailCount));
+      else msg += tr("ncEdit.movedToTrashSuffix", "。元ファイルをゴミ箱に移動しました");
       setUploadMsg(msg);
     } catch (e: any) {
       console.error("[NC_PG_UPLOAD] エラー:", e);
-      setUploadMsg("❌ アップロード失敗: " + (e.message ?? "不明なエラー"));
+      setUploadMsg(tr("ncEdit.uploadFailedPrefix","❌ アップロード失敗: {msg}").replace("{msg}", e.message ?? tr("ncEdit.unknownError","不明なエラー")));
     } finally {
       setPgUploading(false);
       setTimeout(() => setUploadMsg(null), 6000);
@@ -441,7 +443,7 @@ export default function NcEditPage() {
       if (dirty.has("sheetCreatedAt")) body.sheet_created_at = sheetCreatedAt === "" ? null : sheetCreatedAt;
 
       if (Object.keys(body).length === 0 && !isProvisionalCompletion) {
-        setSaveError("変更項目がありません");
+        setSaveError(tr("ncEdit.noChangeItems", "変更項目がありません"));
         return;
       }
 
@@ -457,7 +459,7 @@ export default function NcEditPage() {
         // これ以降、離脱時の仮登録破棄(abandon-provisional)は発火しない。
         // 新規登録の確定は変更種別が一意("新規登録")のため、MC側sbModeと同様に
         // モーダルを経由せず直接finalizeする。
-        await ncApi.finalize(ncId, "新規登録", undefined, token);
+        await ncApi.finalize(ncId, tr("ncEdit.newRegistrationType", "新規登録"), undefined, token);
         registrationCompletedRef.current = true;
         // [段取シートバック] STEP1(新規)フロー中の確定完了 → STEP2(作業記録)へ引き継ぐ。
         if (sbMode) {
@@ -474,12 +476,12 @@ export default function NcEditPage() {
       }
 
       // 新規(sbMode)の場合は変更内容を「新規登録」に固定する — MC側と同一仕様。
-      if (sbMode) setKanryoType("新規登録");
+      if (sbMode) setKanryoType(tr("ncEdit.newRegistrationType", "新規登録"));
       // [v112] 通常編集(確定済みレコードの変更): MC側と同一仕様で、保存後に
       // 「終了確認モーダル」(変更種別選択 + バージョンインクリ、または一時保存)を表示する。
       setShowKanryoModal(true);
     } catch (e: any) {
-      setSaveError(e?.response?.data?.message ?? "保存に失敗しました");
+      setSaveError(e?.response?.data?.message ?? tr("ncEdit.saveFailedGeneric", "保存に失敗しました"));
     } finally {
       setSaving(false);
     }
@@ -508,7 +510,7 @@ export default function NcEditPage() {
       logout();
       setTimeout(() => router.push(`/nc/${ncId}`), 400);
     } catch (e: any) {
-      setSaveError(e?.response?.data?.message ?? "バージョン更新に失敗");
+      setSaveError(e?.response?.data?.message ?? tr("ncEdit.versionUpdateFailed", "バージョン更新に失敗"));
       setShowKanryoModal(false);
     }
   };
@@ -547,7 +549,7 @@ export default function NcEditPage() {
 
   const handleCancel = useCallback(() => {
     if (isAuthenticated) {
-      if (!confirm("変更を破棄して戻りますか？")) return;
+      if (!confirm(tr("ncEdit.discardChangesConfirm", "変更を破棄して戻りますか？"))) return;
       logout();
     }
     // [段取シートバック] 新規STEP1/リピート編集フロー中のキャンセルは
@@ -572,12 +574,12 @@ export default function NcEditPage() {
 
   if (loadError) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="text-red-500 text-sm">読み込みエラー: {loadError}</div>
+      <div className="text-red-500 text-sm">{tr("ncEdit.loadErrorPrefix", "読み込みエラー: {msg}").replace("{msg}", String(loadError))}</div>
     </div>
   );
   if (!detail) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="text-slate-400 text-sm">読み込み中...</div>
+      <div className="text-slate-400 text-sm">{tr("ncEdit.loadingScreen", "読み込み中...")}</div>
     </div>
   );
 
