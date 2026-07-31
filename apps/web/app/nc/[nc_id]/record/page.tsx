@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { NcPartHeader } from "@/components/nc/NcPartHeader";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 // ─── 時間入力コンポーネント ─────────────────────────────────────
 function NumInput({ value, onChange, min=0, max=999, className="" }: {
@@ -36,6 +37,7 @@ function TimeInput({ h, m, onH, onM }: { h:number; m:number; onH:(v:number)=>voi
 function MultiUserSelect({ users, selected, onChange, placeholder }: {
   users: UserInfo[]; selected: number[]; onChange: (ids: number[]) => void; placeholder: string;
 }) {
+  const { t: tr } = useLanguage();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -92,6 +94,7 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
 
 // ─── メインページ ──────────────────────────────────────────────
 function RecordPageInner() {
+  const { t: tr } = useLanguage();
   const params    = useParams();
   const router    = useRouter();
   const ncId      = Number(params.nc_id);
@@ -184,7 +187,7 @@ function RecordPageInner() {
       setAuthUsers(userRes.data.filter((u: UserInfo) => u.isActive));
       // 機械初期値
       if (ncRes.data?.machine?.id) setMachineId(ncRes.data.machine.id);
-    } catch { showToast("❌ データ取得失敗"); }
+    } catch { showToast(tr("ncRecordPage.dataFetchFailedMsg","❌ データ取得失敗")); }
     finally { setLoading(false); }
   }, [ncId]);
 
@@ -266,7 +269,7 @@ function RecordPageInner() {
     if (!sbMode) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = "作業が完了していません。このページを離れますか？";
+      e.returnValue = tr("ncRecordPage.beforeUnloadMsg","作業が完了していません。このページを離れますか？");
       return e.returnValue;
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -299,7 +302,7 @@ function RecordPageInner() {
   };
 
   const handleAuth = async () => {
-    if (!selOpId || !password) { setAuthError("担当者とパスワードを入力してください"); return; }
+    if (!selOpId || !password) { setAuthError(tr("ncRecordPage.authRequiredMsg2","担当者とパスワードを入力してください")); return; }
     setAuthLoading(true); setAuthError("");
     try {
       const res = await authApi.createWorkSession({
@@ -310,7 +313,7 @@ function RecordPageInner() {
       setIsAuthenticated(true);
       setShowAuth(false);
       setPassword("");
-    } catch { setAuthError("認証に失敗しました。パスワードを確認してください"); }
+    } catch { setAuthError(tr("ncRecordPage.authFailedMsg","認証に失敗しました。パスワードを確認してください")); }
     finally { setAuthLoading(false); }
   };
 
@@ -372,7 +375,7 @@ function RecordPageInner() {
       };
       if (editRecordId) {
         await workRecordsApi.update(ncId, editRecordId, base as UpdateWorkRecordBody, workToken);
-        showToast("✅ 更新しました");
+        showToast(tr("ncRecordPage.updatedMsg","✅ 更新しました"));
       } else {
         const res = await workRecordsApi.create(ncId, base as CreateWorkRecordBody, workToken);
         if (!res.data?.id) throw new Error();
@@ -385,7 +388,7 @@ function RecordPageInner() {
         }
         await endSession();
         if (sbMode) {
-          showToast("✅ 段取シートバック完了 — 回収済みに更新しました");
+          showToast(tr("ncRecordPage.sbCollectDoneMsg2","✅ 段取シートバック完了 — 回収済みに更新しました"));
           sbFlowCompletedRef.current = true;
           if (typeof window !== "undefined") {
             sessionStorage.removeItem("sb_next_record");
@@ -395,18 +398,18 @@ function RecordPageInner() {
           setTimeout(() => router.push("/nc"), 1200);
           return;
         }
-        showToast("✅ 作業記録を登録しました");
+        showToast(tr("ncRecordPage.recordSavedMsg2","✅ 作業記録を登録しました"));
         setTimeout(() => router.push(`/nc/${ncId}`), 1200);
         return;
       }
       await loadData();
       resetForm(nc);
-    } catch { showToast("❌ 保存に失敗しました"); }
+    } catch { showToast(tr("ncRecordPage.saveFailedMsg2","❌ 保存に失敗しました")); }
     finally { setSaving(false); }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-400">読み込み中...</div>;
-  if (!nc)     return <div className="min-h-screen flex items-center justify-center text-red-500">データが見つかりません</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-400">{tr("ncRecordPage.loadingDots2","読み込み中...")}</div>;
+  if (!nc)     return <div className="min-h-screen flex items-center justify-center text-red-500">{tr("ncRecordPage.dataNotFoundMsg","データが見つかりません")}</div>;
 
   // [仮登録] 「作業完了（登録）」で確定するまでは作業記録に直接アクセスされても
   // ブロックする(タブの非活性化に加え、URL直打ちに対する防御)。
@@ -414,11 +417,11 @@ function RecordPageInner() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 max-w-md w-full text-center">
         <div className="text-5xl mb-4">🔒</div>
-        <h2 className="text-slate-700 font-bold text-lg mb-2">作業記録はまだ利用できません</h2>
-        <p className="text-slate-400 text-sm mb-6">この新規登録はまだ確定していません。「変更・登録」で「✓ 作業完了（登録）」を行うと利用できるようになります。</p>
+        <h2 className="text-slate-700 font-bold text-lg mb-2">{tr("ncRecordPage.recordLockedTitle", "作業記録はまだ利用できません")}</h2>
+        <p className="text-slate-400 text-sm mb-6">{tr("ncRecordPage.recordLockedDesc", "この新規登録はまだ確定していません。「変更・登録」で「✓ 作業完了（登録）」を行うと利用できるようになります。")}</p>
         <button onClick={() => router.push(`/nc/${ncId}/edit`)}
           className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl transition-colors">
-          変更・登録へ戻る
+          {tr("ncRecordPage.backToEditButton2", "変更・登録へ戻る")}
         </button>
       </div>
     </div>
@@ -431,30 +434,30 @@ function RecordPageInner() {
         {!sbMode && (
           <>
             <button onClick={() => router.push(`/nc/${ncId}`)} className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-white transition-colors shrink-0">
-              <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></span>NC詳細
+              <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></span>{tr("ncRecordPage.ncDetailTabLink3", "NC詳細")}
             </button>
             <span className="text-slate-600">|</span>
             <button onClick={() => router.push("/nc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors shrink-0">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>ダッシュボードへ
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>{tr("ncRecordPage.backToDashboardLink3", "ダッシュボードへ")}
             </button>
           </>
         )}
         {sbMode && (
           <span className="flex items-center gap-2 bg-sky-700 border border-sky-500 rounded-lg px-3 py-1">
             <span className="bg-sky-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shrink-0">2</span>
-            <span className="text-xs font-bold text-sky-100">段取シートバック — STEP2: 作業記録入力</span>
-            <span className="text-sky-300 text-xs">（登録で回収済みになります）</span>
+            <span className="text-xs font-bold text-sky-100">{tr("ncRecordPage.sbStep2Badge2", "段取シートバック — STEP2: 作業記録入力")}</span>
+            <span className="text-sky-300 text-xs">{tr("ncRecordPage.sbStep2Note2", "（登録で回収済みになります）")}</span>
           </span>
         )}
         <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
-        <span className="text-sm font-medium">作業記録</span>
+        <span className="text-sm font-medium">{tr("ncRecordPage.workRecordTitle2", "作業記録")}</span>
         <span className="ml-auto">
           {isAuthenticated ? (
             <span className="text-[11px] bg-amber-600 text-white px-3 py-1 rounded font-bold animate-pulse">
-              作業中: {selOpName}　{fmtTime(elapsed)}
+              {tr("ncRecordPage.workingStatus2", "作業中: {name}　{elapsed}").replace("{name}", selOpName).replace("{elapsed}", fmtTime(elapsed))}
             </span>
           ) : (
-            <span className="text-[11px] text-slate-400 bg-slate-700 px-2 py-1 rounded">🔒 認証待ち</span>
+            <span className="text-[11px] text-slate-400 bg-slate-700 px-2 py-1 rounded">{tr("ncRecordPage.authWaiting2", "🔒 認証待ち")}</span>
           )}
         </span>
       </header>
@@ -467,21 +470,21 @@ function RecordPageInner() {
         <button onClick={() => !sbMode && router.push(`/nc/${ncId}`)}
           disabled={sbMode}
           className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>NC詳細
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>{tr("ncRecordPage.ncDetailTabLink3", "NC詳細")}
         </button>
         <button onClick={() => !sbMode && router.push(`/nc/${ncId}/edit`)}
           disabled={sbMode}
           className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>変更・登録
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>{tr("ncRecordPage.editRegisterTabLink3", "変更・登録")}
         </button>
         <button onClick={() => !sbMode && router.push(`/nc/${ncId}/print`)}
           disabled={sbMode}
           className={"px-4 py-1.5 text-[12px] font-semibold flex items-center gap-1.5 rounded-t border border-b-0 transition-colors " + (sbMode ? "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none opacity-40" : "border-[#c4cfdb] bg-white text-[#4a5568] hover:bg-[#eef3f8] hover:text-[#1b2a41]")}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>段取シート
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>{tr("ncRecordPage.setupSheetTabLink3", "段取シート")}
         </button>
         <button onClick={() => router.push(`/nc/${ncId}/record`)}
           className="px-4 py-1.5 text-[12px] font-bold flex items-center gap-1.5 rounded-t border border-b-0 border-[#1b2a41] bg-[#1b2a41] text-white">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>作業記録
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>{tr("ncRecordPage.workRecordTabLink3", "作業記録")}
         </button>
       </nav>
 
@@ -490,17 +493,17 @@ function RecordPageInner() {
         <div className="w-[380px] shrink-0 bg-white border-r border-slate-200 flex flex-col">
           <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
             <div>
-              <span className="text-sm font-bold text-slate-700">🗒 段取シート一覧</span>
-              <span className="ml-2 text-[11px] text-slate-400">未回収: {setupSheets.length}件</span>
+              <span className="text-sm font-bold text-slate-700">{tr("ncRecordPage.setupSheetListTitle2", "🗒 段取シート一覧")}</span>
+              <span className="ml-2 text-[11px] text-slate-400">{tr("ncRecordPage.uncollectedCountLabel2", "未回収: {n}件").replace("{n}", String(setupSheets.length))}</span>
             </div>
-            <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">印刷日付新しい順</span>
+            <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{tr("ncRecordPage.printDateSortLabel", "印刷日付新しい順")}</span>
           </div>
           <div className="flex-1 overflow-y-auto">
             {setupSheets.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 py-12">
                 <span className="text-3xl">📋</span>
-                <p className="text-sm">印刷済み段取シートなし</p>
-                <p className="text-xs text-slate-300">段取シート画面から印刷してください</p>
+                <p className="text-sm">{tr("ncRecordPage.noPrintedSheets", "印刷済み段取シートなし")}</p>
+                <p className="text-xs text-slate-300">{tr("ncRecordPage.printFromSetupSheetScreen", "段取シート画面から印刷してください")}</p>
               </div>
             )}
             {setupSheets.map(s => (
@@ -525,10 +528,10 @@ function RecordPageInner() {
                   )}
                 </div>
                 <div className="text-xs text-slate-500">
-                  印刷者: {(s as any).operator_name ?? "—"}
+                  {tr("ncRecordPage.printerPrefix", "印刷者: ")}{(s as any).operator_name ?? "—"}
                 </div>
                 {selectedSheet?.id === s.id && (
-                  <div className="mt-1.5 text-[11px] text-emerald-700 font-bold">▶ この段取シートで記録入力中</div>
+                  <div className="mt-1.5 text-[11px] text-emerald-700 font-bold">{tr("ncRecordPage.currentInputSheetLabel", "▶ この段取シートで記録入力中")}</div>
                 )}
               </div>
             ))}
@@ -541,14 +544,14 @@ function RecordPageInner() {
             <div className="mb-5 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-4">
               <span className="text-3xl">⏱</span>
               <div className="flex-1">
-                <div className="text-sm font-bold text-emerald-800">作業記録 — 作業開始前</div>
+                <div className="text-sm font-bold text-emerald-800">{tr("ncRecordPage.recordBeforeStart2", "作業記録 — 作業開始前")}</div>
                 <div className="text-xs text-emerald-600 mt-0.5">
-                  {selectedSheet ? `段取シート（${toJstDateString(selectedSheet.printed_at)}）を選択中` : "左リストから段取シートを選択してください"}
+                  {selectedSheet ? tr("ncRecordPage.selectedSheetLabel","段取シート（{date}）を選択中").replace("{date}", String(toJstDateString(selectedSheet.printed_at))) : tr("ncRecordPage.selectSheetFromListHint","左リストから段取シートを選択してください")}
                 </div>
               </div>
               <button onClick={() => setShowAuth(true)}
                 className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-colors whitespace-nowrap">
-                🔓 作業を開始する
+                {tr("ncRecordPage.startWorkButton3", "🔓 作業を開始する")}
               </button>
             </div>
           )}
@@ -557,10 +560,10 @@ function RecordPageInner() {
           <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold mb-4 ${
             editRecordId ? "bg-amber-100 border border-amber-300 text-amber-800" : "bg-sky-50 border border-sky-200 text-sky-700"
           }`}>
-            <span>{editRecordId ? `✏️ 編集モード — 記録ID: ${editRecordId}` : "＋ 新規入力モード"}</span>
+            <span>{editRecordId ? tr("ncRecordPage.editModeLabel2","✏️ 編集モード — 記録ID: {id}").replace("{id}", String(editRecordId)) : tr("ncRecordPage.newInputModeLabel2","＋ 新規入力モード")}</span>
             {editRecordId && (
               <button onClick={() => resetForm(nc)} className="text-xs bg-white border border-slate-300 text-slate-600 px-2 py-1 rounded hover:bg-slate-50">
-                ＋ 新規に戻す
+                {tr("ncRecordPage.resetToNewButton2", "＋ 新規に戻す")}
               </button>
             )}
           </div>
@@ -569,22 +572,22 @@ function RecordPageInner() {
             {/* 種別 + 機械 */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-bold text-slate-500 block mb-2">種別 *</label>
+                <label className="text-xs font-bold text-slate-500 block mb-2">{tr("ncRecordPage.workTypeLabel", "種別 *")}</label>
                 <div className="flex gap-2 flex-wrap">
-                  {["量産","試作"].map(t => (
+                  {(["量産","試作"] as const).map(t => (
                     <button key={t} type="button" onClick={() => setWorkType(t)}
                       className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${workType === t ? "bg-sky-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-                      {t}
+                      {t === "量産" ? tr("ncRecordPage.workTypeProd","量産") : tr("ncRecordPage.workTypeTrial","試作")}
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-500 block mb-2">使用機械</label>
+                <label className="text-xs font-bold text-slate-500 block mb-2">{tr("ncRecordPage.usedMachineLabel2", "使用機械")}</label>
                 <select value={machineId ?? ""}
                   onChange={e => setMachineId(e.target.value ? Number(e.target.value) : null)}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white">
-                  <option value="">— 選択 —</option>
+                  <option value="">{tr("ncRecordPage.selectPlaceholder3", "— 選択 —")}</option>
                   {machines.map(m => <option key={m.id} value={m.id}>{m.id} : {m.machineName}</option>)}
                 </select>
               </div>
@@ -593,66 +596,66 @@ function RecordPageInner() {
             {/* 段取セクション */}
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 space-y-3">
               <div className="flex items-center justify-between border-b border-blue-200 pb-2">
-                <span className="text-sm font-bold text-blue-700">🔧 段取</span>
+                <span className="text-sm font-bold text-blue-700">{tr("ncRecordPage.setupGroupTitle2", "🔧 段取")}</span>
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="text-slate-500">入力方法:</span>
+                  <span className="text-slate-500">{tr("ncRecordPage.inputMethodLabel2", "入力方法:")}</span>
                   <button type="button" onClick={() => setTimeMode("hm")}
                     className={`px-2 py-0.5 rounded font-bold transition-colors ${timeMode==="hm" ? "bg-blue-600 text-white" : "bg-white text-slate-500 border border-slate-300"}`}>
-                    h/m入力
+                    {tr("ncRecordPage.hmModeButton2", "h/m入力")}
                   </button>
                   <button type="button" onClick={() => setTimeMode("datetime")}
                     className={`px-2 py-0.5 rounded font-bold transition-colors ${timeMode==="datetime" ? "bg-blue-600 text-white" : "bg-white text-slate-500 border border-slate-300"}`}>
-                    開始/終了日時
+                    {tr("ncRecordPage.dateTimeModeButton2", "開始/終了日時")}
                   </button>
                 </div>
               </div>
               {timeMode === "hm" ? (
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">段取時間</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.setupTimeLabel2", "段取時間")}</label>
                     <TimeInput h={setupH} m={setupM} onH={setSetupH} onM={setSetupM} />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">中断時間</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.interruptTimeLabel2", "中断時間")}</label>
                     <div className="flex items-center gap-1">
                       <NumInput value={setupInterruption} onChange={setSetupInterruption} className="w-16" />
-                      <span className="text-xs text-slate-400">分</span>
+                      <span className="text-xs text-slate-400">{tr("ncRecordPage.unitMinuteShort", "分")}</span>
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">段取担当者（複数可）</label>
-                    <MultiUserSelect users={allUsers} selected={setupOps} onChange={setSetupOps} placeholder="担当者を選択..." />
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.setupOperatorsLabel2", "段取担当者（複数可）")}</label>
+                    <MultiUserSelect users={allUsers} selected={setupOps} onChange={setSetupOps} placeholder={tr("ncRecordPage.selectOperatorPlaceholder2", "担当者を選択...")} />
                   </div>
                 </div>
               ) : (
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1">段取開始日時</label>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.setupStartDateTimeLabel", "段取開始日時")}</label>
                       <input type="datetime-local" value={setupStart} onChange={e => setSetupStart(e.target.value)}
                         className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1">段取終了日時</label>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.setupEndDateTimeLabel", "段取終了日時")}</label>
                       <input type="datetime-local" value={setupEnd} onChange={e => { setSetupEnd(e.target.value); setProdStart(e.target.value); }}
                         className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" />
                     </div>
                   </div>
                   {setupStart && setupEnd && (() => {
                     const mins = Math.round((new Date(setupEnd).getTime() - new Date(setupStart).getTime()) / 60000);
-                    return mins > 0 ? <p className="text-xs text-blue-600 font-bold">→ 段取時間: {Math.floor(mins/60)}h {mins%60}m（{mins}分）</p> : null;
+                    return mins > 0 ? <p className="text-xs text-blue-600 font-bold">{tr("ncRecordPage.setupTimeResult2", "→ 段取時間: {h}h {m}m（{total}分）").replace("{h}", String(Math.floor(mins/60))).replace("{m}", String(mins%60)).replace("{total}", String(mins))}</p> : null;
                   })()}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1">中断時間（分）</label>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.interruptTimeMinLabel", "中断時間（分）")}</label>
                       <div className="flex items-center gap-1">
                         <NumInput value={setupInterruption} onChange={setSetupInterruption} className="w-16" />
-                        <span className="text-xs text-slate-400">分</span>
+                        <span className="text-xs text-slate-400">{tr("ncRecordPage.unitMinuteShort", "分")}</span>
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1">段取担当者（複数可）</label>
-                      <MultiUserSelect users={allUsers} selected={setupOps} onChange={setSetupOps} placeholder="担当者を選択..." />
+                      <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.setupOperatorsLabel2", "段取担当者（複数可）")}</label>
+                      <MultiUserSelect users={allUsers} selected={setupOps} onChange={setSetupOps} placeholder={tr("ncRecordPage.selectOperatorPlaceholder2", "担当者を選択...")} />
                     </div>
                   </div>
                 </div>
@@ -661,75 +664,75 @@ function RecordPageInner() {
 
             {/* 量産セクション */}
             <div className="bg-green-50 rounded-xl border border-green-200 p-4 space-y-3">
-              <div className="text-sm font-bold text-green-700 border-b border-green-200 pb-2">⚙️ 量産</div>
+              <div className="text-sm font-bold text-green-700 border-b border-green-200 pb-2">{tr("ncRecordPage.prodGroupTitle2", "⚙️ 量産")}</div>
               {timeMode === "hm" ? (
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">加工時間</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.machTimeLabel2", "加工時間")}</label>
                     <TimeInput h={machH} m={machM} onH={setMachH} onM={setMachM} />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">中断時間</label>
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.interruptTimeLabel2", "中断時間")}</label>
                     <div className="flex items-center gap-1">
                       <NumInput value={interruption} onChange={setInterruption} className="w-16" />
-                      <span className="text-xs text-slate-400">分</span>
+                      <span className="text-xs text-slate-400">{tr("ncRecordPage.unitMinuteShort", "分")}</span>
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">量産担当者（複数可）</label>
-                    <MultiUserSelect users={allUsers} selected={prodOps} onChange={setProdOps} placeholder="担当者を選択..." />
+                    <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.prodOperatorsLabel2", "量産担当者（複数可）")}</label>
+                    <MultiUserSelect users={allUsers} selected={prodOps} onChange={setProdOps} placeholder={tr("ncRecordPage.selectOperatorPlaceholder2", "担当者を選択...")} />
                   </div>
                 </div>
               ) : (
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1">量産開始日時</label>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.prodStartDateTimeLabel", "量産開始日時")}</label>
                       <input type="datetime-local" value={prodStart} onChange={e => { setProdStart(e.target.value); setSetupEnd(e.target.value); }}
                         className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1">量産終了日時</label>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.prodEndDateTimeLabel", "量産終了日時")}</label>
                       <input type="datetime-local" value={prodEnd} onChange={e => setProdEnd(e.target.value)}
                         className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" />
                     </div>
                   </div>
                   {prodStart && prodEnd && (() => {
                     const mins = Math.round((new Date(prodEnd).getTime() - new Date(prodStart).getTime()) / 60000);
-                    return mins > 0 ? <p className="text-xs text-green-600 font-bold">→ 量産時間: {Math.floor(mins/60)}h {mins%60}m（{mins}分）</p> : null;
+                    return mins > 0 ? <p className="text-xs text-green-600 font-bold">{tr("ncRecordPage.prodTimeResult", "→ 量産時間: {h}h {m}m（{total}分）").replace("{h}", String(Math.floor(mins/60))).replace("{m}", String(mins%60)).replace("{total}", String(mins))}</p> : null;
                   })()}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1">中断時間（分）</label>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.interruptTimeMinLabel", "中断時間（分）")}</label>
                       <div className="flex items-center gap-1">
                         <NumInput value={interruption} onChange={setInterruption} className="w-16" />
-                        <span className="text-xs text-slate-400">分</span>
+                        <span className="text-xs text-slate-400">{tr("ncRecordPage.unitMinuteShort", "分")}</span>
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1">量産担当者（複数可）</label>
-                      <MultiUserSelect users={allUsers} selected={prodOps} onChange={setProdOps} placeholder="担当者を選択..." />
+                      <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.prodOperatorsLabel2", "量産担当者（複数可）")}</label>
+                      <MultiUserSelect users={allUsers} selected={prodOps} onChange={setProdOps} placeholder={tr("ncRecordPage.selectOperatorPlaceholder2", "担当者を選択...")} />
                     </div>
                   </div>
                 </div>
               )}
               <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1">加工個数</label>
+                <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.machQtyLabel", "加工個数")}</label>
                 <div className="flex items-center gap-1">
                   <input type="number" min={0} value={quantity}
                     onChange={e => setQuantity(e.target.value === "" ? "" : Number(e.target.value))}
                     className="border border-slate-300 rounded px-2 py-1.5 text-sm w-20 focus:outline-none focus:ring-2 focus:ring-sky-300" />
-                  <span className="text-xs text-slate-400">個</span>
+                  <span className="text-xs text-slate-400">{tr("ncRecordPage.unitPiece4", "個")}</span>
                 </div>
               </div>
             </div>
 
             {/* 備考 */}
             <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <label className="text-xs font-bold text-slate-500 block mb-2">備考</label>
+              <label className="text-xs font-bold text-slate-500 block mb-2">{tr("ncRecordPage.noteLabel4", "備考")}</label>
               <textarea value={note} onChange={e => setNote(e.target.value)} maxLength={1000} rows={3}
                 className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300 resize-none"
-                placeholder="問題点・注意事項・特記事項" />
+                placeholder={tr("ncRecordPage.notePlaceholder2", "問題点・注意事項・特記事項")} />
               <div className="text-right text-xs text-slate-400 mt-1">{note.length} / 1000</div>
             </div>
 
@@ -737,11 +740,11 @@ function RecordPageInner() {
             <div className="flex gap-3">
               <button onClick={handleSave} disabled={saving}
                 className="flex-1 py-3 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white font-bold text-sm transition-colors">
-                {saving ? "保存中..." : editRecordId ? "✓ 更新（保存）" : "✓ 作業完了（登録）"}
+                {saving ? tr("ncRecordPage.savingLabel2", "保存中...") : editRecordId ? tr("ncRecordPage.updateSaveButton2", "✓ 更新（保存）") : tr("ncRecordPage.completeRegisterButton2", "✓ 作業完了（登録）")}
               </button>
               <button onClick={() => { resetForm(nc); if (!editRecordId) endSession(); router.push(`/nc/${ncId}`); }}
                 className="px-6 py-3 rounded-xl border border-slate-300 text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors">
-                ✕ キャンセル
+                {tr("ncRecordPage.cancelButton3", "✕ キャンセル")}
               </button>
             </div>
           </div>
@@ -753,11 +756,11 @@ function RecordPageInner() {
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
             <div className="bg-slate-800 px-5 py-4">
-              <h2 className="text-white font-bold">⏱ 作業記録 — 担当者認証</h2>
+              <h2 className="text-white font-bold">{tr("ncRecordPage.authModalTitle", "⏱ 作業記録 — 担当者認証")}</h2>
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-500 block mb-2">担当者を選択</label>
+                <label className="text-xs font-bold text-slate-500 block mb-2">{tr("ncRecordPage.selectOperatorLabel", "担当者を選択")}</label>
                 <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
                   {authUsers.map(u => (
                     <button key={u.id} type="button" onClick={() => { setSelOpId(u.id); setAuthError(""); }}
@@ -768,7 +771,7 @@ function RecordPageInner() {
                 </div>
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1">パスワード</label>
+                <label className="text-xs font-bold text-slate-500 block mb-1">{tr("ncRecordPage.passwordLabel", "パスワード")}</label>
                 <input type="password" value={password} onChange={e => setPassword(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && handleAuth()}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
@@ -776,10 +779,10 @@ function RecordPageInner() {
               {authError && <p className="text-red-600 text-sm bg-red-50 rounded px-3 py-2">{authError}</p>}
               <div className="flex gap-3">
                 <button onClick={() => { setShowAuth(false); setPassword(""); setAuthError(""); }}
-                  className="flex-1 py-2 rounded-lg border border-slate-300 text-slate-600 text-sm font-medium">キャンセル</button>
+                  className="flex-1 py-2 rounded-lg border border-slate-300 text-slate-600 text-sm font-medium">{tr("ncRecordPage.cancelButton4", "キャンセル")}</button>
                 <button onClick={handleAuth} disabled={authLoading || !selOpId || !password}
                   className="flex-1 py-2 rounded-lg bg-sky-600 text-white text-sm font-bold disabled:opacity-40">
-                  {authLoading ? "認証中..." : "確認して開始"}
+                  {authLoading ? tr("ncRecordPage.authenticatingLabel", "認証中...") : tr("ncRecordPage.confirmAndStartButton", "確認して開始")}
                 </button>
               </div>
             </div>
@@ -798,8 +801,9 @@ function RecordPageInner() {
 }
 
 export default function RecordPage() {
+  const { t: tr } = useLanguage();
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen text-slate-400">読み込み中…</div>}>
+    <Suspense fallback={<div className="flex items-center justify-center h-screen text-slate-400">{tr("ncRecordPage.loadingEllipsis5","読み込み中…")}</div>}>
       <RecordPageInner />
     </Suspense>
   );
