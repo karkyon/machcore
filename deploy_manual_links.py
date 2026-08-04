@@ -62,10 +62,14 @@ def die(msg):
 
 def replace_once(path: Path, old: str, new: str, label: str):
     text = path.read_text(encoding="utf-8")
+    # 「newの内容が既に含まれているか」を最優先でチェックする。
+    # (旧ロジックは「oldが見つからない時だけnewの有無を見る」形だったため、
+    #  old側の文字列がnewの一部としてそのまま残るパターン(末尾に追記する形の変更)で
+    #  二重適用を検知できず、実行するたびに追記され続けるバグがあった)
+    if new in text:
+        print(f"  ↷ {label}: 既に適用済みのためスキップ")
+        return
     if old not in text:
-        if new in text:
-            print(f"  ↷ {label}: 既に適用済みのためスキップ")
-            return
         die(f"{label}: 差し替え対象の文字列が見つかりません。ファイル構成が想定と異なる可能性があります。\n   対象ファイル: {path}")
     if text.count(old) != 1:
         die(f"{label}: 差し替え対象の文字列が複数箇所にヒットしました（一意になっていません）。\n   対象ファイル: {path}")
