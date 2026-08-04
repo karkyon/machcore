@@ -42,7 +42,8 @@
     "menuSpecialSheets": "Quản lý phiếu SP",
     "menuUploadAgent": "UploadAgent",
     "menuFileBrowser": "Trình duyệt tệp",
-    "menuLanguage": "Cài đặt ngôn ngữ"
+    "menuLanguage": "Cài đặt ngôn ngữ",
+    "menuManual": "📖 Sổ tay hướng dẫn"
   },
   "adminLogin": {
     "title": "Đăng nhập quản trị",
@@ -193,7 +194,8 @@
     "colPrinter": "Người in",
     "colElapsed": "Thời gian trôi qua",
     "sheetCountShort": "{n} phiếu",
-    "typeRef": "Tham khảo"
+    "typeRef": "Tham khảo",
+    "manualLink": "📖 Sổ tay nghiệp vụ"
   },
   "search": {
     "mcSystemTitle": "Hệ thống quản lý gia công MC",

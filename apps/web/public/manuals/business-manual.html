@@ -1,0 +1,2011 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MachCore 業務オペレーションマニュアル / Sổ tay vận hành nghiệp vụ</title>
+<style>
+:root {
+  --bg: #f5f7fa; --panel:#ffffff; --ink:#1e293b; --sub:#64748b;
+  --line:#e2e8f0; --accent:#0ea5e9; --accent-dark:#0284c7;
+}
+* { box-sizing:border-box; }
+body { margin:0; font-family:"Segoe UI","Hiragino Kaku Gothic ProN",Meiryo,sans-serif; background:var(--bg); color:var(--ink); }
+.lang-vi { display:none; }
+body.lang-vi-active .lang-ja { display:none; }
+body.lang-vi-active .lang-vi { display:inline; }
+
+/* ---- top bar ---- */
+.topbar { position:sticky; top:0; z-index:50; background:#0f172a; color:#fff; padding:14px 24px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 8px rgba(0,0,0,.15); }
+.topbar h1 { font-size:16px; margin:0; font-weight:700; }
+.topbar .sub { font-size:11px; color:#94a3b8; margin-top:2px; }
+.lang-toggle { display:flex; background:#1e293b; border-radius:8px; padding:3px; gap:2px; }
+.lang-toggle button { border:none; background:transparent; color:#94a3b8; padding:7px 16px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:.15s; }
+.lang-toggle button.active { background:var(--accent); color:#fff; }
+
+/* ---- layout ---- */
+.layout { display:flex; max-width:1400px; margin:0 auto; }
+.sidebar { width:280px; flex-shrink:0; position:sticky; top:57px; height:calc(100vh - 57px); overflow-y:auto; background:var(--panel); border-right:1px solid var(--line); padding:16px 12px 60px; }
+.sidebar h2 { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--sub); margin:18px 8px 8px; }
+.sidebar h2:first-child { margin-top:4px; }
+.nav-search-box { position:sticky; top:-1px; background:var(--panel); padding:2px 4px 10px; margin-bottom:4px; z-index:5; }
+.nav-search-input { width:100%; box-sizing:border-box; padding:8px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12.5px; outline:none; }
+.nav-search-input:focus { border-color:var(--accent); }
+.nav-search-count { display:block; font-size:10.5px; color:var(--sub); margin-top:5px; padding-left:2px; }
+.nav-link.nav-hidden { display:none; }
+.sidebar h2.cat-hidden { display:none; }
+.nav-link mark { background:#fde68a; color:inherit; padding:0 1px; border-radius:2px; }
+.nav-link { display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:6px; font-size:12.5px; color:var(--ink); text-decoration:none; line-height:1.4; }
+.nav-link:hover { background:#f1f5f9; }
+.nav-link.active { background:#e0f2fe; color:var(--accent-dark); font-weight:600; }
+.nav-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+.main { flex:1; min-width:0; padding:28px 40px 100px; }
+.intro-box { background:linear-gradient(135deg,#0ea5e9,#0284c7); color:#fff; border-radius:14px; padding:28px 32px; margin-bottom:32px; }
+.intro-box h2 { margin:0 0 10px; font-size:22px; }
+.intro-box p { margin:0; font-size:14px; opacity:.95; line-height:1.7; }
+.toc-summary { display:flex; gap:16px; margin-top:18px; flex-wrap:wrap; }
+.toc-summary .chip { background:rgba(255,255,255,.18); padding:6px 14px; border-radius:20px; font-size:12px; }
+
+.cat-header { display:flex; align-items:center; gap:10px; margin:44px 0 18px; padding-bottom:10px; border-bottom:2px solid var(--line); }
+.cat-header h2 { font-size:19px; margin:0; }
+.cat-header .cat-badge { color:#fff; font-size:11px; padding:4px 10px; border-radius:6px; font-weight:700; }
+
+.scenario { background:var(--panel); border-radius:12px; margin-bottom:22px; box-shadow:0 1px 3px rgba(0,0,0,.06); overflow:hidden; scroll-margin-top:70px; }
+.scenario-head { padding:20px 24px 16px; border-left:5px solid; }
+.scenario[data-cat="mc"] .scenario-head { background:linear-gradient(135deg,#e0f2fe,#f0f9ff); }
+.scenario[data-cat="nc"] .scenario-head { background:linear-gradient(135deg,#fef3c7,#fffbeb); }
+.scenario[data-cat="admin"] .scenario-head { background:linear-gradient(135deg,#ede9fe,#f5f3ff); }
+.scenario-title-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.scenario-title-row h3 { margin:0; font-size:17px; }
+.cat-chip { color:#fff; font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:5px; white-space:nowrap; }
+.scenario-meta { display:flex; gap:16px; margin-top:9px; font-size:12px; color:var(--sub); flex-wrap:wrap; }
+.scenario-intro { margin:12px 0 0; font-size:13px; color:#475569; line-height:1.7; }
+
+.steps { padding:6px 24px 20px; }
+.step { display:flex; gap:14px; padding:16px 0; border-top:1px dashed var(--line); }
+.step:first-child { border-top:none; }
+.step-num { flex-shrink:0; width:28px; height:28px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; }
+.step-body h4 { margin:2px 0 6px; font-size:14.5px; }
+.step-body p { margin:0; font-size:13px; line-height:1.75; color:#334155; }
+.step-body code { background:#f1f5f9; padding:1px 5px; border-radius:4px; font-size:12px; }
+
+.shot-box { margin-top:12px; border:1.5px dashed #cbd5e1; border-radius:10px; background:#f8fafc; overflow:hidden; }
+.shot-head { display:flex; align-items:center; gap:8px; background:#eef2f7; padding:7px 12px; font-size:11.5px; color:#475569; }
+.shot-filename { font-family:monospace; font-weight:700; color:#0f172a; }
+.shot-size { margin-left:auto; background:#fff; border:1px solid #cbd5e1; padding:1px 7px; border-radius:4px; }
+.shot-body { padding:14px; }
+.shot-placeholder { height:70px; border-radius:6px; background:repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9 10px,#e2e8f0 10px,#e2e8f0 20px); display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:12px; font-weight:600; margin-bottom:8px; }
+.shot-desc { font-size:12px; color:#64748b; line-height:1.6; }
+.shot-desc-text { color:#334155; }
+
+.admin-table { width:100%; border-collapse:collapse; background:var(--panel); border-radius:12px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+.admin-table th { background:#f1f5f9; text-align:left; padding:12px 16px; font-size:12px; color:var(--sub); }
+.admin-table td { padding:13px 16px; border-top:1px solid var(--line); font-size:13px; vertical-align:top; }
+.admin-menu-name { font-weight:700; white-space:nowrap; color:#0f172a; }
+.admin-note { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:16px 20px; margin-top:18px; font-size:12.5px; color:#92400e; line-height:1.7; }
+
+.progress-bar { position:fixed; top:0; left:0; height:3px; background:var(--accent); z-index:100; width:0%; transition:width .1s; }
+
+@media (max-width: 900px) {
+  .sidebar { display:none; }
+  .main { padding:20px; }
+}
+
+.tabbar { display:flex; gap:6px; max-width:1400px; margin:0 auto; padding:14px 40px 0; }
+.tab-btn { display:flex; align-items:center; gap:8px; padding:11px 22px; border:none; background:#fff; border:1.5px solid var(--line); border-bottom:none; border-radius:10px 10px 0 0; font-size:13.5px; font-weight:700; color:var(--sub); cursor:pointer; position:relative; top:1px; }
+.tab-btn.active { color:var(--ink); background:var(--panel); border-color:var(--accent); box-shadow:0 -2px 6px rgba(0,0,0,.04); }
+.tab-dot { width:8px; height:8px; border-radius:50%; }
+.layout { border-top:1.5px solid var(--line); }
+
+.tab-panel { display:none; }
+body.tab-mc #tabPanelMc, body.tab-nc #tabPanelNc { display:block; }
+
+.sidebar h2, .sidebar a.nav-link { display:none; }  /* 表示はJSのinline styleで一元制御 */
+.sidebar h2 {
+  font-size:13px; font-weight:800; letter-spacing:.02em; margin:0 2px 12px; padding:9px 12px;
+  border-radius:8px; text-transform:none;
+}
+.sidebar h2[data-cat="mc"] { background:#e0f2fe; color:#075985; }
+.sidebar h2[data-cat="nc"] { background:#fef3c7; color:#92400e; }
+.sidebar h2[data-cat="admin"] { background:#ede9fe; color:#5b21b6; }
+
+@media (max-width: 900px) {
+  .tabbar { padding:10px 16px 0; overflow-x:auto; }
+}
+</style>
+</head>
+<body class="tab-mc">
+<div class="progress-bar" id="progressBar"></div>
+<div class="topbar">
+  <div>
+    <h1>MachCore <span class="lang-ja">業務オペレーションマニュアル</span><span class="lang-vi">Sổ tay vận hành nghiệp vụ</span></h1>
+    <div class="sub lang-ja">イモト精機株式会社 ／ 全27シナリオ収録 ／ v2.0</div>
+    <div class="sub lang-vi">Công ty TNHH Imoto Seiki / 27 kịch bản / v2.0</div>
+  </div>
+  <div class="lang-toggle">
+    <button id="btnJa" class="active" onclick="setLang('ja')">日本語</button>
+    <button id="btnVi" onclick="setLang('vi')">Tiếng Việt</button>
+  </div>
+</div>
+
+
+<div class="tabbar">
+  <button class="tab-btn active" id="tabBtnMc" data-tab="mc" onclick="switchTab('mc')">
+    <span class="tab-dot" style="background:#0ea5e9"></span>
+    <span class="lang-ja">MC マシニング</span><span class="lang-vi">MC (Gia công)</span>
+  </button>
+  <button class="tab-btn" id="tabBtnNc" data-tab="nc" onclick="switchTab('nc')">
+    <span class="tab-dot" style="background:#f59e0b"></span>
+    <span class="lang-ja">NC 旋盤</span><span class="lang-vi">NC (Tiện)</span>
+  </button>
+</div>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar">
+    <div class="nav-search-box">
+      <input type="text" id="navSearch" class="nav-search-input" placeholder="キーワードで絞り込み..." data-ph-ja="キーワードで絞り込み..." data-ph-vi="Lọc theo từ khóa..." oninput="filterNav(this.value)">
+      <span id="navSearchCount" class="nav-search-count"></span>
+    </div>
+    <h2 class="lang-ja" data-cat="mc">MC マシニング</h2><h2 class="lang-vi" data-cat="mc">MC (Gia công)</h2>
+    <a href="#mc-01" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">マシニング情報の検索・閲覧</span><span class="nav-text lang-vi">Tìm kiếm và xem thông tin gia công (MC)</span></a>
+<a href="#mc-02" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">プログラムファイルの確認とUSBへのダウンロード</span><span class="nav-text lang-vi">Kiểm tra file chương trình và tải xuống USB</span></a>
+<a href="#mc-03" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">段取シート（リピート）の印刷</span><span class="nav-text lang-vi">In phiếu cài đặt (Lặp lại)</span></a>
+<a href="#mc-04" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">マシニング情報の新規登録〜新規段取シートの出力</span><span class="nav-text lang-vi">Đăng ký thông tin gia công mới → xuất phiếu cài đặt mới</span></a>
+<a href="#mc-05" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">供用（共通加工）での新規登録</span><span class="nav-text lang-vi">Đăng ký mới dùng chung (gia công chung)</span></a>
+<a href="#mc-06" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">段取シートバック（新規）STEP1〜STEP2の手順</span><span class="nav-text lang-vi">Phiếu cài đặt quay lại (Mới) — quy trình STEP1~STEP2</span></a>
+<a href="#mc-07" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">段取シートバック（リピート）の手順</span><span class="nav-text lang-vi">Phiếu cài đặt quay lại (Lặp lại) — quy trình</span></a>
+<a href="#mc-08" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">図面・写真の登録・差し替え（1枚ずつ／複数一括）</span><span class="nav-text lang-vi">Đăng ký / thay thế bản vẽ, ảnh (từng tấm hoặc hàng loạt)</span></a>
+<a href="#mc-09" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">USBからのプログラムファイルの登録</span><span class="nav-text lang-vi">Đăng ký file chương trình từ USB</span></a>
+<a href="#mc-10" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">プログラムファイルの編集〜サーバへの登録</span><span class="nav-text lang-vi">Chỉnh sửa file chương trình → đăng ký lên máy chủ</span></a>
+<a href="#mc-11" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">段取シート未回収リストの確認</span><span class="nav-text lang-vi">Kiểm tra danh sách phiếu cài đặt chưa thu hồi</span></a>
+<a href="#mc-12" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">段取シート紛失時の処理方法</span><span class="nav-text lang-vi">Cách xử lý khi phiếu cài đặt bị thất lạc</span></a>
+<a href="#mc-13" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">ツーリング／インデックスプログラム／ワークオフセット情報の編集方法</span><span class="nav-text lang-vi">Cách chỉnh sửa thông tin dụng cụ / chương trình Index / offset gia công</span></a>
+<a href="#mc-14" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">プログラムファイルからのツーリング情報抽出〜ツーリング情報編集・登録方法</span><span class="nav-text lang-vi">Trích xuất thông tin dụng cụ từ file chương trình → chỉnh sửa và đăng ký</span></a>
+<a href="#mc-15" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">作業記録の参照方法</span><span class="nav-text lang-vi">Cách tham chiếu ghi nhận công việc</span></a>
+<a href="#mc-16" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">履歴情報の参照方法と種類・内容</span><span class="nav-text lang-vi">Cách tham chiếu lịch sử và các loại/nội dung</span></a>
+<a href="#mc-17" class="nav-link" data-cat="mc"><span class="nav-dot" style="background:#0ea5e9"></span><span class="nav-text lang-ja">承認作業（参考）</span><span class="nav-text lang-vi">Công việc duyệt (tham khảo)</span></a>
+    <h2 class="lang-ja" data-cat="nc">NC 旋盤</h2><h2 class="lang-vi" data-cat="nc">NC (Tiện)</h2>
+    <a href="#nc-01" class="nav-link" data-cat="nc"><span class="nav-dot" style="background:#f59e0b"></span><span class="nav-text lang-ja">NC部品の検索・閲覧（基本）</span><span class="nav-text lang-vi">Tìm kiếm và xem chi tiết NC (cơ bản)</span></a>
+<a href="#nc-02" class="nav-link" data-cat="nc"><span class="nav-dot" style="background:#f59e0b"></span><span class="nav-text lang-ja">NCプログラムファイルのUSBダウンロード</span><span class="nav-text lang-vi">Tải file chương trình NC xuống USB</span></a>
+<a href="#nc-03" class="nav-link" data-cat="nc"><span class="nav-dot" style="background:#f59e0b"></span><span class="nav-text lang-ja">NC新規登録</span><span class="nav-text lang-vi">Đăng ký NC mới</span></a>
+<a href="#nc-04" class="nav-link" data-cat="nc"><span class="nav-dot" style="background:#f59e0b"></span><span class="nav-text lang-ja">NC情報の編集（工具・クランプノート・写真）</span><span class="nav-text lang-vi">Chỉnh sửa thông tin NC (dụng cụ, ghi chú kẹp, ảnh)</span></a>
+<a href="#nc-05" class="nav-link" data-cat="nc"><span class="nav-dot" style="background:#f59e0b"></span><span class="nav-text lang-ja">NC段取シートの印刷</span><span class="nav-text lang-vi">In phiếu cài đặt NC</span></a>
+<a href="#nc-06" class="nav-link" data-cat="nc"><span class="nav-dot" style="background:#f59e0b"></span><span class="nav-text lang-ja">NC作業記録の登録・修正・削除</span><span class="nav-text lang-vi">Đăng ký, sửa, xóa ghi nhận công việc NC</span></a>
+<a href="#nc-07" class="nav-link" data-cat="nc"><span class="nav-dot" style="background:#f59e0b"></span><span class="nav-text lang-ja">NC段取シートバック（新規／リピート）</span><span class="nav-text lang-vi">Phiếu cài đặt NC quay lại (Mới / Lặp lại)</span></a>
+<a href="#nc-08" class="nav-link" data-cat="nc"><span class="nav-dot" style="background:#f59e0b"></span><span class="nav-text lang-ja">NC段取シート未回収・紛失処理</span><span class="nav-text lang-vi">NC — Chưa thu hồi / xử lý thất lạc phiếu cài đặt</span></a>
+<a href="#nc-09" class="nav-link" data-cat="nc"><span class="nav-dot" style="background:#f59e0b"></span><span class="nav-text lang-ja">NC履歴情報の参照（変更・作業記録・印刷・操作ログ）</span><span class="nav-text lang-vi">Tham chiếu lịch sử NC (thay đổi, ghi nhận, in, thao tác)</span></a>
+<a href="#nc-10" class="nav-link" data-cat="nc"><span class="nav-dot" style="background:#f59e0b"></span><span class="nav-text lang-ja">NC承認作業（参考）</span><span class="nav-text lang-vi">Công việc duyệt NC (tham khảo)</span></a>
+    
+  </nav>
+
+  <main class="main">
+    <div class="intro-box">
+      <h2 class="lang-ja">業務シナリオマニュアル</h2>
+      <h2 class="lang-vi">Sổ tay kịch bản nghiệp vụ</h2>
+      <p class="lang-ja">業務目的ベースでの操作マニュアルとなります。左のメニューから該当する業務シーンを選んでください。</p>
+      <p class="lang-vi">Đây là sổ tay thao tác dựa trên mục đích nghiệp vụ. Vui lòng chọn tình huống nghiệp vụ tương ứng từ menu bên trái.</p>
+    </div>
+
+    <div class="tab-panel" id="tabPanelMc" data-tab="mc">
+<div class="cat-header">
+      <span class="cat-badge" style="background:#0ea5e9">MC</span>
+      <h2 class="lang-ja">MC マシニング — 業務シナリオ</h2><h2 class="lang-vi">MC (Gia công) — Kịch bản nghiệp vụ</h2>
+    </div>
+    
+  <section id="mc-01" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">マシニング情報の検索・閲覧</span><span class="bi lang-vi">Tìm kiếm và xem thông tin gia công (MC)</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 全員（認証不要）</span>
+        <span><span class="bi lang-ja">🔓 認証不要</span><span class="bi lang-vi">🔓 Không cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">現場で「この部品の段取り方法・工具構成を確認したい」「図面を見たい」という時に、まず最初に行う操作です。認証は不要で、誰でも閲覧できます。</span><span class="bi lang-vi">Đây là thao tác đầu tiên khi bạn cần kiểm tra cách gá đặt, cấu hình dụng cụ, hoặc xem bản vẽ của một chi tiết tại hiện trường. Không cần xác thực, ai cũng có thể xem.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">ダッシュボードから「部品検索」を開く</span><span class="bi lang-vi">Mở "Tìm kiếm chi tiết" từ Dashboard</span></h4>
+        <p><span class="bi lang-ja">MCダッシュボード画面上部の <b>部品検索</b> をクリックします。部品番号・部品名・MCID・加工IDのいずれからでも検索できます。</span><span class="bi lang-vi">Nhấp vào <b>Tìm kiếm chi tiết</b> ở phía trên màn hình Dashboard MC. Có thể tìm theo mã chi tiết, tên chi tiết, MCID hoặc mã gia công.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-01-dashboard.png</span>
+        <span class="shot-size">1280×720</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">MCダッシュボード画面。上部に部品検索ボタンが見える状態</span><span class="shot-desc-text lang-vi">Màn hình Dashboard MC, nút Tìm kiếm chi tiết ở phía trên</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">キーワードを入力し検索結果から選択</span><span class="bi lang-vi">Nhập từ khóa và chọn từ kết quả tìm kiếm</span></h4>
+        <p><span class="bi lang-ja">部分一致で検索されます。結果一覧から対象の部品をクリックすると、工程（MC工程No）が複数ある場合は工程選択パネルが表示されます。</span><span class="bi lang-vi">Tìm kiếm theo khớp một phần. Nhấp vào chi tiết trong danh sách kết quả; nếu có nhiều công đoạn (MC工程No), bảng chọn công đoạn sẽ hiển thị.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-01-search-result.png</span>
+        <span class="shot-size">1280×720</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">検索結果一覧の表示状態（複数件ヒット時）</span><span class="shot-desc-text lang-vi">Danh sách kết quả tìm kiếm (khi có nhiều kết quả)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">MC詳細画面で内容を確認する</span><span class="bi lang-vi">Kiểm tra nội dung trên màn hình chi tiết MC</span></h4>
+        <p><span class="bi lang-ja">基本情報（機械・主Oナンバ・サイクルタイム等）、ツーリングリスト、ワークオフセット、インデックスプログラム、共通加工グループ、図面・写真が一画面で確認できます。図面はサムネイルクリックで拡大表示されます。</span><span class="bi lang-vi">Có thể xem thông tin cơ bản (máy, số O chính, thời gian chu kỳ...), danh sách dụng cụ, offset gia công, chương trình index, nhóm gia công dùng chung, bản vẽ/ảnh trên cùng một màn hình. Nhấp vào ảnh thu nhỏ bản vẽ để phóng to.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-01-detail.png</span>
+        <span class="shot-size">1280×900</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">MC詳細画面全体（基本情報〜ツーリングリストまでスクロールした状態）</span><span class="shot-desc-text lang-vi">Toàn bộ màn hình chi tiết MC (đã cuộn từ thông tin cơ bản đến danh sách dụng cụ)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-02" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">プログラムファイルの確認とUSBへのダウンロード</span><span class="bi lang-vi">Kiểm tra file chương trình và tải xuống USB</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">機械にプログラムを入れる前に内容を確認し、USBメモリへ書き出す作業です。UploadAgentが常駐している端末でのみ実行できます。</span><span class="bi lang-vi">Thao tác kiểm tra nội dung chương trình trước khi nạp vào máy, và xuất ra USB. Chỉ thực hiện được trên máy tính có UploadAgent đang chạy nền.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">MC詳細 →「変更・登録」タブでPGビューアを開く</span><span class="bi lang-vi">Từ chi tiết MC → tab "Sửa/Đăng ký" mở PG Viewer</span></h4>
+        <p><span class="bi lang-ja">プログラム情報欄の <b>📄 PGエディタを開く</b>（参照のみの場合はPGビューア）をクリック。フォルダ単位登録の場合はツリーで対象ファイルを選択します。</span><span class="bi lang-vi">Nhấp <b>📄 Mở PG Editor</b> (nếu chỉ xem thì là PG Viewer) trong mục thông tin chương trình. Nếu đăng ký theo thư mục, chọn file cần xem trên cây thư mục.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-02-pgviewer-open.png</span>
+        <span class="shot-size">1280×800</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">プログラム情報欄とPGエディタ起動ボタン</span><span class="shot-desc-text lang-vi">Mục thông tin chương trình và nút mở PG Editor</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">内容を確認する</span><span class="bi lang-vi">Kiểm tra nội dung</span></h4>
+        <p><span class="bi lang-ja">行数・文字数が画面下部に表示されます。フォルダ構成の場合は左のツリーから他ファイルにも切り替え可能です。</span><span class="bi lang-vi">Số dòng/ký tự hiển thị ở dưới màn hình. Nếu có cấu trúc thư mục, có thể chuyển sang file khác từ cây bên trái.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">USBへ書き出し（UploadAgent経由）</span><span class="bi lang-vi">Xuất ra USB (qua UploadAgent)</span></h4>
+        <p><span class="bi lang-ja"><b>💾 USBへ書き出し(UA経由)</b> をクリック。UploadAgentが起動していない場合は「UploadAgentが起動していません」と警告されるので、タスクトレイのアイコンを確認して起動してください。フォルダ単位登録の場合は全ファイル一括書き出しも選べます。</span><span class="bi lang-vi">Nhấp <b>💾 Xuất ra USB (qua UA)</b>. Nếu UploadAgent chưa chạy, sẽ có cảnh báo "UploadAgent chưa khởi động" — kiểm tra icon khay hệ thống và khởi động. Nếu đăng ký theo thư mục, có thể chọn xuất toàn bộ file cùng lúc.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-02-usb-export.png</span>
+        <span class="shot-size">800×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">USB書き出しボタンと保存先フォルダ選択ダイアログ（UploadAgent側）</span><span class="shot-desc-text lang-vi">Nút xuất USB và hộp thoại chọn thư mục lưu (phía UploadAgent)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">書き出し完了の確認</span><span class="bi lang-vi">Xác nhận xuất hoàn tất</span></h4>
+        <p><span class="bi lang-ja">「✅ USBへ書き出しました（n件）」のトースト表示で完了です。この操作は操作ログ（opUsbDownload）に自動記録されます。</span><span class="bi lang-vi">Hoàn tất khi hiện thông báo "✅ Đã xuất ra USB (n file)". Thao tác này được tự động ghi vào nhật ký thao tác (opUsbDownload).</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-03" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">段取シート（リピート）の印刷</span><span class="bi lang-vi">In phiếu cài đặt (Lặp lại)</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">既に登録済みのマシニング情報を、内容変更なしでそのまま再度加工する際に使う、最も頻度の高い操作です。</span><span class="bi lang-vi">Đây là thao tác được dùng nhiều nhất — khi gia công lại một chi tiết đã có thông tin đăng ký sẵn mà không thay đổi nội dung.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">対象MCを検索し「段取シート」タブを開く</span><span class="bi lang-vi">Tìm MC cần in và mở tab "Phiếu cài đặt"</span></h4>
+        <p><span class="bi lang-ja">シナリオ1の手順で対象を検索し、詳細画面の <b>段取シート</b> タブへ移動します。</span><span class="bi lang-vi">Tìm theo các bước ở Kịch bản 1, sau đó chuyển sang tab <b>Phiếu cài đặt</b> trong màn hình chi tiết.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">担当者認証を行う</span><span class="bi lang-vi">Xác thực người phụ trách</span></h4>
+        <p><span class="bi lang-ja">「発行には担当者認証が必要です」の案内に従い、担当者を選択しパスワードを入力して認証します。</span><span class="bi lang-vi">Theo hướng dẫn "Cần xác thực người phụ trách để phát hành", chọn người phụ trách và nhập mật khẩu để xác thực.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-03-auth-modal.png</span>
+        <span class="shot-size">500×400</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">担当者認証モーダル（担当者選択＋パスワード入力欄）</span><span class="shot-desc-text lang-vi">Cửa sổ xác thực (chọn người phụ trách + ô nhập mật khẩu)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">発行前の確認（用途・ワーク数・使用機械）</span><span class="bi lang-vi">Xác nhận trước khi phát hành (mục đích, số lượng phôi, máy sử dụng)</span></h4>
+        <p><span class="bi lang-ja">用途（段取／参考資料／連続使用）、ワーク数、使用機械を選択し「確認完了」を押します。過去にクレーム・トラブル実績のある製品は<b>スペシャル段取シート</b>の警告が表示されるので、内容を必ず確認してください。</span><span class="bi lang-vi">Chọn mục đích (cài đặt / tài liệu tham khảo / dùng liên tục), số lượng phôi, máy sử dụng rồi nhấn "Xác nhận hoàn tất". Nếu sản phẩm từng có khiếu nại/sự cố, sẽ hiện cảnh báo <b>Phiếu cài đặt đặc biệt (SP)</b> — bắt buộc phải kiểm tra nội dung.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-03-confirm-issue.png</span>
+        <span class="shot-size">600×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">発行前の確認ダイアログ（用途・ワーク数・使用機械の選択状態）</span><span class="shot-desc-text lang-vi">Hộp thoại xác nhận trước khi phát hành (mục đích, số lượng, máy)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">印刷オプションを選び印刷する</span><span class="bi lang-vi">Chọn tùy chọn in và in</span></h4>
+        <p><span class="bi lang-ja">図・ツーリングリスト・クランプ情報・ワークオフセット・インデックスプログラムの含有有無を選択し、<b>🖨 プリンタに直接印刷</b>（現場のOKI MC562等）または<b>PDFプレビュー</b>を選択します。印刷すると発行履歴が自動記録されます。</span><span class="bi lang-vi">Chọn có bao gồm bản vẽ / danh sách dụng cụ / thông tin kẹp / offset gia công / chương trình index hay không, rồi chọn <b>🖨 In trực tiếp ra máy in</b> hoặc <b>Xem trước PDF</b>. Khi in, lịch sử phát hành được tự động ghi lại.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-03-print-options.png</span>
+        <span class="shot-size">700×600</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">印刷オプション選択画面と印刷ボタン</span><span class="shot-desc-text lang-vi">Màn hình chọn tùy chọn in và nút in</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-04" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">マシニング情報の新規登録〜新規段取シートの出力</span><span class="bi lang-vi">Đăng ký thông tin gia công mới → xuất phiếu cài đặt mới</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">これまで存在しなかった部品・工程を新規にシステムへ登録し、初回加工用の段取シートを発行するまでの一連の流れです。</span><span class="bi lang-vi">Toàn bộ quy trình đăng ký một chi tiết/công đoạn hoàn toàn mới vào hệ thống, đến khi phát hành phiếu cài đặt cho lần gia công đầu tiên.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">「新規登録」からMC新規作成を開始</span><span class="bi lang-vi">Bắt đầu tạo MC mới từ "Đăng ký mới"</span></h4>
+        <p><span class="bi lang-ja">ダッシュボードの <b>新規登録</b> を選択。部品が既存マスタにあるか検索し、なければ部品情報から新規作成します。</span><span class="bi lang-vi">Chọn <b>Đăng ký mới</b> trên Dashboard. Tìm xem chi tiết đã có trong master chưa; nếu chưa có thì tạo mới từ thông tin chi tiết.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-04-new-start.png</span>
+        <span class="shot-size">1000×700</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">新規登録メニューと部品選択・新規作成画面</span><span class="shot-desc-text lang-vi">Menu đăng ký mới và màn hình chọn/tạo chi tiết</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">段取シートバック STEP1：基本情報を入力</span><span class="bi lang-vi">Phiếu cài đặt STEP1: Nhập thông tin cơ bản</span></h4>
+        <p><span class="bi lang-ja">「段取シートバック STEP1」バナーが表示された編集画面で、機械・主Oナンバ・サイクルタイム／1P・加工個数／1サイクル・クランプ等の基本情報を入力します。担当者確認（パスワード）が必要です。</span><span class="bi lang-vi">Trên màn hình chỉnh sửa hiển thị banner "Phiếu cài đặt STEP1", nhập thông tin cơ bản: máy, số O chính, thời gian chu kỳ/1P, số lượng gia công/1 chu kỳ, kẹp v.v. Cần xác nhận người phụ trách (mật khẩu).</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-04-step1-basic.png</span>
+        <span class="shot-size">1280×800</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">STEP1基本情報入力フォーム全体</span><span class="shot-desc-text lang-vi">Toàn bộ form nhập thông tin cơ bản STEP1</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">ツーリング・ワークオフセット・インデックスPGを登録</span><span class="bi lang-vi">Đăng ký dụng cụ, offset gia công, chương trình Index</span></h4>
+        <p><span class="bi lang-ja">編集メニューの各セクションタブ（ツーリング／ワークオフセット／インデックスPG）で行を追加し入力します。ツーリングはプログラムから自動抽出も可能です（シナリオmc-14参照）。</span><span class="bi lang-vi">Trong các tab của menu chỉnh sửa (Dụng cụ / Offset gia công / Chương trình Index), thêm dòng và nhập dữ liệu. Có thể tự động trích xuất dụng cụ từ chương trình (xem Kịch bản mc-14).</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-04-tooling-tab.png</span>
+        <span class="shot-size">1280×800</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">ツーリングリスト入力画面（行追加後の状態）</span><span class="shot-desc-text lang-vi">Màn hình nhập danh sách dụng cụ (sau khi thêm dòng)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">図・写真、プログラムファイルを登録</span><span class="bi lang-vi">Đăng ký bản vẽ/ảnh, file chương trình</span></h4>
+        <p><span class="bi lang-ja">「図・写真」セクションで画像を登録し、プログラム情報欄からPGファイルをUSBから登録します（シナリオmc-09参照）。</span><span class="bi lang-vi">Đăng ký ảnh trong mục "Bản vẽ/Ảnh", đăng ký file PG từ USB trong mục thông tin chương trình (xem Kịch bản mc-09).</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">「STEP1完了 → STEP2(作業記録)へ」ボタンを押す</span><span class="bi lang-vi">Nhấn nút "Hoàn tất STEP1 → STEP2 (Ghi nhận công việc)"</span></h4>
+        <p><span class="bi lang-ja">ボタンを押すと、まず入力内容がサーバに保存され、続けて自動的に<b>「終了確認 — 変更内容を記録」</b>モーダルが表示されます。この保存の時点ではまだバージョンは確定していません（バージョン確定は次のステップで行われます）。</span><span class="bi lang-vi">Khi nhấn nút, nội dung nhập sẽ được lưu lên máy chủ trước, sau đó cửa sổ <b>"Xác nhận kết thúc — Ghi nhận nội dung thay đổi"</b> sẽ tự động hiển thị. Tại thời điểm lưu này, phiên bản vẫn chưa được xác định (việc xác định phiên bản diễn ra ở bước tiếp theo).</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">終了確認モーダルの内容（新規登録の場合は自動固定）</span><span class="bi lang-vi">Nội dung cửa sổ xác nhận kết thúc (trường hợp đăng ký mới sẽ tự động cố định)</span></h4>
+        <p><span class="bi lang-ja">モーダル上部に説明文「この変更をどの種類として登録しますか？バージョンが更新されます。」が表示されます。<b>新規登録（段取シートバックSTEP1）の場合は「変更種別: 新規登録」に自動固定</b>され、種別を選ぶ必要はありません。その下に補足として「バージョン 0.0001 → 1.0001（整数部+1）」という具体的な変化内容が表示されます。</span><span class="bi lang-vi">Phía trên cửa sổ hiển thị mô tả "Bạn muốn đăng ký thay đổi này là loại nào? Phiên bản sẽ được cập nhật." <b>Trường hợp đăng ký mới (STEP1 của Phiếu cài đặt quay lại) sẽ tự động cố định là "Loại thay đổi: Đăng ký mới"</b>, không cần chọn loại. Bên dưới hiển thị nội dung thay đổi cụ thể: "Phiên bản 0.0001 → 1.0001 (Phần nguyên +1)".</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-04-kanryo-modal-new.png</span>
+        <span class="shot-size">480×420</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">終了確認モーダル（新規登録固定表示・バージョン0.0001→1.0001の案内・内容任意欄・OKボタン）</span><span class="shot-desc-text lang-vi">Cửa sổ xác nhận kết thúc (hiển thị cố định Đăng ký mới, thông báo phiên bản 0.0001→1.0001, ô nội dung tùy chọn, nút OK)</span></div>
+      </div>
+    </div>
+        <p><span class="bi lang-ja">「内容（任意）」欄には「登録内容の補足（任意）」がプレースホルダとして表示されます。必要であれば補足コメントを入力し、<b>「OK — 作業記録へ」</b>ボタンを押します。</span><span class="bi lang-vi">Ô "Nội dung (tùy chọn)" hiển thị placeholder "Bổ sung nội dung đăng ký (tùy chọn)". Nhập ghi chú bổ sung nếu cần, rồi nhấn nút <b>"OK — Đến ghi nhận công việc"</b>.</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">7</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">バージョン確定・変更履歴への記録・STEP2への遷移</span><span class="bi lang-vi">Xác định phiên bản, ghi vào lịch sử thay đổi, chuyển sang STEP2</span></h4>
+        <p><span class="bi lang-ja">OKを押すと、この時点で初めてサーバ側でバージョンが「1.0001」として確定され、変更履歴（変更種別:新規登録）にINSERTされます。「✅ 新規登録として登録しました」のトースト表示後、約0.8秒で自動的に作業記録画面（STEP2）へ遷移します。</span><span class="bi lang-vi">Khi nhấn OK, tại thời điểm này phiên bản mới được xác định là "1.0001" trên máy chủ và được ghi (INSERT) vào lịch sử thay đổi (loại thay đổi: Đăng ký mới). Sau khi hiện thông báo "✅ Đã đăng ký là Đăng ký mới", khoảng 0.8 giây sau sẽ tự động chuyển sang màn hình ghi nhận công việc (STEP2).</span></p>
+        <p><span class="bi lang-ja">なお、モーダルには他に <b>💾 一時保存</b>（バージョンを変更せず入力内容だけを保存し、モーダルを閉じてSTEP1に留まる）ボタンもありますが、新規登録の初回発行にはSTEP2への遷移が必須のため、通常は使用しません。</span><span class="bi lang-vi">Ngoài ra cửa sổ còn có nút <b>💾 Lưu tạm</b> (lưu nội dung nhập mà không thay đổi phiên bản, đóng cửa sổ và ở lại STEP1), nhưng vì lần phát hành đầu tiên của đăng ký mới bắt buộc phải chuyển sang STEP2 nên thông thường không dùng nút này.</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">8</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">新規段取シートを発行</span><span class="bi lang-vi">Phát hành phiếu cài đặt mới</span></h4>
+        <p><span class="bi lang-ja">シナリオmc-03と同じ手順（担当者認証→発行前確認→印刷オプション→印刷）で、種別「新規」の段取シートを発行します。</span><span class="bi lang-vi">Theo các bước giống Kịch bản mc-03 (xác thực → xác nhận trước khi phát hành → tùy chọn in → in) để phát hành phiếu cài đặt loại "Mới".</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-05" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">供用（共通加工）での新規登録</span><span class="bi lang-vi">Đăng ký mới dùng chung (gia công chung)</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">既存の加工内容を別部品でもそのまま使い回す「共通加工（供用）」として新規登録する手順です。同一の工具構成・段取りを複数部品コードで共有します。</span><span class="bi lang-vi">Quy trình đăng ký mới theo hình thức "gia công dùng chung" — dùng lại nội dung gia công đã có cho một chi tiết khác. Cùng một cấu hình dụng cụ/gá đặt được chia sẻ cho nhiều mã chi tiết.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">共通登録元のMCを検索・確認</span><span class="bi lang-vi">Tìm và xác nhận MC gốc để dùng chung</span></h4>
+        <p><span class="bi lang-ja">供用元となる既存MCを検索し、MC詳細画面の<b>共通加工グループ</b>欄で現在の登録状況（共通部品コードの有無）を確認します。</span><span class="bi lang-vi">Tìm MC gốc hiện có sẽ được dùng chung, kiểm tra tình trạng đăng ký hiện tại (có mã chi tiết dùng chung hay chưa) trong mục <b>Nhóm gia công dùng chung</b> ở màn hình chi tiết MC.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-05-common-group.png</span>
+        <span class="shot-size">900×400</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">MC詳細画面の共通加工グループ欄（登録済み一覧表示）</span><span class="shot-desc-text lang-vi">Mục Nhóm gia công dùng chung trong màn hình chi tiết MC (danh sách đã đăng ký)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">「新規登録」→ 共通登録モードを選択</span><span class="bi lang-vi">"Đăng ký mới" → chọn chế độ đăng ký dùng chung</span></h4>
+        <p><span class="bi lang-ja">ダッシュボードの新規登録から <code>/mc/new/common</code> の共通登録モードに入ります。新しい部品（供用先）を選び、供用元のMCIDを指定します。</span><span class="bi lang-vi">Từ Đăng ký mới trên Dashboard, vào chế độ đăng ký dùng chung <code>/mc/new/common</code>. Chọn chi tiết mới (nơi dùng chung), chỉ định MCID nguồn.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-05-new-common-form.png</span>
+        <span class="shot-size">1000×700</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">共通登録フォーム（部品選択＋供用元MCID指定欄）</span><span class="shot-desc-text lang-vi">Form đăng ký dùng chung (chọn chi tiết + ô chỉ định MCID nguồn)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">内容確認と登録</span><span class="bi lang-vi">Xác nhận nội dung và đăng ký</span></h4>
+        <p><span class="bi lang-ja">ツーリング・ワークオフセット・インデックスPG・図面・プログラムファイルは供用元の内容がそのまま引き継がれます。異なる部分（機械・クランプ等）のみ変更して登録します。</span><span class="bi lang-vi">Dụng cụ, offset gia công, chương trình Index, bản vẽ, file chương trình sẽ được kế thừa nguyên vẹn từ nguồn dùng chung. Chỉ cần thay đổi phần khác (máy, kẹp...) rồi đăng ký.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">共通加工グループに反映されたことを確認</span><span class="bi lang-vi">Xác nhận đã được thêm vào Nhóm gia công dùng chung</span></h4>
+        <p><span class="bi lang-ja">元のMC詳細画面に戻り、共通加工グループ欄に新しい部品コードが「← 現在」以外の行として追加されていることを確認します。</span><span class="bi lang-vi">Quay lại màn hình chi tiết MC gốc, xác nhận mã chi tiết mới đã được thêm vào mục Nhóm gia công dùng chung (là dòng khác với "← Hiện tại").</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-06" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">段取シートバック（新規）STEP1〜STEP2の手順</span><span class="bi lang-vi">Phiếu cài đặt quay lại (Mới) — quy trình STEP1~STEP2</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">新規段取シートを発行した後、実際の加工が終わって段取シートが現場から戻ってきた（回収された）ときに行う、作業記録の登録までの一連の流れです。</span><span class="bi lang-vi">Sau khi phát hành phiếu cài đặt mới, khi phiếu được thu hồi từ hiện trường sau khi gia công xong, đây là quy trình đăng ký ghi nhận công việc.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">未回収シート一覧から対象を選択</span><span class="bi lang-vi">Chọn phiếu từ danh sách chưa thu hồi</span></h4>
+        <p><span class="bi lang-ja">「段取シートバック」画面でMCID／NC IDを入力すると未回収シート一覧が表示されます。対象の発行No.をクリックします（シナリオmc-11参照）。</span><span class="bi lang-vi">Nhập MCID/NC ID trên màn hình "Phiếu cài đặt quay lại" để hiển thị danh sách phiếu chưa thu hồi. Nhấp vào số phát hành cần chọn (xem Kịch bản mc-11).</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">STEP1バナー確認後、変更・登録タブで内容確認</span><span class="bi lang-vi">Sau khi xác nhận banner STEP1, kiểm tra nội dung ở tab Sửa/Đăng ký</span></h4>
+        <p><span class="bi lang-ja">「段取シートバック STEP1」バナーが表示されます。実際の加工内容と登録内容に差異がないか確認し、必要であれば工具・オフセット等を修正します。</span><span class="bi lang-vi">Banner "Phiếu cài đặt quay lại STEP1" sẽ hiển thị. Kiểm tra xem nội dung gia công thực tế có khác với nội dung đã đăng ký không, sửa dụng cụ/offset nếu cần.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-06-step1-banner.png</span>
+        <span class="shot-size">1000×300</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">段取シートバック STEP1バナー表示部分</span><span class="shot-desc-text lang-vi">Phần hiển thị banner Phiếu cài đặt quay lại STEP1</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">「STEP1完了 → STEP2(作業記録)へ」を押す → 終了確認モーダルが表示される</span><span class="bi lang-vi">Nhấn "Hoàn tất STEP1 → STEP2 (Ghi nhận công việc)" → cửa sổ xác nhận kết thúc hiển thị</span></h4>
+        <p><span class="bi lang-ja">入力内容がまずサーバへ保存され、続けて<b>「終了確認 — 変更内容を記録」</b>モーダルが自動的に開きます。<b>これは段取シートバック（新規）でも必ず表示されます</b>（見落として即OKを押さないよう注意してください）。</span><span class="bi lang-vi">Nội dung nhập được lưu lên máy chủ trước, sau đó cửa sổ <b>"Xác nhận kết thúc — Ghi nhận nội dung thay đổi"</b> sẽ tự động mở. <b>Cửa sổ này luôn hiển thị kể cả với Phiếu cài đặt quay lại (Mới)</b> (lưu ý không bỏ sót và nhấn OK ngay).</span></p>
+        <p><span class="bi lang-ja">新規（sbMode）扱いのため<b>「変更種別: 新規登録」に自動固定</b>され、種別選択は不要です。モーダル上部の説明文「この変更をどの種類として登録しますか？バージョンが更新されます。」の下に、固定表示「変更種別: 新規登録」と「バージョン 0.0001 → 1.0001（整数部+1）」という具体的な変化内容が表示されます。「内容（任意）」に補足コメントを入力し、<b>「OK — 作業記録へ」</b>を押すとサーバ側でバージョンが確定・変更履歴にINSERTされ、自動的に作業記録入力画面（STEP2）に遷移します。</span><span class="bi lang-vi">Do được xử lý là chế độ Mới (sbMode) nên <b>tự động cố định là "Loại thay đổi: Đăng ký mới"</b>, không cần chọn loại. Dưới dòng mô tả phía trên cửa sổ "Bạn muốn đăng ký thay đổi này là loại nào? Phiên bản sẽ được cập nhật.", hiển thị cố định "Loại thay đổi: Đăng ký mới" và nội dung thay đổi cụ thể "Phiên bản 0.0001 → 1.0001 (Phần nguyên +1)". Nhập ghi chú bổ sung ở ô "Nội dung (tùy chọn)", nhấn <b>"OK — Đến ghi nhận công việc"</b>, phiên bản sẽ được xác định trên máy chủ, ghi vào lịch sử thay đổi, và tự động chuyển sang màn hình nhập ghi nhận công việc (STEP2).</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">作業記録（段取・量産）を入力</span><span class="bi lang-vi">Nhập ghi nhận công việc (cài đặt, sản xuất hàng loạt)</span></h4>
+        <p><span class="bi lang-ja">種別（量産／試作）、使用機械、段取時間（h/m入力または開始/終了日時）、量産時間、加工個数、備考を入力します。担当者は複数選択可能です。</span><span class="bi lang-vi">Nhập loại (sản xuất hàng loạt / thử nghiệm), máy sử dụng, thời gian cài đặt (nhập h/m hoặc ngày giờ bắt đầu/kết thúc), thời gian sản xuất, số lượng gia công, ghi chú. Có thể chọn nhiều người phụ trách.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-06-work-record-form.png</span>
+        <span class="shot-size">1280×800</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">作業記録入力フォーム（段取・量産グループ）</span><span class="shot-desc-text lang-vi">Form nhập ghi nhận công việc (nhóm Cài đặt và Sản xuất)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">作業完了（登録）</span><span class="bi lang-vi">Hoàn tất công việc (Đăng ký)</span></h4>
+        <p><span class="bi lang-ja"><b>✓ 作業完了（登録）</b> を押すと段取シートは自動的に回収済みステータスへ更新され、未回収一覧から消えます。</span><span class="bi lang-vi">Nhấn <b>✓ Hoàn tất công việc (Đăng ký)</b>, phiếu cài đặt tự động chuyển trạng thái đã thu hồi và biến mất khỏi danh sách chưa thu hồi.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-07" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">段取シートバック（リピート）の手順</span><span class="bi lang-vi">Phiếu cài đặt quay lại (Lặp lại) — quy trình</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">リピート印刷したシートが戻ってきた際の登録です。<b>新規バックと異なり「変更種別」を毎回必ず選択する必要があります</b>（自動判定・自動固定はされません）。選んだ種別によってバージョンの上がり方が変わるため、非常に重要な操作です。</span><span class="bi lang-vi">Đăng ký khi phiếu đã in Lặp lại được thu hồi. <b>Khác với quay lại Mới, mỗi lần đều phải chọn "Loại thay đổi"</b> (không có tự động phán đoán hay cố định). Đây là thao tác rất quan trọng vì cách tăng phiên bản phụ thuộc vào loại đã chọn.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">未回収シート一覧からリピート種別のシートを選択</span><span class="bi lang-vi">Chọn phiếu loại Lặp lại từ danh sách chưa thu hồi</span></h4>
+        <p><span class="bi lang-ja">「typeRepeat（リピート）」バッジが付いたシートを選択します。「段取シートバック リピート」バナーが表示されます。</span><span class="bi lang-vi">Chọn phiếu có nhãn "typeRepeat (Lặp lại)". Banner "Phiếu cài đặt quay lại — Lặp lại" sẽ hiển thị.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-07-repeat-banner.png</span>
+        <span class="shot-size">1000×300</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">段取シートバック リピートバナー（琥珀色表示）</span><span class="shot-desc-text lang-vi">Banner Phiếu cài đặt quay lại — Lặp lại (màu hổ phách)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">内容を確認・必要なら編集する</span><span class="bi lang-vi">Kiểm tra nội dung và chỉnh sửa nếu cần</span></h4>
+        <p><span class="bi lang-ja">工具摩耗による工具番号の変更、オフセット修正など、実際の加工内容と登録内容に差異があれば該当セクションで編集します。個々のセクションの「保存」ボタン（例:「✓ ツーリングを保存」）はその場でデータを保存するだけで<b>バージョンは変化しません</b>。バージョンが動くのは次の「更新完了」操作の時だけです。</span><span class="bi lang-vi">Nếu có sai khác giữa nội dung gia công thực tế và nội dung đã đăng ký (VD: đổi số dụng cụ do mòn, sửa offset), chỉnh sửa ở mục tương ứng. Nút "Lưu" của từng mục riêng lẻ (VD: "✓ Lưu dụng cụ") chỉ lưu dữ liệu tại chỗ, <b>không làm thay đổi phiên bản</b>. Phiên bản chỉ thay đổi khi thực hiện thao tác "Hoàn tất cập nhật" ở bước sau.</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">「更新完了 → 変更登録・STEP2へ」を押す → 終了確認モーダルが開く</span><span class="bi lang-vi">Nhấn "Hoàn tất cập nhật → Đăng ký thay đổi, chuyển STEP2" → cửa sổ xác nhận kết thúc mở ra</span></h4>
+        <p><span class="bi lang-ja">「終了確認 — 変更内容を記録」モーダルが開き、「この変更をどの種類として登録しますか？バージョンが更新されます。」と表示されます。リピートの場合は新規登録と異なり<b>「作業種別 *」の選択が必須</b>で、以下の6種類のボタンから1つを選びます（未選択のままOKは押せません）。</span><span class="bi lang-vi">Cửa sổ "Xác nhận kết thúc — Ghi nhận nội dung thay đổi" mở ra, hiển thị "Bạn muốn đăng ký thay đổi này là loại nào? Phiên bản sẽ được cập nhật." Với Lặp lại, khác với đăng ký mới, <b>bắt buộc phải chọn "Loại công việc *"</b> trong 6 loại nút sau (không thể nhấn OK nếu chưa chọn).</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-07-kanryo-modal-worktype.png</span>
+        <span class="shot-size">480×480</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">終了確認モーダル（作業種別6ボタン・大変更を選択した際の赤色警告表示）</span><span class="shot-desc-text lang-vi">Cửa sổ xác nhận kết thúc (6 nút loại công việc, cảnh báo màu đỏ khi chọn Thay đổi lớn)</span></div>
+      </div>
+    </div>
+        <p><span class="bi lang-ja">6種類は <b>大変更／小変更／追加／修正／削除／訂正</b> です。<b>「大変更」を選ぶと赤色の警告文「⚠️ 大変更: バージョンの整数部が+1（例: 1.0001 → 2.0001）」</b>が表示され、それ以外（小変更／追加／修正／削除／訂正）を選ぶと<b>「小変更系: 100分の1位が+0.01（例: 1.0001 → 1.0101）」</b>という説明が表示されます。工具交換や設定値の軽微な修正は通常「修正」または「小変更」を選び、加工方法自体を大きく変えた場合のみ「大変更」を選びます。</span><span class="bi lang-vi">6 loại là <b>Thay đổi lớn／Thay đổi nhỏ／Thêm／Sửa／Xóa／Đính chính</b>. <b>Nếu chọn "Thay đổi lớn"</b>, cảnh báo màu đỏ <b>"⚠️ Thay đổi lớn: Phần nguyên phiên bản +1 (VD: 1.0001 → 2.0001)"</b> sẽ hiển thị; nếu chọn loại khác (Thay đổi nhỏ／Thêm／Sửa／Xóa／Đính chính) sẽ hiển thị mô tả <b>"Nhóm thay đổi nhỏ: Hàng phần trăm +0.01 (VD: 1.0001 → 1.0101)"</b>. Thông thường khi đổi dụng cụ hoặc sửa nhỏ giá trị cài đặt thì chọn "Sửa" hoặc "Thay đổi nhỏ"; chỉ chọn "Thay đổi lớn" khi thay đổi lớn về phương pháp gia công.</span></p>
+        <p><span class="bi lang-ja">「内容（任意）」欄（プレースホルダ「変更の詳細内容を入力...」）に変更理由を具体的に記入することを推奨します。変更履歴の「変更内容」列にそのまま記録され、後から見た人が経緯を追えるようにするためです。</span><span class="bi lang-vi">Khuyến khích nhập lý do thay đổi cụ thể vào ô "Nội dung (tùy chọn)" (placeholder "Nhập chi tiết nội dung thay đổi..."). Nội dung này được ghi thẳng vào cột "Nội dung thay đổi" của lịch sử thay đổi, giúp người xem sau có thể theo dõi được diễn biến.</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">OKを押してバージョンを確定する</span><span class="bi lang-vi">Nhấn OK để xác định phiên bản</span></h4>
+        <p><span class="bi lang-ja"><b>「OK — 作業記録へ」</b>を押すと、選択した作業種別と内容がサーバへ送信され、上記のルールに従ってバージョンが計算・確定されます（例: 元バージョン1.0001で「修正」を選択→1.0101、「大変更」を選択→2.0001）。同時に変更履歴（changeType: 変更）にversion_before／version_afterが記録され、自動的に作業記録入力画面へ遷移します。</span><span class="bi lang-vi">Nhấn <b>"OK — Đến ghi nhận công việc"</b>, loại công việc và nội dung đã chọn được gửi lên máy chủ, phiên bản được tính và xác định theo quy tắc trên (VD: phiên bản gốc 1.0001, chọn "Sửa" → 1.0101; chọn "Thay đổi lớn" → 2.0001). Đồng thời version_before/version_after được ghi vào lịch sử thay đổi (changeType: Thay đổi), và tự động chuyển sang màn hình nhập ghi nhận công việc.</span></p>
+        <p><span class="bi lang-ja">なお、確定前に一旦保存だけしておきたい場合は<b>「💾 一時保存」</b>（バージョンは変えず入力内容だけ保存しモーダルを閉じる）、作業記録への入力が不要な場合は<b>「スキップ（作業記録なし）」</b>、この編集自体を取り消したい場合は<b>「キャンセル（変更を取り消す）」</b>を選べます。誤って「大変更」を選んだままOKすると<b>バージョンの整数部が上がってしまい元に戻せない</b>ため、押す前に必ず選択内容を再確認してください。</span><span class="bi lang-vi">Ngoài ra, nếu chỉ muốn lưu tạm trước khi xác định, dùng <b>"💾 Lưu tạm"</b> (không đổi phiên bản, chỉ lưu nội dung nhập rồi đóng cửa sổ); nếu không cần nhập ghi nhận công việc, dùng <b>"Bỏ qua (Không ghi nhận công việc)"</b>; nếu muốn hủy toàn bộ chỉnh sửa này, dùng <b>"Hủy (Bỏ thay đổi)"</b>. Nếu nhấn OK khi lỡ chọn nhầm "Thay đổi lớn", <b>phần nguyên phiên bản sẽ tăng lên và không thể hoàn tác</b>, vì vậy hãy luôn kiểm tra lại lựa chọn trước khi nhấn.</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">作業記録を入力し作業完了</span><span class="bi lang-vi">Nhập ghi nhận công việc và hoàn tất</span></h4>
+        <p><span class="bi lang-ja">シナリオmc-06の作業記録入力と同様の手順で登録します。登録すると自動的に回収済みになります。</span><span class="bi lang-vi">Đăng ký theo các bước tương tự như nhập ghi nhận công việc ở Kịch bản mc-06. Sau khi đăng ký, tự động chuyển thành đã thu hồi.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-08" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">図面・写真の登録・差し替え（1枚ずつ／複数一括）</span><span class="bi lang-vi">Đăng ký / thay thế bản vẽ, ảnh (từng tấm hoặc hàng loạt)</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">現物写真の更新や図面の差し替えなど、ファイル管理の中でも最も日常的に発生する作業です。</span><span class="bi lang-vi">Cập nhật ảnh thực tế hoặc thay thế bản vẽ — đây là công việc quản lý file diễn ra thường xuyên nhất.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">編集画面の「図・写真」セクションを開く</span><span class="bi lang-vi">Mở mục "Bản vẽ/Ảnh" trong màn hình chỉnh sửa</span></h4>
+        <p><span class="bi lang-ja">変更・登録タブの編集メニューから <b>図・写真</b> を選択します。登録済みファイルが一覧表示されます。</span><span class="bi lang-vi">Chọn <b>Bản vẽ/Ảnh</b> từ menu chỉnh sửa trong tab Sửa/Đăng ký. Danh sách file đã đăng ký sẽ hiển thị.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-08-files-section.png</span>
+        <span class="shot-size">1280×700</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">図・写真セクション（既存ファイル一覧表示）</span><span class="shot-desc-text lang-vi">Mục Bản vẽ/Ảnh (hiển thị danh sách file hiện có)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">1枚ずつ登録する場合</span><span class="bi lang-vi">Trường hợp đăng ký từng tấm</span></h4>
+        <p><span class="bi lang-ja">「写真を取り込む」または「図をスキャン」ボタンからUploadAgent経由でファイル選択ダイアログを開き、1ファイルを選択してアップロードします。</span><span class="bi lang-vi">Từ nút "Chụp ảnh" hoặc "Scan bản vẽ", mở hộp thoại chọn file qua UploadAgent, chọn 1 file để tải lên.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-08-single-upload.png</span>
+        <span class="shot-size">700×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">ファイル選択ダイアログ（UploadAgent経由・単一選択）</span><span class="shot-desc-text lang-vi">Hộp thoại chọn file (qua UploadAgent, chọn 1 file)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">複数枚を一括登録する場合</span><span class="bi lang-vi">Trường hợp đăng ký nhiều tấm cùng lúc</span></h4>
+        <p><span class="bi lang-ja">フォルダ選択で複数ファイルをまとめて指定するか、ファイル選択ダイアログで複数選択（Ctrl/Shiftクリック）してアップロードします。アップロード進捗が1件ずつ表示されます。</span><span class="bi lang-vi">Chỉ định nhiều file cùng lúc bằng chọn thư mục, hoặc chọn nhiều file (giữ Ctrl/Shift) trong hộp thoại chọn file rồi tải lên. Tiến trình tải lên hiển thị từng file một.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-08-multi-upload.png</span>
+        <span class="shot-size">700×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">複数ファイル選択時のアップロード進捗表示</span><span class="shot-desc-text lang-vi">Hiển thị tiến trình tải lên khi chọn nhiều file</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">既存ファイルの差し替え・削除</span><span class="bi lang-vi">Thay thế / xóa file hiện có</span></h4>
+        <p><span class="bi lang-ja">差し替えたいファイルの<b>削除</b>ボタンで既存を削除してから新規アップロードします。削除確認ダイアログが表示されます。誤操作防止のため、削除前に必ずファイル名を確認してください。</span><span class="bi lang-vi">Nhấn nút <b>Xóa</b> trên file cần thay thế để xóa file cũ, rồi tải lên file mới. Hộp thoại xác nhận xóa sẽ hiển thị. Để tránh thao tác nhầm, luôn kiểm tra tên file trước khi xóa.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-09" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">USBからのプログラムファイルの登録</span><span class="bi lang-vi">Đăng ký file chương trình từ USB</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">USBメモリに保存された加工プログラムをシステムへ取り込む作業です。単体ファイルとフォルダ単位の2パターンがあります。</span><span class="bi lang-vi">Thao tác nhập chương trình gia công lưu trên USB vào hệ thống. Có 2 trường hợp: file đơn và theo thư mục.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">プログラム情報欄の「USBから登録」を選ぶ</span><span class="bi lang-vi">Chọn "Đăng ký từ USB" ở mục thông tin chương trình</span></h4>
+        <p><span class="bi lang-ja">編集画面のプログラム情報欄で <b>📥 USBから登録</b> をクリックします。モード（📁フォルダ単位／📄単体ファイル）を選択してください。</span><span class="bi lang-vi">Nhấp <b>📥 Đăng ký từ USB</b> ở mục thông tin chương trình trong màn hình chỉnh sửa. Chọn chế độ (📁 theo thư mục / 📄 file đơn).</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-09-register-mode.png</span>
+        <span class="shot-size">700×400</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">USBから登録ボタンとモード選択（フォルダ単位／単体ファイル）</span><span class="shot-desc-text lang-vi">Nút đăng ký từ USB và chọn chế độ (theo thư mục / file đơn)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">UploadAgent経由でファイル/フォルダを選択</span><span class="bi lang-vi">Chọn file/thư mục qua UploadAgent</span></h4>
+        <p><span class="bi lang-ja">UploadAgentのピッカーダイアログが開くのでUSB内の対象ファイル（またはフォルダ）を選択します。ワンタイムチケットの有効期限は単体60秒／フォルダ10分です。時間切れの場合は再度ボタンから操作してください。</span><span class="bi lang-vi">Hộp thoại chọn của UploadAgent sẽ mở, chọn file (hoặc thư mục) trên USB. Vé một lần (ticket) có hiệu lực: file đơn 60 giây / thư mục 10 phút. Nếu hết hạn, hãy thao tác lại từ nút.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-09-ua-picker.png</span>
+        <span class="shot-size">800×600</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">UploadAgentのフォルダ/ファイル選択ダイアログ</span><span class="shot-desc-text lang-vi">Hộp thoại chọn thư mục/file của UploadAgent</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">アップロードと登録完了確認</span><span class="bi lang-vi">Xác nhận tải lên và đăng ký hoàn tất</span></h4>
+        <p><span class="bi lang-ja">アップロードが完了すると「登録状態：」欄にファイル名（フォルダの場合は先頭ファイル＋他n件）とPG更新日時が表示されます。ここでの登録は保存先パス <code>Programs/{mach_id}/...</code> に自動格納されます。</span><span class="bi lang-vi">Khi tải lên hoàn tất, mục "Trạng thái đăng ký:" sẽ hiển thị tên file (nếu là thư mục thì file đầu tiên + n file khác) và ngày giờ cập nhật PG. Đăng ký tại đây sẽ tự động lưu vào đường dẫn <code>Programs/{mach_id}/...</code>.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-09-registration-status.png</span>
+        <span class="shot-size">900×300</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">登録状態欄（ファイル名・PG更新日時の表示）</span><span class="shot-desc-text lang-vi">Mục trạng thái đăng ký (tên file, ngày giờ cập nhật PG)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-10" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">プログラムファイルの編集〜サーバへの登録</span><span class="bi lang-vi">Chỉnh sửa file chương trình → đăng ký lên máy chủ</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">サーバに登録済みのプログラムをブラウザ上で直接編集し、保存する手順です。検索・置換機能も使えます。</span><span class="bi lang-vi">Quy trình chỉnh sửa trực tiếp trên trình duyệt chương trình đã đăng ký trên máy chủ và lưu lại. Có thể dùng chức năng tìm kiếm/thay thế.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">PGエディタを開く</span><span class="bi lang-vi">Mở PG Editor</span></h4>
+        <p><span class="bi lang-ja">MC詳細の変更・登録タブ、プログラム情報欄から <b>📄 PGエディタを開く</b> をクリックします。テキストエリアに内容が読み込まれます。</span><span class="bi lang-vi">Nhấp <b>📄 Mở PG Editor</b> ở mục thông tin chương trình trong tab Sửa/Đăng ký của chi tiết MC. Nội dung sẽ được tải vào vùng văn bản.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">内容を編集する</span><span class="bi lang-vi">Chỉnh sửa nội dung</span></h4>
+        <p><span class="bi lang-ja">テキストエリア内で直接編集します。検索キーワードを入力して「検索」→「置換」（1件置換／全置換）も利用可能です。行末はCRLFが自動的にLFへ正規化されて表示されます。</span><span class="bi lang-vi">Chỉnh sửa trực tiếp trong vùng văn bản. Có thể nhập từ khóa để "Tìm kiếm" → "Thay thế" (thay 1 chỗ / thay tất cả). Cuối dòng CRLF sẽ tự động chuẩn hóa về LF khi hiển thị.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-10-editor-view.png</span>
+        <span class="shot-size">1280×800</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">PGエディタ編集画面（検索置換パネル展開状態）</span><span class="shot-desc-text lang-vi">Màn hình chỉnh sửa PG Editor (bảng tìm kiếm/thay thế đang mở)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">保存してサーバへ登録</span><span class="bi lang-vi">Lưu và đăng ký lên máy chủ</span></h4>
+        <p><span class="bi lang-ja">「保存」ボタンで確定します。編集中の内容を破棄する場合は確認ダイアログが表示されます。保存成功時は「✅ 保存しました: {ファイル名}」と表示されます。</span><span class="bi lang-vi">Nhấn nút "Lưu" để xác nhận. Nếu hủy nội dung đang chỉnh sửa, hộp thoại xác nhận sẽ hiển thị. Khi lưu thành công sẽ hiện "✅ Đã lưu: {tên file}".</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-11" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">段取シート未回収リストの確認</span><span class="bi lang-vi">Kiểm tra danh sách phiếu cài đặt chưa thu hồi</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 全員／OPERATOR</span>
+        <span><span class="bi lang-ja">🔓 認証不要</span><span class="bi lang-vi">🔓 Không cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">現場に発行済みでまだシステム上「回収済み」になっていない段取シートを確認する手順です。管理上、未回収シートが溜まっていないか定期的にチェックすることが推奨されます。</span><span class="bi lang-vi">Kiểm tra các phiếu cài đặt đã phát hành ra hiện trường nhưng chưa được đánh dấu "đã thu hồi" trong hệ thống. Nên kiểm tra định kỳ để tránh tồn đọng phiếu chưa thu hồi.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">MC詳細画面またはダッシュボードで未回収件数を確認</span><span class="bi lang-vi">Kiểm tra số lượng chưa thu hồi trên Dashboard hoặc chi tiết MC</span></h4>
+        <p><span class="bi lang-ja">作業記録タブ等に「未回収: {n}件」のバッジが表示されます。件数が多い場合は現場での回収漏れが疑われます。</span><span class="bi lang-vi">Nhãn "Chưa thu hồi: {n}" sẽ hiển thị ở tab ghi nhận công việc v.v. Nếu số lượng nhiều, có thể nghi ngờ có sót phiếu chưa thu hồi tại hiện trường.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-11-uncollected-badge.png</span>
+        <span class="shot-size">400×150</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">未回収バッジ表示（作業記録タブ）</span><span class="shot-desc-text lang-vi">Hiển thị nhãn chưa thu hồi (tab ghi nhận công việc)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">「段取シートバック」画面でMCID/NC IDを入力</span><span class="bi lang-vi">Nhập MCID/NC ID ở màn hình "Phiếu cài đặt quay lại"</span></h4>
+        <p><span class="bi lang-ja">対象IDを入力すると未回収シート一覧が表示されます。各行に種別（新規／リピート）バッジ、発行No.、発行日時、発行者が表示されます。</span><span class="bi lang-vi">Nhập ID cần tra, danh sách phiếu chưa thu hồi sẽ hiển thị. Mỗi dòng có nhãn loại (Mới/Lặp lại), số phát hành, ngày giờ phát hành, người phát hành.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-11-uncollected-list.png</span>
+        <span class="shot-size">900×600</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">未回収シート一覧画面（複数件表示状態）</span><span class="shot-desc-text lang-vi">Màn hình danh sách phiếu chưa thu hồi (nhiều phiếu)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">原本PDFを確認する（必要時）</span><span class="bi lang-vi">Kiểm tra bản gốc PDF (khi cần)</span></h4>
+        <p><span class="bi lang-ja"><b>📄 原本確認</b> で発行時に保存された原本PDFをそのまま表示します。※ISOトレーサビリティのため、原本は再生成せず必ず保存済みファイルを表示します。移行前データで原本が無い場合はその旨のメッセージが表示されます。</span><span class="bi lang-vi">Nhấn <b>📄 Xác nhận bản gốc</b> để hiển thị đúng bản PDF gốc đã lưu lúc phát hành. (Để đảm bảo truy xuất nguồn gốc theo ISO, bản gốc không bao giờ được tạo lại — luôn hiển thị file đã lưu.) Nếu là dữ liệu trước khi di chuyển hệ thống và không có bản gốc, sẽ hiện thông báo tương ứng.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-12" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">段取シート紛失時の処理方法</span><span class="bi lang-vi">Cách xử lý khi phiếu cài đặt bị thất lạc</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR／ADMIN</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">現場で段取シートを紛失した、または長期間回収されず放置されている場合の、未回収リストからの除外処理です。データそのものは削除されず、理由付きで記録が残ります。</span><span class="bi lang-vi">Xử lý loại bỏ khỏi danh sách chưa thu hồi khi phiếu cài đặt bị thất lạc tại hiện trường, hoặc để lâu không thu hồi. Dữ liệu không bị xóa mà được ghi nhận kèm lý do.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">未回収シート一覧から対象シートの「行方不明にする」を選択</span><span class="bi lang-vi">Chọn "Đánh dấu thất lạc" cho phiếu tương ứng trong danh sách chưa thu hồi</span></h4>
+        <p><span class="bi lang-ja">シナリオmc-11の手順で一覧を開き、対象行の <b>行方不明にする</b> ボタンをクリックします。</span><span class="bi lang-vi">Mở danh sách theo các bước ở Kịch bản mc-11, nhấp nút <b>Đánh dấu thất lạc</b> ở dòng tương ứng.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">回収済みとして処理（理由選択）</span><span class="bi lang-vi">Xử lý là đã thu hồi (chọn lý do)</span></h4>
+        <p><span class="bi lang-ja">「⚠ 回収済みとして処理」モーダルが開きます。理由を <b>紛失</b>／<b>作業者未回収のまま長期経過</b>／<b>その他</b> から選択し、必要であれば詳細（任意）を入力します。</span><span class="bi lang-vi">Cửa sổ "⚠ Xử lý là đã thu hồi" sẽ mở. Chọn lý do: <b>Thất lạc</b> / <b>Người vận hành chưa nhận trong thời gian dài</b> / <b>Khác</b>, nhập chi tiết (không bắt buộc) nếu cần.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-12-lost-modal.png</span>
+        <span class="shot-size">500×450</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">回収済みとして処理モーダル（理由選択プルダウン＋詳細入力欄）</span><span class="shot-desc-text lang-vi">Cửa sổ xử lý đã thu hồi (chọn lý do + ô nhập chi tiết)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">記録して完了</span><span class="bi lang-vi">Ghi nhận và hoàn tất</span></h4>
+        <p><span class="bi lang-ja"><b>回収済みとして記録</b> を押すと、未回収一覧から除外され、印刷履歴には「紛失: {理由}」の表示が残ります。この処理はISOトレーサビリティ上重要な記録のため、正確な理由選択を徹底してください。</span><span class="bi lang-vi">Nhấn <b>Ghi nhận là đã thu hồi</b>, phiếu sẽ bị loại khỏi danh sách chưa thu hồi, và lịch sử in sẽ ghi lại "Thất lạc: {lý do}". Đây là ghi chép quan trọng cho việc truy xuất nguồn gốc theo ISO, hãy luôn chọn lý do chính xác.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-13" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">ツーリング／インデックスプログラム／ワークオフセット情報の編集方法</span><span class="bi lang-vi">Cách chỉnh sửa thông tin dụng cụ / chương trình Index / offset gia công</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">工具の摩耗・交換、機械精度の調整などに伴って発生する、日常的なマスタ情報の更新作業です。</span><span class="bi lang-vi">Công việc cập nhật dữ liệu thường xuyên phát sinh do mòn/thay dụng cụ, điều chỉnh độ chính xác máy...</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">編集メニューから対象セクションを選択</span><span class="bi lang-vi">Chọn mục tương ứng từ menu chỉnh sửa</span></h4>
+        <p><span class="bi lang-ja">変更・登録タブ左側のセクションタブから <b>ツーリング</b>／<b>ワークオフセット</b>／<b>インデックスPG</b> のいずれかを選びます。</span><span class="bi lang-vi">Chọn <b>Dụng cụ</b> / <b>Offset gia công</b> / <b>Chương trình Index</b> từ các tab mục bên trái trong tab Sửa/Đăng ký.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-13-section-tabs.png</span>
+        <span class="shot-size">300×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">編集メニューのセクションタブ一覧（左サイド）</span><span class="shot-desc-text lang-vi">Danh sách tab mục trong menu chỉnh sửa (bên trái)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">ツーリング：行ごとに項目を編集</span><span class="bi lang-vi">Dụng cụ: chỉnh sửa từng dòng</span></h4>
+        <p><span class="bi lang-ja">N・工具・T・H・D・D値・SUB・コメント・順番の各セルを直接クリックして編集します。<b>+ 追加</b> で行追加、<b>削除</b> で行削除できます。</span><span class="bi lang-vi">Nhấp trực tiếp vào từng ô N, Dụng cụ, T, H, D, giá trị D, SUB, Ghi chú, Thứ tự để chỉnh sửa. Dùng <b>+ Thêm</b> để thêm dòng, <b>Xóa</b> để xóa dòng.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">ワークオフセット／インデックスPG：数値項目を編集</span><span class="bi lang-vi">Offset gia công / Chương trình Index: chỉnh sửa giá trị số</span></h4>
+        <p><span class="bi lang-ja">ワークオフセットはGコード・X/Y/Z/A/R各オフセット値・備考を、インデックスPGは第0〜2軸等の値を編集します。</span><span class="bi lang-vi">Với offset gia công, chỉnh sửa mã G, giá trị offset X/Y/Z/A/R, ghi chú. Với chương trình Index, chỉnh sửa giá trị trục 0~2 v.v.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-13-offset-edit.png</span>
+        <span class="shot-size">1000×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">ワークオフセット編集テーブル（値入力状態）</span><span class="shot-desc-text lang-vi">Bảng chỉnh sửa offset gia công (đang nhập giá trị)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">セクションごとに「保存」する（※ここではまだバージョンは変わりません）</span><span class="bi lang-vi">Lưu từng mục (※ Phiên bản CHƯA thay đổi ở bước này)</span></h4>
+        <p><span class="bi lang-ja">各セクション右上の <b>✓ 保存</b>（ツーリングなら「✓ ツーリングを保存」）ボタンで、そのセクションのデータだけをその場で確定します。「✅ 保存しました」の表示で完了です。<b>重要：この個別保存はデータをDBへ書き込むだけで、MCのバージョン番号（Ver）は一切更新されません。</b>バージョンが動くのは次のステップの「作業完了（登録）」を実行した時だけです。</span><span class="bi lang-vi">Nhấn nút <b>✓ Lưu</b> ở góc trên bên phải mỗi mục (với dụng cụ là "✓ Lưu dụng cụ") để xác nhận riêng dữ liệu của mục đó ngay tại chỗ. Hiện "✅ Đã lưu" là hoàn tất. <b>Quan trọng: thao tác lưu riêng lẻ này chỉ ghi dữ liệu vào DB, KHÔNG cập nhật số phiên bản (Ver) của MC.</b> Phiên bản chỉ thay đổi khi thực hiện "Hoàn tất công việc (Đăng ký)" ở bước tiếp theo.</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">編集セッションを終了し「✓ 作業完了（登録）」でバージョンを確定する</span><span class="bi lang-vi">Kết thúc phiên chỉnh sửa và xác định phiên bản bằng "✓ Hoàn tất công việc (Đăng ký)"</span></h4>
+        <p><span class="bi lang-ja">セクション編集をすべて終えたら、画面上部の <b>✓ 作業完了（登録）</b> を押します。ここでもシナリオmc-07と同じ<b>「終了確認 — 変更内容を記録」</b>モーダルが開き、<b>作業種別（大変更／小変更／追加／修正／削除／訂正）の選択が必須</b>になります。工具交換のみなら「修正」、大幅な段取り変更なら「大変更」を選ぶなど、実態に合わせて正しく選択してください。選択を誤ると変更履歴・バージョン番号に誤った記録が残ってしまいます。</span><span class="bi lang-vi">Sau khi hoàn tất chỉnh sửa tất cả các mục, nhấn <b>✓ Hoàn tất công việc (Đăng ký)</b> ở phía trên màn hình. Tại đây cũng mở cửa sổ <b>"Xác nhận kết thúc — Ghi nhận nội dung thay đổi"</b> giống Kịch bản mc-07, và <b>bắt buộc phải chọn Loại công việc (Thay đổi lớn／Thay đổi nhỏ／Thêm／Sửa／Xóa／Đính chính)</b>. Hãy chọn đúng theo thực tế: VD chỉ đổi dụng cụ thì chọn "Sửa", thay đổi lớn về gá đặt thì chọn "Thay đổi lớn". Chọn sai sẽ để lại ghi chép sai trong lịch sử thay đổi và số phiên bản.</span></p>
+        <p><span class="bi lang-ja">確定後は自動的にMC詳細画面へ戻ります。<b>MC詳細画面に戻って必ずVer表示と変更履歴タブを確認</b>し、意図した通りにバージョンが上がっているか検証してください。</span><span class="bi lang-vi">Sau khi xác định xong sẽ tự động quay lại màn hình chi tiết MC. <b>Hãy luôn kiểm tra hiển thị Ver và tab lịch sử thay đổi</b> ở màn hình chi tiết MC để xác nhận phiên bản đã tăng đúng như ý định.</span></p>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-14" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">プログラムファイルからのツーリング情報抽出〜ツーリング情報編集・登録方法</span><span class="bi lang-vi">Trích xuất thông tin dụng cụ từ file chương trình → chỉnh sửa và đăng ký</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">加工プログラム内のツーリング呼び出し行を自動解析し、ツーリングリストへ一括反映する機能です。手入力の手間と入力ミスを大幅に削減できます。</span><span class="bi lang-vi">Chức năng tự động phân tích các dòng gọi dụng cụ trong chương trình gia công và áp dụng hàng loạt vào danh sách dụng cụ. Giúp giảm đáng kể công sức nhập tay và sai sót.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">ツーリングセクションの「ツーリングプログラム読取り」を開く</span><span class="bi lang-vi">Mở "Đọc chương trình dụng cụ" trong mục Dụng cụ</span></h4>
+        <p><span class="bi lang-ja">編集画面ツーリングタブ下部の <b>ツーリングプログラム読取り（MC専用機能）</b> パネルを開きます。</span><span class="bi lang-vi">Mở bảng <b>Đọc chương trình dụng cụ (chức năng chuyên dùng cho MC)</b> ở phía dưới tab Dụng cụ trong màn hình chỉnh sửa.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-14-reader-panel.png</span>
+        <span class="shot-size">1000×400</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">ツーリングプログラム読取りパネル（テキストエリア＋ファイル選択ボタン）</span><span class="shot-desc-text lang-vi">Bảng đọc chương trình dụng cụ (vùng văn bản + nút chọn file)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">プログラムを貼り付けるかファイル/ドラッグ＆ドロップで読み込む</span><span class="bi lang-vi">Dán chương trình hoặc tải lên bằng chọn file/kéo-thả</span></h4>
+        <p><span class="bi lang-ja">テキストエリアに直接貼り付け、または <b>ファイルを選択</b>、あるいはファイルをドラッグ＆ドロップして読み込みます。</span><span class="bi lang-vi">Dán trực tiếp vào vùng văn bản, hoặc dùng <b>Chọn file</b>, hoặc kéo-thả file để tải vào.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">解析結果を確認し取り込む</span><span class="bi lang-vi">Kiểm tra kết quả phân tích và nhập vào</span></h4>
+        <p><span class="bi lang-ja">解析結果が一覧表示されるので内容を確認し、<b>✅ {n}本を取り込む</b> をクリックすると既存のツーリングリストに反映されます。</span><span class="bi lang-vi">Kết quả phân tích hiển thị dạng danh sách, kiểm tra nội dung rồi nhấp <b>✅ Nhập {n} dụng cụ</b> để áp dụng vào danh sách dụng cụ hiện có.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-14-parse-result.png</span>
+        <span class="shot-size">1000×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">解析結果一覧と取り込みボタン</span><span class="shot-desc-text lang-vi">Danh sách kết quả phân tích và nút nhập vào</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">取り込み後の確認と保存</span><span class="bi lang-vi">Kiểm tra sau khi nhập và lưu</span></h4>
+        <p><span class="bi lang-ja">「ツーリングデータを取り込みました」表示後、リスト内容を確認し、必要に応じて手動修正してから <b>✓ ツーリングを保存</b> で確定します。</span><span class="bi lang-vi">Sau khi hiện "Đã nhập dữ liệu dụng cụ", kiểm tra nội dung danh sách, chỉnh sửa thủ công nếu cần, rồi nhấn <b>✓ Lưu dụng cụ</b> để xác nhận.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-15" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">作業記録の参照方法</span><span class="bi lang-vi">Cách tham chiếu ghi nhận công việc</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 全員（認証不要）</span>
+        <span><span class="bi lang-ja">🔓 認証不要</span><span class="bi lang-vi">🔓 Không cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">過去の段取・量産時間や加工個数を確認したい時の閲覧手順です。作業記録の入力自体とは異なり、参照だけなら認証不要です。</span><span class="bi lang-vi">Thao tác xem lại thời gian cài đặt/sản xuất hàng loạt, số lượng gia công trong quá khứ. Chỉ xem thì không cần xác thực (khác với nhập ghi nhận công việc).</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">MC詳細画面の「作業記録」タブを開く</span><span class="bi lang-vi">Mở tab "Ghi nhận công việc" trong màn hình chi tiết MC</span></h4>
+        <p><span class="bi lang-ja">対象MCの詳細画面上部タブから <b>作業記録</b> を選択します。まだ新規登録が確定していない場合は「作業記録はまだ利用できません」と表示されます。</span><span class="bi lang-vi">Chọn tab <b>Ghi nhận công việc</b> ở phía trên màn hình chi tiết MC. Nếu đăng ký mới chưa được xác nhận, sẽ hiện "Ghi nhận công việc chưa khả dụng".</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">一覧から日付を選び詳細を確認</span><span class="bi lang-vi">Chọn ngày từ danh sách và xem chi tiết</span></h4>
+        <p><span class="bi lang-ja">作業日ごとの記録一覧（機械・段取(分)・加工(分)・個数）が表示されます。行をクリックすると詳細（開始/終了日時・中断時間・担当者・備考）が確認できます。</span><span class="bi lang-vi">Danh sách ghi nhận theo từng ngày làm việc (máy, cài đặt (phút), gia công (phút), số lượng) sẽ hiển thị. Nhấp vào dòng để xem chi tiết (ngày giờ bắt đầu/kết thúc, thời gian gián đoạn, người phụ trách, ghi chú).</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-15-record-list.png</span>
+        <span class="shot-size">1000×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">作業記録一覧テーブル</span><span class="shot-desc-text lang-vi">Bảng danh sách ghi nhận công việc</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">機械タイムカードとの整合性確認（必要時）</span><span class="bi lang-vi">Kiểm tra tính nhất quán với thẻ thời gian máy (khi cần)</span></h4>
+        <p><span class="bi lang-ja">管理者は機械タイムカード参照画面から稼働時間（段取稼働／量産稼働／総稼働）を突き合わせて確認できます。overlap分（休憩12:00-13:00等）は自動控除されます。</span><span class="bi lang-vi">Quản trị viên có thể đối chiếu thời gian hoạt động (cài đặt / sản xuất / tổng hoạt động) từ màn hình tham chiếu thẻ thời gian máy. Phần trùng lặp (nghỉ trưa 12:00-13:00...) được tự động trừ.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-16" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">履歴情報の参照方法と種類・内容</span><span class="bi lang-vi">Cách tham chiếu lịch sử và các loại/nội dung</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 全員（認証不要）</span>
+        <span><span class="bi lang-ja">🔓 認証不要</span><span class="bi lang-vi">🔓 Không cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">MC詳細画面には4種類の履歴タブがあります。それぞれの違いを理解して目的に応じて使い分けます。</span><span class="bi lang-vi">Có 4 loại tab lịch sử trong màn hình chi tiết MC. Hiểu rõ sự khác nhau giữa chúng để sử dụng đúng mục đích.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">変更履歴タブ</span><span class="bi lang-vi">Tab Lịch sử thay đổi</span></h4>
+        <p><span class="bi lang-ja">日時・種別（新規登録／変更／承認／移行）・担当者・Ver変化・変更内容が確認できます。<b>いつ・誰が・何を変更したか</b>を追跡する用途です。</span><span class="bi lang-vi">Có thể xem ngày giờ, loại (Đăng ký mới / Thay đổi / Duyệt / Di chuyển), người phụ trách, thay đổi phiên bản, nội dung thay đổi. Dùng để theo dõi <b>ai đã thay đổi gì, khi nào</b>.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-16-change-history.png</span>
+        <span class="shot-size">1000×400</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">変更履歴タブ表示例</span><span class="shot-desc-text lang-vi">Ví dụ hiển thị tab Lịch sử thay đổi</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">作業記録タブ</span><span class="bi lang-vi">Tab Ghi nhận công việc</span></h4>
+        <p><span class="bi lang-ja">シナリオmc-15の通り、実際の加工実績（時間・個数）の履歴です。</span><span class="bi lang-vi">Như Kịch bản mc-15, đây là lịch sử thành tích gia công thực tế (thời gian, số lượng).</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">印刷履歴タブ</span><span class="bi lang-vi">Tab Lịch sử in</span></h4>
+        <p><span class="bi lang-ja">段取シートの発行履歴（印刷日時・印刷者・バージョン）です。回収済み／未回収／紛失の状態もここで確認できます。</span><span class="bi lang-vi">Đây là lịch sử phát hành phiếu cài đặt (ngày giờ in, người in, phiên bản). Cũng có thể xem trạng thái đã thu hồi / chưa thu hồi / thất lạc tại đây.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">操作ログタブ</span><span class="bi lang-vi">Tab Nhật ký thao tác</span></h4>
+        <p><span class="bi lang-ja">作業開始・作業終了・PGファイルDL・ファイルUP・ファイル削除など、システム操作単位の記録です。日時・種別・担当者・詳細が一覧表示されます。トラブル発生時の原因調査に使います。</span><span class="bi lang-vi">Đây là ghi chép theo từng thao tác hệ thống: bắt đầu công việc, kết thúc công việc, tải PG xuống, tải file lên, xóa file... Hiển thị ngày giờ, loại, người phụ trách, chi tiết. Dùng để điều tra nguyên nhân khi có sự cố.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-16-oplog.png</span>
+        <span class="shot-size">1000×400</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">操作ログタブ表示例（ファイルUP/DL記録含む）</span><span class="shot-desc-text lang-vi">Ví dụ hiển thị tab Nhật ký thao tác (bao gồm ghi nhận tải lên/xuống file)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="mc-17" class="scenario" data-cat="mc">
+    <div class="scenario-head" style="border-left-color:#0ea5e9">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#0ea5e9"><span class="bi lang-ja">MC マシニング</span><span class="bi lang-vi">MC (Gia công)</span></span>
+        <h3><span class="bi lang-ja">承認作業（参考）</span><span class="bi lang-vi">Công việc duyệt (tham khảo)</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 ADMINのみ</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">新規登録・変更登録された内容を、管理者権限で承認する作業です。承認前は「承認待」ステータスとして扱われます。</span><span class="bi lang-vi">Công việc duyệt nội dung đã đăng ký mới/thay đổi bằng quyền quản trị. Trước khi duyệt, trạng thái là "Chờ duyệt".</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">承認待ちのMCを確認</span><span class="bi lang-vi">Kiểm tra MC đang chờ duyệt</span></h4>
+        <p><span class="bi lang-ja">MC詳細画面上部に「承認待」バッジが表示されている案件が対象です。基本情報の承認者欄も「未承認」となっています。</span><span class="bi lang-vi">Đối tượng là các mục có nhãn "Chờ duyệt" ở phía trên màn hình chi tiết MC. Mục người duyệt trong thông tin cơ bản cũng ghi "Chưa duyệt".</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">内容を確認し「✓ 承認」を押す</span><span class="bi lang-vi">Kiểm tra nội dung và nhấn "✓ Duyệt"</span></h4>
+        <p><span class="bi lang-ja">ADMIN権限でログイン後、内容（ツーリング・オフセット・図面等）を確認し、問題なければ画面上部の <b>✓ 承認</b> をクリックします。承認者・承認日が自動記録されます。</span><span class="bi lang-vi">Sau khi đăng nhập bằng quyền ADMIN, kiểm tra nội dung (dụng cụ, offset, bản vẽ...), nếu không có vấn đề, nhấp <b>✓ Duyệt</b> ở phía trên màn hình. Người duyệt và ngày duyệt sẽ được tự động ghi nhận.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">mc-17-approve-button.png</span>
+        <span class="shot-size">300×100</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">承認ボタン（画面上部）</span><span class="shot-desc-text lang-vi">Nút Duyệt (phía trên màn hình)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+    </div>
+
+<div class="tab-panel" id="tabPanelNc" data-tab="nc">
+<div class="cat-header">
+      <span class="cat-badge" style="background:#f59e0b">NC</span>
+      <h2 class="lang-ja">NC 旋盤 — 業務シナリオ</h2><h2 class="lang-vi">NC (Tiện) — Kịch bản nghiệp vụ</h2>
+    </div>
+    
+  <section id="nc-01" class="scenario" data-cat="nc">
+    <div class="scenario-head" style="border-left-color:#f59e0b">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#f59e0b"><span class="bi lang-ja">NC 旋盤</span><span class="bi lang-vi">NC (Tiện)</span></span>
+        <h3><span class="bi lang-ja">NC部品の検索・閲覧（基本）</span><span class="bi lang-vi">Tìm kiếm và xem chi tiết NC (cơ bản)</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 全員（認証不要）</span>
+        <span><span class="bi lang-ja">🔓 認証不要</span><span class="bi lang-vi">🔓 Không cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">MC（mc-01）と基本操作は同じですが、NCは<b>納入先</b>・<b>機種型式</b>によるフィルタ検索が追加されている点が異なります。</span><span class="bi lang-vi">Thao tác cơ bản giống MC (mc-01), nhưng NC có thêm bộ lọc theo <b>nơi giao hàng</b> và <b>mã model máy</b>.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">NCダッシュボードから検索を開く</span><span class="bi lang-vi">Mở tìm kiếm từ Dashboard NC</span></h4>
+        <p><span class="bi lang-ja">NCダッシュボードの部品検索から、部品番号／納入先／機種型式で絞り込みます。</span><span class="bi lang-vi">Từ tìm kiếm chi tiết trên Dashboard NC, lọc theo mã chi tiết / nơi giao hàng / mã model máy.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">nc-01-search-filter.png</span>
+        <span class="shot-size">1000×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">NC検索画面（納入先・機種型式フィルタ表示）</span><span class="shot-desc-text lang-vi">Màn hình tìm kiếm NC (hiển thị bộ lọc nơi giao hàng, mã model)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">NC詳細画面で内容を確認</span><span class="bi lang-vi">Kiểm tra nội dung ở màn hình chi tiết NC</span></h4>
+        <p><span class="bi lang-ja">工具リスト（形状・チップ・ホルダー・ノーズR・T NO）、クランプノート、図面・写真をタブで確認します。</span><span class="bi lang-vi">Kiểm tra danh sách dụng cụ (hình dạng/lưỡi cắt, đầu kẹp, bán kính mũi, T NO), ghi chú kẹp, bản vẽ/ảnh trên các tab.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="nc-02" class="scenario" data-cat="nc">
+    <div class="scenario-head" style="border-left-color:#f59e0b">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#f59e0b"><span class="bi lang-ja">NC 旋盤</span><span class="bi lang-vi">NC (Tiện)</span></span>
+        <h3><span class="bi lang-ja">NCプログラムファイルのUSBダウンロード</span><span class="bi lang-vi">Tải file chương trình NC xuống USB</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">MC（mc-02）と目的は同じですが、NCはFile System Access API非対応の場合の代替として、<b>ダウンロードフォルダへの保存＋手動USBコピー</b>のパターンもあります。</span><span class="bi lang-vi">Mục đích giống MC (mc-02), nhưng NC còn có phương án thay thế khi không hỗ trợ File System Access API: <b>lưu vào thư mục Downloads rồi copy tay vào USB</b>.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">NC詳細のプログラム情報から書き出し</span><span class="bi lang-vi">Xuất từ thông tin chương trình trong chi tiết NC</span></h4>
+        <p><span class="bi lang-ja">MC同様「USBへ書き出し(UA経由)」が使えるPCではワンクリックで完了します。</span><span class="bi lang-vi">Trên máy tính có thể dùng "Xuất ra USB (qua UA)" giống MC thì chỉ cần một cú nhấp là hoàn tất.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">UA非対応環境での代替手順</span><span class="bi lang-vi">Quy trình thay thế trên môi trường không hỗ trợ UA</span></h4>
+        <p><span class="bi lang-ja">ダウンロードボタンでブラウザの標準ダウンロード（Downloadsフォルダ）へ保存し、エクスプローラーで手動でUSBへコピーします。この場合、システム上の操作ログは「PGファイルDL」のみ記録され、コピー完了の記録はされません。</span><span class="bi lang-vi">Dùng nút Tải xuống để lưu vào thư mục tải xuống mặc định của trình duyệt (Downloads), sau đó dùng Explorer copy tay vào USB. Trường hợp này, nhật ký thao tác hệ thống chỉ ghi "Tải PG xuống", không ghi nhận việc copy hoàn tất.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="nc-03" class="scenario" data-cat="nc">
+    <div class="scenario-head" style="border-left-color:#f59e0b">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#f59e0b"><span class="bi lang-ja">NC 旋盤</span><span class="bi lang-vi">NC (Tiện)</span></span>
+        <h3><span class="bi lang-ja">NC新規登録</span><span class="bi lang-vi">Đăng ký NC mới</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">部品選択→工程L・機械入力→登録という流れです。MC（mc-04）と異なり、工程は「MC工程No」ではなく<b>工程L</b>という単位で管理されます。</span><span class="bi lang-vi">Quy trình: chọn chi tiết → nhập công đoạn L, máy → đăng ký. Khác với MC (mc-04), công đoạn được quản lý theo đơn vị <b>công đoạn L</b> thay vì "MC工程No".</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">部品を選択し工程Lを指定</span><span class="bi lang-vi">Chọn chi tiết và chỉ định công đoạn L</span></h4>
+        <p><span class="bi lang-ja">新規登録から対象部品を選び、工程L（旋盤加工の工程順）と使用機械を入力します。</span><span class="bi lang-vi">Từ đăng ký mới, chọn chi tiết cần đăng ký, nhập công đoạn L (thứ tự công đoạn tiện) và máy sử dụng.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">nc-03-process-l.png</span>
+        <span class="shot-size">800×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">NC新規登録：工程L・機械入力フォーム</span><span class="shot-desc-text lang-vi">Form nhập công đoạn L, máy trong đăng ký NC mới</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">基本情報・工具・クランプ・図面を登録</span><span class="bi lang-vi">Đăng ký thông tin cơ bản, dụng cụ, kẹp, bản vẽ</span></h4>
+        <p><span class="bi lang-ja">MCと同様の流れで各セクションを入力し登録します。</span><span class="bi lang-vi">Nhập từng mục và đăng ký theo quy trình tương tự MC.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="nc-04" class="scenario" data-cat="nc">
+    <div class="scenario-head" style="border-left-color:#f59e0b">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#f59e0b"><span class="bi lang-ja">NC 旋盤</span><span class="bi lang-vi">NC (Tiện)</span></span>
+        <h3><span class="bi lang-ja">NC情報の編集（工具・クランプノート・写真）</span><span class="bi lang-vi">Chỉnh sửa thông tin NC (dụng cụ, ghi chú kẹp, ảnh)</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">工具追加、クランプノート変更、写真アップロードなど、NC特有の項目編集です。</span><span class="bi lang-vi">Chỉnh sửa các mục đặc thù của NC: thêm dụng cụ, thay đổi ghi chú kẹp, tải ảnh lên.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">工具リストの編集</span><span class="bi lang-vi">Chỉnh sửa danh sách dụng cụ</span></h4>
+        <p><span class="bi lang-ja">NO・加工・形状（チップ）・ホルダー・ノーズR・T NO・備考の各項目を編集します。<b>NC加工リストマスタ</b>（管理パネル）から選択候補が呼び出されます。</span><span class="bi lang-vi">Chỉnh sửa các mục NO, gia công, hình dạng (lưỡi cắt), đầu kẹp, bán kính mũi, T NO, ghi chú. Các lựa chọn được gọi từ <b>Master danh sách gia công NC</b> (bảng quản trị).</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">nc-04-tool-list.png</span>
+        <span class="shot-size">1000×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">NC工具リスト編集テーブル</span><span class="shot-desc-text lang-vi">Bảng chỉnh sửa danh sách dụng cụ NC</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">クランプノートの変更</span><span class="bi lang-vi">Thay đổi ghi chú kẹp</span></h4>
+        <p><span class="bi lang-ja">クランプ欄はクランプマスタから選択、または自由記述で備考を入力します。</span><span class="bi lang-vi">Mục kẹp chọn từ Master kẹp, hoặc nhập ghi chú tự do.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="nc-05" class="scenario" data-cat="nc">
+    <div class="scenario-head" style="border-left-color:#f59e0b">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#f59e0b"><span class="bi lang-ja">NC 旋盤</span><span class="bi lang-vi">NC (Tiện)</span></span>
+        <h3><span class="bi lang-ja">NC段取シートの印刷</span><span class="bi lang-vi">In phiếu cài đặt NC</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">MC（mc-03）と同じ流れですが、オプションで<b>工具リスト・クランプ・図</b>の含有可否を選ぶ点はNC専用の設定項目です。</span><span class="bi lang-vi">Quy trình giống MC (mc-03), nhưng có tùy chọn riêng của NC: chọn có bao gồm <b>danh sách dụng cụ, kẹp, bản vẽ</b> hay không.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">担当者認証 → 発行前確認 → オプション設定 → 印刷</span><span class="bi lang-vi">Xác thực → xác nhận trước phát hành → tùy chọn → in</span></h4>
+        <p><span class="bi lang-ja">MC同様の流れです。プリンタ送信または「📄 PDFプレビュー（ブラウザで開く）」を選択します。</span><span class="bi lang-vi">Quy trình giống MC. Chọn gửi máy in hoặc "📄 Xem trước PDF (mở bằng trình duyệt)".</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="nc-06" class="scenario" data-cat="nc">
+    <div class="scenario-head" style="border-left-color:#f59e0b">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#f59e0b"><span class="bi lang-ja">NC 旋盤</span><span class="bi lang-vi">NC (Tiện)</span></span>
+        <h3><span class="bi lang-ja">NC作業記録の登録・修正・削除</span><span class="bi lang-vi">Đăng ký, sửa, xóa ghi nhận công việc NC</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">段取・加工時間、担当者を記入する点はMCと同じですが、<b>既存記録の修正・削除</b>もこの画面から行える点がポイントです。</span><span class="bi lang-vi">Giống MC ở việc ghi thời gian cài đặt/gia công, người phụ trách, nhưng điểm khác biệt là có thể <b>sửa/xóa ghi nhận đã có</b> ngay từ màn hình này.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">新規入力または編集モードを選ぶ</span><span class="bi lang-vi">Chọn nhập mới hoặc chế độ chỉnh sửa</span></h4>
+        <p><span class="bi lang-ja">「＋ 新規入力モード」か、既存記録をクリックして「✏️ 編集モード — 記録ID: {id}」に入ります。</span><span class="bi lang-vi">Chọn "+ Chế độ nhập mới" hoặc nhấp vào ghi nhận đã có để vào "✏️ Chế độ chỉnh sửa — Mã ghi nhận: {id}".</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">内容を入力・修正し更新</span><span class="bi lang-vi">Nhập/sửa nội dung và cập nhật</span></h4>
+        <p><span class="bi lang-ja"><b>✓ 更新（保存）</b>で修正のみ保存、<b>✓ 作業完了（登録）</b>で最終確定＋段取シート回収済み化を行います。</span><span class="bi lang-vi"><b>✓ Cập nhật (Lưu)</b> chỉ lưu thay đổi; <b>✓ Hoàn tất công việc (Đăng ký)</b> xác nhận cuối cùng và chuyển phiếu cài đặt thành đã thu hồi.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">記録の削除（誤入力時）</span><span class="bi lang-vi">Xóa ghi nhận (khi nhập sai)</span></h4>
+        <p><span class="bi lang-ja">編集モードで削除操作が可能です。削除前に必ず内容を確認してください（削除は取り消せません）。</span><span class="bi lang-vi">Có thể xóa ở chế độ chỉnh sửa. Luôn kiểm tra nội dung trước khi xóa (không thể hoàn tác sau khi xóa).</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="nc-07" class="scenario" data-cat="nc">
+    <div class="scenario-head" style="border-left-color:#f59e0b">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#f59e0b"><span class="bi lang-ja">NC 旋盤</span><span class="bi lang-vi">NC (Tiện)</span></span>
+        <h3><span class="bi lang-ja">NC段取シートバック（新規／リピート）</span><span class="bi lang-vi">Phiếu cài đặt NC quay lại (Mới / Lặp lại)</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 OPERATOR</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">新規段取シートまたはリピート段取シートが現場から戻ってきた際に、旋盤情報を確定させ作業記録の入力へ進める一連の流れです。<b>個別セクションの保存だけではバージョンは一切変わらず、「STEP1完了」または「更新完了」ボタンを押した時にだけ表示される確認モーダルでの選択によってバージョンが確定する</b>という、後戻りできない重要な分岐を含みます。</span><span class="bi lang-vi">Đây là quy trình xác định thông tin tiện và chuyển sang nhập ghi nhận công việc khi phiếu cài đặt Mới hoặc Lặp lại được thu hồi từ hiện trường. Quy trình này bao gồm một bước rẽ nhánh quan trọng không thể hoàn tác: <b>chỉ lưu từng mục riêng lẻ sẽ KHÔNG làm thay đổi phiên bản; phiên bản chỉ được xác định qua lựa chọn trong cửa sổ xác nhận hiển thị khi nhấn nút "Hoàn tất STEP1" hoặc "Hoàn tất cập nhật"</b>.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">未回収シート一覧から対象を選択</span><span class="bi lang-vi">Chọn phiếu từ danh sách chưa thu hồi</span></h4>
+        <p><span class="bi lang-ja">「段取シートバック」画面でNC IDを入力すると未回収シート一覧が表示されます。種別バッジ（新規／リピート）・発行No.・発行日時・発行者を確認し、対象の発行No.をクリックします。</span><span class="bi lang-vi">Nhập NC ID trên màn hình "Phiếu cài đặt quay lại" để hiển thị danh sách phiếu chưa thu hồi. Kiểm tra nhãn loại (Mới/Lặp lại), số phát hành, ngày giờ phát hành, người phát hành, rồi nhấp vào số phát hành cần chọn.</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">旋盤情報を確認・編集する（工具リスト・クランプノート等）</span><span class="bi lang-vi">Kiểm tra và chỉnh sửa thông tin tiện (danh sách dụng cụ, ghi chú kẹp...)</span></h4>
+        <p><span class="bi lang-ja">新規の場合は「段取シートバック STEP1: 旋盤情報・ツーリングなどを登録してください」、リピートの場合は「段取シートバック リピート: 旋盤情報を確認・編集してください」というバナーが画面上部に表示されます。工具リスト（形状・チップ・ホルダー・ノーズR・T NO）、クランプノート、図面・写真を実際の加工内容に合わせて編集します。<b>各セクションの「保存」操作はその場でデータを確定するだけで、バージョンは変化しません。</b></span><span class="bi lang-vi">Trường hợp Mới sẽ hiển thị banner "Phiếu cài đặt quay lại STEP1: Vui lòng đăng ký thông tin tiện, dụng cụ...", trường hợp Lặp lại hiển thị "Phiếu cài đặt quay lại — Lặp lại: Vui lòng kiểm tra, chỉnh sửa thông tin tiện" ở phía trên màn hình. Chỉnh sửa danh sách dụng cụ (hình dạng, lưỡi cắt, đầu kẹp, bán kính mũi, T NO), ghi chú kẹp, bản vẽ/ảnh cho khớp với nội dung gia công thực tế. <b>Thao tác "Lưu" của mỗi mục chỉ xác nhận dữ liệu tại chỗ, không làm thay đổi phiên bản.</b></span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">【新規の場合】「STEP1完了 → STEP2(作業記録)へ」を押す</span><span class="bi lang-vi">[Trường hợp Mới] Nhấn "Hoàn tất STEP1 → STEP2 (Ghi nhận công việc)"</span></h4>
+        <p><span class="bi lang-ja">入力内容がまずサーバへ保存され、続けて「終了確認 — 変更内容を記録」モーダルが自動的に開きます。新規（sbMode）の場合は<b>「変更種別: 新規登録」に自動固定</b>され、種別選択は不要です。「内容（任意）」欄に補足コメントを入力し、<b>「OK — 作業記録へ」</b>を押すと、サーバ側でバージョンが「1.0001」として確定されて変更履歴にINSERTされ、約0.8秒後に自動的に作業記録画面（STEP2）へ遷移します。</span><span class="bi lang-vi">Nội dung nhập được lưu lên máy chủ trước, sau đó cửa sổ "Xác nhận kết thúc — Ghi nhận nội dung thay đổi" tự động mở ra. Trường hợp Mới (sbMode), <b>tự động cố định "Loại thay đổi: Đăng ký mới"</b>, không cần chọn loại. Nhập ghi chú bổ sung vào ô "Nội dung (tùy chọn)", nhấn <b>"OK — Đến ghi nhận công việc"</b>, phiên bản được xác định là "1.0001" trên máy chủ, ghi vào lịch sử thay đổi, và khoảng 0.8 giây sau tự động chuyển sang màn hình ghi nhận công việc (STEP2).</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">【リピートの場合】「更新完了 → 変更登録・STEP2へ」を押す → 作業種別（6種）を必ず選択</span><span class="bi lang-vi">[Trường hợp Lặp lại] Nhấn "Hoàn tất cập nhật → Đăng ký thay đổi, chuyển STEP2" → bắt buộc chọn Loại công việc (6 loại)</span></h4>
+        <p><span class="bi lang-ja">同じく終了確認モーダルが開きますが、リピートの場合は種別が自動固定されず、<b>「作業種別 *」として大変更／小変更／追加／修正／削除／訂正の6種類から必ず1つを選択</b>する必要があります（未選択のままではOKできません）。<b>「大変更」を選ぶとバージョンの整数部が+1</b>（例: 1.0001 → 2.0001）される旨の赤い警告文が表示され、<b>それ以外の5種類を選ぶと100分の1位が+0.01</b>（例: 1.0001 → 1.0101）される旨が表示されます。工具交換や軽微な修正であれば「修正」または「小変更」を、加工方法自体を大きく変更した場合のみ「大変更」を選びます。</span><span class="bi lang-vi">Cửa sổ xác nhận kết thúc cũng mở ra tương tự, nhưng trường hợp Lặp lại thì loại không được tự động cố định, mà <b>bắt buộc phải chọn 1 trong 6 loại "Loại công việc *"</b>: Thay đổi lớn／Thay đổi nhỏ／Thêm／Sửa／Xóa／Đính chính (không thể nhấn OK nếu chưa chọn). <b>Nếu chọn "Thay đổi lớn", phần nguyên phiên bản sẽ +1</b> (VD: 1.0001 → 2.0001) và cảnh báo màu đỏ sẽ hiển thị; <b>nếu chọn 1 trong 5 loại còn lại, hàng phần trăm sẽ +0.01</b> (VD: 1.0001 → 1.0101). Nếu chỉ đổi dụng cụ hoặc sửa nhỏ thì chọn "Sửa" hoặc "Thay đổi nhỏ"; chỉ chọn "Thay đổi lớn" khi thay đổi lớn về phương pháp gia công.</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">内容を入力しOKで確定する（他の選択肢にも注意）</span><span class="bi lang-vi">Nhập nội dung và nhấn OK để xác định (lưu ý các lựa chọn khác)</span></h4>
+        <p><span class="bi lang-ja">「内容（任意）」欄（プレースホルダ「変更の詳細内容を入力...」）に変更理由を記入し、<b>「OK — 作業記録へ」</b>を押すと選択した作業種別に応じてバージョンが計算・確定され、変更履歴（changeType: 変更）にversion_before／version_afterが記録された上で作業記録画面へ遷移します。確定前に保存だけしたい場合は<b>「💾 一時保存」</b>（バージョンは変えず入力内容だけ保存）、作業記録入力が不要な場合は<b>「スキップ（作業記録なし）」</b>、編集自体を取り消したい場合は<b>「キャンセル（変更を取り消す）」</b>が選べます。<b>「大変更」を選んだままOKするとバージョン整数部の上昇は元に戻せない</b>ため、押す前に必ず選択内容を再確認してください。</span><span class="bi lang-vi">Nhập lý do thay đổi vào ô "Nội dung (tùy chọn)" (placeholder "Nhập chi tiết nội dung thay đổi..."), nhấn <b>"OK — Đến ghi nhận công việc"</b>, phiên bản sẽ được tính và xác định theo loại công việc đã chọn, version_before/version_after được ghi vào lịch sử thay đổi (changeType: Thay đổi), sau đó chuyển sang màn hình ghi nhận công việc. Nếu chỉ muốn lưu trước khi xác định, dùng <b>"💾 Lưu tạm"</b> (không đổi phiên bản, chỉ lưu nội dung); nếu không cần nhập ghi nhận công việc, dùng <b>"Bỏ qua (Không ghi nhận công việc)"</b>; nếu muốn hủy toàn bộ chỉnh sửa, dùng <b>"Hủy (Bỏ thay đổi)"</b>. <b>Nếu nhấn OK khi đã chọn "Thay đổi lớn", việc tăng phần nguyên phiên bản không thể hoàn tác</b>, vì vậy hãy luôn kiểm tra lại lựa chọn trước khi nhấn.</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">作業記録を入力し登録すると自動的に回収済みになる</span><span class="bi lang-vi">Nhập ghi nhận công việc và đăng ký sẽ tự động chuyển thành đã thu hồi</span></h4>
+        <p><span class="bi lang-ja">種別（量産／試作）、使用機械、段取時間、量産時間、加工個数、備考を入力し<b>✓ 作業完了（登録）</b>を押すと、段取シートは自動的に回収済みステータスへ更新され、未回収一覧から消えます。</span><span class="bi lang-vi">Nhập loại (sản xuất hàng loạt/thử nghiệm), máy sử dụng, thời gian cài đặt, thời gian sản xuất, số lượng gia công, ghi chú rồi nhấn <b>✓ Hoàn tất công việc (Đăng ký)</b>, phiếu cài đặt sẽ tự động chuyển trạng thái đã thu hồi và biến mất khỏi danh sách chưa thu hồi.</span></p>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="nc-08" class="scenario" data-cat="nc">
+    <div class="scenario-head" style="border-left-color:#f59e0b">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#f59e0b"><span class="bi lang-ja">NC 旋盤</span><span class="bi lang-vi">NC (Tiện)</span></span>
+        <h3><span class="bi lang-ja">NC段取シート未回収リストの確認と紛失時の処理</span><span class="bi lang-vi">Kiểm tra danh sách phiếu cài đặt NC chưa thu hồi và xử lý khi thất lạc</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 全員／OPERATOR／ADMIN</span>
+        <span><span class="bi lang-ja">🔓 認証不要（紛失処理は要認証）</span><span class="bi lang-vi">🔓 Không cần xác thực (xử lý thất lạc cần xác thực)</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">現場に発行済みでまだ「回収済み」になっていないNC段取シートを確認し、紛失または長期未回収の場合に理由付きで一覧から除外する手順です。データは削除されず記録が残ります。</span><span class="bi lang-vi">Đây là quy trình kiểm tra các phiếu cài đặt NC đã phát hành ra hiện trường nhưng chưa được đánh dấu "đã thu hồi", và loại khỏi danh sách kèm lý do khi bị thất lạc hoặc để lâu không thu hồi. Dữ liệu không bị xóa mà vẫn được ghi lại.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">未回収件数を確認する</span><span class="bi lang-vi">Kiểm tra số lượng chưa thu hồi</span></h4>
+        <p><span class="bi lang-ja">NC詳細画面の作業記録タブ等に「未回収: {n}件」のバッジが表示されます。件数が多い場合は現場での回収漏れが疑われます。</span><span class="bi lang-vi">Nhãn "Chưa thu hồi: {n}" hiển thị ở tab ghi nhận công việc v.v. trong màn hình chi tiết NC. Nếu số lượng nhiều, có thể nghi ngờ có sót phiếu chưa thu hồi tại hiện trường.</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">「段取シートバック」画面でNC IDを入力し一覧を開く</span><span class="bi lang-vi">Nhập NC ID ở màn hình "Phiếu cài đặt quay lại" để mở danh sách</span></h4>
+        <p><span class="bi lang-ja">対象のNC IDを入力すると未回収シート一覧が表示されます。各行に種別（新規／リピート）バッジ、発行No.、発行日時、発行者が表示されます。<b>📄 原本確認</b>で発行時に保存された原本PDFをそのまま表示できます（ISOトレーサビリティのため原本は再生成されず、必ず保存済みファイルが表示されます）。</span><span class="bi lang-vi">Nhập NC ID cần tra, danh sách phiếu chưa thu hồi sẽ hiển thị. Mỗi dòng có nhãn loại (Mới/Lặp lại), số phát hành, ngày giờ phát hành, người phát hành. Có thể xem đúng bản PDF gốc đã lưu lúc phát hành bằng <b>📄 Xác nhận bản gốc</b> (để đảm bảo truy xuất nguồn gốc theo ISO, bản gốc không bao giờ được tạo lại — luôn hiển thị file đã lưu).</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">紛失時：「行方不明にする」→ 理由選択 → 記録</span><span class="bi lang-vi">Khi thất lạc: "Đánh dấu thất lạc" → chọn lý do → ghi nhận</span></h4>
+        <p><span class="bi lang-ja">対象行の<b>行方不明にする</b>ボタンを押すと「⚠ 回収済みとして処理」モーダルが開きます。理由を<b>紛失</b>／<b>作業者未回収のまま長期経過</b>／<b>その他</b>から選択し、必要であれば詳細（任意）を入力して<b>回収済みとして記録</b>を押します。未回収一覧から除外され、印刷履歴には「紛失: {理由}」が残ります。この処理はISOトレーサビリティ上重要な記録のため、正確な理由選択を徹底してください。</span><span class="bi lang-vi">Nhấp nút <b>Đánh dấu thất lạc</b> trên dòng tương ứng, cửa sổ "⚠ Xử lý là đã thu hồi" sẽ mở. Chọn lý do: <b>Thất lạc</b> / <b>Người vận hành chưa nhận trong thời gian dài</b> / <b>Khác</b>, nhập chi tiết (không bắt buộc) nếu cần, rồi nhấn <b>Ghi nhận là đã thu hồi</b>. Phiếu sẽ bị loại khỏi danh sách chưa thu hồi, lịch sử in ghi lại "Thất lạc: {lý do}". Đây là ghi chép quan trọng cho truy xuất nguồn gốc ISO, hãy luôn chọn lý do chính xác.</span></p>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="nc-09" class="scenario" data-cat="nc">
+    <div class="scenario-head" style="border-left-color:#f59e0b">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#f59e0b"><span class="bi lang-ja">NC 旋盤</span><span class="bi lang-vi">NC (Tiện)</span></span>
+        <h3><span class="bi lang-ja">NC履歴情報の参照（変更履歴・作業記録・印刷履歴・操作ログ）</span><span class="bi lang-vi">Tham chiếu lịch sử NC (thay đổi, ghi nhận công việc, in, thao tác)</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 全員（認証不要）</span>
+        <span><span class="bi lang-ja">🔓 認証不要</span><span class="bi lang-vi">🔓 Không cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">NC詳細画面の「📋履歴」タブは、内部に✏️変更履歴／⏱作業記録／🖨印刷履歴の3サブタブに分かれています（旧システムで1レコードに混在していた3種のデータを分離したものです）。ここに操作ログを合わせた4種の記録を目的に応じて使い分けます。</span><span class="bi lang-vi">Tab "📋 Lịch sử" trong màn hình chi tiết NC được chia thành 3 subtab bên trong: ✏️ Lịch sử thay đổi／⏱ Ghi nhận công việc／🖨 Lịch sử in (đây là kết quả tách 3 loại dữ liệu từng gộp chung trong 1 bản ghi ở hệ thống cũ). Cộng với nhật ký thao tác, có 4 loại ghi chép được sử dụng tùy mục đích.</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">✏️変更履歴サブタブ</span><span class="bi lang-vi">Subtab ✏️ Lịch sử thay đổi</span></h4>
+        <p><span class="bi lang-ja">日時・種別（新規登録／変更／承認／移行）・担当者・Ver変化・変更内容が確認できます。GET /api/nc/:nc_id/change-history から取得され、<b>いつ・誰が・何を変更したか</b>を追跡する用途です。作業種別（大変更／小変更／追加／修正／削除／訂正）を選んで確定した内容もここに記録されます。</span><span class="bi lang-vi">Có thể xem ngày giờ, loại (Đăng ký mới/Thay đổi/Duyệt/Di chuyển), người phụ trách, thay đổi phiên bản, nội dung thay đổi. Lấy dữ liệu từ GET /api/nc/:nc_id/change-history, dùng để theo dõi <b>ai đã thay đổi gì, khi nào</b>. Nội dung đã xác định qua lựa chọn loại công việc (Thay đổi lớn/Thay đổi nhỏ/Thêm/Sửa/Xóa/Đính chính) cũng được ghi lại tại đây.</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">⏱作業記録サブタブ</span><span class="bi lang-vi">Subtab ⏱ Ghi nhận công việc</span></h4>
+        <p><span class="bi lang-ja">作業日・担当者・機械・段取時間・加工時間・個数・備考（先頭30文字）の一覧です。GET /api/nc/:nc_id/work-records から取得。行クリックまたは[✏️編集]ボタンでSCR-05（作業記録画面）の編集モードへ直接遷移できます。<b>削除機能はなく</b>、誤入力は備考欄に「取消:理由」と記入する運用で対応します。</span><span class="bi lang-vi">Danh sách ngày làm việc, người phụ trách, máy, thời gian cài đặt, thời gian gia công, số lượng, ghi chú (30 ký tự đầu). Lấy dữ liệu từ GET /api/nc/:nc_id/work-records. Nhấp vào dòng hoặc nút [✏️ Sửa] để chuyển thẳng sang chế độ chỉnh sửa ở SCR-05 (màn hình ghi nhận công việc). <b>Không có chức năng xóa</b>, khi nhập sai xử lý bằng cách ghi "Hủy: lý do" vào ô ghi chú.</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">🖨印刷履歴サブタブ</span><span class="bi lang-vi">Subtab 🖨 Lịch sử in</span></h4>
+        <p><span class="bi lang-ja">段取シートの発行履歴（発行No.・印刷日時・印刷者・バージョン・種別）です。GET /api/nc/:nc_id/setup-sheet-logs から取得。回収済み／未回収／紛失の状態もここで確認できます（nc-08参照）。</span><span class="bi lang-vi">Lịch sử phát hành phiếu cài đặt (số phát hành, ngày giờ in, người in, phiên bản, loại). Lấy dữ liệu từ GET /api/nc/:nc_id/setup-sheet-logs. Cũng có thể xem trạng thái đã thu hồi/chưa thu hồi/thất lạc tại đây (xem nc-08).</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">操作ログ（管理パネル横断検索）</span><span class="bi lang-vi">Nhật ký thao tác (tìm kiếm ngang qua bảng quản trị)</span></h4>
+        <p><span class="bi lang-ja">作業開始・作業終了・PGファイルDL・ファイルUP・ファイル削除など、システム操作単位の記録は管理パネルの「🔍 操作ログ」画面（/admin/logs）から日時・種別・担当者・NC_ID・部品/図番・詳細で横断的に検索できます。NC詳細画面内には専用タブはなく、管理パネル側の機能である点が変更履歴等の3サブタブとの違いです。</span><span class="bi lang-vi">Các ghi chép theo từng thao tác hệ thống như bắt đầu/kết thúc công việc, tải PG xuống, tải file lên, xóa file có thể tìm kiếm ngang qua ngày giờ, loại, người phụ trách, NC_ID, chi tiết/số bản vẽ, chi tiết từ màn hình "🔍 Nhật ký thao tác" (/admin/logs) trong bảng quản trị. Khác với 3 subtab lịch sử (không có tab riêng trong màn hình chi tiết NC), đây là chức năng thuộc về bảng quản trị.</span></p>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="nc-10" class="scenario" data-cat="nc">
+    <div class="scenario-head" style="border-left-color:#f59e0b">
+      <div class="scenario-title-row">
+        <span class="cat-chip" style="background:#f59e0b"><span class="bi lang-ja">NC 旋盤</span><span class="bi lang-vi">NC (Tiện)</span></span>
+        <h3><span class="bi lang-ja">NC承認作業（参考）</span><span class="bi lang-vi">Công việc duyệt NC (tham khảo)</span></h3>
+      </div>
+      <div class="scenario-meta">
+        <span>👤 ADMINのみ</span>
+        <span><span class="bi lang-ja">🔒 要認証</span><span class="bi lang-vi">🔒 Cần xác thực</span></span>
+      </div>
+      <p class="scenario-intro"><span class="bi lang-ja">新規登録・変更登録された旋盤情報を、管理者権限で承認する作業です。承認前は「変更中」ステータスとして扱われ、承認によって初めて「承認済」になります。</span><span class="bi lang-vi">Đây là công việc duyệt thông tin tiện đã đăng ký mới/thay đổi bằng quyền quản trị. Trước khi duyệt, trạng thái là "Đang thay đổi"; chỉ sau khi duyệt mới chuyển thành "Đã duyệt".</span></p>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">承認待ちのNCを確認する</span><span class="bi lang-vi">Kiểm tra NC đang chờ duyệt</span></h4>
+        <p><span class="bi lang-ja">部品検索の結果一覧、またはNC詳細画面上部に「変更中」バッジが表示されている案件が対象です。これは前のシナリオ（nc-07）で「STEP1完了」や「更新完了」を確定した直後の状態で、<b>バージョンは既に更新済みだが承認はまだ</b>という状態を意味します。基本情報の承認者欄も「未承認」のままです。</span><span class="bi lang-vi">Đối tượng là các mục có nhãn "Đang thay đổi" trong danh sách kết quả tìm kiếm chi tiết, hoặc phía trên màn hình chi tiết NC. Đây là trạng thái ngay sau khi "Hoàn tất STEP1" hoặc "Hoàn tất cập nhật" được xác nhận ở kịch bản trước (nc-07), nghĩa là <b>phiên bản đã được cập nhật nhưng chưa được duyệt</b>. Mục người duyệt trong thông tin cơ bản vẫn ghi "Chưa duyệt".</span></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4><span class="bi lang-ja">内容を確認し「✓ 承認」を押す</span><span class="bi lang-vi">Kiểm tra nội dung và nhấn "✓ Duyệt"</span></h4>
+        <p><span class="bi lang-ja">ADMIN権限でログイン後、更新された工具リスト・クランプ・図面・変更履歴の内容（誰がどの作業種別で何を変更したか）を確認し、問題なければ画面上部の<b>✓ 承認</b>をクリックします。承認者・承認日が自動記録され、ステータスが「変更中」から「承認済」に変わります。</span><span class="bi lang-vi">Sau khi đăng nhập bằng quyền ADMIN, kiểm tra nội dung danh sách dụng cụ, kẹp, bản vẽ đã cập nhật, và lịch sử thay đổi (ai đã thay đổi gì với loại công việc nào), nếu không có vấn đề thì nhấp <b>✓ Duyệt</b> ở phía trên màn hình. Người duyệt và ngày duyệt sẽ được tự động ghi nhận, trạng thái chuyển từ "Đang thay đổi" sang "Đã duyệt".</span></p>
+      </div>
+    </div>
+    </div>
+  </section>
+
+    </div>
+
+</div>
+
+  </main>
+</div>
+
+<script>
+function updateSearchPlaceholder(l) {
+  var el = document.getElementById('navSearch');
+  if (!el) return;
+  el.placeholder = l === 'vi' ? el.dataset.phVi : el.dataset.phJa;
+}
+function filterNav(kw) {
+  kw = kw.trim().toLowerCase();
+  var links = document.querySelectorAll('.nav-link');
+  var count = 0;
+  var catGroups = {}; // cat -> has visible
+  links.forEach(function(l) {
+    if (l.getAttribute('data-cat') !== currentTab) { return; }
+    var text = l.textContent.toLowerCase();
+    var match = kw === '' || text.indexOf(kw) !== -1;
+    l.classList.toggle('nav-hidden', !match);
+    if (match) { count++; var c = l.getAttribute('data-cat'); if (c) catGroups[c] = true; }
+  });
+  // カテゴリ見出しの表示制御（該当なしなら隠す）
+  document.querySelectorAll('.sidebar h2').forEach(function(h2){ h2.classList.remove('cat-hidden'); });
+  if (kw !== '') {
+    var headers = document.querySelectorAll('.sidebar h2');
+    // MC見出し(先頭2つ) / NC見出し(次2つ) / 管理見出し(最後2つ) の可視判定
+    var mcVisible = catGroups['mc'], ncVisible = catGroups['nc'];
+    if (headers.length >= 6) {
+      if (!mcVisible) { headers[0].classList.add('cat-hidden'); headers[1].classList.add('cat-hidden'); }
+      if (!ncVisible) { headers[2].classList.add('cat-hidden'); headers[3].classList.add('cat-hidden'); }
+    }
+  }
+  var countEl = document.getElementById('navSearchCount');
+  if (countEl) {
+    if (kw === '') { countEl.textContent = ''; }
+    else { countEl.textContent = (document.body.classList.contains('lang-vi-active') ? count + ' kết quả' : count + '件ヒット'); }
+  }
+}
+function setLang(l) {
+  currentLang = l;
+  document.body.classList.toggle('lang-vi-active', l === 'vi');
+  document.getElementById('btnJa').classList.toggle('active', l === 'ja');
+  document.getElementById('btnVi').classList.toggle('active', l === 'vi');
+  document.documentElement.lang = l;
+  updateSearchPlaceholder(l);
+  renderSidebar(document.getElementById('navSearch') ? document.getElementById('navSearch').value : '');
+}
+window.addEventListener('scroll', function() {
+  var h = document.documentElement;
+  var pct = (h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
+  document.getElementById('progressBar').style.width = pct + '%';
+});
+// scroll-spy for sidebar
+
+var currentTab = 'mc';
+var currentLang = 'ja';
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.body.classList.remove('tab-mc','tab-nc','tab-admin');
+  document.body.classList.add('tab-' + tab);
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === tab); });
+  var search = document.getElementById('navSearch');
+  renderSidebar(search ? search.value : '');
+  window.scrollTo(0,0);
+}
+
+function filterNav(kw) {
+  renderSidebar(kw);
+}
+
+function renderSidebar(kw) {
+  kw = (kw || '').trim().toLowerCase();
+  var count = 0;
+
+  document.querySelectorAll('.sidebar a.nav-link').forEach(function(l) {
+    var catMatch = l.getAttribute('data-cat') === currentTab;
+    var text = l.textContent.toLowerCase();
+    var kwMatch = kw === '' || text.indexOf(kw) !== -1;
+    var visible = catMatch && kwMatch;
+    l.style.display = visible ? 'flex' : 'none';
+    if (visible) count++;
+  });
+
+  document.querySelectorAll('.sidebar h2').forEach(function(h2) {
+    var catMatch = h2.getAttribute('data-cat') === currentTab;
+    var isJa = h2.classList.contains('lang-ja');
+    var langMatch = (currentLang === 'ja') === isJa;
+    var showHeader = catMatch && langMatch && !(kw !== '' && count === 0);
+    h2.style.display = showHeader ? 'block' : 'none';
+  });
+
+  var countEl = document.getElementById('navSearchCount');
+  if (countEl) {
+    countEl.textContent = kw === '' ? '' : (currentLang === 'vi' ? count + ' kết quả' : count + '件ヒット');
+  }
+}
+
+renderSidebar('');
+var sections = Array.from(document.querySelectorAll('.scenario'));
+var links = Array.from(document.querySelectorAll('.nav-link'));
+window.addEventListener('scroll', function() {
+  var pos = window.scrollY + 100;
+  var current = null;
+  sections.forEach(function(s) { if (s.offsetTop <= pos) current = s.id; });
+  links.forEach(function(l) {
+    l.classList.toggle('active', l.getAttribute('href') === '#' + current);
+  });
+});
+</script>
+</body>
+</html>

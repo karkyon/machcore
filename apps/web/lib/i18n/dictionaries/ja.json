@@ -42,7 +42,8 @@
     "menuSpecialSheets": "SPシート管理",
     "menuUploadAgent": "UploadAgent",
     "menuFileBrowser": "ファイルブラウザ",
-    "menuLanguage": "言語設定"
+    "menuLanguage": "言語設定",
+    "menuManual": "📖 マニュアル"
   },
   "adminLogin": {
     "title": "管理者ログイン",
@@ -193,7 +194,8 @@
     "colPrinter": "印刷者",
     "colElapsed": "経過",
     "sheetCountShort": "{n}枚",
-    "typeRef": "参考"
+    "typeRef": "参考",
+    "manualLink": "📖 業務マニュアル"
   },
   "search": {
     "mcSystemTitle": "MC マシニング管理システム",

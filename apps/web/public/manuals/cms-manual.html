@@ -1,0 +1,1652 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MachCore CMS管理マニュアル / Sổ tay quản trị CMS</title>
+<style>
+:root {
+  --bg:#f4f6f9; --panel:#ffffff; --ink:#1e293b; --sub:#64748b; --line:#e5e9f0;
+  --accent:#6366f1; --accent-dark:#4f46e5;
+}
+* { box-sizing:border-box; }
+body { margin:0; font-family:"Segoe UI","Hiragino Kaku Gothic ProN",Meiryo,sans-serif; background:var(--bg); color:var(--ink); }
+.lang-vi { display:none; }
+body.lang-vi-active .lang-ja { display:none; }
+body.lang-vi-active .lang-vi { display:inline; }
+
+.topbar { position:sticky; top:0; z-index:60; background:#111827; color:#fff; padding:14px 24px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 10px rgba(0,0,0,.18); }
+.topbar h1 { font-size:16px; margin:0; font-weight:700; }
+.topbar .sub { font-size:11px; color:#9ca3af; margin-top:2px; }
+.lang-toggle { display:flex; background:#1f2937; border-radius:8px; padding:3px; gap:2px; }
+.lang-toggle button { border:none; background:transparent; color:#9ca3af; padding:7px 16px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; }
+.lang-toggle button.active { background:var(--accent); color:#fff; }
+
+.layout { display:flex; max-width:1420px; margin:0 auto; border-top:1.5px solid var(--line); }
+
+/* ---- accordion sidebar ---- */
+.sidebar { width:300px; flex-shrink:0; position:sticky; top:57px; height:calc(100vh - 57px); overflow-y:auto; background:var(--panel); border-right:1px solid var(--line); padding:14px 10px 60px; }
+.sidebar-title { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--sub); padding:4px 8px 12px; }
+.menu-group { margin-bottom:6px; border-radius:10px; overflow:hidden; }
+.menu-parent { width:100%; display:flex; align-items:center; gap:10px; padding:11px 10px; background:#fff; border:1px solid var(--line); border-radius:10px; cursor:pointer; font-size:13px; font-weight:700; color:var(--ink); transition:.15s; text-align:left; }
+.menu-parent:hover { background:#f8fafc; border-color:#c7d2fe; }
+.menu-parent-icon { width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.menu-parent-label { flex:1; line-height:1.3; }
+.chevron { transition:transform .2s ease; color:#94a3b8; flex-shrink:0; }
+.menu-group.open .chevron { transform:rotate(90deg); }
+.menu-group.open .menu-parent { border-color:var(--accent); box-shadow:0 2px 8px rgba(99,102,241,.12); }
+
+.submenu { max-height:0; overflow:hidden; transition:max-height .25s ease; background:#fafbff; border-radius:0 0 10px 10px; }
+.menu-group.open .submenu { max-height:600px; border:1px solid var(--line); border-top:none; }
+.submenu-link { display:block; padding:9px 14px 9px 46px; font-size:12px; color:#475569; text-decoration:none; border-top:1px dashed #e5e9f0; line-height:1.45; }
+.submenu-link:first-child { border-top:none; }
+.submenu-link:hover { background:#eef2ff; color:var(--accent-dark); }
+.submenu-link.active { background:#e0e7ff; color:var(--accent-dark); font-weight:700; border-left:3px solid var(--accent); padding-left:43px; }
+
+/* ---- main ---- */
+.main { flex:1; min-width:0; padding:28px 40px 100px; }
+.intro-box { background:linear-gradient(135deg,#6366f1,#4f46e5); color:#fff; border-radius:14px; padding:26px 30px; margin-bottom:30px; }
+.intro-box h2 { margin:0 0 8px; font-size:21px; }
+.intro-box p { margin:0; font-size:13.5px; opacity:.95; line-height:1.7; }
+
+.menu-section { margin-bottom:40px; scroll-margin-top:70px; }
+.menu-section-head { display:flex; gap:14px; align-items:flex-start; padding:20px 22px; border-radius:12px; margin-bottom:16px; }
+.menu-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.menu-path { font-family:monospace; font-size:10.5px; color:#94a3b8; margin-bottom:2px; }
+.menu-section-head h2 { margin:0 0 6px; font-size:18px; }
+.menu-section-head p { margin:0; font-size:12.5px; color:#475569; line-height:1.7; }
+
+.operation { background:var(--panel); border-radius:12px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.06); overflow:hidden; scroll-margin-top:70px; }
+.operation-head { padding:14px 22px; border-left:5px solid; background:#fbfbfd; }
+.operation-head h4 { margin:0; font-size:14.5px; }
+
+.steps { padding:4px 22px 16px; }
+.step { display:flex; gap:13px; padding:14px 0; border-top:1px dashed var(--line); }
+.step:first-child { border-top:none; }
+.step-num { flex-shrink:0; width:25px; height:25px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+.step-body h5 { margin:2px 0 5px; font-size:13.5px; }
+.step-body p { margin:0; font-size:12.5px; line-height:1.75; color:#334155; }
+
+.shot-box { margin-top:11px; border:1.5px dashed #cbd5e1; border-radius:10px; background:#f8fafc; overflow:hidden; }
+.shot-head { display:flex; align-items:center; gap:8px; background:#eef0f9; padding:7px 12px; font-size:11px; color:#475569; }
+.shot-filename { font-family:monospace; font-weight:700; color:#0f172a; }
+.shot-size { margin-left:auto; background:#fff; border:1px solid #cbd5e1; padding:1px 7px; border-radius:4px; }
+.shot-body { padding:13px; }
+.shot-placeholder { height:64px; border-radius:6px; background:repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9 10px,#e2e8f0 10px,#e2e8f0 20px); display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:11.5px; font-weight:600; margin-bottom:7px; }
+.shot-desc { font-size:11.5px; color:#64748b; line-height:1.6; }
+.shot-desc-text { color:#334155; }
+
+@media (max-width: 900px) {
+  .sidebar { display:none; }
+  .main { padding:20px; }
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div>
+    <h1>MachCore <span class="lang-ja">CMS管理マニュアル</span><span class="lang-vi">Sổ tay quản trị CMS</span></h1>
+    <div class="sub lang-ja">管理パネル（CMS）操作マニュアル ／ 全14メニュー・42機能収録</div>
+    <div class="sub lang-vi">Sổ tay thao tác Bảng quản trị (CMS) / 14 menu, 42 chức năng</div>
+  </div>
+  <div class="lang-toggle">
+    <button id="btnJa" class="active" onclick="setLang('ja')">日本語</button>
+    <button id="btnVi" onclick="setLang('vi')">Tiếng Việt</button>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-title lang-ja">管理メニュー</div>
+    <div class="sidebar-title lang-vi">Menu quản trị</div>
+    
+<div class="menu-group" data-menu="users">
+  <button class="menu-parent" onclick="toggleMenu('users')" data-menu-btn="users">
+    <span class="menu-parent-icon" style="background:#0ea5e9">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">ユーザ管理</span><span class="menu-parent-text lang-vi">Quản lý người dùng</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-users">
+    <a href="#users-list" class="submenu-link" data-menu="users" onclick="selectOp(this,'users','users-list')"><span class="submenu-text lang-ja">ユーザ一覧の確認・検索</span><span class="submenu-text lang-vi">Xem danh sách và tìm kiếm người dùng</span></a>
+<a href="#users-create" class="submenu-link" data-menu="users" onclick="selectOp(this,'users','users-create')"><span class="submenu-text lang-ja">新規ユーザの登録</span><span class="submenu-text lang-vi">Đăng ký người dùng mới</span></a>
+<a href="#users-edit" class="submenu-link" data-menu="users" onclick="selectOp(this,'users','users-edit')"><span class="submenu-text lang-ja">ユーザ編集（ロール変更・パスワード変更）</span><span class="submenu-text lang-vi">Sửa người dùng (đổi vai trò, đổi mật khẩu)</span></a>
+<a href="#users-deactivate" class="submenu-link" data-menu="users" onclick="selectOp(this,'users','users-deactivate')"><span class="submenu-text lang-ja">ユーザの無効化／有効化</span><span class="submenu-text lang-vi">Vô hiệu hóa / Kích hoạt lại người dùng</span></a>
+  </div>
+</div>
+
+<div class="menu-group" data-menu="machines">
+  <button class="menu-parent" onclick="toggleMenu('machines')" data-menu-btn="machines">
+    <span class="menu-parent-icon" style="background:#0ea5e9">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">機械管理</span><span class="menu-parent-text lang-vi">Quản lý máy</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-machines">
+    <a href="#machines-list" class="submenu-link" data-menu="machines" onclick="selectOp(this,'machines','machines-list')"><span class="submenu-text lang-ja">機械一覧の確認・検索</span><span class="submenu-text lang-vi">Xem danh sách và tìm kiếm máy</span></a>
+<a href="#machines-create" class="submenu-link" data-menu="machines" onclick="selectOp(this,'machines','machines-create')"><span class="submenu-text lang-ja">新規機械の登録</span><span class="submenu-text lang-vi">Đăng ký máy mới</span></a>
+<a href="#machines-edit" class="submenu-link" data-menu="machines" onclick="selectOp(this,'machines','machines-edit')"><span class="submenu-text lang-ja">機械編集・無効化</span><span class="submenu-text lang-vi">Sửa / Vô hiệu hóa máy</span></a>
+  </div>
+</div>
+
+<div class="menu-group" data-menu="timecards">
+  <button class="menu-parent" onclick="toggleMenu('timecards')" data-menu-btn="timecards">
+    <span class="menu-parent-icon" style="background:#0ea5e9">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">機械タイムカード</span><span class="menu-parent-text lang-vi">Thẻ thời gian máy</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-timecards">
+    <a href="#tc-view" class="submenu-link" data-menu="timecards" onclick="selectOp(this,'timecards','tc-view')"><span class="submenu-text lang-ja">タイムカードの参照</span><span class="submenu-text lang-vi">Tham chiếu thẻ thời gian</span></a>
+<a href="#tc-edit" class="submenu-link" data-menu="timecards" onclick="selectOp(this,'timecards','tc-edit')"><span class="submenu-text lang-ja">タイムカードの登録・修正</span><span class="submenu-text lang-vi">Đăng ký / sửa thẻ thời gian</span></a>
+  </div>
+</div>
+
+<div class="menu-group" data-menu="settings">
+  <button class="menu-parent" onclick="toggleMenu('settings')" data-menu-btn="settings">
+    <span class="menu-parent-icon" style="background:#0ea5e9">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">システム設定</span><span class="menu-parent-text lang-vi">Cài đặt hệ thống</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-settings">
+    <a href="#settings-company" class="submenu-link" data-menu="settings" onclick="selectOp(this,'settings','settings-company')"><span class="submenu-text lang-ja">会社情報の設定</span><span class="submenu-text lang-vi">Thiết lập thông tin công ty</span></a>
+<a href="#settings-storage" class="submenu-link" data-menu="settings" onclick="selectOp(this,'settings','settings-storage')"><span class="submenu-text lang-ja">ファイル保存先の設定（MC／NC）</span><span class="submenu-text lang-vi">Thiết lập nơi lưu file (MC/NC)</span></a>
+<a href="#settings-printer" class="submenu-link" data-menu="settings" onclick="selectOp(this,'settings','settings-printer')"><span class="submenu-text lang-ja">ダイレクト印刷プリンタの設定</span><span class="submenu-text lang-vi">Thiết lập máy in trực tiếp</span></a>
+<a href="#settings-cron" class="submenu-link" data-menu="settings" onclick="selectOp(this,'settings','settings-cron')"><span class="submenu-text lang-ja">タイムカード自動生成（Cron）の設定</span><span class="submenu-text lang-vi">Thiết lập tự động tạo thẻ thời gian (Cron)</span></a>
+<a href="#settings-pm2" class="submenu-link" data-menu="settings" onclick="selectOp(this,'settings','settings-pm2')"><span class="submenu-text lang-ja">PM2プロセスの再起動</span><span class="submenu-text lang-vi">Khởi động lại tiến trình PM2</span></a>
+  </div>
+</div>
+
+<div class="menu-group" data-menu="calendar">
+  <button class="menu-parent" onclick="toggleMenu('calendar')" data-menu-btn="calendar">
+    <span class="menu-parent-icon" style="background:#0ea5e9">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">営業カレンダー</span><span class="menu-parent-text lang-vi">Lịch làm việc</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-calendar">
+    <a href="#cal-toggle" class="submenu-link" data-menu="calendar" onclick="selectOp(this,'calendar','cal-toggle')"><span class="submenu-text lang-ja">日付ごとの休日／営業日切替</span><span class="submenu-text lang-vi">Chuyển đổi nghỉ/làm việc theo từng ngày</span></a>
+<a href="#cal-bulk" class="submenu-link" data-menu="calendar" onclick="selectOp(this,'calendar','cal-bulk')"><span class="submenu-text lang-ja">土日の一括休日登録</span><span class="submenu-text lang-vi">Đăng ký nghỉ hàng loạt thứ 7, chủ nhật</span></a>
+  </div>
+</div>
+
+<div class="menu-group" data-menu="raw">
+  <button class="menu-parent" onclick="toggleMenu('raw')" data-menu-btn="raw">
+    <span class="menu-parent-icon" style="background:#8b5cf6">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">RAWデータ</span><span class="menu-parent-text lang-vi">Dữ liệu RAW</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-raw">
+    <a href="#raw-select" class="submenu-link" data-menu="raw" onclick="selectOp(this,'raw','raw-select')"><span class="submenu-text lang-ja">テーブルの選択と閲覧</span><span class="submenu-text lang-vi">Chọn và xem bảng</span></a>
+<a href="#raw-filter" class="submenu-link" data-menu="raw" onclick="selectOp(this,'raw','raw-filter')"><span class="submenu-text lang-ja">キーワード・日付範囲・列指定での絞り込み</span><span class="submenu-text lang-vi">Lọc theo từ khóa, khoảng ngày, cột chỉ định</span></a>
+  </div>
+</div>
+
+<div class="menu-group" data-menu="system-logs">
+  <button class="menu-parent" onclick="toggleMenu('system-logs')" data-menu-btn="system-logs">
+    <span class="menu-parent-icon" style="background:#8b5cf6">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2-2h2a2 2 0 0 0 2 2"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">システムログ</span><span class="menu-parent-text lang-vi">Nhật ký hệ thống</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-system-logs">
+    <a href="#syslog-view" class="submenu-link" data-menu="system-logs" onclick="selectOp(this,'system-logs','syslog-view')"><span class="submenu-text lang-ja">ログの確認・自動更新</span><span class="submenu-text lang-vi">Kiểm tra và tự động cập nhật nhật ký</span></a>
+<a href="#syslog-purge" class="submenu-link" data-menu="system-logs" onclick="selectOp(this,'system-logs','syslog-purge')"><span class="submenu-text lang-ja">古いログの削除</span><span class="submenu-text lang-vi">Xóa nhật ký cũ</span></a>
+  </div>
+</div>
+
+<div class="menu-group" data-menu="clamp-master">
+  <button class="menu-parent" onclick="toggleMenu('clamp-master')" data-menu-btn="clamp-master">
+    <span class="menu-parent-icon" style="background:#8b5cf6">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">クランプマスタ</span><span class="menu-parent-text lang-vi">Master kẹp</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-clamp-master">
+    <a href="#clamp-list" class="submenu-link" data-menu="clamp-master" onclick="selectOp(this,'clamp-master','clamp-list')"><span class="submenu-text lang-ja">カテゴリ別一覧の確認</span><span class="submenu-text lang-vi">Xem danh sách theo danh mục</span></a>
+<a href="#clamp-create" class="submenu-link" data-menu="clamp-master" onclick="selectOp(this,'clamp-master','clamp-create')"><span class="submenu-text lang-ja">新規クランプの追加</span><span class="submenu-text lang-vi">Thêm kẹp mới</span></a>
+<a href="#clamp-edit" class="submenu-link" data-menu="clamp-master" onclick="selectOp(this,'clamp-master','clamp-edit')"><span class="submenu-text lang-ja">編集・順番変更・削除</span><span class="submenu-text lang-vi">Sửa, đổi thứ tự, xóa</span></a>
+  </div>
+</div>
+
+<div class="menu-group" data-menu="nc-tool-master">
+  <button class="menu-parent" onclick="toggleMenu('nc-tool-master')" data-menu-btn="nc-tool-master">
+    <span class="menu-parent-icon" style="background:#8b5cf6">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">NC加工リストマスタ</span><span class="menu-parent-text lang-vi">Master danh sách gia công NC</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-nc-tool-master">
+    <a href="#nctool-list" class="submenu-link" data-menu="nc-tool-master" onclick="selectOp(this,'nc-tool-master','nctool-list')"><span class="submenu-text lang-ja">カテゴリ別一覧の確認</span><span class="submenu-text lang-vi">Xem danh sách theo danh mục</span></a>
+<a href="#nctool-create" class="submenu-link" data-menu="nc-tool-master" onclick="selectOp(this,'nc-tool-master','nctool-create')"><span class="submenu-text lang-ja">新規候補の追加</span><span class="submenu-text lang-vi">Thêm lựa chọn mới</span></a>
+<a href="#nctool-delete" class="submenu-link" data-menu="nc-tool-master" onclick="selectOp(this,'nc-tool-master','nctool-delete')"><span class="submenu-text lang-ja">削除</span><span class="submenu-text lang-vi">Xóa</span></a>
+  </div>
+</div>
+
+<div class="menu-group" data-menu="pdf-editor">
+  <button class="menu-parent" onclick="toggleMenu('pdf-editor')" data-menu-btn="pdf-editor">
+    <span class="menu-parent-icon" style="background:#8b5cf6">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">段取りシートエディタ</span><span class="menu-parent-text lang-vi">Trình chỉnh sửa phiếu cài đặt PDF</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-pdf-editor">
+    <a href="#pdfedit-select" class="submenu-link" data-menu="pdf-editor" onclick="selectOp(this,'pdf-editor','pdfedit-select')"><span class="submenu-text lang-ja">編集対象テンプレートの選択</span><span class="submenu-text lang-vi">Chọn template cần chỉnh sửa</span></a>
+<a href="#pdfedit-fields" class="submenu-link" data-menu="pdf-editor" onclick="selectOp(this,'pdf-editor','pdfedit-fields')"><span class="submenu-text lang-ja">項目の出力位置（座標）調整</span><span class="submenu-text lang-vi">Điều chỉnh vị trí xuất (tọa độ) của mục</span></a>
+<a href="#pdfedit-upload" class="submenu-link" data-menu="pdf-editor" onclick="selectOp(this,'pdf-editor','pdfedit-upload')"><span class="submenu-text lang-ja">テンプレートPDFの差し替え</span><span class="submenu-text lang-vi">Thay thế file PDF mẫu</span></a>
+  </div>
+</div>
+
+<div class="menu-group" data-menu="special-sheets">
+  <button class="menu-parent" onclick="toggleMenu('special-sheets')" data-menu-btn="special-sheets">
+    <span class="menu-parent-icon" style="background:#8b5cf6">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2-2h2a2 2 0 0 0 2 2M12 12h.01M12 16h.01"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">SPシート管理</span><span class="menu-parent-text lang-vi">Quản lý phiếu SP</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-special-sheets">
+    <a href="#sp-list" class="submenu-link" data-menu="special-sheets" onclick="selectOp(this,'special-sheets','sp-list')"><span class="submenu-text lang-ja">一覧の確認・検索</span><span class="submenu-text lang-vi">Xem danh sách và tìm kiếm</span></a>
+<a href="#sp-create" class="submenu-link" data-menu="special-sheets" onclick="selectOp(this,'special-sheets','sp-create')"><span class="submenu-text lang-ja">新規SPシートの登録</span><span class="submenu-text lang-vi">Đăng ký phiếu SP mới</span></a>
+<a href="#sp-edit" class="submenu-link" data-menu="special-sheets" onclick="selectOp(this,'special-sheets','sp-edit')"><span class="submenu-text lang-ja">編集・PDF差し替え</span><span class="submenu-text lang-vi">Sửa / thay thế PDF</span></a>
+<a href="#sp-delete" class="submenu-link" data-menu="special-sheets" onclick="selectOp(this,'special-sheets','sp-delete')"><span class="submenu-text lang-ja">削除</span><span class="submenu-text lang-vi">Xóa</span></a>
+  </div>
+</div>
+
+<div class="menu-group" data-menu="upload-agent">
+  <button class="menu-parent" onclick="toggleMenu('upload-agent')" data-menu-btn="upload-agent">
+    <span class="menu-parent-icon" style="background:#f59e0b">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M8 17l4 4 4-4M12 12v9M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">UploadAgent</span><span class="menu-parent-text lang-vi">Quản lý UploadAgent</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-upload-agent">
+    <a href="#ua-check" class="submenu-link" data-menu="upload-agent" onclick="selectOp(this,'upload-agent','ua-check')"><span class="submenu-text lang-ja">このPCでのAgent稼働確認</span><span class="submenu-text lang-vi">Kiểm tra Agent đang chạy trên máy này</span></a>
+<a href="#ua-download" class="submenu-link" data-menu="upload-agent" onclick="selectOp(this,'upload-agent','ua-download')"><span class="submenu-text lang-ja">インストーラのダウンロード・配布</span><span class="submenu-text lang-vi">Tải xuống / phân phối bộ cài đặt</span></a>
+<a href="#ua-deploy" class="submenu-link" data-menu="upload-agent" onclick="selectOp(this,'upload-agent','ua-deploy')"><span class="submenu-text lang-ja">新バージョンのデプロイ</span><span class="submenu-text lang-vi">Triển khai phiên bản mới</span></a>
+  </div>
+</div>
+
+<div class="menu-group" data-menu="file-browser">
+  <button class="menu-parent" onclick="toggleMenu('file-browser')" data-menu-btn="file-browser">
+    <span class="menu-parent-icon" style="background:#f59e0b">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">ファイルブラウザ</span><span class="menu-parent-text lang-vi">Trình duyệt file</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-file-browser">
+    <a href="#fb-browse" class="submenu-link" data-menu="file-browser" onclick="selectOp(this,'file-browser','fb-browse')"><span class="submenu-text lang-ja">タブ切替とディレクトリ閲覧</span><span class="submenu-text lang-vi">Chuyển tab và duyệt thư mục</span></a>
+<a href="#fb-download" class="submenu-link" data-menu="file-browser" onclick="selectOp(this,'file-browser','fb-download')"><span class="submenu-text lang-ja">ダウンロード</span><span class="submenu-text lang-vi">Tải xuống</span></a>
+<a href="#fb-delete" class="submenu-link" data-menu="file-browser" onclick="selectOp(this,'file-browser','fb-delete')"><span class="submenu-text lang-ja">強制削除</span><span class="submenu-text lang-vi">Buộc xóa</span></a>
+<a href="#fb-upload" class="submenu-link" data-menu="file-browser" onclick="selectOp(this,'file-browser','fb-upload')"><span class="submenu-text lang-ja">アップロード</span><span class="submenu-text lang-vi">Tải lên</span></a>
+  </div>
+</div>
+
+<div class="menu-group" data-menu="language">
+  <button class="menu-parent" onclick="toggleMenu('language')" data-menu-btn="language">
+    <span class="menu-parent-icon" style="background:#f59e0b">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M3 5h12M9 3v2m4.5 6.5c-1.5 3-4 5.5-7.5 7M6.5 8c1 3 3 5.5 6.5 7.5M21 21l-5-10-5 10m1.5-3.5h7"/></svg>
+    </span>
+    <span class="menu-parent-label"><span class="menu-parent-text lang-ja">言語設定</span><span class="menu-parent-text lang-vi">Cài đặt ngôn ngữ</span></span>
+    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+  <div class="submenu" id="submenu-language">
+    <a href="#lang-default" class="submenu-link" data-menu="language" onclick="selectOp(this,'language','lang-default')"><span class="submenu-text lang-ja">システム既定言語の切替</span><span class="submenu-text lang-vi">Chuyển ngôn ngữ mặc định hệ thống</span></a>
+<a href="#lang-dict" class="submenu-link" data-menu="language" onclick="selectOp(this,'language','lang-dict')"><span class="submenu-text lang-ja">カスタム翻訳辞書のダウンロード・編集・アップロード</span><span class="submenu-text lang-vi">Tải xuống, chỉnh sửa, tải lên từ điển dịch tùy chỉnh</span></a>
+  </div>
+</div>
+  </nav>
+
+  <main class="main">
+    <div class="intro-box">
+      <h2 class="lang-ja">CMS管理マニュアル</h2>
+      <h2 class="lang-vi">Sổ tay quản trị CMS</h2>
+      <p class="lang-ja">管理パネルの各メニューで「何を」「どの手順で」操作するかをまとめた機能別マニュアルです。左のメニューをクリックするとサブメニュー（検索・照会／新規登録／編集／削除など）が展開されます。サブメニューをクリックすると該当箇所へジャンプします。</p>
+      <p class="lang-vi">Đây là sổ tay theo từng chức năng, tổng hợp "làm gì" và "theo bước nào" ở mỗi menu trong Bảng quản trị. Nhấp vào menu bên trái để mở submenu (tìm kiếm/tra cứu, đăng ký mới, sửa, xóa...). Nhấp vào submenu để chuyển đến phần tương ứng.</p>
+    </div>
+
+    
+<section class="menu-section" id="menu-users" data-menu="users">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#0ea5e922,#0ea5e908); border-left:5px solid #0ea5e9">
+    <div class="menu-icon" style="background:#0ea5e9">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/admin/users</div>
+      <h2><span class="bi lang-ja">ユーザ管理</span><span class="bi lang-vi">Quản lý người dùng</span></h2>
+      <p><span class="bi lang-ja">オペレーター・管理者のアカウント作成、ロール変更、パスワードリセット、有効/無効化を行います。</span><span class="bi lang-vi">Tạo tài khoản người vận hành/quản trị viên, đổi vai trò, đặt lại mật khẩu, bật/tắt tài khoản.</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="users-list">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">ユーザ一覧の確認・検索</span><span class="bi lang-vi">Xem danh sách và tìm kiếm người dùng</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">ユーザ一覧画面を開く</span><span class="bi lang-vi">Mở màn hình danh sách người dùng</span></h5>
+        <p><span class="bi lang-ja">サイドバー「ユーザ管理」をクリックすると、社員コード・氏名・カナ・区分・ロール・状態が一覧表示されます。</span><span class="bi lang-vi">Nhấp "Quản lý người dùng" trên sidebar, danh sách hiển thị mã nhân viên, họ tên, phiên âm, phân loại, vai trò, trạng thái.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-users-list.png</span>
+        <span class="shot-size">1100×600</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">ユーザ一覧テーブル全体（フィルタ欄含む）</span><span class="shot-desc-text lang-vi">Toàn bộ bảng danh sách người dùng (bao gồm ô lọc)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">フィルタで絞り込む</span><span class="bi lang-vi">Lọc theo điều kiện</span></h5>
+        <p><span class="bi lang-ja">社員コード・氏名でのテキストフィルタ、区分（NC+MC等）・ロール・状態（有効のみ／無効のみ）のプルダウンを組み合わせて絞り込めます。件数は「{a}/{b}件」の形式で表示されます。</span><span class="bi lang-vi">Có thể kết hợp lọc theo mã nhân viên/họ tên (dạng văn bản) với các dropdown phân loại, vai trò, trạng thái (chỉ hoạt động/chỉ vô hiệu). Số lượng hiển thị dạng "{a}/{b} bản ghi".</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="users-create">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">新規ユーザの登録</span><span class="bi lang-vi">Đăng ký người dùng mới</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「＋ 新規ユーザ追加」を押す</span><span class="bi lang-vi">Nhấn "+ Thêm người dùng mới"</span></h5>
+        <p><span class="bi lang-ja">一覧画面右上のボタンから新規登録モーダルを開きます。</span><span class="bi lang-vi">Mở cửa sổ đăng ký mới từ nút ở góc trên bên phải màn hình danh sách.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-users-create-modal.png</span>
+        <span class="shot-size">500×550</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">新規ユーザ追加モーダル（全項目表示）</span><span class="shot-desc-text lang-vi">Cửa sổ thêm người dùng mới (hiển thị đầy đủ các mục)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">必須項目を入力する</span><span class="bi lang-vi">Nhập các mục bắt buộc</span></h5>
+        <p><span class="bi lang-ja">氏名・パスワード（初期パスワード）は必須です。カナ・システム区分（NC/MC/両方）・ロール（VIEWER／OPERATOR／ADMIN）・承認資格（MC/NC情報の承認操作を許可するか）を設定します。</span><span class="bi lang-vi">Họ tên và mật khẩu (mật khẩu ban đầu) là bắt buộc. Thiết lập phiên âm, phân loại hệ thống (NC/MC/cả hai), vai trò (VIEWER/OPERATOR/ADMIN), tư cách duyệt (có cho phép duyệt thông tin MC/NC hay không).</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">保存する</span><span class="bi lang-vi">Lưu</span></h5>
+        <p><span class="bi lang-ja">「保存」を押すと社員コードが自動採番され、「ユーザを登録しました」で完了です。社員コードは一意である必要があり、重複時はエラーになります。</span><span class="bi lang-vi">Nhấn "Lưu", mã nhân viên sẽ tự động cấp số, hiện "Đã đăng ký người dùng" là hoàn tất. Mã nhân viên phải duy nhất, nếu trùng sẽ báo lỗi.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="users-edit">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">ユーザ編集（ロール変更・パスワード変更）</span><span class="bi lang-vi">Sửa người dùng (đổi vai trò, đổi mật khẩu)</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">一覧から対象行の「編集」を押す</span><span class="bi lang-vi">Nhấn "Sửa" trên dòng tương ứng trong danh sách</span></h5>
+        <p><span class="bi lang-ja">氏名・カナ・システム区分・ロール・承認資格・状態を変更できます。</span><span class="bi lang-vi">Có thể thay đổi họ tên, phiên âm, phân loại hệ thống, vai trò, tư cách duyệt, trạng thái.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">パスワードのみ変更する場合</span><span class="bi lang-vi">Trường hợp chỉ đổi mật khẩu</span></h5>
+        <p><span class="bi lang-ja">「PW変更」ボタンから専用モーダルを開き、新しいパスワードを入力して保存します。編集モーダルとは別動線になっている点に注意してください。</span><span class="bi lang-vi">Mở cửa sổ riêng từ nút "Đổi mật khẩu", nhập mật khẩu mới rồi lưu. Lưu ý đây là luồng thao tác khác với cửa sổ sửa thông tin.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-users-pw-modal.png</span>
+        <span class="shot-size">420×300</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">パスワード変更モーダル</span><span class="shot-desc-text lang-vi">Cửa sổ đổi mật khẩu</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="users-deactivate">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">ユーザの無効化／有効化</span><span class="bi lang-vi">Vô hiệu hóa / Kích hoạt lại người dùng</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「無効化」ボタンを押す</span><span class="bi lang-vi">Nhấn nút "Vô hiệu hóa"</span></h5>
+        <p><span class="bi lang-ja">退職者・長期休職者などは物理削除ではなく<b>論理削除（is_active=false）</b>で無効化します。過去の作業記録・承認履歴との整合性を保つためです。自分自身は無効化できません。</span><span class="bi lang-vi">Đối với nhân viên nghỉ việc/nghỉ dài hạn, không xóa vật lý mà <b>vô hiệu hóa dạng logic (is_active=false)</b>. Nhằm giữ tính nhất quán với lịch sử ghi nhận/duyệt trước đó. Không thể tự vô hiệu hóa chính mình.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">再度必要になった場合は「有効化」</span><span class="bi lang-vi">Khi cần dùng lại, nhấn "Kích hoạt"</span></h5>
+        <p><span class="bi lang-ja">無効化したユーザは一覧の状態列で「無効」と表示され、フィルタ「無効のみ」で抽出できます。「有効化」ボタンでいつでも復帰可能です。</span><span class="bi lang-vi">Người dùng đã vô hiệu hóa hiển thị "Vô hiệu" ở cột trạng thái, có thể lọc bằng "Chỉ vô hiệu". Có thể khôi phục bất cứ lúc nào bằng nút "Kích hoạt".</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-section" id="menu-machines" data-menu="machines">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#0ea5e922,#0ea5e908); border-left:5px solid #0ea5e9">
+    <div class="menu-icon" style="background:#0ea5e9">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/admin/machines</div>
+      <h2><span class="bi lang-ja">機械管理</span><span class="bi lang-vi">Quản lý máy</span></h2>
+      <p><span class="bi lang-ja">MC／NC機械のマスタ登録・稼働ステータス管理を行います。</span><span class="bi lang-vi">Đăng ký master máy MC/NC, quản lý trạng thái hoạt động.</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="machines-list">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">機械一覧の確認・検索</span><span class="bi lang-vi">Xem danh sách và tìm kiếm máy</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">機械一覧を開く</span><span class="bi lang-vi">Mở danh sách máy</span></h5>
+        <p><span class="bi lang-ja">機械名・種別・メーカー・PG形式（フォルダ単位／単体ファイル）・順序・状態が一覧表示されます。</span><span class="bi lang-vi">Danh sách hiển thị tên máy, loại, hãng, định dạng PG (theo thư mục/file đơn), thứ tự, trạng thái.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-machines-list.png</span>
+        <span class="shot-size">1100×600</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">機械一覧テーブル</span><span class="shot-desc-text lang-vi">Bảng danh sách máy</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">フィルタで絞り込む</span><span class="bi lang-vi">Lọc theo điều kiện</span></h5>
+        <p><span class="bi lang-ja">機械名・メーカーのテキストフィルタ、種別・状態のプルダウンで絞り込みます。</span><span class="bi lang-vi">Lọc theo tên máy/hãng (văn bản), loại/trạng thái (dropdown).</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="machines-create">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">新規機械の登録</span><span class="bi lang-vi">Đăng ký máy mới</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「＋ 新規機械追加」を押す</span><span class="bi lang-vi">Nhấn "+ Thêm máy mới"</span></h5>
+        <p><span class="bi lang-ja">登録モーダルが開きます。</span><span class="bi lang-vi">Cửa sổ đăng ký sẽ mở.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">機械コード・機械名を入力</span><span class="bi lang-vi">Nhập mã máy và tên máy</span></h5>
+        <p><span class="bi lang-ja">機械コード・機械名は必須です。種別（例: NC旋盤, MC）・メーカー・順序（一覧やドロップダウンでの並び順）を設定します。</span><span class="bi lang-vi">Mã máy và tên máy là bắt buộc. Thiết lập loại (VD: NC旋盤, MC), hãng, thứ tự (thứ tự hiển thị trong danh sách/dropdown).</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">プログラムファイル形式を設定</span><span class="bi lang-vi">Thiết lập định dạng file chương trình</span></h5>
+        <p><span class="bi lang-ja">「フォルダ単位」／「単体ファイル」を選択します。この設定はMC新規登録画面でのファイル名／フォルダ名の自動設定に使われる重要な項目です。</span><span class="bi lang-vi">Chọn "Theo thư mục" hoặc "File đơn". Đây là mục quan trọng, ảnh hưởng đến việc tự động đặt tên file/thư mục ở màn hình đăng ký mới MC.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-machines-pgformat.png</span>
+        <span class="shot-size">500×200</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">プログラムファイル形式の選択欄</span><span class="shot-desc-text lang-vi">Ô chọn định dạng file chương trình</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="machines-edit">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">機械編集・無効化</span><span class="bi lang-vi">Sửa / Vô hiệu hóa máy</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">一覧から「編集」または「無効化」</span><span class="bi lang-vi">Chọn "Sửa" hoặc "Vô hiệu hóa" từ danh sách</span></h5>
+        <p><span class="bi lang-ja">廃棄・入替した機械は無効化することで、新規登録時の選択肢から除外されます（過去データは維持）。</span><span class="bi lang-vi">Máy đã loại bỏ/thay thế nên vô hiệu hóa để loại khỏi danh sách chọn khi đăng ký mới (dữ liệu cũ vẫn được giữ).</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-section" id="menu-timecards" data-menu="timecards">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#0ea5e922,#0ea5e908); border-left:5px solid #0ea5e9">
+    <div class="menu-icon" style="background:#0ea5e9">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/mc/timecards</div>
+      <h2><span class="bi lang-ja">機械タイムカード</span><span class="bi lang-vi">Thẻ thời gian máy</span></h2>
+      <p><span class="bi lang-ja">機械ごとの稼働時間（段取稼働／量産稼働／総稼働）を参照・修正します。</span><span class="bi lang-vi">Tham chiếu/sửa thời gian hoạt động theo từng máy (cài đặt, sản xuất, tổng).</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="tc-view">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">タイムカードの参照</span><span class="bi lang-vi">Tham chiếu thẻ thời gian</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">対象機械のタイムカードを開く</span><span class="bi lang-vi">Mở thẻ thời gian của máy cần xem</span></h5>
+        <p><span class="bi lang-ja">「📅 機械タイムカード参照」から機械コードを指定して開きます。日付・開始・終了・稼働時間の一覧が表示されます。</span><span class="bi lang-vi">Mở từ "📅 Tham chiếu thẻ thời gian máy", chỉ định mã máy. Danh sách ngày, giờ bắt đầu/kết thúc, thời gian hoạt động sẽ hiển thị.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-tc-modal.png</span>
+        <span class="shot-size">700×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">機械タイムカード参照モーダル（一覧表示）</span><span class="shot-desc-text lang-vi">Cửa sổ tham chiếu thẻ thời gian máy (dạng danh sách)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">稼働時間の集計方法を理解する</span><span class="bi lang-vi">Hiểu cách tính thời gian hoạt động</span></h5>
+        <p><span class="bi lang-ja">稼働時間 = overlap計算方式で、休憩時間（12:00-13:00等）は自動控除されます。段取稼働／量産稼働／総稼働の3種が別々に集計されます。</span><span class="bi lang-vi">Thời gian hoạt động được tính theo phương pháp overlap, thời gian nghỉ (12:00-13:00...) tự động bị trừ. 3 loại: cài đặt, sản xuất, tổng được tính riêng.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="tc-edit">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">タイムカードの登録・修正</span><span class="bi lang-vi">Đăng ký / sửa thẻ thời gian</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">日付行の「登録」または「更新」を押す</span><span class="bi lang-vi">Nhấn "Đăng ký" hoặc "Cập nhật" trên dòng ngày</span></h5>
+        <p><span class="bi lang-ja">認証が必要です。開始・終了時刻を入力（休日は「― 休日 ―」表示）して保存すると、作業記録の稼働時間計算に即反映されます。</span><span class="bi lang-vi">Cần xác thực. Nhập giờ bắt đầu/kết thúc (ngày nghỉ hiển thị "― Nghỉ ―") rồi lưu, sẽ áp dụng ngay vào tính toán thời gian hoạt động của ghi nhận công việc.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-section" id="menu-settings" data-menu="settings">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#0ea5e922,#0ea5e908); border-left:5px solid #0ea5e9">
+    <div class="menu-icon" style="background:#0ea5e9">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/admin/settings</div>
+      <h2><span class="bi lang-ja">システム設定</span><span class="bi lang-vi">Cài đặt hệ thống</span></h2>
+      <p><span class="bi lang-ja">会社情報、ファイル保存先、プリンタ、タイムカード自動生成、PM2プロセスなどシステム全体の基本設定を行います。</span><span class="bi lang-vi">Cấu hình cơ bản cho toàn hệ thống: thông tin công ty, nơi lưu file, máy in, tự động tạo thẻ thời gian, quản lý tiến trình PM2.</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="settings-company">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">会社情報の設定</span><span class="bi lang-vi">Thiết lập thông tin công ty</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">🏢 会社情報セクションを開く</span><span class="bi lang-vi">Mở mục 🏢 Thông tin công ty</span></h5>
+        <p><span class="bi lang-ja">会社名・ロゴ画像パス（サーバ相対パス）を入力し「保存」します。ロゴはログイン画面等に反映されます。</span><span class="bi lang-vi">Nhập tên công ty, đường dẫn ảnh logo (đường dẫn tương đối trên máy chủ) rồi "Lưu". Logo sẽ hiển thị trên màn hình đăng nhập v.v.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="settings-storage">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">ファイル保存先の設定（MC／NC）</span><span class="bi lang-vi">Thiết lập nơi lưu file (MC/NC)</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">💾 MC／NCファイル保存先を設定</span><span class="bi lang-vi">Thiết lập nơi lưu file MC/NC</span></h5>
+        <p><span class="bi lang-ja">MCアップロードベースパス（例: /mnt/mc_files）とNCアップロードベースパスをそれぞれ設定します。<b>MCとNCで同じパスは設定できません</b>（エラーになります）。</span><span class="bi lang-vi">Thiết lập đường dẫn gốc tải lên cho MC (VD: /mnt/mc_files) và NC riêng biệt. <b>Không thể đặt cùng đường dẫn cho MC và NC</b> (sẽ báo lỗi).</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-settings-storage.png</span>
+        <span class="shot-size">800×300</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">MC/NCファイル保存先設定欄</span><span class="shot-desc-text lang-vi">Ô thiết lập nơi lưu file MC/NC</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="settings-printer">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">ダイレクト印刷プリンタの設定</span><span class="bi lang-vi">Thiết lập máy in trực tiếp</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">🖨 プリンタ設定セクションを開く</span><span class="bi lang-vi">Mở mục 🖨 Thiết lập máy in</span></h5>
+        <p><span class="bi lang-ja">MCチーム用・NCチーム用のプリンタをそれぞれプルダウンから選択します。ここで設定したプリンタが段取シートの「プリンタに直接印刷」で使用されます。</span><span class="bi lang-vi">Chọn máy in cho đội MC và đội NC riêng biệt từ dropdown. Máy in thiết lập tại đây sẽ được dùng khi "In trực tiếp" phiếu cài đặt.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="settings-cron">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">タイムカード自動生成（Cron）の設定</span><span class="bi lang-vi">Thiết lập tự động tạo thẻ thời gian (Cron)</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">⏰ Cron設定セクションで有効/無効を切替</span><span class="bi lang-vi">Bật/tắt ở mục ⏰ Cài đặt Cron</span></h5>
+        <p><span class="bi lang-ja">自動生成を有効にすると、毎日指定した実行時刻に、有効な機械全台のタイムカードを自動生成します（デフォルト開始／終了時刻を使用）。営業カレンダーで休日設定した日はスキップされます。</span><span class="bi lang-vi">Khi bật tự động tạo, mỗi ngày vào giờ đã chỉ định, thẻ thời gian sẽ tự động tạo cho tất cả máy đang hoạt động (dùng giờ bắt đầu/kết thúc mặc định). Các ngày được đặt là ngày nghỉ trong lịch làm việc sẽ bị bỏ qua.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-settings-cron.png</span>
+        <span class="shot-size">700×350</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">Cron設定パネル（実行時刻・デフォルト時刻入力欄）</span><span class="shot-desc-text lang-vi">Bảng cài đặt Cron (giờ thực thi, giờ mặc định)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="settings-pm2">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">PM2プロセスの再起動</span><span class="bi lang-vi">Khởi động lại tiến trình PM2</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">⚙️ PM2プロセス管理セクションを開く</span><span class="bi lang-vi">Mở mục ⚙️ Quản lý tiến trình PM2</span></h5>
+        <p><span class="bi lang-ja">稼働中の各プロセス（名前・状態・CPU・再起動回数）が一覧表示されます。個別「再起動」または「全プロセス再起動」が可能です。</span><span class="bi lang-vi">Danh sách các tiến trình đang chạy (tên, trạng thái, CPU, số lần khởi động lại) sẽ hiển thị. Có thể "khởi động lại" từng tiến trình hoặc "khởi động lại tất cả".</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-settings-pm2.png</span>
+        <span class="shot-size">900×400</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">PM2プロセス一覧テーブルと再起動ボタン</span><span class="shot-desc-text lang-vi">Bảng danh sách tiến trình PM2 và nút khởi động lại</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">再起動を実行する</span><span class="bi lang-vi">Thực hiện khởi động lại</span></h5>
+        <p><span class="bi lang-ja"><b>⚠️ 本番稼働中に実行すると一時的にシステムが利用できなくなります。</b>業務時間外や、明らかな不具合発生時のみ実行してください。「再起動中…3秒後にページを再読み込みします」の表示後、自動でリロードされます。</span><span class="bi lang-vi"><b>⚠️ Nếu thực hiện khi hệ thống đang hoạt động, hệ thống sẽ tạm thời không dùng được.</b> Chỉ thực hiện ngoài giờ làm việc hoặc khi có sự cố rõ ràng. Sau khi hiện "Đang khởi động lại... trang sẽ tải lại sau 3 giây", trang sẽ tự động tải lại.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-section" id="menu-calendar" data-menu="calendar">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#0ea5e922,#0ea5e908); border-left:5px solid #0ea5e9">
+    <div class="menu-icon" style="background:#0ea5e9">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/admin/calendar</div>
+      <h2><span class="bi lang-ja">営業カレンダー</span><span class="bi lang-vi">Lịch làm việc</span></h2>
+      <p><span class="bi lang-ja">稼働日・休日を設定し、タイムカード自動生成の基準にします。</span><span class="bi lang-vi">Thiết lập ngày làm việc/nghỉ, làm cơ sở cho việc tự động tạo thẻ thời gian.</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="cal-toggle">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">日付ごとの休日／営業日切替</span><span class="bi lang-vi">Chuyển đổi nghỉ/làm việc theo từng ngày</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">カレンダー上の日付をクリック</span><span class="bi lang-vi">Nhấp vào ngày trên lịch</span></h5>
+        <p><span class="bi lang-ja">月表示カレンダーで日付をクリックするたびに休日⇔営業日が切り替わります。休日は「休」バッジで表示され、タイムカード自動生成の対象外になります。</span><span class="bi lang-vi">Mỗi lần nhấp vào ngày trên lịch tháng sẽ chuyển đổi giữa nghỉ ⇔ làm việc. Ngày nghỉ hiển thị nhãn "Nghỉ", sẽ không thuộc đối tượng tự động tạo thẻ thời gian.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-calendar-month.png</span>
+        <span class="shot-size">700×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">月表示カレンダー（休日/営業日の色分け状態）</span><span class="shot-desc-text lang-vi">Lịch hiển thị theo tháng (phân màu nghỉ/làm việc)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="cal-bulk">
+    <div class="operation-head" style="border-left-color:#0ea5e9">
+      <h4><span class="bi lang-ja">土日の一括休日登録</span><span class="bi lang-vi">Đăng ký nghỉ hàng loạt thứ 7, chủ nhật</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「{year}年の土日を一括休日登録」を押す</span><span class="bi lang-vi">Nhấn "Đăng ký nghỉ hàng loạt thứ 7, CN năm {year}"</span></h5>
+        <p><span class="bi lang-ja">確認ダイアログで実行すると、表示中の年の土曜・日曜がすべて休日として一括登録されます。年度切り替え時の初期設定作業に便利です。</span><span class="bi lang-vi">Khi xác nhận trong hộp thoại, tất cả thứ 7, chủ nhật của năm đang hiển thị sẽ được đăng ký là ngày nghỉ hàng loạt. Tiện lợi khi thiết lập ban đầu lúc chuyển năm.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-section" id="menu-raw" data-menu="raw">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#8b5cf622,#8b5cf608); border-left:5px solid #8b5cf6">
+    <div class="menu-icon" style="background:#8b5cf6">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/admin/raw</div>
+      <h2><span class="bi lang-ja">RAWデータ</span><span class="bi lang-vi">Dữ liệu RAW</span></h2>
+      <p><span class="bi lang-ja">許可リスト内のDBテーブルを直接閲覧できる読み取り専用機能です（更新・削除不可）。</span><span class="bi lang-vi">Chức năng chỉ đọc, cho phép xem trực tiếp các bảng DB trong danh sách cho phép (không thể sửa/xóa).</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="raw-select">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">テーブルの選択と閲覧</span><span class="bi lang-vi">Chọn và xem bảng</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">テーブルを選択</span><span class="bi lang-vi">Chọn bảng</span></h5>
+        <p><span class="bi lang-ja">対象テーブル（users / machines / parts / nc_programs / work_records / change_history / operation_logs / setup_sheet_logs）を選択すると全件数と現在の表示件数が「DB: {total}件 / 表示: {n}件」の形式で表示されます。</span><span class="bi lang-vi">Chọn bảng cần xem (users / machines / parts / nc_programs / work_records / change_history / operation_logs / setup_sheet_logs), tổng số và số đang hiển thị sẽ hiện dạng "DB: {total} bản ghi / Hiển thị: {n} bản ghi".</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-raw-table.png</span>
+        <span class="shot-size">1100×600</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">RAWデータテーブル表示画面（フィルタ欄含む）</span><span class="shot-desc-text lang-vi">Màn hình hiển thị bảng dữ liệu RAW (bao gồm ô lọc)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="raw-filter">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">キーワード・日付範囲・列指定での絞り込み</span><span class="bi lang-vi">Lọc theo từ khóa, khoảng ngày, cột chỉ định</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">フィルタ条件を指定する</span><span class="bi lang-vi">Chỉ định điều kiện lọc</span></h5>
+        <p><span class="bi lang-ja">キーワードフィルタ、日付範囲、フィールド指定（列選択＋値入力）を組み合わせて絞り込めます。「🔄 再取得」で最新データに更新、「✕ クリア」で条件をリセットします。</span><span class="bi lang-vi">Có thể kết hợp lọc từ khóa, khoảng ngày, chỉ định trường (chọn cột + nhập giá trị). "🔄 Lấy lại" để cập nhật dữ liệu mới nhất, "✕ Xóa" để đặt lại điều kiện.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-section" id="menu-system-logs" data-menu="system-logs">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#8b5cf622,#8b5cf608); border-left:5px solid #8b5cf6">
+    <div class="menu-icon" style="background:#8b5cf6">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2-2h2a2 2 0 0 0 2 2"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/admin/system-logs</div>
+      <h2><span class="bi lang-ja">システムログ</span><span class="bi lang-vi">Nhật ký hệ thống</span></h2>
+      <p><span class="bi lang-ja">システム全体の稼働ログ（エラー・警告・情報）を横断的に検索・確認します。</span><span class="bi lang-vi">Tìm kiếm/kiểm tra nhật ký hoạt động toàn hệ thống (lỗi, cảnh báo, thông tin).</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="syslog-view">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">ログの確認・自動更新</span><span class="bi lang-vi">Kiểm tra và tự động cập nhật nhật ký</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">レベル・カテゴリで絞り込む</span><span class="bi lang-vi">Lọc theo mức độ, danh mục</span></h5>
+        <p><span class="bi lang-ja">日時・レベル・カテゴリ・メッセージ・詳細の一覧が表示され、レベル／カテゴリのプルダウンで絞り込めます。「自動更新（5秒）」をONにすると障害発生時のリアルタイム監視に使えます。</span><span class="bi lang-vi">Danh sách ngày giờ, mức độ, danh mục, thông báo, chi tiết hiển thị, có thể lọc theo dropdown mức độ/danh mục. Bật "Tự động cập nhật (5 giây)" để giám sát thời gian thực khi có sự cố.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-syslog-list.png</span>
+        <span class="shot-size">1100×600</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">システムログ一覧（自動更新ON状態）</span><span class="shot-desc-text lang-vi">Danh sách nhật ký hệ thống (bật tự động cập nhật)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="syslog-purge">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">古いログの削除</span><span class="bi lang-vi">Xóa nhật ký cũ</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「30日以前を削除」を押す</span><span class="bi lang-vi">Nhấn "Xóa các bản ghi trước 30 ngày"</span></h5>
+        <p><span class="bi lang-ja">確認ダイアログ「30日以前のログを削除しますか？」でOKすると一括削除されます。DB肥大化防止のため定期的な実行が推奨されます。</span><span class="bi lang-vi">Xác nhận "Xóa các nhật ký trước 30 ngày?" rồi OK sẽ xóa hàng loạt. Khuyến nghị thực hiện định kỳ để tránh DB phình to.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-section" id="menu-clamp-master" data-menu="clamp-master">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#8b5cf622,#8b5cf608); border-left:5px solid #8b5cf6">
+    <div class="menu-icon" style="background:#8b5cf6">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/admin/clamp-master</div>
+      <h2><span class="bi lang-ja">クランプマスタ</span><span class="bi lang-vi">Master kẹp</span></h2>
+      <p><span class="bi lang-ja">NC編集画面のクランプ選択候補（バイス／チャック／爪／敷板／インデックス）を管理します。</span><span class="bi lang-vi">Quản lý các lựa chọn kẹp (bàn kẹp/mâm cặp/vấu/tấm đệm/index) hiển thị trong màn hình chỉnh sửa NC.</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="clamp-list">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">カテゴリ別一覧の確認</span><span class="bi lang-vi">Xem danh sách theo danh mục</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">カテゴリタブを切り替える</span><span class="bi lang-vi">Chuyển tab danh mục</span></h5>
+        <p><span class="bi lang-ja">バイス／チャック／爪／敷板／インデックスの5カテゴリでタブが分かれています。各カテゴリでID・名称・型式・メーカー・サイズ・搭載機・順番・有効状態が一覧表示されます。</span><span class="bi lang-vi">Có 5 tab danh mục: bàn kẹp/mâm cặp/vấu/tấm đệm/index. Mỗi danh mục hiển thị ID, tên, model, hãng, kích thước, máy lắp, thứ tự, trạng thái.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-clamp-list.png</span>
+        <span class="shot-size">1000×500</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">クランプマスタ一覧（カテゴリタブ表示）</span><span class="shot-desc-text lang-vi">Danh sách Master kẹp (hiển thị tab danh mục)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="clamp-create">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">新規クランプの追加</span><span class="bi lang-vi">Thêm kẹp mới</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「新規追加」→ 名称等を入力</span><span class="bi lang-vi">Nhấn "Thêm mới" → nhập tên v.v.</span></h5>
+        <p><span class="bi lang-ja">「新規 {カテゴリ} 追加」モーダルで名称（必須）・型式・メーカー・サイズ・搭載機を入力し「追加」します。</span><span class="bi lang-vi">Trong cửa sổ "Thêm mới {danh mục}", nhập tên (bắt buộc), model, hãng, kích thước, máy lắp rồi "Thêm".</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="clamp-edit">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">編集・順番変更・削除</span><span class="bi lang-vi">Sửa, đổi thứ tự, xóa</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">行の「編集」で内容変更</span><span class="bi lang-vi">Nhấn "Sửa" trên dòng để thay đổi nội dung</span></h5>
+        <p><span class="bi lang-ja">セル編集後「保存」、誤操作時は「取消」で元に戻せます。「順番」列の値を変更するとNC編集画面での選択肢の並び順が変わります。</span><span class="bi lang-vi">Sau khi sửa ô, nhấn "Lưu"; nếu thao tác nhầm có thể "Hủy" để khôi phục. Thay đổi giá trị cột "Thứ tự" sẽ thay đổi thứ tự hiển thị lựa chọn ở màn hình chỉnh sửa NC.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">削除する</span><span class="bi lang-vi">Xóa</span></h5>
+        <p><span class="bi lang-ja">「削除」→「『{name}』を削除しますか？」の確認後に削除されます。既存の登録データへの影響はなく、選択肢から外れるのみです。</span><span class="bi lang-vi">Sau khi xác nhận "Xóa '{name}'?" từ nút "Xóa", mục sẽ bị xóa. Không ảnh hưởng đến dữ liệu đã đăng ký, chỉ loại khỏi danh sách lựa chọn.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-section" id="menu-nc-tool-master" data-menu="nc-tool-master">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#8b5cf622,#8b5cf608); border-left:5px solid #8b5cf6">
+    <div class="menu-icon" style="background:#8b5cf6">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/admin/nc-tool-master</div>
+      <h2><span class="bi lang-ja">NC加工リストマスタ</span><span class="bi lang-vi">Master danh sách gia công NC</span></h2>
+      <p><span class="bi lang-ja">NC工具リストの加工（Sv1/Sv2）・形状（チップ）・ホルダーの選択候補を管理します。</span><span class="bi lang-vi">Quản lý các lựa chọn gia công (Sv1/Sv2), hình dạng (lưỡi cắt), đầu kẹp cho danh sách dụng cụ NC.</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="nctool-list">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">カテゴリ別一覧の確認</span><span class="bi lang-vi">Xem danh sách theo danh mục</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">加(Sv1)／工(Sv2)／形状（チップ）／ホルダーのタブを切替</span><span class="bi lang-vi">Chuyển tab Gia công (Sv1)/(Sv2)/Hình dạng (lưỡi cắt)/Đầu kẹp</span></h5>
+        <p><span class="bi lang-ja">旧システム（Access）の t_d_Shave1／Shave2／Chip／Holder に相当するマスタです。ID・名称・順番・有効状態が確認できます。</span><span class="bi lang-vi">Đây là master tương ứng với t_d_Shave1/Shave2/Chip/Holder trong hệ thống Access cũ. Có thể xem ID, tên, thứ tự, trạng thái.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="nctool-create">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">新規候補の追加</span><span class="bi lang-vi">Thêm lựa chọn mới</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「新規追加」→ 名称を入力</span><span class="bi lang-vi">Nhấn "Thêm mới" → nhập tên</span></h5>
+        <p><span class="bi lang-ja">例: 「外径」のように具体的な名称を入力して追加します。</span><span class="bi lang-vi">VD: nhập tên cụ thể như "Đường kính ngoài" rồi thêm.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="nctool-delete">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">削除</span><span class="bi lang-vi">Xóa</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「削除」を押す</span><span class="bi lang-vi">Nhấn "Xóa"</span></h5>
+        <p><span class="bi lang-ja">削除確認時に「この値を使用中の加工リスト行には影響しません（表示上の選択肢から外れるのみ）」と案内されます。既存NCデータへの影響はありません。</span><span class="bi lang-vi">Khi xác nhận xóa sẽ có thông báo "Không ảnh hưởng đến các dòng danh sách gia công đang dùng giá trị này (chỉ loại khỏi lựa chọn hiển thị)". Không ảnh hưởng đến dữ liệu NC hiện có.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-section" id="menu-pdf-editor" data-menu="pdf-editor">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#8b5cf622,#8b5cf608); border-left:5px solid #8b5cf6">
+    <div class="menu-icon" style="background:#8b5cf6">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/admin/pdf-editor</div>
+      <h2><span class="bi lang-ja">段取りシートエディタ</span><span class="bi lang-vi">Trình chỉnh sửa phiếu cài đặt PDF</span></h2>
+      <p><span class="bi lang-ja">段取シートPDFのテンプレート上で、各項目の出力位置（座標）とテンプレートPDF自体を編集します。A4固定（595×842pt）のレイアウトエディタです。</span><span class="bi lang-vi">Chỉnh sửa vị trí (tọa độ) xuất từng mục và chính file PDF mẫu trên template phiếu cài đặt. Trình chỉnh sửa bố cục cố định khổ A4 (595×842pt).</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="pdfedit-select">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">編集対象テンプレートの選択</span><span class="bi lang-vi">Chọn template cần chỉnh sửa</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">新規段取シート／リピート段取シートを切替</span><span class="bi lang-vi">Chuyển Phiếu cài đặt Mới / Phiếu cài đặt Lặp lại</span></h5>
+        <p><span class="bi lang-ja">新規は「P1 ツーリング面」「P2 作業記録」の2テンプレート、リピートは「ヘッダ固定部」「ツーリング列」「WO枠」「IP列」「作業記録」の5テンプレートから選択します。</span><span class="bi lang-vi">Loại Mới có 2 template: "Mặt dụng cụ P1", "Ghi nhận công việc P2". Loại Lặp lại có 5 template: "Phần header cố định", "Cột dụng cụ", "Khung WO", "Cột IP", "Ghi nhận công việc".</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-pdfedit-template-select.png</span>
+        <span class="shot-size">600×200</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">テンプレート選択タブ（新規/リピート切替）</span><span class="shot-desc-text lang-vi">Tab chọn template (chuyển Mới/Lặp lại)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="pdfedit-fields">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">項目の出力位置（座標）調整</span><span class="bi lang-vi">Điều chỉnh vị trí xuất (tọa độ) của mục</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">フィールド一覧から対象項目を選択</span><span class="bi lang-vi">Chọn mục cần chỉnh từ danh sách trường</span></h5>
+        <p><span class="bi lang-ja">各フィールド（fieldKey・ラベル・データソース）ごとにX/Y座標・フォントサイズ・有効/無効を設定します。プレビュー画面上でドラッグ、または数値入力で微調整します。</span><span class="bi lang-vi">Với mỗi trường (fieldKey, nhãn, nguồn dữ liệu), thiết lập tọa độ X/Y, cỡ chữ, bật/tắt. Có thể kéo trên màn hình xem trước hoặc nhập số để tinh chỉnh.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-pdfedit-canvas.png</span>
+        <span class="shot-size">900×700</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">PDFレイアウトエディタ（A4プレビュー上にフィールド配置した状態）</span><span class="shot-desc-text lang-vi">Trình chỉnh sửa bố cục PDF (các trường đã đặt trên bản xem trước A4)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">保存する</span><span class="bi lang-vi">Lưu</span></h5>
+        <p><span class="bi lang-ja">変更したフィールドには内部的に dirty フラグが付き、保存操作でまとめてDBへ反映されます。</span><span class="bi lang-vi">Trường đã thay đổi được đánh dấu dirty nội bộ, sẽ được lưu vào DB cùng lúc khi thực hiện lưu.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="pdfedit-upload">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">テンプレートPDFの差し替え</span><span class="bi lang-vi">Thay thế file PDF mẫu</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「PDF差し替え」ボタンからアップロード</span><span class="bi lang-vi">Tải lên từ nút "Thay thế PDF"</span></h5>
+        <p><span class="bi lang-ja">台紙となるPDFファイル自体（会社ロゴ入り帳票等）を差し替えたい場合に使用します。フィールド座標設定は保持されたまま、背景のPDFのみ更新されます。</span><span class="bi lang-vi">Dùng khi muốn thay thế chính file PDF nền (biểu mẫu có logo công ty...). Chỉ nền PDF được cập nhật, tọa độ trường vẫn được giữ nguyên.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-section" id="menu-special-sheets" data-menu="special-sheets">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#8b5cf622,#8b5cf608); border-left:5px solid #8b5cf6">
+    <div class="menu-icon" style="background:#8b5cf6">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2-2h2a2 2 0 0 0 2 2M12 12h.01M12 16h.01"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/admin/special-sheets</div>
+      <h2><span class="bi lang-ja">SPシート管理</span><span class="bi lang-vi">Quản lý phiếu SP</span></h2>
+      <p><span class="bi lang-ja">過去にクレーム・トラブル実績のある製品の特別な注意事項を登録します。段取シート印刷時に図面番号・名称・主機種型式へキーワードがヒットすると自動で警告表示されます。</span><span class="bi lang-vi">Đăng ký lưu ý đặc biệt cho sản phẩm từng có khiếu nại/sự cố. Khi in phiếu cài đặt, nếu từ khóa khớp với số bản vẽ/tên/mã model chính, cảnh báo sẽ tự động hiển thị.</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="sp-list">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">一覧の確認・検索</span><span class="bi lang-vi">Xem danh sách và tìm kiếm</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">納入先・キーワードで絞り込む</span><span class="bi lang-vi">Lọc theo nơi giao hàng, từ khóa</span></h5>
+        <p><span class="bi lang-ja">全納入先プルダウンとキーワード/シート名フリーテキストで絞り込みます。一覧にはID・納入先・キーワード・シート名・内容概要・Ver・PDF有無が表示されます。</span><span class="bi lang-vi">Lọc bằng dropdown tất cả nơi giao hàng và ô nhập tự do từ khóa/tên phiếu. Danh sách hiển thị ID, nơi giao hàng, từ khóa, tên phiếu, tóm tắt nội dung, phiên bản, có/không có PDF.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-sp-list.png</span>
+        <span class="shot-size">1000×550</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">SPシート一覧画面（フィルタ欄含む）</span><span class="shot-desc-text lang-vi">Màn hình danh sách phiếu SP (bao gồm ô lọc)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="sp-create">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">新規SPシートの登録</span><span class="bi lang-vi">Đăng ký phiếu SP mới</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「+ 新規登録」を押す</span><span class="bi lang-vi">Nhấn "+ Đăng ký mới"</span></h5>
+        <p><span class="bi lang-ja">登録モーダルが開きます。</span><span class="bi lang-vi">Cửa sổ đăng ký sẽ mở.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">キーワード・内容を入力</span><span class="bi lang-vi">Nhập từ khóa, nội dung</span></h5>
+        <p><span class="bi lang-ja">キーワード（例: 「ライナ F57137 ドライブリング」のように図面番号/名称/主機種型式との部分一致でチェックされます）、シート名、内容・注意事項を入力します。納入先・バージョンも設定できます。</span><span class="bi lang-vi">Nhập từ khóa (VD: "Lót F57137 Vành dẫn" sẽ được kiểm tra khớp một phần với số bản vẽ/tên/mã model chính), tên phiếu, nội dung/lưu ý. Có thể thiết lập nơi giao hàng, phiên bản.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-sp-create-modal.png</span>
+        <span class="shot-size">550×600</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">SPシート新規登録モーダル（キーワード・内容入力欄）</span><span class="shot-desc-text lang-vi">Cửa sổ đăng ký phiếu SP mới (ô nhập từ khóa, nội dung)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">PDFを添付する（任意）</span><span class="bi lang-vi">Đính kèm PDF (không bắt buộc)</span></h5>
+        <p><span class="bi lang-ja">ドラッグ＆ドロップまたはクリックでPDFファイルを選択します。PDF以外は「PDFファイルのみ対応しています」とエラーになります。「保存・PDFアップロード完了」で登録完了です。</span><span class="bi lang-vi">Chọn file PDF bằng kéo-thả hoặc nhấp chọn. Nếu không phải PDF sẽ báo lỗi "Chỉ hỗ trợ file PDF". Hoàn tất khi hiện "Đã lưu và tải PDF lên".</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="sp-edit">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">編集・PDF差し替え</span><span class="bi lang-vi">Sửa / thay thế PDF</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">一覧から「編集」</span><span class="bi lang-vi">Nhấn "Sửa" từ danh sách</span></h5>
+        <p><span class="bi lang-ja">既存PDFがある場合「✅ 既存PDF登録済み —」と表示され、「現在のPDFを表示」で確認できます。新しいファイルを選択すると上書きされます。</span><span class="bi lang-vi">Nếu đã có PDF sẽ hiển thị "✅ Đã đăng ký PDF hiện có —", có thể xem bằng "Xem PDF hiện tại". Chọn file mới sẽ ghi đè.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="sp-delete">
+    <div class="operation-head" style="border-left-color:#8b5cf6">
+      <h4><span class="bi lang-ja">削除</span><span class="bi lang-vi">Xóa</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「削除」→「確認」</span><span class="bi lang-vi">Nhấn "Xóa" → "Xác nhận"</span></h5>
+        <p><span class="bi lang-ja">誤操作防止のため2段階確認（削除→確認／取消）になっています。削除すると段取シート印刷時の警告対象から外れます。</span><span class="bi lang-vi">Có 2 bước xác nhận (Xóa → Xác nhận/Hủy) để tránh thao tác nhầm. Sau khi xóa sẽ không còn cảnh báo khi in phiếu cài đặt.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-section" id="menu-upload-agent" data-menu="upload-agent">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#f59e0b22,#f59e0b08); border-left:5px solid #f59e0b">
+    <div class="menu-icon" style="background:#f59e0b">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M8 17l4 4 4-4M12 12v9M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/admin/upload-agent</div>
+      <h2><span class="bi lang-ja">UploadAgent</span><span class="bi lang-vi">Quản lý UploadAgent</span></h2>
+      <p><span class="bi lang-ja">クライアントPCにインストールするUploadAgent（ファイル操作エージェント）のバージョン管理・配布を行います。</span><span class="bi lang-vi">Quản lý phiên bản, phân phối UploadAgent (agent thao tác file) cài đặt trên máy khách.</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="ua-check">
+    <div class="operation-head" style="border-left-color:#f59e0b">
+      <h4><span class="bi lang-ja">このPCでのAgent稼働確認</span><span class="bi lang-vi">Kiểm tra Agent đang chạy trên máy này</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「稼働確認」ボタンを押す</span><span class="bi lang-vi">Nhấn nút "Kiểm tra hoạt động"</span></h5>
+        <p><span class="bi lang-ja">localhost:57300への疎通を確認し、✅稼働中／❌未起動・未インストールのいずれかを表示します。※このボタンはこのPCにインストールされたAgentのみ確認できます。</span><span class="bi lang-vi">Kiểm tra kết nối đến localhost:57300, hiển thị ✅ Đang chạy / ❌ Chưa khởi động・chưa cài đặt. * Nút này chỉ kiểm tra Agent đã cài trên máy hiện tại.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="ua-download">
+    <div class="operation-head" style="border-left-color:#f59e0b">
+      <h4><span class="bi lang-ja">インストーラのダウンロード・配布</span><span class="bi lang-vi">Tải xuống / phân phối bộ cài đặt</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">配布中バージョンのインストーラをダウンロード</span><span class="bi lang-vi">Tải xuống bộ cài đặt của phiên bản đang phân phối</span></h5>
+        <p><span class="bi lang-ja">「⬇ UploadAgent_Setup_v{ver}.exe をダウンロード」から各クライアントPCへ配布します。インストール後はスタートアップに自動登録されます。インストーラが未配置の場合は先にバージョン管理からアップロードが必要です。</span><span class="bi lang-vi">Phân phối đến từng máy khách từ "⬇ Tải xuống UploadAgent_Setup_v{ver}.exe". Sau khi cài đặt sẽ tự động đăng ký khởi động cùng Windows. Nếu chưa có bộ cài, cần tải lên từ mục Quản lý phiên bản trước.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="ua-deploy">
+    <div class="operation-head" style="border-left-color:#f59e0b">
+      <h4><span class="bi lang-ja">新バージョンのデプロイ</span><span class="bi lang-vi">Triển khai phiên bản mới</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「バージョン管理」セクションを開く</span><span class="bi lang-vi">Mở mục "Quản lý phiên bản"</span></h5>
+        <p><span class="bi lang-ja">新バージョン番号を入力し、ビルド済みの UploadAgent_Setup_vX.X.X.exe を選択します。</span><span class="bi lang-vi">Nhập số phiên bản mới, chọn file UploadAgent_Setup_vX.X.X.exe đã build.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">「🚀 デプロイ」を実行</span><span class="bi lang-vi">Thực hiện "🚀 Triển khai"</span></h5>
+        <p><span class="bi lang-ja">デプロイすると /var/www/machcore-cert/UploadAgent_Setup_vX.X.X.exe と UploadAgent_Setup_latest.exe が同時に更新され、以後のダウンロードは新バージョンになります。</span><span class="bi lang-vi">Khi triển khai, cả /var/www/machcore-cert/UploadAgent_Setup_vX.X.X.exe và UploadAgent_Setup_latest.exe được cập nhật đồng thời, các lượt tải sau sẽ là phiên bản mới.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-ua-deploy.png</span>
+        <span class="shot-size">700×400</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">バージョン管理パネル（新バージョン番号入力＋デプロイボタン）</span><span class="shot-desc-text lang-vi">Bảng quản lý phiên bản (nhập số phiên bản mới + nút triển khai)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-section" id="menu-file-browser" data-menu="file-browser">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#f59e0b22,#f59e0b08); border-left:5px solid #f59e0b">
+    <div class="menu-icon" style="background:#f59e0b">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/admin/file-browser</div>
+      <h2><span class="bi lang-ja">ファイルブラウザ</span><span class="bi lang-vi">Trình duyệt file</span></h2>
+      <p><span class="bi lang-ja">写真・図面・プログラムの3タブでサーバ上のファイルを直接閲覧・ダウンロード・強制削除・アップロードします。</span><span class="bi lang-vi">Xem trực tiếp, tải xuống, buộc xóa, tải lên file trên máy chủ qua 3 tab: ảnh, bản vẽ, chương trình.</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="fb-browse">
+    <div class="operation-head" style="border-left-color:#f59e0b">
+      <h4><span class="bi lang-ja">タブ切替とディレクトリ閲覧</span><span class="bi lang-vi">Chuyển tab và duyệt thư mục</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">Photos／Drawings／Programsタブを選択</span><span class="bi lang-vi">Chọn tab Photos/Drawings/Programs</span></h5>
+        <p><span class="bi lang-ja">各タブでディレクトリツリーが遅延読み込み（lazy-loading）表示されます。TIFF画像はサーバ側でJPEGに自動変換されプレビューできます。ファイルのmtime（更新日時）も確認できます。</span><span class="bi lang-vi">Ở mỗi tab, cây thư mục hiển thị dạng tải chậm (lazy-loading). Ảnh TIFF được máy chủ tự động chuyển sang JPEG để xem trước. Có thể xem mtime (thời gian cập nhật) của file.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-fb-tree.png</span>
+        <span class="shot-size">1000×600</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">ファイルブラウザ画面（ディレクトリツリー＋プレビュー）</span><span class="shot-desc-text lang-vi">Màn hình trình duyệt file (cây thư mục + xem trước)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="fb-download">
+    <div class="operation-head" style="border-left-color:#f59e0b">
+      <h4><span class="bi lang-ja">ダウンロード</span><span class="bi lang-vi">Tải xuống</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">ファイルを選択し「ダウンロード」</span><span class="bi lang-vi">Chọn file rồi "Tải xuống"</span></h5>
+        <p><span class="bi lang-ja">現場での確認や、他システムへの受け渡しが必要な場合に使用します。</span><span class="bi lang-vi">Dùng khi cần kiểm tra tại hiện trường hoặc chuyển giao cho hệ thống khác.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="fb-delete">
+    <div class="operation-head" style="border-left-color:#f59e0b">
+      <h4><span class="bi lang-ja">強制削除</span><span class="bi lang-vi">Buộc xóa</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">ファイルを選択し「強制削除」</span><span class="bi lang-vi">Chọn file rồi "Buộc xóa"</span></h5>
+        <p><span class="bi lang-ja"><b>⚠️ 通常の編集画面からの削除とは異なり、DB上の紐付け（登録レコード）に関係なくファイルシステムから直接削除します。</b>誤ったパスや孤立ファイルの整理など、システム管理目的でのみ使用してください。</span><span class="bi lang-vi"><b>⚠️ Khác với xóa từ màn hình chỉnh sửa thông thường, thao tác này xóa trực tiếp khỏi hệ thống file, không liên quan đến bản ghi liên kết trong DB.</b> Chỉ dùng cho mục đích quản trị hệ thống như dọn dẹp đường dẫn sai hoặc file mồ côi.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="fb-upload">
+    <div class="operation-head" style="border-left-color:#f59e0b">
+      <h4><span class="bi lang-ja">アップロード</span><span class="bi lang-vi">Tải lên</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">対象ディレクトリでアップロードを実行</span><span class="bi lang-vi">Thực hiện tải lên trong thư mục tương ứng</span></h5>
+        <p><span class="bi lang-ja">移行データの補完や、通常画面から登録できないファイルの緊急投入に使用します。運用ルールとしては通常の編集画面からの登録を優先してください。</span><span class="bi lang-vi">Dùng để bổ sung dữ liệu di chuyển, hoặc đưa file vào khẩn cấp khi không thể đăng ký từ màn hình thông thường. Theo quy tắc vận hành, nên ưu tiên đăng ký từ màn hình chỉnh sửa thông thường.</span></p>
+        
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-section" id="menu-language" data-menu="language">
+  <div class="menu-section-head" style="background:linear-gradient(135deg,#f59e0b22,#f59e0b08); border-left:5px solid #f59e0b">
+    <div class="menu-icon" style="background:#f59e0b">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M3 5h12M9 3v2m4.5 6.5c-1.5 3-4 5.5-7.5 7M6.5 8c1 3 3 5.5 6.5 7.5M21 21l-5-10-5 10m1.5-3.5h7"/></svg>
+    </div>
+    <div>
+      <div class="menu-path">/admin/language</div>
+      <h2><span class="bi lang-ja">言語設定</span><span class="bi lang-vi">Cài đặt ngôn ngữ</span></h2>
+      <p><span class="bi lang-ja">システム既定言語の切替、日本語／ベトナム語のカスタム翻訳辞書（JSON）のダウンロード・アップロードを行います。</span><span class="bi lang-vi">Chuyển ngôn ngữ mặc định hệ thống, tải xuống/tải lên từ điển dịch tùy chỉnh JSON tiếng Nhật/Việt.</span></p>
+    </div>
+  </div>
+  
+  <div class="operation" id="lang-default">
+    <div class="operation-head" style="border-left-color:#f59e0b">
+      <h4><span class="bi lang-ja">システム既定言語の切替</span><span class="bi lang-vi">Chuyển ngôn ngữ mặc định hệ thống</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">既定言語を選択し保存</span><span class="bi lang-vi">Chọn ngôn ngữ mặc định rồi lưu</span></h5>
+        <p><span class="bi lang-ja">ログイン画面を含む、すべてのユーザーに適用される既定の表示言語です。<b>個人・端末ごとの切替はなく</b>、保存すると次に表示されるMC/NC画面すべてに即座に反映されます。</span><span class="bi lang-vi">Đây là ngôn ngữ hiển thị mặc định áp dụng cho tất cả người dùng, bao gồm cả màn hình đăng nhập. <b>Không có cài đặt riêng theo người dùng/thiết bị</b>, khi lưu sẽ áp dụng ngay cho mọi màn hình MC/NC hiển thị tiếp theo.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-lang-default.png</span>
+        <span class="shot-size">500×250</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">システム既定言語の選択欄</span><span class="shot-desc-text lang-vi">Ô chọn ngôn ngữ mặc định hệ thống</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="operation" id="lang-dict">
+    <div class="operation-head" style="border-left-color:#f59e0b">
+      <h4><span class="bi lang-ja">カスタム翻訳辞書のダウンロード・編集・アップロード</span><span class="bi lang-vi">Tải xuống, chỉnh sửa, tải lên từ điển dịch tùy chỉnh</span></h4>
+    </div>
+    <div class="steps">
+      
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">辞書をダウンロード</span><span class="bi lang-vi">Tải xuống từ điển</span></h5>
+        <p><span class="bi lang-ja">「日本語辞書をダウンロード」／「ベトナム語辞書をダウンロード」で、画面の各項目キーと現在の文言をマッピングしたJSONファイルを取得します。</span><span class="bi lang-vi">Nhấn "Tải xuống từ điển tiếng Nhật" / "Tải xuống từ điển tiếng Việt" để lấy file JSON ánh xạ khóa từng mục màn hình với văn bản hiện tại.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">JSONを編集する</span><span class="bi lang-vi">Chỉnh sửa file JSON</span></h5>
+        <p><span class="bi lang-ja">テキストエディタでJSON形式を保ったまま用語を書き換えます（例: 現場独自の呼び方に統一する等）。JSON構文を崩すとアップロード時にエラーになります。</span><span class="bi lang-vi">Chỉnh sửa thuật ngữ bằng trình soạn thảo văn bản, giữ nguyên định dạng JSON (VD: thống nhất theo cách gọi riêng tại hiện trường). Nếu làm hỏng cú pháp JSON sẽ báo lỗi khi tải lên.</span></p>
+        
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h5><span class="bi lang-ja">再アップロードする</span><span class="bi lang-vi">Tải lên lại</span></h5>
+        <p><span class="bi lang-ja">「日本語辞書をアップロード」／「ベトナム語辞書をアップロード」から編集後のファイルを選択します。「JSONファイルの形式が正しくありません」エラー時は構文を確認してください。成功すると即座に全画面へ反映されます。</span><span class="bi lang-vi">Chọn file đã chỉnh sửa từ "Tải lên từ điển tiếng Nhật" / "Tải lên từ điển tiếng Việt". Nếu báo lỗi "Định dạng file JSON không hợp lệ", hãy kiểm tra lại cú pháp. Khi thành công sẽ áp dụng ngay cho mọi màn hình.</span></p>
+        
+    <div class="shot-box">
+      <div class="shot-head">
+        <span class="shot-icon">🖼</span>
+        <span class="shot-filename">adm-lang-dict-upload.png</span>
+        <span class="shot-size">700×400</span>
+      </div>
+      <div class="shot-body">
+        <div class="shot-placeholder"><span class="bi lang-ja">スクリーンショット挿入エリア</span><span class="bi lang-vi">Khu vực chèn ảnh chụp màn hình</span></div>
+        <div class="shot-desc"><b class="lang-ja">内容:</b><b class="lang-vi">Nội dung:</b> <span class="shot-desc-text lang-ja">カスタム辞書アップロード欄（日本語/ベトナム語）</span><span class="shot-desc-text lang-vi">Ô tải lên từ điển tùy chỉnh (tiếng Nhật/tiếng Việt)</span></div>
+      </div>
+    </div>
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+  </main>
+</div>
+
+<script>
+function setLang(l) {
+  document.body.classList.toggle('lang-vi-active', l === 'vi');
+  document.getElementById('btnJa').classList.toggle('active', l === 'ja');
+  document.getElementById('btnVi').classList.toggle('active', l === 'vi');
+  document.documentElement.lang = l;
+}
+
+function toggleMenu(key) {
+  var group = document.querySelector('.menu-group[data-menu="' + key + '"]');
+  if (!group) return;
+  var wasOpen = group.classList.contains('open');
+  document.querySelectorAll('.menu-group.open').forEach(function(g) { g.classList.remove('open'); });
+  if (!wasOpen) group.classList.add('open');
+}
+
+function selectOp(el, menuKey, opId) {
+  document.querySelectorAll('.submenu-link.active').forEach(function(l) { l.classList.remove('active'); });
+  el.classList.add('active');
+}
+
+// スクロールに応じてサイドバーの該当メニューを自動展開・ハイライト
+var opSections = Array.from(document.querySelectorAll('.operation'));
+window.addEventListener('scroll', function() {
+  var pos = window.scrollY + 120;
+  var current = null;
+  opSections.forEach(function(s) { if (s.offsetTop <= pos) current = s.id; });
+  if (!current) return;
+  var link = document.querySelector('.submenu-link[href="#' + current + '"]');
+  if (!link) return;
+  document.querySelectorAll('.submenu-link.active').forEach(function(l) { l.classList.remove('active'); });
+  link.classList.add('active');
+  var menuKey = link.getAttribute('data-menu');
+  var group = document.querySelector('.menu-group[data-menu="' + menuKey + '"]');
+  if (group && !group.classList.contains('open')) {
+    document.querySelectorAll('.menu-group.open').forEach(function(g) { g.classList.remove('open'); });
+    group.classList.add('open');
+  }
+});
+
+// 初期状態：最初のメニューを開く
+document.addEventListener('DOMContentLoaded', function() {
+  var first = document.querySelector('.menu-group');
+  if (first) first.classList.add('open');
+});
+</script>
+</body>
+</html>
