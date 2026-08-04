@@ -67,6 +67,12 @@ export function AdminLayout({ pathname, children }: AdminLayoutProps) {
             {t("adminLayout.menuManual", "📖 マニュアル")}
           </a>
           <div className="mx-3 my-1 border-t border-slate-200" />
+          <a href="/manuals/cms-manual.html" target="_blank" rel="noopener noreferrer"
+            className="mx-2 px-3 py-2 rounded-lg flex items-center gap-2.5 text-sm transition-colors text-slate-600 hover:bg-slate-50 hover:text-slate-900">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z"/></svg>
+            {t("adminLayout.menuManual", "📖 マニュアル")}
+          </a>
+          <div className="mx-3 my-1 border-t border-slate-200" />
           {BOTTOM_ITEMS.map(href => {
             const item = SIDEBAR_ITEMS.find(i => i.href === href)!;
             return (
