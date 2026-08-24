@@ -802,7 +802,9 @@ export class AdminController {
     @Query('template') templateName?: string,
     @Res() reply?: any,
   ) {
-    const ASSETS = '/home/karkyon/projects/machcore/apps/api/assets';
+    // PM2 (ecosystem.config.js) の cwd = apps/api を前提に、実行インスタンスの
+    // assets ディレクトリを相対解決する（複数インスタンス共存対応）。
+    const ASSETS = process.cwd() + '/assets';
     const fs2 = require('fs') as typeof import('fs');
 
     const NEW_TPL_FILE_MAP: Record<string, string> = {
@@ -856,7 +858,7 @@ export class AdminController {
     @Query('template') templateName?: string,
     @Res() reply?: any,
   ) {
-    const ASSETS = '/home/karkyon/projects/machcore/apps/api/assets';
+    const ASSETS = process.cwd() + '/assets';
     const fs2 = require('fs') as typeof import('fs');
 
     // テンプレート名 → ファイル名マップ
@@ -1000,7 +1002,7 @@ export class AdminController {
     const buf = Buffer.concat(chunks);
 
     // assets/ 配下に保存（file_path は相対パス "assets/xxx.pdf"）
-    const ASSETS = '/home/karkyon/projects/machcore/apps/api/assets';
+    const ASSETS = process.cwd() + '/assets';
     const fs2 = await import('fs');
     // file_path から実際の保存先ファイル名を決定
     const savedName = tpl.filePath.replace(/^assets\//, '');

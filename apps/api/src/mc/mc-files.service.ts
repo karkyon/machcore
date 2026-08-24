@@ -82,9 +82,12 @@ export class McFilesService {
    * 複数の代替パスを順番に試して実在するパスを返す。
    * SMBマウント失敗時や段取シート修正後のパス変化に対応。
    */
-  private resolveFilePath(filePath: string): string | null {
+  private async resolveFilePath(filePath: string): Promise<string | null> {
     if (fs.existsSync(filePath)) return filePath;
-    const localBase = '/home/karkyon/projects/machcore/uploads';
+    // 複数インスタンス共存時に他社のuploadsを誤参照しないよう、必ずDB設定
+    // (company_settings.upload_base_path) を優先する。未設定時のみ従来のデフォルト値。
+    const setting = await this.prisma.companySetting.findFirst();
+    const localBase = setting?.uploadBasePath ?? '/home/karkyon/projects/machcore/uploads';
     // 候補1: /mnt/mc_files/mc_files/xxx → uploads/mc_files/xxx
     const c1 = filePath.replace(/^\/mnt\/mc_files\/mc_files\//, localBase + '/mc_files/');
     if (c1 !== filePath && fs.existsSync(c1)) return c1;
@@ -121,7 +124,7 @@ export class McFilesService {
   async serveFile(fileId: number): Promise<{ filePath: string; mimeType: string; fileName: string }> {
     const file = await this.prisma.mcFile.findUnique({ where: { id: fileId } });
     if (!file) throw new Error(`mc_file ${fileId} が存在しません`);
-    const resolved = this.resolveFilePath(file.filePath);
+    const resolved = await this.resolveFilePath(file.filePath);
     if (!resolved) throw new Error('ファイルが見つかりません: ' + file.filePath);
     return { filePath: resolved, mimeType: file.mimeType, fileName: file.originalName };
   }
@@ -137,7 +140,7 @@ export class McFilesService {
     }
 
     // オリジナルが存在しない場合: 代替パスを探す
-    const resolved = this.resolveFilePath(file.filePath);
+    const resolved = await this.resolveFilePath(file.filePath);
     if (!resolved) throw new Error(`ファイルが見つかりません: ${file.filePath}`);
     let srcPath = resolved;
 

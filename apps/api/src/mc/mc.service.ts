@@ -1968,8 +1968,8 @@ export class McService {
     const FONT_PATH = '/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf';
     const fontBytes = fs.readFileSync(FONT_PATH);
 
-    // テンプレートPDFパス
-    const ASSETS = '/home/karkyon/projects/machcore/apps/api/assets';
+    // テンプレートPDFパス（実行インスタンスのcwd基準で相対解決）
+    const ASSETS = process.cwd() + '/assets';
     const p1Bytes = fs.readFileSync(`${ASSETS}/template_p1.pdf`);
     const p2Bytes = fs.readFileSync(`${ASSETS}/template_p2.pdf`);
 
@@ -2469,7 +2469,7 @@ export class McService {
     }
 
     const FONT_PATH = '/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf';
-    const ASSETS    = '/home/karkyon/projects/machcore/apps/api/assets';
+    const ASSETS    = process.cwd() + '/assets';
 
     const { PDFDocument: PDFLib, rgb, degrees } = await import('pdf-lib');
     const fontkit = await import('@pdf-lib/fontkit');

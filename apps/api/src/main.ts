@@ -28,14 +28,19 @@ async function bootstrap() {
     }),
   );
 
+  // CORS許可オリジンは環境変数 CORS_ORIGINS (カンマ区切り) で上書き可能。
+  // 未設定時は従来のデフォルト値（自社環境）を使用する。複数インスタンス共存時は
+  // インスタンスごとの .env に CORS_ORIGINS を設定すること。
+  const corsOrigins = (
+    process.env.CORS_ORIGINS ??
+    'https://192.168.1.11:8443,http://localhost:3010,http://localhost:3011,http://192.168.1.11:3010'
+  )
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   app.enableCors({
-    // HTTPS:8443 (通常ブラウザ) + localhost (開発) + HTTP:3010 (Next.js内部rewrite) のみ許可
-    origin: [
-      'https://192.168.1.11:8443',
-      'http://localhost:3010',
-      'http://localhost:3011',
-      'http://192.168.1.11:3010',  // Next.js→API内部rewrite用（サーバサイド）
-    ],
+    origin: corsOrigins,
     credentials: true,
   });
 
