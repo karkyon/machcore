@@ -33,6 +33,8 @@ Microsoft Access 2010 製の NC/MC 管理データベースを NestJS / Next.js 
 
 ## サーバ情報
 
+> ⚠️ 以下は移行前(192.168.1.11・単一インスタンス構成)時点の記載です。現在は192.168.1.14で自社(machcore-internal)/グループ会社KHAI THAC PRECISION(machcore-group)の2インスタンス構成に移行済み。実際のDB接続情報は`machcore`/`machcore_dev`ではなく、自社側`machcore_internal`/`machcore_internal`、グループ会社側`machcore_group`/`machcore_group`（詳細は`apps/api/.env.internal.example`・`.env.group.example`参照）。本表は歴史的経緯の参考情報として残す。
+
 | 項目 | 値 |
 |------|----||
 | サーバ | omega-dev2 (192.168.1.11 / Ubuntu 24.04) |
@@ -162,9 +164,12 @@ npm install -g pnpm
 ```
 
 ### 環境変数
+> ⚠️ 本リポジトリに`.env.example`という単一ファイルは存在しない（自社/グループ会社の2インスタンス構成のため）。`apps/api/.env.internal.example`（自社用）または`apps/api/.env.group.example`（グループ会社用）を使用する。
 ```bash
-cp .env.example .env
-# .envを編集（DB接続情報・JWT_SECRET等）
+cp apps/api/.env.internal.example apps/api/.env   # 自社インスタンスの場合
+# または
+cp apps/api/.env.group.example apps/api/.env      # グループ会社インスタンスの場合
+# .envを編集（JWT_SECRET等の値を必要に応じて調整）
 ```
 
 `.env` の主要項目:
