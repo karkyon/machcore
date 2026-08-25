@@ -1,0 +1,30 @@
+module.exports = {
+  apps: [
+    {
+      name:    'machcore-api',
+      script:  'dist/src/main.js',
+      cwd:     '/home/karkyon/projects/machcore-internal/apps/api',
+      exec_mode: 'fork',
+      instances: 1,
+      autorestart: true,
+      watch:   false,
+      max_memory_restart: '512M',
+      env: { NODE_ENV: 'production', API_PORT: 3011, RIDOC_API_URL: 'http://192.168.1.207:5087', TZ: 'Asia/Tokyo' },
+      error_file: '/home/karkyon/.pm2/logs/machcore-api-error.log',
+      out_file:   '/home/karkyon/.pm2/logs/machcore-api-out.log',
+    },
+    {
+      name:        'machcore-web',
+      script:      '/home/karkyon/projects/machcore-internal/start-web-internal.sh',
+      interpreter: '/bin/bash',
+      exec_mode:   'fork',
+      instances:   1,
+      autorestart: true,
+      watch:       false,
+      max_memory_restart: '512M',
+      env: { NODE_ENV: 'production', PORT: 3010, TZ: 'Asia/Tokyo' },
+      error_file: '/home/karkyon/.pm2/logs/machcore-web-error.log',
+      out_file:   '/home/karkyon/.pm2/logs/machcore-web-out.log',
+    },
+  ],
+};

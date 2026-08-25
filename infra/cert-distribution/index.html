@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MachCore セキュリティ証明書のインストール</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px;
+    background: #eef1f5;
+    font-family: 'Hiragino Sans','Yu Gothic UI','Meiryo','Segoe UI',sans-serif;
+    color: #1f2937;
+    display: flex; justify-content: center;
+  }
+  .card {
+    background: #fff; max-width: 720px; width: 100%;
+    border-radius: 16px; padding: 40px 44px 32px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.08);
+    position: relative;
+  }
+  .langbar { position: absolute; top: 20px; right: 20px; display:flex; gap:6px; }
+  .langbtn {
+    border: 1px solid #cbd5e1; background:#fff; color:#334155;
+    font-size: 12.5px; font-weight:600; padding:5px 10px; border-radius:7px;
+    cursor:pointer;
+  }
+  .langbtn.active { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+  h1 { font-size: 22px; margin: 0 0 6px; display:flex; align-items:center; gap:8px; }
+  .subtitle { color:#64748b; font-size:14px; margin:0 0 30px; }
+  .step { display:flex; gap:16px; margin-bottom: 26px; }
+  .num {
+    flex: 0 0 30px; width:30px; height:30px; border-radius:50%;
+    background:#2563eb; color:#fff; display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:14px; margin-top:2px;
+  }
+  .steptitle { font-size:16px; font-weight:700; margin:0 0 8px; display:flex; align-items:center; gap:8px; }
+  .badge {
+    background:#e0edff; color:#1d4ed8; font-size:11.5px; font-weight:700;
+    padding:2px 9px; border-radius:999px;
+  }
+  .stepbody p { margin: 0 0 12px; font-size:14px; line-height:1.7; color:#334155; }
+  .btnrow { display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 12px; }
+  .btn {
+    display:inline-flex; align-items:center; gap:6px;
+    padding: 10px 16px; border-radius: 9px; font-size: 14px; font-weight:600;
+    text-decoration:none; cursor:pointer; border:1px solid transparent;
+  }
+  .btn-outline { background:#f1f5f9; color:#334155; border-color:#e2e8f0; }
+  .btn-primary { background:#2563eb; color:#fff; }
+  .btn-big { padding: 13px 20px; font-size:15px; }
+  .warnbox {
+    background:#fef9e7; border-left: 4px solid #eab308;
+    border-radius: 6px; padding: 12px 16px; font-size:13.5px; color:#78350f;
+    line-height:1.7;
+  }
+  .manuallist { margin:0; padding-left:0; list-style:none; font-size:14px; color:#334155; line-height:2; }
+  .manuallist li { display:flex; gap:8px; }
+  .manuallist code { background:#f1f5f9; padding:1px 6px; border-radius:4px; font-size:13px; }
+  hr.sep { border:none; border-top:1px solid #e5e7eb; margin: 26px 0; }
+  .urlbox { text-align:center; margin: 8px 0 16px; }
+  .finalnote { font-size:12.5px; color:#78350f; text-align:center; line-height:1.8; }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <div class="langbar">
+    <button class="langbtn active" id="btn-ja" onclick="setLang('ja')">🇯🇵 日本語</button>
+    <button class="langbtn" id="btn-vi" onclick="setLang('vi')">🇻🇳 Tiếng Việt</button>
+  </div>
+
+  <h1><span>🔐</span><span data-t="title">MachCore セキュリティ証明書のインストール</span></h1>
+  <p class="subtitle" data-t="subtitle">このPCでMachCoreをHTTPS接続で使うために、初回1回だけ設定が必要です。</p>
+
+  <div class="step">
+    <div class="num">1</div>
+    <div class="stepbody" style="flex:1">
+      <div class="steptitle">
+        <span class="badge" data-t="recommend">おすすめ</span>
+        <span data-t="s1title">PowerShellで自動インストール（最も簡単）</span>
+      </div>
+      <p data-t="s1desc">下のボタンでスクリプトをダウンロードし、右クリック→「管理者として実行」するだけで完了します。</p>
+      <div class="btnrow">
+        <a class="btn btn-outline" href="machcore-rootCA.crt" download>🔒 <span data-t="btnCert">証明書をダウンロード</span></a>
+        <a class="btn btn-primary" href="install-cert.ps1" download>⚡ <span data-t="btnScript">自動インストールスクリプト(.ps1)</span></a>
+      </div>
+      <div class="warnbox" data-t="s1warn">
+        ⚠️ スクリプト実行時に「このファイルを実行しますか？」と聞かれたら「実行」を選択してください。<br>
+        「✅ インストール完了！」と表示されたら成功です。
+      </div>
+    </div>
+  </div>
+
+  <hr class="sep">
+
+  <div class="step">
+    <div class="num">2</div>
+    <div class="stepbody" style="flex:1">
+      <div class="steptitle"><span data-t="s2title">手動でインストールする場合</span></div>
+      <ul class="manuallist" data-t="s2list">
+        <li>① 上の「証明書をダウンロード」ボタンで <code>machcore-rootCA.crt</code> を保存</li>
+        <li>② ダウンロードしたファイルをダブルクリック</li>
+        <li>③「証明書のインストール」→「ローカルコンピューター」→「次へ」</li>
+        <li>④「証明書をすべて次のストアに配置する」→「参照」→「信頼されたルート証明機関」→「OK」→「次へ」→「完了」</li>
+        <li>⑤ Chromeを完全に閉じて再起動</li>
+      </ul>
+    </div>
+  </div>
+
+  <hr class="sep">
+
+  <div class="step">
+    <div class="num">3</div>
+    <div class="stepbody" style="flex:1">
+      <div class="steptitle" data-t="s3title">インストール完了後のアクセス先</div>
+      <p data-t="s3desc">Chromeを再起動してから、以下のURLにアクセスしてください：</p>
+      <div class="urlbox">
+        <a class="btn btn-primary btn-big" href="https://192.168.1.14:8443" target="_blank">
+          🚀 <span data-t="btnOpen">MachCore を開く</span>（https://192.168.1.14:8443）
+        </a>
+      </div>
+      <div class="warnbox finalnote" data-t="s3note">
+        このページは <b>http://192.168.1.14:9100</b> でいつでも開けます。<br>
+        新しいPCを追加する際は、このページで同じ手順を繰り返してください。
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const DICT = {
+  ja: {
+    title: "MachCore セキュリティ証明書のインストール",
+    subtitle: "このPCでMachCoreをHTTPS接続で使うために、初回1回だけ設定が必要です。",
+    recommend: "おすすめ",
+    s1title: "PowerShellで自動インストール（最も簡単）",
+    s1desc: "下のボタンでスクリプトをダウンロードし、右クリック→「管理者として実行」するだけで完了します。",
+    btnCert: "証明書をダウンロード",
+    btnScript: "自動インストールスクリプト(.ps1)",
+    s1warn: "⚠️ スクリプト実行時に「このファイルを実行しますか？」と聞かれたら「実行」を選択してください。<br>「✅ インストール完了！」と表示されたら成功です。",
+    s2title: "手動でインストールする場合",
+    s2list: [
+      "① 上の「証明書をダウンロード」ボタンで <code>machcore-rootCA.crt</code> を保存",
+      "② ダウンロードしたファイルをダブルクリック",
+      "③「証明書のインストール」→「ローカルコンピューター」→「次へ」",
+      "④「証明書をすべて次のストアに配置する」→「参照」→「信頼されたルート証明機関」→「OK」→「次へ」→「完了」",
+      "⑤ Chromeを完全に閉じて再起動"
+    ],
+    s3title: "インストール完了後のアクセス先",
+    s3desc: "Chromeを再起動してから、以下のURLにアクセスしてください：",
+    btnOpen: "MachCore を開く",
+    s3note: "このページは <b>http://192.168.1.14:9100</b> でいつでも開けます。<br>新しいPCを追加する際は、このページで同じ手順を繰り返してください。"
+  },
+  vi: {
+    title: "Cài đặt chứng chỉ bảo mật MachCore",
+    subtitle: "Cần thiết lập một lần duy nhất để dùng MachCore qua HTTPS trên máy này.",
+    recommend: "Khuyên dùng",
+    s1title: "Tự động cài đặt bằng PowerShell (Đơn giản nhất)",
+    s1desc: "Tải script bằng nút bên dưới, sau đó nhấp phải → \"Chạy với quyền quản trị viên\" là hoàn tất.",
+    btnCert: "Tải xuống chứng chỉ",
+    btnScript: "Script tự động cài đặt (.ps1)",
+    s1warn: "⚠️ Khi chạy script, nếu được hỏi \"Bạn có muốn chạy tệp này không?\" hãy chọn \"Chạy\".<br>Khi hiển thị \"✅ Cài đặt hoàn tất!\" nghĩa là thành công.",
+    s2title: "Trường hợp cài đặt thủ công",
+    s2list: [
+      "① Lưu tệp <code>machcore-rootCA.crt</code> bằng nút \"Tải xuống chứng chỉ\" ở trên",
+      "② Nhấp đúp vào tệp đã tải xuống",
+      "③ \"Cài đặt chứng chỉ\" → \"Máy tính cục bộ\" → \"Tiếp theo\"",
+      "④ \"Đặt tất cả chứng chỉ vào kho sau\" → \"Duyệt\" → \"Trusted Root Certification Authorities\" → \"OK\" → \"Tiếp theo\" → \"Hoàn tất\"",
+      "⑤ Đóng hoàn toàn Chrome và khởi động lại"
+    ],
+    s3title: "Địa chỉ truy cập sau khi cài đặt xong",
+    s3desc: "Sau khi khởi động lại Chrome, hãy truy cập vào URL sau:",
+    btnOpen: "Mở MachCore",
+    s3note: "Trang này có thể mở bất cứ lúc nào tại <b>http://192.168.1.14:9100</b>.<br>Khi thêm máy tính mới, hãy lặp lại các bước tương tự tại trang này."
+  }
+};
+
+function setLang(lang) {
+  document.getElementById('btn-ja').classList.toggle('active', lang === 'ja');
+  document.getElementById('btn-vi').classList.toggle('active', lang === 'vi');
+  document.documentElement.lang = lang;
+  const d = DICT[lang];
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const key = el.getAttribute('data-t');
+    if (key === 's2list') {
+      el.innerHTML = d.s2list.map(t => `<li>${t}</li>`).join('');
+    } else if (d[key] !== undefined) {
+      el.innerHTML = d[key];
+    }
+  });
+  localStorage.setItem('machcore_cert_lang', lang);
+}
+setLang(localStorage.getItem('machcore_cert_lang') || 'ja');
+</script>
+</body>
+</html>
