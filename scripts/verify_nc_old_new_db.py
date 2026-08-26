@@ -184,7 +184,7 @@ def verify_basic_info_nc(ss, pg, limit=None):
         SELECT np.legacy_nc_id, np.machining_id, nmd.process_l, nmd.clamp_note,
                nmd.machine_id, nmd.machining_time, nmd.setup_time_ref,
                nmd.folder_name, nmd.file_name, nmd.o_number,
-               nmd.drawing_count, nmd.photo_count, nmd.version
+               nmd.drawing_count, nmd.photo_count, nmd.version, nmd.clamp_allowance
         FROM nc_programs np
         JOIN nc_machining_details nmd ON np.machining_id = nmd.k_id
         WHERE np.legacy_nc_id IS NOT NULL
@@ -211,22 +211,18 @@ def verify_basic_info_nc(ss, pg, limit=None):
 
         (n_ncid, n_kid, n_process_l, n_clamp_note, n_machine_id, n_machining_time,
          n_setup_time_ref, n_folder_name, n_file_name, n_onumber,
-         n_drawing_count, n_photo_count, n_version) = new_row
+         n_drawing_count, n_photo_count, n_version, n_clamp_allowance) = new_row
 
         # 旧側: m_id(整数) → ACC_Machine.Model(文字列)。新側: machines.id → machine_code(文字列)。
         # 両者とも「machine_code相当の文字列」に変換してから比較する。
         old_machine_str = mid_to_model.get(machine_raw) if machine_raw is not None else None
         n_machine_code = machine_id_to_code.get(n_machine_id)
 
-        # clamp_noteはnc_full_import_v2.py PHASE1①で
-        # "クランプ: {clamp}\n{note}" 形式に合成されているため、
-        # 旧側もそれを再現したうえで比較する(さもないと必ず不一致になる)。
+        # [v101対応] nc_full_import_v2.py PHASE1①は、掴代(Clamp)をclamp_allowance
+        # カラムへ独立保持し、clamp_noteには「クランプ: 」接頭辞を付けない仕様に
+        # 変更済み(旧仕様の結合形式を期待する比較は誤検知の原因だったため撤廃)。
         clamp_str = str(clamp or "").strip() or None
         note_str = str(note or "").strip() or None
-        old_clamp_note = "\n".join([s for s in (
-            (f"クランプ: {clamp_str}" if clamp_str else None),
-            note_str,
-        ) if s]) or None
 
         folder_name_old = str(fd_name or "").strip() or "(未設定)"
 
@@ -237,7 +233,8 @@ def verify_basic_info_nc(ss, pg, limit=None):
             ("フォルダ名",  folder_name_old, n_folder_name,  "str"),
             ("ファイル名",  f_name,     n_file_name,        "str"),
             ("oNo",        ono,        n_onumber,          "str"),
-            ("クランプ/備考", old_clamp_note, n_clamp_note,  "str"),
+            ("クランプ(掴代)", clamp_str, n_clamp_allowance, "str"),
+            ("備考",        note_str,   n_clamp_note,       "str"),
             ("図枚数",      fig,        n_drawing_count,     "num"),
             ("写真枚数",    photo,      n_photo_count,       "num"),
         ]
