@@ -1477,10 +1477,13 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   </table>
 
   <!-- ID行 -->
+  <!-- [バグ修正] data.idは内部PKであり旧システムのNC_idとは異なる。Web側NcPartHeader.tsxと
+       同じ legacyNcId ?? id のフォールバックに統一する。加工idも常にnullのprocessingIdでは
+       なく、旧K_id対応のmachiningIdを使う。 -->
   <div class="id-row">
-    NC_id <strong>${data.id}</strong>
+    NC_id <strong>${data.legacyNcId ?? data.id}</strong>
     &nbsp;&nbsp;部品id <strong>${data.part?.partId ?? '—'}</strong>
-    &nbsp;&nbsp;加工id <strong>${data.processingId ?? '—'}</strong>
+    &nbsp;&nbsp;加工id <strong>${data.machiningId ?? '—'}</strong>
   </div>
 
   <!-- 部品情報テーブル -->
