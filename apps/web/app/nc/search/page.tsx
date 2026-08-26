@@ -154,12 +154,14 @@ export default function NcSearchPage() {
                   {g.client_name && <span className="text-slate-400 text-xs shrink-0 truncate max-w-[120px]">{g.client_name}</span>}
                 </div>
                 {g.rows.map((r, ri) => {
-                  const proc = String(r.process_l ?? "");
-                  const colorClass = Object.entries(PROCESS_COLOR).find(([k]) => proc.startsWith(k))?.[1] ?? "bg-slate-500 text-white";
+                  // [バグ修正] 実データのprocess_lではなく配列インデックス(ri+1)を表示していたため
+                  // 「工程Lが単なる連番になっている」不具合になっていた。実際のL番号を表示する。
+                  const proc = r.process_l != null ? `L${r.process_l}` : "";
+                  const colorClass = PROCESS_COLOR[proc] ?? "bg-slate-500 text-white";
                   return (
                     <div key={r.id} onClick={() => handleSelect(r.id)}
                       className={`px-4 py-2 flex items-center gap-3 cursor-pointer transition-colors border-b border-dashed border-slate-200 ${selected===r.id ? "bg-sky-50" : "hover:bg-slate-50"}`}>
-                      <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold shrink-0 ${colorClass}`}>{ri+1}</span>
+                      <span className={`min-w-[28px] h-6 px-1 rounded flex items-center justify-center text-[11px] font-bold shrink-0 ${colorClass}`}>{proc || (ri+1)}</span>
                       <span className="font-mono text-xs text-slate-600 shrink-0">{t("search.ncIdColon","NC ID : {id}").replace("{id}", String(r.nc_id))}</span>
                       {r.machine_code && <span className="text-sm text-slate-700 font-medium shrink-0">{r.machine_code}</span>}
                       {(r as any).machining_time_sec && <span className="text-xs text-slate-400 shrink-0">⏱ {fmtTime((r as any).machining_time_sec)}</span>}
@@ -183,7 +185,7 @@ export default function NcSearchPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-mono text-sky-600 font-bold text-sm">{r.drawing_no}</span>
-                      {r.process_l && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${PROCESS_COLOR[String(r.process_l)]??"bg-slate-500 text-white"}`}>{r.process_l}</span>}
+                      {r.process_l != null && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${PROCESS_COLOR[`L${r.process_l}`] ?? "bg-slate-500 text-white"}`}>L{r.process_l}</span>}
                     </div>
                     <div className="text-xs text-slate-500 truncate">{r.part_name}</div>
                   </div>

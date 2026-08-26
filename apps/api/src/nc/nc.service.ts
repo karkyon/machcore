@@ -1396,7 +1396,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
       <td class="mono">${t.holderModel ?? ''}</td>
       <td class="c">${t.noseR ?? ''}</td>
       <td>${t.note ?? ''}</td>
-    </tr>`).join('') : '<tr><td colspan="6" class="c" style="color:#aaa;font-size:8pt;padding:4px;">加工データなし</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="6" class="c" style="color:#aaa;font-size:10.5pt;padding:5px;">加工データなし</td></tr>';
 
   const drawingsHtml = (includeDrawings && drawingBase64s.length > 0)
     ? `<div style="margin-top:8px;page-break-inside:avoid;"><div class="sh">段取図</div>
@@ -1404,45 +1404,53 @@ private buildSetupSheetHtml(data: any, opts: any): string {
          ${drawingBase64s.map((src: string, i: number) => `<img src="${src}" alt="段取図${i+1}" style="max-width:49%;height:auto;border:1px solid #ccc;" />`).join('')}
        </div></div>` : '';
 
+  // [バグ修正] machiningTimeはDB上「分」単位の整数でしか保持していないため、
+  // 端数から秒を逆算しても常に0Sになる(=表示上「00S」固定)バグだった。
+  // 実データ粒度に合わせ、分単位のみを表示する。
   const machTimeMin = data.machiningTime ?? 0;
   const machM = Math.floor(machTimeMin);
-  const machS = Math.round((machTimeMin - machM) * 60);
-  const machTimeStr = `${machM} M ${String(machS).padStart(2,'0')} S`;
+  const machTimeStr = machTimeMin > 0 ? `${machM} 分` : '—';
 
   return `<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8"/>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Noto Sans JP', sans-serif; font-size: 9pt; color: #000; background: #fff; padding: 8mm; }
-  h1.title { font-size: 14pt; font-weight: 700; margin-bottom: 4px; }
-  .id-row { font-size: 8pt; color: #444; margin-bottom: 6px; }
+  /* [バグ修正] Google Fonts(外部ネットワーク)への@importに依存していたため、
+     .14(internal)のようにインターネットアクセスが制限された環境でPuppeteerの
+     ページ読込がタイムアウトし、段取シート印刷が500エラーになっていた。
+     また@import失敗時のフォールバックでOS側の任意のCJKフォント(簡体字系)が
+     選ばれ、「フォントが中国語のように見える」問題も併発していた。
+     MC側(pdf-lib+fontkit)と同じ、サーバにインストール済みのIPAゴシックを
+     第一候補にしたローカルフォントスタックへ変更し、外部依存を排除する。 */
+  body { font-family: "IPAGothic", "IPAPGothic", "Noto Sans CJK JP", "Noto Sans JP", sans-serif; font-size: 11pt; color: #000; background: #fff; padding: 8mm; }
+  h1.title { font-size: 16pt; font-weight: 700; margin-bottom: 4px; }
+  .id-row { font-size: 10pt; color: #444; margin-bottom: 6px; }
   table.info { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-  table.info td { border: 1px solid #999; padding: 2px 5px; font-size: 9pt; vertical-align: middle; }
+  table.info td { border: 1px solid #999; padding: 3px 6px; font-size: 11pt; vertical-align: middle; }
   table.info td.lbl { background: #e8e8e8; font-weight: 700; width: 80px; white-space: nowrap; }
   table.info td.val { }
-  .備考box { background: #f0f0f0; border: 1px solid #ccc; padding: 4px 6px; font-size: 8.5pt;
+  .備考box { background: #f0f0f0; border: 1px solid #ccc; padding: 5px 7px; font-size: 10.5pt;
               white-space: pre-wrap; min-height: 28px; margin-bottom: 4px; }
   table.sign { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-  table.sign td { border: 1px solid #999; padding: 2px 5px; font-size: 8.5pt; }
+  table.sign td { border: 1px solid #999; padding: 3px 6px; font-size: 10.5pt; }
   table.sign td.lbl { background: #e8e8e8; font-weight: 700; white-space: nowrap; }
   table.work { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-  table.work td { border: 1px solid #999; padding: 3px 5px; font-size: 8.5pt; height: 22px; }
+  table.work td { border: 1px solid #999; padding: 4px 6px; font-size: 10.5pt; height: 22px; }
   table.work td.lbl { background: #e8e8e8; font-weight: 700; white-space: nowrap; width: 70px; }
   /* [モノクロ印刷対応] 濃紺(#1e3a5f)は白黒印刷/コピー時にムラや潰れの原因となるため、
      完全な黒系グレースケールに変更する(カラーを一切使わない)。 */
-  .sh { font-size: 8.5pt; font-weight: 700; background: #333; color: #fff; padding: 2px 6px; margin-bottom: 1px; }
+  .sh { font-size: 10.5pt; font-weight: 700; background: #333; color: #fff; padding: 3px 7px; margin-bottom: 1px; }
   table.tools { width: 100%; border-collapse: collapse; }
-  table.tools th { background: #333; color: #fff; font-weight: 700; padding: 3px 5px;
-                   border: 1px solid #888; font-size: 8.5pt; text-align: left; }
-  table.tools td { border: 1px solid #ccc; padding: 2.5px 5px; font-size: 8.5pt; vertical-align: top; }
+  table.tools th { background: #333; color: #fff; font-weight: 700; padding: 4px 6px;
+                   border: 1px solid #888; font-size: 10.5pt; text-align: left; }
+  table.tools td { border: 1px solid #ccc; padding: 3px 6px; font-size: 10.5pt; vertical-align: top; }
   table.tools tr:nth-child(even) td { background: #f5f5f5; }
   .c { text-align: center; }
   .mono { font-family: 'Courier New', monospace; }
   .foot { margin-top: 8px; padding-top: 4px; border-top: 1px solid #ccc;
-          display: flex; justify-content: space-between; font-size: 7.5pt; color: #666; }
+          display: flex; justify-content: space-between; font-size: 9pt; color: #666; }
   @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
   .watermark { position: fixed; font-size: 60pt; font-weight: 700; color: rgba(120,120,120,0.30);
                transform: rotate(-35deg); z-index: 999; pointer-events: none; }
