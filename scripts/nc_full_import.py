@@ -47,12 +47,25 @@ from datetime import datetime, timedelta
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 設定
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PG_DSN       = "host=localhost port=5440 dbname=machcore_dev user=machcore password=machcore_pass_change_me"
+def _load_pg_dsn():
+    import re as _re
+    _env = Path(__file__).resolve().parent.parent / "apps" / "api" / ".env"
+    with open(_env, encoding="utf-8") as _f:
+        for _line in _f:
+            _m = _re.match(r'^DATABASE_URL="?([^"\n]*)"?$', _line.strip())
+            if _m:
+                _url = _m.group(1)
+                # psycopg2はPrisma固有のクエリパラメータ(?schema=public等)を
+                # 解釈できずinvalid dsnエラーになるため、クエリ部分を除去する。
+                _url = _url.split("?", 1)[0]
+                return _url
+    raise RuntimeError(f"DATABASE_URL not found in {_env}")
+PG_DSN = _load_pg_dsn()
 SS_SERVER    = "192.168.1.9"
 SS_USER      = "sa"
 SS_PASS      = "RTW65b"
 SS_DB        = "imotomc"   # NC側ビューもMC側と同じDB内に存在(diag_v017/v018bで確認済み)
-LOG_FILE     = Path("/home/karkyon/projects/machcore/logs/nc_full_import.log")
+LOG_FILE     = Path("/home/karkyon/projects/machcore-internal/logs/nc_full_import.log")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ユーティリティ

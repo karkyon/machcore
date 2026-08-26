@@ -36,3 +36,7 @@ fix_v*.py
 diag_v*.py
 cleanup_v*.py
 *.bak_i18n_*
+
+# Python
+__pycache__/
+*.pyc
