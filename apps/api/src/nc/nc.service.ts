@@ -1284,6 +1284,7 @@ async getPrintData(ncProgramId: number) {
     clampNote:    nc.machining?.clampNote ?? null,
     clampAllowance: nc.machining?.clampAllowance ?? null,
     machiningTime: nc.machining?.machiningTime ?? null,
+    setupTimeRef: nc.machining?.setupTimeRef ?? null,
     processingId: nc.machining?.processingId ?? null,
   };
 }
@@ -1404,12 +1405,15 @@ private buildSetupSheetHtml(data: any, opts: any): string {
          ${drawingBase64s.map((src: string, i: number) => `<img src="${src}" alt="段取図${i+1}" style="max-width:49%;height:auto;border:1px solid #ccc;" />`).join('')}
        </div></div>` : '';
 
-  // [バグ修正] machiningTimeはDB上「分」単位の整数でしか保持していないため、
-  // 端数から秒を逆算しても常に0Sになる(=表示上「00S」固定)バグだった。
-  // 実データ粒度に合わせ、分単位のみを表示する。
-  const machTimeMin = data.machiningTime ?? 0;
-  const machM = Math.floor(machTimeMin);
-  const machTimeStr = machTimeMin > 0 ? `${machM} 分` : '—';
+  // 旧Accessフォーム(r_NC_Lathe内ラベル32「ﾀｲﾑ」)の実物確認により、
+  // 旧ACC_Lathe.Tm(=分)/Ts(=秒)は単一の「タイム」項目であることが確定した。
+  // 旧スキーマ設計時は意味未確証としてsetupTimeRefの名前でTsを退避していたが、
+  // 値自体は移行時に正しく取り込まれており失われていない。machiningTime(分)と
+  // setupTimeRef(秒)を組み合わせて実際の「タイム」を復元する。
+  const machM = data.machiningTime ?? 0;
+  const machS = data.setupTimeRef ?? 0;
+  const machTimeStr = (data.machiningTime != null || data.setupTimeRef != null)
+    ? `${machM} M ${String(machS).padStart(2,'0')} S` : '—';
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -1613,7 +1617,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   <!-- フッター -->
   <div class="foot">
     <span>NC旋盤プログラム管理システム MachCore</span>
-    <span>図面番号: ${data.part?.drawingNo ?? ''} | 部品ID: ${data.part?.partId ?? ''} | NC_id: ${data.id}</span>
+    <span>図面番号: ${data.part?.drawingNo ?? ''} | 部品ID: ${data.part?.partId ?? ''} | NC_id: ${data.legacyNcId ?? data.id}</span>
   </div>
 </body>
 </html>`;
