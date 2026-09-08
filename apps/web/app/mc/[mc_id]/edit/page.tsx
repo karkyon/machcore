@@ -308,11 +308,14 @@ export default function McEditPage() {
     toolingRows, offsetRows, indexRows,
   });
   React.useEffect(() => {
-    if (detail && initialSnapshotRef.current === null) {
-      initialSnapshotRef.current = buildEditSnapshot();
-    }
+    if (!detail || machines.length === 0 || initialSnapshotRef.current !== null) return;
+    // machineIdがmachineCode(未解決の文字列)のままここで捕捉すると、後続のuseEffectに
+    // よるmachineCode→id解決(setMachineId)でスナップショット取得直後に値が変わってしまい、
+    // 何も編集していなくても離脱時未保存警告が誤発火する。解決完了後に初めて捕捉する。
+    if (machineId !== "" && isNaN(parseInt(machineId))) return;
+    initialSnapshotRef.current = buildEditSnapshot();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail, machineId, oNumber, clampNote, cycleH, cycleM, cycleS, machiningQty, note, creatorId, sheetCreatedAt, toolingRows, offsetRows, indexRows]);
+  }, [detail, machines, machineId, oNumber, clampNote, cycleH, cycleM, cycleS, machiningQty, note, creatorId, sheetCreatedAt, toolingRows, offsetRows, indexRows]);
   const isEditDirty = () => initialSnapshotRef.current !== null && buildEditSnapshot() !== initialSnapshotRef.current;
   // ブラウザの閉じる/リロード/戻る操作に対する標準警告(文言はブラウザ依存で固定)
   React.useEffect(() => {
