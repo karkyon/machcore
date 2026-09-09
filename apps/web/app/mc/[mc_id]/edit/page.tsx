@@ -1687,8 +1687,8 @@ export default function McEditPage() {
                         <colgroup>
                           <col style={{width:"36px"}} />
                           <col style={{width:"70px"}} />
-                          <col style={{width:"60px"}} />
                           <col style={{width:"180px"}} />
+                          <col style={{width:"60px"}} />
                           <col style={{width:"50px"}} />
                           <col style={{width:"50px"}} />
                           <col style={{width:"60px"}} />
@@ -1700,8 +1700,8 @@ export default function McEditPage() {
                           <tr>
                             <th className="px-2 py-1.5 text-center text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">#</th>
                             <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">N</th>
-                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">T</th>
                             <th className="px-2 py-1.5 text-left text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">{tr("mcEditUi.colToolName", "工具名")}</th>
+                            <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">T</th>
                             <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">H</th>
                             <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">D</th>
                             <th className="px-2 py-1.5 text-amber-900 font-bold border-b border-amber-300 whitespace-nowrap">{tr("mcEditUi.colDValue", "D値")}</th>
@@ -1715,8 +1715,8 @@ export default function McEditPage() {
                             <tr key={i} className={i % 2 === 0 ? "bg-white hover:bg-amber-50" : "bg-amber-50 hover:bg-amber-100"}>
                               <td className="px-2 py-1 text-center text-slate-400 font-mono">{i + 1}</td>
                               <td className="px-2 py-1 font-mono font-bold text-teal-700">{item.tool_no ?? "—"}</td>
-                              <td className="px-2 py-1 font-mono text-slate-700">{item.t_no ?? "—"}</td>
                               <td className="px-2 py-1 text-slate-800 max-w-[180px] truncate" title={item.tool_name ?? ""}>{item.tool_name || "—"}</td>
+                              <td className="px-2 py-1 font-mono text-slate-700">{item.t_no ?? "—"}</td>
                               <td className="px-2 py-1 font-mono text-center text-slate-600">{item.length_offset_no ?? "—"}</td>
                               <td className="px-2 py-1 font-mono text-center text-slate-600">{item.dia_offset_no ?? "—"}</td>
                               <td className="px-2 py-1 text-center text-slate-600">{item.d_value_content || "—"}</td>
@@ -2161,8 +2161,9 @@ export default function McEditPage() {
             </div>
             <div className="px-5 pb-5 flex gap-3">
               <button onClick={handleKanryoOk}
-                className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm transition-colors whitespace-nowrap">
-                {(pendingBody?.isSbMode || sbRepeatMode) ? tr("mcEditUi.okToWorkRecord", "OK — 作業記録へ") : tr("mcEditUi.okRegister", "OK — 登録する")}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-4 rounded-xl text-sm transition-colors whitespace-nowrap">
+                <span>✓</span>
+                {(pendingBody?.isSbMode || sbRepeatMode) ? tr("mcEditUi.okToWorkRecord", "作業記録へ") : tr("mcEditUi.okRegister", "登録する")}
               </button>
               {!(pendingBody?.isSbMode || sbRepeatMode) && (
                 <button onClick={handleKanryoTempSave}
