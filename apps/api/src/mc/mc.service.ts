@@ -507,6 +507,7 @@ export class McService {
         where: { id },
         data:  {
           status: 'PENDING_APPROVAL', approvedBy: null, approvedAt: null,
+          preChangingStatus: null,
           registeredBy: operatorId, registeredAt: new Date(),
         },
       });
@@ -571,6 +572,11 @@ export class McService {
           machiningQty: dto.machining_qty !== undefined ? dto.machining_qty : mc.machiningQty,
           note:         dto.note         !== undefined ? dto.note         : mc.note,
           status:       'CHANGING',
+          // [BUGFIX 2026-09] 編集キャンセル(revert)時に正しい戻り先が分かるよう、
+          // CHANGINGへ入る直前の実際のステータスをスナップショットしておく。
+          // 既にCHANGING中の再保存(同一編集セッション内の複数回保存)では、
+          // 最初のスナップショットを上書きしない。
+          preChangingStatus: mc.status !== 'CHANGING' ? mc.status : (mc as any).preChangingStatus,
           // [v096] 「入力日」「オペレーター」は実際にこの保存操作を行った
           // 認証済みユーザー・時刻を都度反映する(旧ACCESS仕様準拠)。
           registeredBy: operatorId,
@@ -610,11 +616,20 @@ export class McService {
       // CHANGINGでない場合はそのまま返す
       return { mc_id: id, message: 'ステータスはCHANGINGではありません', status: mc.status };
     }
-    // 承認者がいればAPPROVED、なければNEWに戻す
-    const nextStatus = mc.approvedBy ? 'APPROVED' : 'NEW';
+    // [BUGFIX 2026-09] 従来は「承認者(approvedBy)がいればAPPROVED、
+    // いなければNEW」という近似判定だけで戻し先を決めていたが、これだと
+    // 一度もapproveされていない(が finalize済みでPENDING_APPROVALまで
+    // 正規に育っている)レコードを編集→保存→キャンセルすると、
+    // PENDING_APPROVALではなくNEWまで誤って巻き戻ってしまっていた。
+    // update()が保存しておいた「編集セッション開始直前の実際のステータス」
+    // (preChangingStatus)があれば最優先でそこへ戻す。このカラム導入以前に
+    // CHANGINGになったレガシーレコード(値がnull)のみ、従来のapprovedBy
+    // 判定にフォールバックする。
+    const snapshot = (mc as any).preChangingStatus as string | null;
+    const nextStatus = snapshot ?? (mc.approvedBy ? 'APPROVED' : 'NEW');
     await this.prisma.mcProgram.update({
       where: { id },
-      data:  { status: nextStatus },
+      data:  { status: nextStatus as any, preChangingStatus: null },
     });
     return { mc_id: id, message: '変更をキャンセルしました', status: nextStatus };
   }

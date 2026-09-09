@@ -510,6 +510,7 @@ model McProgram {
   machiningQty  Decimal?        @db.Decimal(10, 4) @default(1) @map("machining_qty")
   note          String?         @db.Text
   status        McProgramStatus @default(NEW)
+  preChangingStatus McProgramStatus?                         @map("pre_changing_status")
   registeredBy  Int                                          @map("registered_by")
   approvedBy    Int?                                         @map("approved_by")
   registeredAt  DateTime        @default(now())              @map("registered_at")
