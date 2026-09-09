@@ -2161,7 +2161,7 @@ export default function McEditPage() {
             </div>
             <div className="px-5 pb-5 flex gap-3">
               <button onClick={handleKanryoOk}
-                className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm transition-colors">
+                className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl text-sm transition-colors whitespace-nowrap">
                 {(pendingBody?.isSbMode || sbRepeatMode) ? tr("mcEditUi.okToWorkRecord", "OK — 作業記録へ") : tr("mcEditUi.okRegister", "OK — 登録する")}
               </button>
               {!(pendingBody?.isSbMode || sbRepeatMode) && (
