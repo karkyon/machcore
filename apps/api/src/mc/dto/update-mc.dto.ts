@@ -32,4 +32,16 @@ export class UpdateMcDto {
   @IsOptional() @IsString()
   sheet_created_at?: string | null;
 
+  @IsOptional() @IsString() @MaxLength(50)
+  nt1?: string;
+
+  @IsOptional() @IsString() @MaxLength(50)
+  nt2?: string;
+
+  @IsOptional() @IsString() @MaxLength(50)
+  nt3?: string;
+
+  @IsOptional() @IsString() @MaxLength(50)
+  nt4?: string;
+
 }

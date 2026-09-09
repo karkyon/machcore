@@ -45,7 +45,7 @@ export default function PrintPage() {
 
   // ── [v113] リピート確認ステップ(MC側 mc/[mc_id]/print/page.tsx と同一仕様) ──
   const [repeatPurpose,   setRepeatPurpose]   = useState<'setup' | 'reference' | 'continuous'>('setup');
-  const [repeatQty,       setRepeatQty]       = useState<number>(1);
+  const [repeatQty,       setRepeatQty]       = useState<number | null>(null);
   const [repeatMachineId, setRepeatMachineId] = useState<number | null>(null);
   const [repeatConfirmed, setRepeatConfirmed] = useState(false);
   const [machines,        setMachines]        = useState<Machine[]>([]);
@@ -75,32 +75,19 @@ export default function PrintPage() {
     }).catch(() => {});
   }, []);
 
-  // ── [v113] 前回発行時の機械・ワーク数・用途をデフォルト値としてセット(MC側と同一仕様) ──
+  // [BUGFIX 2026-09] MC側と同一の不具合: 「前回発行時のsetup_sheet_log」から
+  // 機械・ワーク数・用途を復元していたのが「前回のキャッシュが残る」不具合の原因。
+  // ワーク数は常にブランク、使用機械は現在マシニング情報に登録されている機械
+  // (nc.machine)を初期値とする。用途のキャッシュ復元も廃止する。
   useEffect(() => {
-    if (!machines.length) return;
-    ncApi.setupSheetLogs(ncId).then(r => {
-      const logs: any[] = Array.isArray((r as any).data) ? (r as any).data : (Array.isArray(r) ? r : []);
-      if (!logs.length) return;
-      const latest = logs.find(l => !l.work_collected && (l.sheet_type === 'REPEAT' || l.sheet_type === 'NEW'))
-        ?? logs.find(l => l.sheet_type === 'REPEAT' || l.sheet_type === 'NEW')
-        ?? logs[0];
-      if (!latest) return;
-      if (latest.machine_id_log) {
-        const found = machines.find((m: any) => m.id === latest.machine_id_log);
-        if (found) setRepeatMachineId(found.id);
-      }
-      if (latest.quantity != null && latest.quantity > 0) setRepeatQty(latest.quantity);
-      if (latest.purpose) {
-        const purposeMap: Record<string, 'setup' | 'reference' | 'continuous'> = {
-          setup: 'setup', reference: 'reference', continuous: 'continuous',
-          段取: 'setup', 参考資料: 'reference', 連続使用: 'continuous',
-        };
-        const mapped = purposeMap[latest.purpose];
-        if (mapped) setRepeatPurpose(mapped);
-      }
-    }).catch(() => {});
+    if (!machines.length || !nc) return;
+    const mcode = (nc as any).machine?.machineCode ?? null;
+    if (mcode) {
+      const found = machines.find((m: any) => m.machineCode === mcode);
+      if (found) setRepeatMachineId(found.id);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ncId, machines.length]);
+  }, [machines.length, nc]);
 
   // ── 別のnc_id向け認証セッションが残っていないか検証（MC側 edit/print/page.tsx と同ロジック）──
   // 「変更・登録」等で認証した状態のまま別画面(段取シート/NC詳細等)へ遷移した場合に、
@@ -418,8 +405,8 @@ export default function PrintPage() {
                     {repeatPurpose !== 'reference' && (
                       <div>
                         <label className="text-xs font-bold text-slate-600 mb-1 block">{tr("ncPrintPage.workQtyLabel2", "ワーク数 ")}<span className="text-red-500">*</span></label>
-                        <input type="number" min={1} value={repeatQty}
-                          onChange={e => setRepeatQty(Math.max(1, parseInt(e.target.value) || 1))}
+                        <input type="number" min={1} value={repeatQty ?? ''}
+                          onChange={e => { const v = e.target.value; setRepeatQty(v === '' ? null : Math.max(1, parseInt(v) || 1)); }}
                           className="w-24 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400" />
                       </div>
                     )}

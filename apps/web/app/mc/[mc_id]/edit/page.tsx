@@ -224,6 +224,10 @@ export default function McEditPage() {
   const [machineId,    setMachineId]    = useState<string>("");
   const [oNumber,      setONumber]      = useState("");
   const [clampNote,    setClampNote]    = useState("");
+  const [nt1, setNt1] = useState("");
+  const [nt2, setNt2] = useState("");
+  const [nt3, setNt3] = useState("");
+  const [nt4, setNt4] = useState("");
   // クランプアイテムモーダル
   const [clampModalOpen, setClampModalOpen] = useState(false);
   const [clampVise,      setClampVise]      = useState("");
@@ -305,6 +309,7 @@ export default function McEditPage() {
   const buildEditSnapshot = () => JSON.stringify({
     machineId, oNumber, clampNote, cycleH, cycleM, cycleS,
     machiningQty, note, creatorId, sheetCreatedAt,
+    nt1, nt2, nt3, nt4,
     toolingRows, offsetRows, indexRows,
   });
   React.useEffect(() => {
@@ -315,7 +320,7 @@ export default function McEditPage() {
     if (machineId !== "" && isNaN(parseInt(machineId))) return;
     initialSnapshotRef.current = buildEditSnapshot();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail, machines, machineId, oNumber, clampNote, cycleH, cycleM, cycleS, machiningQty, note, creatorId, sheetCreatedAt, toolingRows, offsetRows, indexRows]);
+  }, [detail, machines, machineId, oNumber, clampNote, cycleH, cycleM, cycleS, machiningQty, note, creatorId, sheetCreatedAt, nt1, nt2, nt3, nt4, toolingRows, offsetRows, indexRows]);
   const isEditDirty = () => initialSnapshotRef.current !== null && buildEditSnapshot() !== initialSnapshotRef.current;
   // ブラウザの閉じる/リロード/戻る操作に対する標準警告(文言はブラウザ依存で固定)
   React.useEffect(() => {
@@ -463,6 +468,10 @@ export default function McEditPage() {
       }
       setONumber(d.oNumber ?? "");
       setClampNote(d.clampNote ?? "");
+      setNt1((d as any).nt1 ?? "");
+      setNt2((d as any).nt2 ?? "");
+      setNt3((d as any).nt3 ?? "");
+      setNt4((d as any).nt4 ?? "");
       setNote(d.note ?? "");
       // ★Prisma Decimal型はAPIレスポンスで文字列("1.0000"等)として返るため、
       //   Number()で確実に数値化してからstateへ格納する。これを怠ると、
@@ -961,7 +970,11 @@ export default function McEditPage() {
         note:           note || undefined,
         creator_id:     (creatorId && !isNaN(parseInt(creatorId))) ? parseInt(creatorId) : null,
         sheet_created_at: sheetCreatedAt || null,
-      }, token);
+        nt1: nt1 || undefined,
+        nt2: nt2 || undefined,
+        nt3: nt3 || undefined,
+        nt4: nt4 || undefined,
+      } as any, token);
       // ツーリング保存（DBのcamelCase → DTOのsnake_caseに変換）
       await mcApi.saveTooling(mcId, toolingRows.map((t: any, i: number) => ({
         sort_order:       i,
@@ -1330,6 +1343,19 @@ export default function McEditPage() {
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.mainONumberLabel", "主Oナンバ")}</label>
                     <input value={oNumber} onChange={e => { setONumber(e.target.value); }} data-fi="true"
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.ntLabel", "NT-1〜4")}</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    <input value={nt1} onChange={e => setNt1(e.target.value)} data-fi="true" placeholder="NT-1"
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
+                    <input value={nt2} onChange={e => setNt2(e.target.value)} data-fi="true" placeholder="NT-2"
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
+                    <input value={nt3} onChange={e => setNt3(e.target.value)} data-fi="true" placeholder="NT-3"
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
+                    <input value={nt4} onChange={e => setNt4(e.target.value)} data-fi="true" placeholder="NT-4"
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
                   </div>
                 </div>

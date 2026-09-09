@@ -667,7 +667,7 @@ export class AdminController {
   @Get('settings/mc-nc')
   async getMcNcSettings() {
     const s = await this.prisma.companySetting.findFirst({
-      select: { mcStoragePath: true, ncStoragePath: true, mcPrinter: true, ncPrinter: true, uploadBasePath: true, printerName: true },
+      select: { mcStoragePath: true, ncStoragePath: true, mcPrinter: true, ncPrinter: true, uploadBasePath: true, printerName: true, duplexPrint: true },
     });
     return {
       mc_storage_path:   s?.mcStoragePath  ?? s?.uploadBasePath ?? "/mnt/mc_files/MC/files",
@@ -675,6 +675,7 @@ export class AdminController {
       upload_base_path:  s?.uploadBasePath ?? "/mnt/mc_files",
       mc_printer:        s?.mcPrinter ?? s?.printerName ?? "",
       nc_printer:        s?.ncPrinter ?? s?.printerName ?? "",
+      duplex_print:      (s as any)?.duplexPrint ?? false,
     };
   }
 
@@ -688,6 +689,7 @@ export class AdminController {
     upload_base_path?: string;
     mc_printer?: string;
     nc_printer?: string;
+    duplex_print?: boolean;
   }) {
     return this.prisma.companySetting.upsert({
       where: { id: 1 },
@@ -697,11 +699,13 @@ export class AdminController {
         ...(body.upload_base_path !== undefined && { uploadBasePath: body.upload_base_path }),
         ...(body.mc_printer      !== undefined && { mcPrinter:       body.mc_printer }),
         ...(body.nc_printer      !== undefined && { ncPrinter:       body.nc_printer }),
+        ...(body.duplex_print    !== undefined && { duplexPrint:     body.duplex_print } as any),
       },
       create: { id: 1, companyName: '会社名未設定',
         mcStoragePath: body.mc_storage_path, ncStoragePath: body.nc_storage_path,
         uploadBasePath: body.upload_base_path,
         mcPrinter: body.mc_printer, ncPrinter: body.nc_printer,
+        ...(body.duplex_print !== undefined ? { duplexPrint: body.duplex_print } as any : {}),
       },
     });
   }

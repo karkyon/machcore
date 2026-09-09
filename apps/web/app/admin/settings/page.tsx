@@ -36,6 +36,8 @@ export default function AdminSettingsPage() {
   // NC設定
   const [ncStoragePath, setNcStoragePath] = useState("");
   const [ncPrinter,     setNcPrinter]     = useState("");
+  // 共通印刷設定
+  const [duplexPrint,   setDuplexPrint]   = useState(false);
   // Cron設定
   const [cronEnabled,  setCronEnabled]  = useState(true);
   const [cronTime,     setCronTime]     = useState("05:00");
@@ -77,6 +79,7 @@ export default function AdminSettingsPage() {
       setNcStoragePath(mcnc.nc_storage_path ?? NC_DEFAULT_PATHS.program);
       setMcPrinter(mcnc.mc_printer ?? "");
       setNcPrinter(mcnc.nc_printer ?? "");
+      setDuplexPrint(mcnc.duplex_print ?? false);
     }).catch(() => showToast(t("adminSettings.fetchFailed", "設定の取得に失敗しました"), false))
       .finally(() => setLoading(false));
   }, [router]);
@@ -111,6 +114,7 @@ export default function AdminSettingsPage() {
           upload_base_path: mcUploadBasePath,
           mc_printer:       mcPrinter,
           nc_printer:       ncPrinter,
+          duplex_print:     duplexPrint,
         }),
       });
       showToast(t("adminSettings.settingsSaved", "設定を保存しました"), true);
@@ -270,6 +274,14 @@ export default function AdminSettingsPage() {
                     </select>
                     <p className="text-[11px] text-slate-400 mt-1">{t("adminSettings.ncPrinterHint", "NC段取シートの印刷で使用")}</p>
                   </div>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <input id="duplexPrintToggle" type="checkbox" checked={duplexPrint}
+                    onChange={e => setDuplexPrint(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-400" />
+                  <label htmlFor="duplexPrintToggle" className="text-sm text-slate-600 select-none cursor-pointer">
+                    {t("adminSettings.duplexPrintLabel", "段取シート・NC帳票を両面印刷にする")}
+                  </label>
                 </div>
                 <div className="flex justify-end">
                   <button onClick={handleSaveMcNc} disabled={saving} className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors">

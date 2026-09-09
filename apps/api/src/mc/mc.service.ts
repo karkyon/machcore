@@ -345,6 +345,10 @@ export class McService {
       fileName:       mach.fileName       ?? null,
       folder1:        mach.folder1        ?? null,
       folder2:        mach.folder2        ?? null,
+      nt1:            mach.nt1            ?? null,
+      nt2:            mach.nt2            ?? null,
+      nt3:            mach.nt3            ?? null,
+      nt4:            mach.nt4            ?? null,
       hasIndexProgram: mach.hasIndexProgram ?? false,
       hasWorkOffset:  mach.hasWorkOffset  ?? false,
       rc:             mach.rc             ?? 0,
@@ -358,7 +362,7 @@ export class McService {
       pgCreator:      mach.pgCreator      ?? null,
       creator:        mach.creator        ?? null,
       tooling:        (r as any).machining?.tooling       ?? [],
-      workOffsets:    (r as any).machining?.workOffsets   ?? [],
+      workOffsets:    this.sortWorkOffsetsExtFirst((r as any).machining?.workOffsets ?? []),
       indexPrograms:  (r as any).machining?.indexPrograms ?? [],
       files: r.files.map((f: any) => ({
         ...f,
@@ -555,6 +559,10 @@ export class McService {
           sheetCreatedAt: dto.sheet_created_at !== undefined
             ? (dto.sheet_created_at ? new Date(dto.sheet_created_at) : null)
             : mach.sheetCreatedAt,
+          nt1: (dto as any).nt1 !== undefined ? (dto as any).nt1 : mach.nt1,
+          nt2: (dto as any).nt2 !== undefined ? (dto as any).nt2 : mach.nt2,
+          nt3: (dto as any).nt3 !== undefined ? (dto as any).nt3 : mach.nt3,
+          nt4: (dto as any).nt4 !== undefined ? (dto as any).nt4 : mach.nt4,
         },
       });
       await tx.mcProgram.update({
@@ -1190,13 +1198,22 @@ export class McService {
   // ══════════════════════════════════════════
   // ワークオフセット
   // ══════════════════════════════════════════
+  // [BUGFIX 2026-09] WO(ワークオフセット)一覧はEXTレコードが常に先頭に表示される
+  // 旧システム仕様だが、gCode='asc'の単純ソートではEXTが末尾に来てしまっていた。
+  // findOne()/getPrintData()/getWorkOffsets()の全取得経路で共通適用する。
+  private sortWorkOffsetsExtFirst<T extends { gCode: string }>(rows: T[]): T[] {
+    const rank = (r: T) => (String(r.gCode).toUpperCase() === 'EXT' ? -1 : 0);
+    return [...rows].sort((a, b) => rank(a) - rank(b));
+  }
+
   async getWorkOffsets(mcId: number) {
     const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcId }, select: { machiningId: true } });
     if (!mc) return [];
-    return this.prisma.mcWorkOffset.findMany({
+    const rows = await this.prisma.mcWorkOffset.findMany({
       where:   { machiningId: mc.machiningId },
       orderBy: { gCode: 'asc' },
     });
+    return this.sortWorkOffsetsExtFirst(rows);
   }
 
   async saveWorkOffsets(mcId: number, dto: SaveWorkOffsetsDto, operatorId: number) {
@@ -1547,7 +1564,7 @@ export class McService {
       machiningQty:     r.machiningQty                ?? 1,
       commonPartCode:   r.machining?.commonPartCode   ?? null,
       tooling:          r.machining?.tooling          ?? [],
-      workOffsets:      r.machining?.workOffsets      ?? [],
+      workOffsets:      this.sortWorkOffsetsExtFirst(r.machining?.workOffsets ?? []),
       indexPrograms:    r.machining?.indexPrograms    ?? [],
       version:          r.machining?.version          ?? '1.0001',
       // ★根本対応: 段取シートPDFの「フォルダ名」「ファイル名」欄が常に空欄になる不具合の修正。
@@ -1556,6 +1573,10 @@ export class McService {
       fileName:         r.machining?.fileName         ?? null,
       folder1:          r.machining?.folder1          ?? null,
       folder2:          r.machining?.folder2          ?? null,
+      nt1:              r.machining?.nt1               ?? null,
+      nt2:              r.machining?.nt2               ?? null,
+      nt3:              r.machining?.nt3               ?? null,
+      nt4:              r.machining?.nt4               ?? null,
       pgIsFolder:       r.machining?.pgIsFolder        ?? false,
       pgFolderName:     r.machining?.pgFolderName      ?? null,
       // PDFフィールド定義のdata_source="folderName"用のエイリアス
@@ -2368,13 +2389,14 @@ export class McService {
     });
 
     // プリンタへ送信
-    const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true, mcPrinter: true } });
+    const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true, mcPrinter: true, duplexPrint: true } });
     const printerName = setting?.mcPrinter || setting?.printerName;
     if (!printerName) throw new Error('MCプリンタが設定されていません。管理画面のシステム設定でMCチーム用プリンタを設定してください。');
     const tmpPath = `/tmp/machcore-mc-newprint-${mcId}-${Date.now()}.pdf`;
     fs.writeFileSync(tmpPath, pdfBuffer);
+    const duplexOptNew = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
     try {
-      execSync(`lp -d ${printerName} -o media=A4 -o fit-to-page "${tmpPath}"`, { timeout: 15000 });
+      execSync(`lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOptNew} "${tmpPath}"`, { timeout: 15000 });
     } finally {
       try { fs.unlinkSync(tmpPath); } catch { /**/ }
     }
@@ -2834,11 +2856,13 @@ export class McService {
 
       type TCol = { dataKey: string; x: number; label: string; fs: number; w: number };
       const T_COLS: TCol[] = [
-        { dataKey:'toolNo',    x: getColX('col_n',37),         label:'N',       fs: getColFS('col_n',8),         w: getColW('col_n',20)   },
+        // [BUGFIX 2026-09] No列(col_n)がO1001等の長い値ですぐ折返し、その行全体が
+        // 行高化する不具合。col_n幅を倍(20→40)にし、その分T/H/Dを縮小して吸収。
+        { dataKey:'toolNo',    x: getColX('col_n',37),         label:'N',       fs: getColFS('col_n',8),         w: getColW('col_n',40)   },
         { dataKey:'toolName',  x: getColX('col_tool_name',68), label:'工具',    fs: getColFS('col_tool_name',8), w: getColW('col_tool_name',105) },
-        { dataKey:'tNumber',   x: getColX('col_t_no',169.7),   label:'T',       fs: getColFS('col_t_no',8),      w: getColW('col_t_no',25)  },
-        { dataKey:'hValue',    x: getColX('col_h_val',223.3),  label:'H',       fs: getColFS('col_h_val',8),     w: getColW('col_h_val',25) },
-        { dataKey:'dRegister', x: getColX('col_d_reg',278.4),  label:'D',       fs: getColFS('col_d_reg',8),     w: getColW('col_d_reg',30) },
+        { dataKey:'tNumber',   x: getColX('col_t_no',169.7),   label:'T',       fs: getColFS('col_t_no',8),      w: getColW('col_t_no',20)  },
+        { dataKey:'hValue',    x: getColX('col_h_val',223.3),  label:'H',       fs: getColFS('col_h_val',8),     w: getColW('col_h_val',20) },
+        { dataKey:'dRegister', x: getColX('col_d_reg',278.4),  label:'D',       fs: getColFS('col_d_reg',8),     w: getColW('col_d_reg',26) },
         { dataKey:'dValue',    x: getColX('col_d_val',320.3),  label:'D値',     fs: getColFS('col_d_val',8),     w: getColW('col_d_val',30) },
         { dataKey:'subPgNo',   x: getColX('col_sub_pg',369.7), label:'SUB',     fs: getColFS('col_sub_pg',8),    w: getColW('col_sub_pg',55) },
         { dataKey:'note',      x: getColX('col_note',423.9),   label:'コメント', fs: getColFS('col_note',8),     w: getColW('col_note',236) },
@@ -3059,14 +3083,15 @@ export class McService {
       const getIPCFS = (key:string, def:number) => { const f=ipCols.find((c:any)=>c.field_key===key); return f?Number(f.font_size):def; };
       const getIPCW  = (key:string, def:number) => { const f=ipCols.find((c:any)=>c.field_key===key); return f&&f.note?parseFloat(f.note):def; };
 
-      // IP列: STEP/N=axis0, 第1軸=axis1, 第2軸=axis2, 備考=note
+      // IP列: STEP/N=axis0, 第1軸=axis1, 第2軸=axis2
       // sortOrder列(No)は削除 - テンプレートのSTEP/Nにaxis0の値を使う
+      // [BUGFIX 2026-09] 「備考」列(note)は入力元フィールドが存在せず常に空欄だったため削除。
+      //   空いたスペースはcol_axis2の幅拡張(150→240)で吸収する。
       type IPCol = { dataKey: string; x: number; label: string; fs: number; w: number };
       const IP_COLS: IPCol[] = [
         { dataKey:'axis0', x: getIPCX('col_no',30),     label:'STEP/N', fs: getIPCFS('col_no',8),    w: getIPCW('col_no',80)    },
         { dataKey:'axis1', x: getIPCX('col_axis1',130), label:'第1軸',  fs: getIPCFS('col_axis1',8), w: getIPCW('col_axis1',190)},
-        { dataKey:'axis2', x: getIPCX('col_axis2',320), label:'第2軸',  fs: getIPCFS('col_axis2',8), w: getIPCW('col_axis2',150)},
-        { dataKey:'note',  x: getIPCX('col_note',470),  label:'備考',   fs: getIPCFS('col_note',8),  w: getIPCW('col_note',90)  },
+        { dataKey:'axis2', x: getIPCX('col_axis2',320), label:'第2軸',  fs: getIPCFS('col_axis2',8), w: getIPCW('col_axis2',240)},
       ];
       const IP_LINE_X1 = IP_COLS[0].x;
       const ipLastCol  = IP_COLS[IP_COLS.length - 1];
@@ -3256,14 +3281,15 @@ export class McService {
       include_index_programs?: boolean;
     },
   ): Promise<{ message: string }> {
-    const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true, mcPrinter: true } });
+    const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true, mcPrinter: true, duplexPrint: true } });
     const printerName = setting?.mcPrinter || setting?.printerName;
     if (!printerName) throw new Error('MCプリンタが設定されていません。管理画面のシステム設定でMCチーム用プリンタを設定してください。');
     const pdfBuffer = await this.generateSetupSheetPdf(mcId, operatorId, options);
     const tmpPath = `/tmp/machcore-mc-print-${mcId}-${Date.now()}.pdf`;
     fs.writeFileSync(tmpPath, pdfBuffer);
+    const duplexOpt = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
     try {
-      execSync(`lp -d ${printerName} -o media=A4 -o fit-to-page "${tmpPath}"`, { timeout: 15000 });
+      execSync(`lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOpt} "${tmpPath}"`, { timeout: 15000 });
     } finally {
       try { fs.unlinkSync(tmpPath); } catch { /**/ }
     }

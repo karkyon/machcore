@@ -47,7 +47,7 @@ function McPrintPageInner() {
 
   // リピート確認ステップ
   const [repeatPurpose,   setRepeatPurpose]   = useState<'setup' | 'reference' | 'continuous'>('setup');
-  const [repeatQty,       setRepeatQty]       = useState<number>(1);
+  const [repeatQty,       setRepeatQty]       = useState<number | null>(null);
   const [repeatMachineId, setRepeatMachineId] = useState<number | null>(null);
   const [repeatConfirmed, setRepeatConfirmed] = useState(false);
   const [machines,        setMachines]        = useState<Machine[]>([]);
@@ -74,34 +74,19 @@ function McPrintPageInner() {
     mcApi.getPrintData(mcId).then(r => setNc((r as any).data ?? r)).catch(() => {});
   }, [mcId]);
 
-  // ── 前回印刷時の機械・ワーク数・用途をデフォルト値としてセット ──
+  // [BUGFIX 2026-09] 従来は「前回印刷時のsetup_sheet_log」から機械・ワーク数・用途を
+  // デフォルト値として復元していたが、これが「前回のキャッシュが残る」不具合として
+  // 報告された。要件: ワーク数は常にブランク。使用機械は現在マシニング情報に
+  // 登録されている機械(nc.machine)を初期値とする。用途のキャッシュ復元も廃止する。
   useEffect(() => {
-    if (!machines.length) return;
-    mcApi.setupSheetLogs(mcId).then(r => {
-      const logs: any[] = Array.isArray((r as any).data) ? (r as any).data : (Array.isArray(r) ? r : []);
-      if (!logs.length) return;
-      const latest = logs.find(l => !l.work_collected && (l.sheet_type === 'REPEAT' || l.sheet_type === 'NEW'))
-        ?? logs.find(l => l.sheet_type === 'REPEAT' || l.sheet_type === 'NEW')
-        ?? logs[0];
-      if (!latest) return;
-      const midLog: number | null = latest.machine_id_log ?? null;
-      const mcode: string | null  = latest.machine_code  ?? null;
-      let foundMachine: any = null;
-      if (midLog) foundMachine = machines.find((m: any) => m.id === midLog) ?? null;
-      if (!foundMachine && mcode) foundMachine = machines.find((m: any) => m.machineCode === mcode) ?? null;
-      if (foundMachine) setRepeatMachineId(foundMachine.id);
-      if (latest.quantity != null && latest.quantity > 0) setRepeatQty(latest.quantity);
-      if (latest.purpose) {
-        const purposeMap: Record<string, 'setup' | 'reference' | 'continuous'> = {
-          setup: 'setup', reference: 'reference', continuous: 'continuous',
-          段取: 'setup', 参考資料: 'reference', 連続使用: 'continuous',
-        };
-        const mapped = purposeMap[latest.purpose];
-        if (mapped) setRepeatPurpose(mapped);
-      }
-    }).catch(() => {});
+    if (!machines.length || !nc) return;
+    const mcode = (nc as any).machine?.machineCode ?? null;
+    if (mcode) {
+      const found = machines.find((m: any) => m.machineCode === mcode);
+      if (found) setRepeatMachineId(found.id);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mcId, machines.length]);
+  }, [machines.length, nc]);
 
   // -- 別mc_id向けセッションが残っていれば強制ログアウト --
   useLayoutEffect(() => {
@@ -283,8 +268,8 @@ function McPrintPageInner() {
         {repeatPurpose !== 'reference' && (
           <div>
             <label className="text-xs font-bold text-slate-600 mb-1 block">{tr("mcPrintPage.workQtyLabel", "ワーク数 ")}<span className="text-red-500">*</span></label>
-            <input type="number" min={1} value={repeatQty}
-              onChange={e => setRepeatQty(Math.max(1, parseInt(e.target.value) || 1))}
+            <input type="number" min={1} value={repeatQty ?? ''}
+              onChange={e => { const v = e.target.value; setRepeatQty(v === '' ? null : Math.max(1, parseInt(v) || 1)); }}
               className="w-24 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400" />
           </div>
         )}

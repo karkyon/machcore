@@ -711,15 +711,16 @@ export class McController {
     @Req() req: any,
   ) {
     const pdf = await this.mc.generateRepeatSetupSheetPdf(id, req.user.id, dto);
-    const setting = await this.mc['prisma'].companySetting.findFirst({ select: { printerName: true, mcPrinter: true } });
+    const setting = await this.mc['prisma'].companySetting.findFirst({ select: { printerName: true, mcPrinter: true, duplexPrint: true } });
     const printerName = (setting as any)?.mcPrinter || (setting as any)?.printerName;
     if (!printerName) throw new Error('MCプリンタが設定されていません');
     const tmpPath = `/tmp/machcore-mc-repeat-${id}-${Date.now()}.pdf`;
     const fs2 = await import('fs');
     fs2.writeFileSync(tmpPath, pdf);
     const { execSync: execSync2 } = await import('child_process');
+    const duplexOptRepeat = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
     try {
-      execSync2(`lp -d ${printerName} -o media=A4 -o fit-to-page "${tmpPath}"`, { timeout: 15000 });
+      execSync2(`lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOptRepeat} "${tmpPath}"`, { timeout: 15000 });
     } finally {
       try { fs2.unlinkSync(tmpPath); } catch { /**/ }
     }

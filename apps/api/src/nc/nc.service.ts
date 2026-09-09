@@ -976,7 +976,7 @@ export class NcService {
     options: { include_tools?: boolean; include_clamp?: boolean; include_drawings?: boolean },
   ): Promise<{ message: string }> {
     // プリンタ名取得(NC専用プリンタ設定を優先し、未設定時は共通プリンタ設定にフォールバック。MC側directPrintと同一パターン)
-    const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true, ncPrinter: true } });
+    const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true, ncPrinter: true, duplexPrint: true } });
     const printerName = setting?.ncPrinter || setting?.printerName;
     if (!printerName) throw new Error('NCプリンタが設定されていません。管理画面のシステム設定でNCチーム用プリンタを設定してください。');
 
@@ -986,8 +986,9 @@ export class NcService {
     // 一時ファイルに書き出してlpで印刷
     const tmpPath = `/tmp/machcore-print-${ncProgramId}-${Date.now()}.pdf`;
     fs.writeFileSync(tmpPath, pdfBuffer);
+    const duplexOptNc = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
     try {
-      execSync(`lp -d ${printerName} -o media=A4 -o fit-to-page "${tmpPath}"`, { timeout: 15000 });
+      execSync(`lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOptNc} "${tmpPath}"`, { timeout: 15000 });
     } finally {
       try { fs.unlinkSync(tmpPath); } catch {}
     }
