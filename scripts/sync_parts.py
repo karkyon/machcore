@@ -6,6 +6,7 @@ imotodb → machcore parts テーブル同期スクリプト
 cron例: 0 2 * * * /home/karkyon/.nvm/versions/node/$(node -v)/bin/python3 /home/karkyon/projects/machcore/scripts/sync_parts.py >> /home/karkyon/projects/machcore/logs/sync_parts.log 2>&1
 """
 import pymssql, psycopg2, sys, os, re
+from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 from datetime import datetime
 
 print(f"[{datetime.now()}] parts同期開始")
@@ -43,7 +44,18 @@ try:
     if not database_url:
         print('DATABASE_URL が見つかりません(環境変数 or apps/api/.env)', file=sys.stderr)
         sys.exit(1)
-    dst = psycopg2.connect(database_url)
+    # [BUGFIX] DATABASE_URLの `?schema=public` はPrisma独自のクエリパラメータで、
+    # libpq(psycopg2)は認識できずinvalid dsnエラーになる。libpqが実際に認識する
+    # パラメータだけ残し、Prisma独自のものは除去してから接続する。
+    _ALLOWED_LIBPQ_PARAMS = {
+        'sslmode', 'sslcert', 'sslkey', 'sslrootcert', 'connect_timeout',
+        'application_name', 'target_session_attrs',
+    }
+    _parsed = urlparse(database_url)
+    _qs = parse_qs(_parsed.query)
+    _kept = {k: v for k, v in _qs.items() if k in _ALLOWED_LIBPQ_PARAMS}
+    clean_dsn = urlunparse(_parsed._replace(query=urlencode(_kept, doseq=True)))
+    dst = psycopg2.connect(clean_dsn)
     dc = dst.cursor()
 
     inserted = updated = 0
