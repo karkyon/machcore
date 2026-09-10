@@ -5,7 +5,7 @@ imotodb → machcore parts テーブル同期スクリプト
 実行: python3 scripts/sync_parts.py
 cron例: 0 2 * * * /home/karkyon/.nvm/versions/node/$(node -v)/bin/python3 /home/karkyon/projects/machcore/scripts/sync_parts.py >> /home/karkyon/projects/machcore/logs/sync_parts.log 2>&1
 """
-import pymssql, psycopg2, sys
+import pymssql, psycopg2, sys, os, re
 from datetime import datetime
 
 print(f"[{datetime.now()}] parts同期開始")
@@ -26,8 +26,24 @@ except Exception as e:
     sys.exit(1)
 
 try:
-    dst = psycopg2.connect(host='localhost', port=5440, dbname='machcore_dev',
-                           user='machcore', password='machcore_pass_change_me')
+    # [BUGFIX] 単一インスタンス時代の接続先決め打ちを廃止。
+    # DATABASE_URL(環境変数、無ければ apps/api/.env)から自動判定することで、
+    # machcore-internal / machcore-group のどちらで実行しても、実行した
+    # インスタンス自身の正しいDBに同期されるようにする。
+    database_url = os.environ.get('DATABASE_URL')
+    if not database_url:
+        env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'apps', 'api', '.env')
+        if os.path.exists(env_path):
+            with open(env_path, encoding='utf-8') as ef:
+                for line in ef:
+                    m = re.match(r'^DATABASE_URL=["\']?([^"\'\n]+)', line)
+                    if m:
+                        database_url = m.group(1)
+                        break
+    if not database_url:
+        print('DATABASE_URL が見つかりません(環境変数 or apps/api/.env)', file=sys.stderr)
+        sys.exit(1)
+    dst = psycopg2.connect(database_url)
     dc = dst.cursor()
 
     inserted = updated = 0
