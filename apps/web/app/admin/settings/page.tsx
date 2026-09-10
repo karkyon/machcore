@@ -1,6 +1,6 @@
 "use client";
 import { AdminLayout } from "@/components/admin/AdminLayout";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, type DragEvent } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { adminSettingsApi, adminPrinterApi } from "../../../lib/api";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
@@ -26,6 +26,9 @@ export default function AdminSettingsPage() {
   const [logoPath,    setLogoPath]    = useState("");
   const [trademarkMark, setTrademarkMark] = useState("");
   const [showTrademark, setShowTrademark] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [logoDragging, setLogoDragging] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   const [loading,     setLoading]     = useState(true);
   const [saving,      setSaving]      = useState(false);
   const [toast,       setToast]       = useState<{ msg: string; ok: boolean } | null>(null);
@@ -90,6 +93,34 @@ export default function AdminSettingsPage() {
 
   const showToast = (msg: string, ok: boolean) => {
     setToast({ msg, ok }); setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleLogoFile = async (file: File) => {
+    setLogoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("logo", file);
+      const res = await fetch("/api/admin/company/logo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message ?? t("adminSettings.logoUploadFailed", "ロゴのアップロードに失敗しました"));
+      setLogoPath(data.logoPath ?? "");
+      showToast(t("adminSettings.logoUploaded", "ロゴをアップロードしました"), true);
+    } catch (e: any) {
+      showToast(e?.message ?? t("adminSettings.logoUploadFailed", "ロゴのアップロードに失敗しました"), false);
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const handleLogoDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setLogoDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleLogoFile(file);
   };
 
   const handleSaveCompany = async () => {
@@ -214,10 +245,25 @@ export default function AdminSettingsPage() {
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">{t("adminSettings.logoPathLabel", "ロゴ画像パス（サーバ相対パス）")}</label>
-                  <input type="text" value={logoPath} onChange={e => setLogoPath(e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-400" />
-                  <p className="text-[11px] text-slate-400 mt-1">{t("adminSettings.logoPathHint")}</p>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">{t("adminSettings.logoUploadLabel", "ロゴ画像")}</label>
+                  <div
+                    onDragOver={e => { e.preventDefault(); setLogoDragging(true); }}
+                    onDragLeave={() => setLogoDragging(false)}
+                    onDrop={handleLogoDrop}
+                    onClick={() => logoFileInputRef.current?.click()}
+                    className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed rounded-lg px-4 py-6 text-center cursor-pointer transition-colors ${
+                      logoDragging ? "border-sky-400 bg-sky-50" : "border-slate-300 hover:border-sky-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input ref={logoFileInputRef} type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.gif" className="hidden"
+                      onChange={e => e.target.files?.[0] && handleLogoFile(e.target.files[0])} />
+                    <span className="text-2xl">🖼️</span>
+                    <span className="text-xs font-bold text-slate-500">
+                      {logoUploading ? t("adminSettings.logoUploading", "アップロード中…") : t("adminSettings.logoDropHint", "ここにロゴ画像をドラッグ＆ドロップ、またはクリックして選択")}
+                    </span>
+                    <span className="text-[10px] text-slate-400">PNG / JPG / SVG / WEBP / GIF</span>
+                  </div>
+                  {logoPath && <p className="text-[11px] text-slate-400 mt-1 font-mono break-all">{t("adminSettings.logoCurrentPath", "現在のパス: {path}").replace("{path}", logoPath)}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">{t("adminSettings.trademarkMarkLabel", "TMマーク（社名の右肩に表示する記号。例: ™ ®）")}</label>
@@ -228,6 +274,21 @@ export default function AdminSettingsPage() {
                       <input type="checkbox" checked={showTrademark} onChange={e => setShowTrademark(e.target.checked)} className="w-4 h-4" />
                       {t("adminSettings.showTrademarkLabel", "ヘッダーに表示する")}
                     </label>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">{t("adminSettings.brandPreviewLabel", "このようなイメージでヘッダーに表示します")}</label>
+                  <div className="bg-slate-800 rounded-lg px-4 py-2.5 flex items-center gap-2 w-fit">
+                    <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
+                    <span className="text-[11px] text-slate-300 font-medium inline-flex items-center gap-1">
+                      {logoPath && (
+                        <img src={logoPath.replace(/^apps\/web\/public/, "").replace(/^\/+/, "/")} alt="logo" className="h-4 object-contain align-middle" />
+                      )}
+                      <span>
+                        {companyName || t("adminSettings.companyNamePlaceholder", "（会社名未設定）")}
+                        {showTrademark && trademarkMark && <sup className="ml-0.5">{trademarkMark}</sup>}
+                      </span>
+                    </span>
                   </div>
                 </div>
                 <div className="flex justify-end">

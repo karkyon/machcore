@@ -56,6 +56,48 @@ export class AdminController {
     });
   }
 
+  /** 会社ロゴ アップロード(ドラッグ&ドロップ対応)。
+   *  APIプロセスのcwd(apps/api)基準で ../web/public/branding/logo.<ext> に固定保存する。
+   *  machcore-internal / machcore-group はそれぞれ別プロセス・別cwdで動くため、
+   *  この方式だけで自動的にインスタンスごとに別の固定場所へ保存される。
+   */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN')
+  @Post('company/logo')
+  async uploadCompanyLogo(@Req() req: any, @Res() reply: FastifyReply) {
+    const ALLOWED_EXT = ['.png', '.jpg', '.jpeg', '.svg', '.webp', '.gif'];
+    let fileName = '';
+    let fileBuffer: Buffer | null = null;
+    for await (const part of req.parts()) {
+      if ('file' in part) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of (part as any).file) chunks.push(chunk as Buffer);
+        fileBuffer = Buffer.concat(chunks);
+        fileName = (part as any).filename ?? 'logo';
+      }
+    }
+    if (!fileBuffer) return reply.code(400).send({ message: 'ファイルがありません' });
+    const ext = nodepath.extname(fileName).toLowerCase();
+    if (!ALLOWED_EXT.includes(ext)) {
+      return reply.code(400).send({ message: `対応していない画像形式です(${ALLOWED_EXT.join(', ')}のみ)` });
+    }
+    const brandingDir = nodepath.resolve(process.cwd(), '..', 'web', 'public', 'branding');
+    fs.mkdirSync(brandingDir, { recursive: true });
+    for (const f of fs.readdirSync(brandingDir)) {
+      if (f.startsWith('logo.')) fs.unlinkSync(nodepath.join(brandingDir, f));
+    }
+    const destPath = nodepath.join(brandingDir, `logo${ext}`);
+    fs.writeFileSync(destPath, fileBuffer);
+    const logoPath = `apps/web/public/branding/logo${ext}`;
+    await this.prisma.companySetting.upsert({
+      where: { id: 1 },
+      update: { logoPath },
+      create: { id: 1, companyName: '会社名未設定', logoPath },
+    });
+    return reply.send({ message: 'ロゴをアップロードしました', logoPath, size: fileBuffer.length });
+  }
+
+
 
   // ── クランプマスタ管理 ──────────────────────────────
 
