@@ -24,8 +24,6 @@ export default function AdminSettingsPage() {
 
   const [companyName, setCompanyName] = useState("");
   const [logoPath,    setLogoPath]    = useState("");
-  const [trademarkMark, setTrademarkMark] = useState("");
-  const [showTrademark, setShowTrademark] = useState(false);
   const logoFileInputRef = useRef<HTMLInputElement | null>(null);
   const [logoDragging, setLogoDragging] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
@@ -78,8 +76,6 @@ export default function AdminSettingsPage() {
     ]).then(([comp, printers, mcnc]) => {
       setCompanyName(comp.data.companyName ?? "");
       setLogoPath(comp.data.logoPath ?? "");
-      setTrademarkMark(comp.data.trademarkMark ?? "");
-      setShowTrademark(!!comp.data.showTrademark);
       setPrinterList(printers.data?.printers ?? []);
       setMcStoragePath(mcnc.mc_storage_path ?? MC_DEFAULT_PATHS.setupsheet);
       setMcUploadBasePath(mcnc.upload_base_path ?? '/mnt/mc_files');
@@ -128,7 +124,6 @@ export default function AdminSettingsPage() {
     try {
       await adminSettingsApi.updateCompany({
         company_name: companyName, logo_path: logoPath || undefined,
-        trademark_mark: trademarkMark || undefined, show_trademark: showTrademark,
       }, getToken());
       showToast(t("adminSettings.companySaved", "会社設定を保存しました"), true);
     } catch { showToast(t("adminSettings.saveFailed", "保存に失敗しました"), false); }
@@ -266,17 +261,6 @@ export default function AdminSettingsPage() {
                   {logoPath && <p className="text-[11px] text-slate-400 mt-1 font-mono break-all">{t("adminSettings.logoCurrentPath", "現在のパス: {path}").replace("{path}", logoPath)}</p>}
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">{t("adminSettings.trademarkMarkLabel", "TMマーク（社名の右肩に表示する記号。例: ™ ®）")}</label>
-                  <div className="flex items-center gap-3">
-                    <input type="text" value={trademarkMark} onChange={e => setTrademarkMark(e.target.value)} maxLength={10}
-                      className="w-28 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
-                    <label className="flex items-center gap-2 text-xs font-bold text-slate-500 select-none cursor-pointer">
-                      <input type="checkbox" checked={showTrademark} onChange={e => setShowTrademark(e.target.checked)} className="w-4 h-4" />
-                      {t("adminSettings.showTrademarkLabel", "ヘッダーに表示する")}
-                    </label>
-                  </div>
-                </div>
-                <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">{t("adminSettings.brandPreviewLabel", "このようなイメージでヘッダーに表示します")}</label>
                   <div className="bg-slate-800 rounded-lg px-4 py-2.5 flex items-center gap-2 w-fit">
                     <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
@@ -286,7 +270,6 @@ export default function AdminSettingsPage() {
                       )}
                       <span>
                         {companyName || t("adminSettings.companyNamePlaceholder", "（会社名未設定）")}
-                        {showTrademark && trademarkMark && <sup className="ml-0.5">{trademarkMark}</sup>}
                       </span>
                     </span>
                   </div>

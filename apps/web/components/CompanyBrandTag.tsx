@@ -17,12 +17,7 @@ export function CompanyBrandTag() {
           className="h-4 object-contain align-middle"
         />
       )}
-      <span>
-        {info.companyName}
-        {info.showTrademark && info.trademarkMark && (
-          <sup className="ml-0.5">{info.trademarkMark}</sup>
-        )}
-      </span>
+      <span>{info.companyName}</span>
     </span>
   );
 }
