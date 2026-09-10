@@ -29,8 +29,9 @@ function groupByPart(results: NcSearchResult[]): PartGroup[] {
 export default function NcSearchPage() {
   const router = useRouter();
   const { t } = useLanguage();
-  const [ncIdInput,      setNcIdInput]      = useState("");
-  const [partIdInput,    setPartIdInput]    = useState("");
+  const [ncIdInput,        setNcIdInput]        = useState("");
+  const [machiningIdInput, setMachiningIdInput] = useState("");
+  const [partIdInput,      setPartIdInput]      = useState("");
   const [drawingNoInput, setDrawingNoInput] = useState("");
   const [nameInput,      setNameInput]      = useState("");
   const [clientInput,    setClientInput]    = useState("");
@@ -57,8 +58,9 @@ export default function NcSearchPage() {
 
   const handleSearch = useCallback(async () => {
     let searchKey = "drawing_no", searchQ = "";
-    if (ncIdInput.trim())           { searchKey = "nc_id";      searchQ = ncIdInput.trim(); }
-    else if (partIdInput.trim())    { searchKey = "part_id";    searchQ = partIdInput.trim(); }
+    if (ncIdInput.trim())           { searchKey = "nc_id";        searchQ = ncIdInput.trim(); }
+    else if (machiningIdInput.trim()){ searchKey = "machining_id"; searchQ = machiningIdInput.trim(); }
+    else if (partIdInput.trim())    { searchKey = "part_id";      searchQ = partIdInput.trim(); }
     else if (drawingNoInput.trim()) { searchKey = "drawing_no"; searchQ = drawingNoInput.trim(); }
     else if (nameInput.trim())      { searchKey = "name";       searchQ = nameInput.trim(); }
     setLoading(true); setSelected(null);
@@ -70,7 +72,7 @@ export default function NcSearchPage() {
       setResults(res.data ?? []); setTotal(res.total ?? 0);
     } catch { setResults([]); setTotal(0); }
     finally { setLoading(false); }
-  }, [ncIdInput, partIdInput, drawingNoInput, nameInput, clientInput, machineInput]);
+  }, [ncIdInput, machiningIdInput, partIdInput, drawingNoInput, nameInput, clientInput, machineInput]);
 
   const handleSelect = (ncId: number) => { setSelected(ncId); router.push(`/nc/${ncId}`); };
   const groups = groupByPart(results);
@@ -82,8 +84,8 @@ export default function NcSearchPage() {
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
-        {adminInfo?.logoPath && <span className="bg-white rounded px-1.5 py-1 inline-flex items-center"><img src={adminInfo.logoPath.replace(/^apps\/web\/public/,"").replace(/^\/+/,"/")} alt="logo" className="h-7 object-contain" /></span>}
         <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
+        {adminInfo?.logoPath && <span className="bg-white rounded px-1.5 py-1 inline-flex items-center"><img src={adminInfo.logoPath.replace(/^apps\/web\/public/,"").replace(/^\/+/,"/")} alt="logo" className="h-7 object-contain" /></span>}
         <span className="text-base font-medium">{adminInfo?.companyName ?? t("search.ncSystemTitle", "NC 旋盤管理システム")}</span>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => router.push("/nc")} className="text-xs bg-slate-600 hover:bg-slate-500 text-white font-bold px-3 py-1.5 rounded-lg transition-colors">{t("search.backToDashboard", "← ダッシュボードへ")}</button>
@@ -100,8 +102,12 @@ export default function NcSearchPage() {
             <h2 className="text-sm font-bold text-slate-700">{t("search.ncPartSearch", "NC 部品検索")}</h2>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide pt-1">{t("search.idDirect", "ID 直接指定")}</div>
             <div>
-              <label className="text-sm font-bold text-slate-700 block mb-1">{t("search.ncIdWithKId", "NC ID（K_id）")}</label>
+              <label className="text-sm font-bold text-slate-700 block mb-1">{t("search.ncIdLabel", "NC ID")} <span className="text-[10px] text-slate-400 font-normal">{t("search.legacyNcId", "(旧NCID)")}</span></label>
               <input type="number" value={ncIdInput} onChange={e => setNcIdInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="92" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+            </div>
+            <div>
+              <label className="text-sm font-bold text-slate-700 block mb-1">{t("search.machiningIdLabelNc", "加工ID")} <span className="text-[10px] text-slate-400 font-normal">{t("search.legacyKId", "(旧K_id)")}</span></label>
+              <input type="number" value={machiningIdInput} onChange={e => setMachiningIdInput(e.target.value)} onKeyDown={e => e.key==="Enter" && handleSearch()} placeholder="92" className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
             </div>
             <div>
               <label className="text-sm font-bold text-slate-700 block mb-1">{t("search.partIdLabel", "部品ID")}</label>

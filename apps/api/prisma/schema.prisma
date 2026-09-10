@@ -232,6 +232,7 @@ model NcProgram {
   approvedAt    DateTime?                                    @map("approved_at")
   // 旧NC_id(ACC_NC.NC_id、部品×加工の対応行ID)。旧legacyKidはNcMachiningDetail側に移動。
   legacyNcId    Int?                                         @map("legacy_nc_id")
+  preChangingStatus NcProgramStatus?                         @map("pre_changing_status")
   createdAt     DateTime        @default(now())              @map("created_at")
   updatedAt     DateTime        @updatedAt                   @map("updated_at")
 

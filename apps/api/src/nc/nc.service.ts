@@ -33,6 +33,13 @@ export class NcService {
           // どちらで検索されても一致するようにする。内部PK(id)には一致させない。
           if (!isNaN(ncId)) where.OR = [{ legacyNcId: ncId }, { machiningId: ncId }];
           break;
+        case "machining_id": {
+          // 検索画面で「NC ID(旧NCID)」と「加工ID(旧K_id)」を別項目として
+          // 分離するために追加。machiningIdのみの厳密一致。
+          const n = parseInt(trimQ);
+          if (!isNaN(n)) where.machiningId = n;
+          break;
+        }
         case "part_id":
           where.part = { partId: trimQ };
           break;
@@ -682,7 +689,14 @@ export class NcService {
       // 認証済みユーザー・時刻を都度反映する(旧ACCESS仕様準拠、MCと統一)。
       const result = await tx.ncProgram.update({
         where: { id },
-        data: { status: "CHANGING", registeredBy: operatorId, registeredAt: new Date() },
+        data: {
+          status: "CHANGING",
+          // [BUGFIX] revert()時に正しい戻り先が分かるよう、CHANGINGへ入る直前の
+          // 実際のステータスをスナップショットしておく(MC update()と同じロジック)。
+          // 既にCHANGING中の再保存では最初のスナップショットを上書きしない。
+          preChangingStatus: existing.status !== "CHANGING" ? existing.status : (existing as any).preChangingStatus,
+          registeredBy: operatorId, registeredAt: new Date(),
+        },
       });
       // 変更履歴はfinalize()で登録するためupdateでは登録しない（MC方式）
       await tx.operationLog.create({
@@ -733,6 +747,7 @@ export class NcService {
         where: { id },
         data:  {
           status: "PENDING_APPROVAL", approvedBy: null, approvedAt: null,
+          preChangingStatus: null,
           registeredBy: operatorId, registeredAt: new Date(),
         },
       });
@@ -759,10 +774,18 @@ export class NcService {
     if (nc.status !== "CHANGING") {
       return { nc_id: id, message: "ステータスはCHANGINGではありません", status: nc.status };
     }
-    const nextStatus = nc.approvedBy ? "APPROVED" : "NEW";
+    // [BUGFIX] 従来は「承認者(approvedBy)がいればAPPROVED、いなければNEW」という
+    // 近似判定だけで戻し先を決めていたが、これだと一度もapproveされていない
+    // (だがfinalize済みでPENDING_APPROVALまで正規に育っている)レコードを
+    // 編集→保存→キャンセルすると、PENDING_APPROVALではなくNEWまで誤って
+    // 巻き戻ってしまっていた(MC revert()で2026-09に修正済みだった不具合が
+    // NC側に移植されていなかった)。update()が保存した「編集セッション開始
+    // 直前の実際のステータス」(preChangingStatus)があれば最優先でそこへ戻す。
+    const snapshot = (nc as any).preChangingStatus as string | null;
+    const nextStatus = snapshot ?? (nc.approvedBy ? "APPROVED" : "NEW");
     await this.prisma.ncProgram.update({
       where: { id },
-      data:  { status: nextStatus },
+      data:  { status: nextStatus as any, preChangingStatus: null },
     });
     return { nc_id: id, message: "変更をキャンセルしました", status: nextStatus };
   }
