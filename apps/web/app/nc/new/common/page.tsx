@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ncApi, NcSearchResult } from "@/lib/api";
@@ -114,6 +115,7 @@ export default function NcNewCommonPage() {
           {tr("ncNewCommonPage.backToNcSearchLink2", "＋ NC検索に戻る")}
         </button>
         <span className="font-mono text-sky-400 font-bold text-base ml-2">MachCore</span>
+        <CompanyBrandTag />
         <span className="text-slate-400 text-xs">|</span>
         <span className="text-sm font-medium">{tr("ncNewCommonPage.pageTitle5", "NC 共通加工登録")}</span>
         {operator && (

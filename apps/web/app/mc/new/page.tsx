@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { mcApi, machinesApi, Machine } from "@/lib/api";
@@ -130,6 +131,7 @@ export default function McNewPage() {
           {tr("mcNewPage.backToMcSearchLink", "MC検索に戻る")}
         </button>
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
+        <CompanyBrandTag />
         <span className="text-slate-400 text-xs">|</span>
         <span className="text-sm font-medium">{tr("mcNewPage.mcNewTitle", "MC 新規登録（仮登録）")}</span>
         <span className="ml-auto">

@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { mcApi, McDetail, machinesApi, Machine } from "@/lib/api";
@@ -322,6 +323,7 @@ function McPrintPageInner() {
           {tr("mcPrintPage.backToDashboardLink", "ダッシュボードへ")}
         </button>
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
+        <CompanyBrandTag />
         <span className="text-sm font-medium flex items-center gap-1.5">{tr("mcPrintPage.setupSheetTitle", "段取シート")}</span>
         <span className="ml-auto">
           {isAuthenticated && operator && (

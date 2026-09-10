@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useParams, useRouter } from "next/navigation";
@@ -450,6 +451,7 @@ function RecordPageInner() {
           </span>
         )}
         <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
+        <CompanyBrandTag />
         <span className="text-sm font-medium">{tr("ncRecordPage.workRecordTitle2", "作業記録")}</span>
         <span className="ml-auto">
           {isAuthenticated ? (

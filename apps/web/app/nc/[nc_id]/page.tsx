@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 // SSR環境でのDOMMatrix polyfill（react-pdf用）
 if (typeof window === "undefined" && typeof (global as any).DOMMatrix === "undefined") {
   (global as any).DOMMatrix = class DOMMatrix { constructor(..._: any[]) {} };
@@ -305,6 +306,7 @@ export default function NcDetailPage() {
         {/* ── ヘッダー ── */}
         <header className="bg-slate-800 text-white px-5 py-2 flex items-center gap-3 shrink-0">
           <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
+        <CompanyBrandTag />
           <span className="text-sm font-medium text-white">{tr("ncDetailPage.ncDetailTitle", "NC 詳細")}</span>
           <span className="ml-auto flex items-center gap-3">
             <button onClick={() => router.push("/nc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors">

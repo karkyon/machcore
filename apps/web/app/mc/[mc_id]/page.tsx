@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toJstDateString, toJstMonthDayTimeString, toJstDateTimeString } from "@/lib/dateUtils";
@@ -349,6 +350,7 @@ export default function McDetailPage() {
       {/* ヘッダー */}
       <header className="bg-slate-800 text-white px-5 py-2 flex items-center gap-3 shrink-0">
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
+        <CompanyBrandTag />
         <span className="text-sm font-medium text-white">{tr("mcDetailPage.mcDetailTitle", "MC 詳細")}</span>
         <span className="ml-auto flex items-center gap-3">
           <button onClick={() => router.push("/mc")} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-bold text-white transition-colors">

@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import AuthModal from "@/components/auth/AuthModal";
@@ -460,6 +461,7 @@ export default function NcDashboard() {
       <div className="h-screen flex flex-col bg-slate-50">
         <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
           <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
+        <CompanyBrandTag />
           <span className="text-slate-400 text-xs">|</span>
           <span className="text-sm font-medium">{t("dashboard.ncTitle", "NC 旋盤 ダッシュボード")}</span>
           <div className="ml-auto flex items-center gap-2 text-xs">

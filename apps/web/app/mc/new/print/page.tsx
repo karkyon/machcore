@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -100,6 +101,7 @@ function McNewPrintInner() {
           {tr("mcNewPrintPage.backToRegisterLink", "← 登録画面に戻る")}
         </button>
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
+        <CompanyBrandTag />
         <span className="text-slate-400 text-xs">|</span>
         <span className="text-sm font-medium">{tr("mcNewPrintPage.issueTitleNew", "段取シート発行（新規）")}</span>
         <div className="ml-auto flex items-center gap-3">

@@ -164,6 +164,8 @@ model CompanySetting {
   mcPrinter        String?  @db.VarChar(200)  @map("mc_printer")
   ncPrinter        String?  @db.VarChar(200)  @map("nc_printer")
   duplexPrint      Boolean  @default(false)   @map("duplex_print")
+  trademarkMark    String?  @db.VarChar(20)   @map("trademark_mark")
+  showTrademark    Boolean  @default(false)   @map("show_trademark")
   updatedAt        DateTime @updatedAt         @map("updated_at")
   @@map("company_settings")
 }

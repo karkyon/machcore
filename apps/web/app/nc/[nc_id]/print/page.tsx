@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 // apps/web/app/nc/[nc_id]/print/page.tsx
 // SCR-04: 段取シート
 
@@ -287,6 +288,7 @@ export default function PrintPage() {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>{tr("ncPrintPage.backToDashboardLink4", "ダッシュボードへ")}
           </button>
           <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
+        <CompanyBrandTag />
           <span className="text-sm font-medium flex items-center gap-1.5">{tr("ncPrintPage.setupSheetTitle2", "段取シート")}</span>
           <span className="ml-auto">
             {isAuthenticated && operator ? (

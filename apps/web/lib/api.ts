@@ -557,6 +557,8 @@ export type CompanySetting = {
   companyName: string | null;
   logoPath:    string | null;
   uploadBasePath: string | null;
+  trademarkMark: string | null;
+  showTrademark: boolean;
 };
 
 export const adminPrinterApi = {
@@ -582,7 +584,7 @@ export const languageApi = {
 export const adminSettingsApi = {
   getCompany:    (token: string) =>
     api.get<CompanySetting>('/admin/company', { headers: { Authorization: `Bearer ${token}` } }),
-  updateCompany: (body: { company_name?: string; logo_path?: string }, token: string) =>
+  updateCompany: (body: { company_name?: string; logo_path?: string; trademark_mark?: string; show_trademark?: boolean }, token: string) =>
     api.put('/admin/company', body, { headers: { Authorization: `Bearer ${token}` } }),
   getStorage:    (token: string) =>
     api.get<{ uploadBasePath: string | null }>('/admin/storage', { headers: { Authorization: `Bearer ${token}` } }),

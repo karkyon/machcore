@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
@@ -461,6 +462,7 @@ export default function McDashboard() {
       <div className="h-screen flex flex-col bg-slate-50">
         <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
           <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
+        <CompanyBrandTag />
           <span className="text-slate-400 text-xs">|</span>
           <span className="text-sm font-medium">{t("dashboard.mcTitle", "MC マシニング ダッシュボード")}</span>
           <div className="ml-auto flex items-center gap-2 text-xs">

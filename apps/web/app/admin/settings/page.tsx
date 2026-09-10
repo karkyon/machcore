@@ -24,6 +24,8 @@ export default function AdminSettingsPage() {
 
   const [companyName, setCompanyName] = useState("");
   const [logoPath,    setLogoPath]    = useState("");
+  const [trademarkMark, setTrademarkMark] = useState("");
+  const [showTrademark, setShowTrademark] = useState(false);
   const [loading,     setLoading]     = useState(true);
   const [saving,      setSaving]      = useState(false);
   const [toast,       setToast]       = useState<{ msg: string; ok: boolean } | null>(null);
@@ -73,6 +75,8 @@ export default function AdminSettingsPage() {
     ]).then(([comp, printers, mcnc]) => {
       setCompanyName(comp.data.companyName ?? "");
       setLogoPath(comp.data.logoPath ?? "");
+      setTrademarkMark(comp.data.trademarkMark ?? "");
+      setShowTrademark(!!comp.data.showTrademark);
       setPrinterList(printers.data?.printers ?? []);
       setMcStoragePath(mcnc.mc_storage_path ?? MC_DEFAULT_PATHS.setupsheet);
       setMcUploadBasePath(mcnc.upload_base_path ?? '/mnt/mc_files');
@@ -91,7 +95,10 @@ export default function AdminSettingsPage() {
   const handleSaveCompany = async () => {
     setSaving(true);
     try {
-      await adminSettingsApi.updateCompany({ company_name: companyName, logo_path: logoPath || undefined }, getToken());
+      await adminSettingsApi.updateCompany({
+        company_name: companyName, logo_path: logoPath || undefined,
+        trademark_mark: trademarkMark || undefined, show_trademark: showTrademark,
+      }, getToken());
       showToast(t("adminSettings.companySaved", "会社設定を保存しました"), true);
     } catch { showToast(t("adminSettings.saveFailed", "保存に失敗しました"), false); }
     finally { setSaving(false); }
@@ -211,6 +218,17 @@ export default function AdminSettingsPage() {
                   <input type="text" value={logoPath} onChange={e => setLogoPath(e.target.value)}
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-400" />
                   <p className="text-[11px] text-slate-400 mt-1">{t("adminSettings.logoPathHint")}</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">{t("adminSettings.trademarkMarkLabel", "TMマーク（社名の右肩に表示する記号。例: ™ ®）")}</label>
+                  <div className="flex items-center gap-3">
+                    <input type="text" value={trademarkMark} onChange={e => setTrademarkMark(e.target.value)} maxLength={10}
+                      className="w-28 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-500 select-none cursor-pointer">
+                      <input type="checkbox" checked={showTrademark} onChange={e => setShowTrademark(e.target.checked)} className="w-4 h-4" />
+                      {t("adminSettings.showTrademarkLabel", "ヘッダーに表示する")}
+                    </label>
+                  </div>
                 </div>
                 <div className="flex justify-end">
                   <button onClick={handleSaveCompany} disabled={saving} className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors">

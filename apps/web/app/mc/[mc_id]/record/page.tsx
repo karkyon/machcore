@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import React, { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { mcApi, machinesApi, usersApi, McDetail, McSetupSheetLog, McWorkRecord, Machine, UserInfo, CreateMcWorkRecordBody } from "@/lib/api";
@@ -1086,6 +1087,7 @@ function McRecordPageInner() {
           </span>
         )}
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
+        <CompanyBrandTag />
         <span className="text-sm font-medium">{tr("mcRecordPage.workRecordTitle", "作業記録")}</span>
         <span className="ml-auto">
           {isAuthenticated && operator ? (

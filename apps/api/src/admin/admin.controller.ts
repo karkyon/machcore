@@ -35,11 +35,24 @@ export class AdminController {
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
   @Put('company')
-  updateCompany(@Body() body: { company_name?: string; logo_path?: string }) {
+  updateCompany(@Body() body: {
+    company_name?: string; logo_path?: string;
+    trademark_mark?: string; show_trademark?: boolean;
+  }) {
     return this.prisma.companySetting.upsert({
       where:  { id: 1 },
-      update: { companyName: body.company_name, logoPath: body.logo_path },
-      create: { id: 1, companyName: body.company_name || '会社名未設定' },
+      update: {
+        companyName: body.company_name,
+        logoPath: body.logo_path,
+        ...(body.trademark_mark !== undefined && { trademarkMark: body.trademark_mark }),
+        ...(body.show_trademark !== undefined && { showTrademark: body.show_trademark }),
+      },
+      create: {
+        id: 1,
+        companyName: body.company_name || '会社名未設定',
+        trademarkMark: body.trademark_mark,
+        showTrademark: body.show_trademark ?? false,
+      },
     });
   }
 

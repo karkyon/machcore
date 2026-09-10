@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { mcApi, McSearchResult } from "@/lib/api";
@@ -111,6 +112,7 @@ export default function McNewCommonPage() {
           {tr("mcNewCommonPage.backToMcSearchLink2", "＋ MC検索に戻る")}
         </button>
         <span className="font-mono text-violet-400 font-bold text-base ml-2">MachCore</span>
+        <CompanyBrandTag />
         <span className="text-slate-400 text-xs">|</span>
         <span className="text-sm font-medium">{tr("mcNewCommonPage.pageTitle4", "MC 共通加工登録")}</span>
         {operator && (

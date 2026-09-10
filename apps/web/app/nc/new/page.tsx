@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ncApi, machinesApi, Machine, NcPartSearchResult } from "@/lib/api";
@@ -121,6 +122,7 @@ export default function NcNewPage() {
           {tr("ncNewPage.backToNcSearchLink", "NC検索に戻る")}
         </button>
         <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
+        <CompanyBrandTag />
         <span className="text-slate-400 text-xs">|</span>
         <span className="text-sm font-medium">{tr("ncNewPage.ncNewTitle", "NC 新規登録（仮登録）")}</span>
         <span className="ml-auto">

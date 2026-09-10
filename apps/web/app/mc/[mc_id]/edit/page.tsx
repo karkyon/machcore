@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { isAgentOnline, agentPickAndUpload, agentPickFolderAndUpload, agentCheckUsbTarget, agentAutoUpload, translateAgentError } from "@/lib/upload-agent";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -1134,6 +1135,7 @@ export default function McEditPage() {
           {tr("mcEditUi.toDashboard", "ダッシュボードへ")}
         </button>
         <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
+        <CompanyBrandTag />
         <span className="text-sm font-medium flex items-center gap-1.5">{tr("mcEditUi.editRegister", "変更・登録")}</span>
         <span className="ml-auto">
           {isAuthenticated && operator && (

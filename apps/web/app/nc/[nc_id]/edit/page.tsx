@@ -1,4 +1,5 @@
 "use client";
+import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react";
 import { ncApi, machinesApi, filesApi, usersApi, NcDetail, Machine, UpdateNcBody, UserInfo } from "@/lib/api";
@@ -626,6 +627,7 @@ export default function NcEditPage() {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>{tr("ncEditUi.toDashboard", "ダッシュボードへ")}
           </button>
           <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
+        <CompanyBrandTag />
           <span className="text-sm font-medium flex items-center gap-1.5">{tr("ncEditUi.editRegister", "変更・登録")}</span>
           <span className="ml-auto">
             {isAuthenticated && operator ? (
