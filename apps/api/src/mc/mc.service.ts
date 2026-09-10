@@ -151,7 +151,7 @@ export class McService {
         orderBy: { id: 'asc' },
         include: {
           part:     { select: { drawingNo: true, name: true, clientName: true, partId: true } },
-          machining: { select: { version: true, oNumber: true, cycleTimeSec: true, commonPartCode: true, machine: { select: { machineCode: true, machineName: true } } } },
+          machining: { select: { version: true, oNumber: true, cycleTimeSec: true, commonPartCode: true, mcProcessNo: true, machine: { select: { machineCode: true, machineName: true } } } },
         },
       }),
       this.prisma.mcProgram.count({ where }),
@@ -175,6 +175,7 @@ export class McService {
         o_number:      r.machining?.oNumber ?? null,
         cycle_time_sec: r.machining?.cycleTimeSec ?? null,
         common_part_code: r.machining?.commonPartCode ?? null,
+        mc_process_no: r.machining?.mcProcessNo ?? null,
       })),
     };
   }

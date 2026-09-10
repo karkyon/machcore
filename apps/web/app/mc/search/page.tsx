@@ -146,7 +146,9 @@ export default function McSearchPage() {
                 {g.rows.map((r, ri) => (
                   <div key={r.mc_id} onClick={() => handleSelect(r.mc_id)}
                     className={`px-4 py-2 flex items-center gap-3 cursor-pointer transition-colors border-b border-dashed border-slate-200 ${selected===r.mc_id ? "bg-teal-50" : "hover:bg-slate-50"}`}>
-                    <span className="w-6 h-6 rounded bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">{ri+1}</span>
+                    {/* [バグ修正] 実データのmc_process_noではなく配列インデックス(ri+1)を表示していたため
+                        「工程Lが単なる連番になっている」不具合になっていた。実際のL番号を表示する。 */}
+                    <span className="min-w-[28px] h-6 px-1 rounded bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">{r.mc_process_no != null ? `L${r.mc_process_no}` : ri+1}</span>
                     <span className="font-mono text-xs text-slate-600 shrink-0">{t("search.mcIdColon","MCID : {id}").replace("{id}", String(r.legacy_mcid ?? r.mc_id))}</span>
                     {r.machine_code && <span className="text-sm text-slate-700 font-medium shrink-0">{r.machine_code}</span>}
                     <span className="text-xs text-slate-400 shrink-0">{t("search.machiningIdColon","加工ID:{id}").replace("{id}", String(r.machining_id))}</span>

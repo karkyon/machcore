@@ -648,6 +648,7 @@ export type McSearchResult = {
   o_number:         string | null;
   cycle_time_sec:   number | null;
   common_part_code: string | null;
+  mc_process_no:    number | null;
 };
 
 export type McTooling = {

@@ -9,17 +9,17 @@ export function CompanyBrandTag() {
   const info = useCompanyBrand();
   if (!info || !info.companyName) return null;
   return (
-    <span className="text-[11px] text-slate-300 font-medium inline-flex items-center gap-1">
+    <span className="text-slate-300 font-medium inline-flex items-center gap-1.5">
       {info.logoPath && (
-        <span className="bg-white rounded px-1 py-0.5 inline-flex items-center">
+        <span className="bg-white rounded px-1.5 py-1 inline-flex items-center">
           <img
             src={info.logoPath.replace(/^apps\/web\/public/, "").replace(/^\/+/, "/")}
             alt="logo"
-            className="h-4 object-contain align-middle"
+            className="h-6 object-contain align-middle"
           />
         </span>
       )}
-      <span>{info.companyName}</span>
+      <span className="text-sm">{info.companyName}</span>
     </span>
   );
 }
