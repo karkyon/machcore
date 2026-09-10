@@ -919,7 +919,7 @@ export default function NcDetailPage() {
                             <div className="w-px h-5 bg-slate-200 mx-1" />
                             <button onClick={() => {
                               const w = window.open("");
-                              if (w) { w.document.write(`<img src="/api/files/serve/${previewFile.id}" onload="window.print();window.close()">`); }
+                              if (w) { w.document.write(`<style>@page{margin:0}html,body{margin:0;padding:0;height:100%}img{display:block;margin:auto;max-width:100vw;max-height:100vh;width:auto;height:auto;object-fit:contain;page-break-inside:avoid}</style><img src="/api/files/serve/${previewFile.id}" onload="window.print();window.close()">`); }
                             }} className="px-2.5 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">{tr("ncDetailPage.printLabel2", "🖨 印刷")}</button>
                           </>
                         )}
