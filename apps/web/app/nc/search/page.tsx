@@ -82,7 +82,7 @@ export default function NcSearchPage() {
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
-        {adminInfo?.logoPath && <img src={adminInfo.logoPath.replace(/^apps\/web\/public/,"").replace(/^\/+/,"/")} alt="logo" className="h-7 object-contain" />}
+        {adminInfo?.logoPath && <span className="bg-white rounded px-1.5 py-1 inline-flex items-center"><img src={adminInfo.logoPath.replace(/^apps\/web\/public/,"").replace(/^\/+/,"/")} alt="logo" className="h-7 object-contain" /></span>}
         <span className="font-mono text-sky-400 font-bold text-base">MachCore</span>
         <span className="text-base font-medium">{adminInfo?.companyName ?? t("search.ncSystemTitle", "NC 旋盤管理システム")}</span>
         <div className="ml-auto flex items-center gap-2">
