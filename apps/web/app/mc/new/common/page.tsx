@@ -53,26 +53,24 @@ export default function McNewCommonPage() {
   }, [searchKey, searchQ]);
 
   // 部品検索
+  // [バグ修正] mcApi.search()(mc_programsとのJOIN検索)を使っていたため、
+  // まだ一度もMCプログラムが登録されていない部品がヒットしなかった。
+  // 部品マスタを直接検索する mcApi.searchParts() に修正(nc/new/common や
+  // mc/new/page.tsx の通常新規登録フローと同じ方式)。
   const doSearchPart = useCallback(async () => {
     if (!partSearchQ.trim()) return;
     setPartLoading(true);
     try {
-      const res = await mcApi.search(partSearchType, partSearchQ.trim());
+      const res = await mcApi.searchParts(partSearchType, partSearchQ.trim());
       const d = (res as any).data ?? res;
       const rows: any[] = d.rows ?? [];
-      const map = new Map<string, PartResult>();
-      for (const r of rows) {
-        if (!map.has(r.drawing_no)) {
-          map.set(r.drawing_no, {
-            id:          r.part_db_id ?? 0,
-            part_id:     r.part_id ?? "",
-            drawing_no:  r.drawing_no,
-            name:        r.part_name,
-            client_name: r.client_name ?? null,
-          });
-        }
-      }
-      setPartResults(Array.from(map.values()));
+      setPartResults(rows.map(r => ({
+        id:          r.id,
+        part_id:     r.part_id ?? "",
+        drawing_no:  r.drawing_no,
+        name:        r.name,
+        client_name: r.client_name ?? null,
+      })));
     } catch { setPartResults([]); }
     finally { setPartLoading(false); }
   }, [partSearchQ, partSearchType]);
