@@ -1209,7 +1209,13 @@ function McRecordPageInner() {
               editRecordIdがセットされている(=過去記録を参照中)場合はフェードしない。
               また空状態のフェードも、コントラストごと薄れて読みにくいopacity-40から、
               白黒コントラストは保ったまま操作不可を示せるgrayscaleに変更する。 */}
-          <div className={!isAuthenticated && !sbMode && editRecordId === null ? "grayscale opacity-90 pointer-events-none select-none px-5 pb-5" : "px-5 pb-5 pt-4"}>
+          {/* [BUGFIX] pointer-events-noneがgrayscaleと同じ条件にまとまっていたため、
+              過去記録を参照中(editRecordId有り)だと未認証でも操作できてしまって
+              いた。操作禁止(常に未認証なら適用)と見た目のフェード(空状態のみ)を
+              別条件に分離する。 */}
+          <div className={`px-5 pb-5 ${!isAuthenticated && !sbMode ? "pointer-events-none select-none" : "pt-4"} ${
+            !isAuthenticated && !sbMode && editRecordId === null ? "grayscale opacity-90" : ""
+          }`}>
             {/* Ver・登録日・回収日時・オペレータ（表示専用）*/}
             {detail && (
               <div className="bg-slate-100 rounded-xl border border-slate-200 p-3 mb-4 max-w-3xl">

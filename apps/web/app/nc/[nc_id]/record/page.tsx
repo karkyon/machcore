@@ -592,7 +592,13 @@ function RecordPageInner() {
           )}
           {/* コントラストごと薄れて読みにくいopacity-40から、白黒コントラストは保ったまま
               操作不可を示せるgrayscaleに変更(MC作業記録画面と統一)。 */}
-          <div className={!isAuthenticated && !editRecordId ? "grayscale opacity-90 pointer-events-none select-none" : ""}>
+          {/* [BUGFIX] pointer-events-noneがgrayscaleと同じ条件にまとまっていたため、
+              過去記録を参照中(editRecordId有り)だと未認証でも操作できてしまって
+              いた。操作禁止(常に未認証なら適用)と見た目のフェード(空状態のみ)を
+              別条件に分離する。 */}
+          <div className={`${!isAuthenticated ? "pointer-events-none select-none" : ""} ${
+            !isAuthenticated && !editRecordId ? "grayscale opacity-90" : ""
+          }`}>
           {/* モードバー */}
           <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold mb-4 ${
             editRecordId && isAuthenticated ? "bg-amber-100 border border-amber-300 text-amber-800" :
