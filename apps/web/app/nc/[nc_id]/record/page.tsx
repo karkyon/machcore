@@ -76,15 +76,15 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
       </div>
       {open && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-          {users.filter(u => u.isActive).map(u => (
+          {users.map(u => (
             <div key={u.id}
-              onClick={() => toggle(u.id)}
-              className={`px-3 py-2 text-sm cursor-pointer flex items-center gap-2 hover:bg-sky-50 ${selected.includes(u.id) ? "bg-sky-50 font-bold text-sky-700" : "text-slate-700"}`}
+              onClick={() => { if (u.isActive) toggle(u.id); }}
+              className={`px-3 py-2 text-sm flex items-center gap-2 ${u.isActive ? "cursor-pointer hover:bg-sky-50" : "cursor-not-allowed opacity-50"} ${selected.includes(u.id) ? "bg-sky-50 font-bold text-sky-700" : "text-slate-700"}`}
             >
               <span className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${selected.includes(u.id) ? "bg-sky-500 border-sky-500 text-white" : "border-slate-300"}`}>
                 {selected.includes(u.id) && "✓"}
               </span>
-              {u.name}
+              {u.name}{!u.isActive && <span className="ml-1 text-[10px] text-slate-400">(無効)</span>}
             </div>
           ))}
         </div>
@@ -180,7 +180,7 @@ function RecordPageInner() {
         ncApi.findOne(ncId),
         ncApi.setupSheetLogs(ncId),
         machinesApi.list("NC"),
-        usersApi.list("NC"),
+        usersApi.list("NC", undefined, true),
       ]);
       setNc(ncRes.data);
       // [バグ修正] 行方不明/回収済み処理(is_lost)されたシートも除外する。

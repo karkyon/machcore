@@ -118,10 +118,10 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
       </button>
       {open && (
         <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto" onKeyDown={closeNav}>
-          {users.filter(u=>u.isActive!==false).map(u => (
-            <label key={u.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-teal-50 cursor-pointer text-sm">
-              <input type="checkbox" checked={selected.includes(u.id)} onChange={() => toggle(u.id)} className="accent-teal-600" />
-              {u.name}
+          {users.map(u => (
+            <label key={u.id} className={`flex items-center gap-2 px-3 py-1.5 text-sm ${u.isActive===false ? "opacity-50 cursor-not-allowed" : "hover:bg-teal-50 cursor-pointer"}`}>
+              <input type="checkbox" checked={selected.includes(u.id)} disabled={u.isActive===false} onChange={() => toggle(u.id)} className="accent-teal-600" />
+              {u.name}{u.isActive===false && <span className="ml-1 text-[10px] text-slate-400">(無効)</span>}
             </label>
           ))}
         </div>
@@ -157,7 +157,7 @@ function SingleUserSelect({ users, selected, onChange, placeholder }: {
       onKeyDown={nav}
       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
       <option value="">{placeholder ?? tr("mcRecordPage.selectPlaceholder", "— 選択 —")}</option>
-      {users.filter(u=>u.isActive!==false).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+      {users.map(u => <option key={u.id} value={u.id} disabled={u.isActive===false}>{u.name}{u.isActive===false ? " (無効)" : ""}</option>)}
     </select>
   );
 }
@@ -695,7 +695,7 @@ function McRecordPageInner() {
     }).catch(() => {});
     mcApi.workRecords(mcId).then(r => { const recs=(r as any).data??[]; setRecords(recs); console.log("[RECORD] 作業記録一覧取得",{count:recs.length,latest:recs[0]}); }).catch(() => {});
     machinesApi.list("MC").then(r => setMachines((r as any).data ?? [])).catch(() => {});
-    usersApi.list("MC").then(r => setUsers((r as any).data ?? [])).catch(() => {});
+    usersApi.list("MC", undefined, true).then(r => setUsers((r as any).data ?? [])).catch(() => {});
   }, [mcId]);
 
   // machines/selectedSheet/detail変化時に machineId を自動解決

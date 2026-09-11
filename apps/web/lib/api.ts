@@ -299,11 +299,13 @@ export type WorkSessionResponse = {
 
 export const usersApi = {
   // [v094] approverOnly=true で承認資格(canApprove=true)を持つユーザのみに絞る。
-  list: (system?: "NC" | "MC", approverOnly?: boolean) =>
+  // includeInactive=true で無効ユーザも含めて返す(作業記録画面の過去選択表示用)。
+  list: (system?: "NC" | "MC", approverOnly?: boolean, includeInactive?: boolean) =>
     api.get<UserInfo[]>("/users", {
       params: {
         ...(system ? { system } : {}),
         ...(approverOnly ? { approver: "true" } : {}),
+        ...(includeInactive ? { includeInactive: "true" } : {}),
       },
     }),
 };

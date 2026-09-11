@@ -11,8 +11,14 @@ export class UsersController {
    *  ([v094] 承認モーダルの担当者選択で使用。承認資格の無いユーザは選択肢に出さない)。
    *  省略時は全件返す(admin系画面など既存呼び出しへの後方互換のため)。 */
   @Get()
-  findAll(@Query('system') system?: 'NC' | 'MC', @Query('approver') approver?: string) {
-    const where: any = { isActive: true };
+  findAll(
+    @Query('system') system?: 'NC' | 'MC',
+    @Query('approver') approver?: string,
+    @Query('includeInactive') includeInactive?: string,
+  ) {
+    // [バグ修正] 作業記録画面で過去選択された無効ユーザの名前を正しく表示するため、
+    // includeInactive=true の場合のみ無効ユーザも含めて返す(既定は従来通り有効のみ)。
+    const where: any = includeInactive === 'true' ? {} : { isActive: true };
     if (system === 'NC' || system === 'MC') {
       where.systemType = { in: [system, 'BOTH'] };
     }
