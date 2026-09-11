@@ -432,9 +432,10 @@ export default function NcDetailPage() {
 
               {/* ── 上部グリッド: 工程・機械・加工時間・フォルダ・図・写真 ── */}
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                <div className="grid grid-cols-6 divide-x divide-slate-100 border-b border-slate-100">
+                <div className="grid grid-cols-7 divide-x divide-slate-100 border-b border-slate-100">
                   {[
                     { label: tr("ncDetailPage.colProcessL","工程 L"), value: String(d.processL), mono: true },
+                    { label: tr("ncDetailPage.colVersion3","バージョン"), value: d.version ?? "—", mono: true },
                     { label: tr("ncDetailPage.colMachine2","機械"),   value: d.machine?.machineCode ?? "—", mono: true },
                     { label: tr("ncDetailPage.colMachiningTime","加工時間"), value: d.machiningTime != null ? `${d.machiningTime} ${tr("ncDetailPage.unitMinute","分")}` : "—", mono: true },
                     { label: tr("ncDetailPage.colFolder","フォルダ"), value: d.folderName ?? "—", mono: true },

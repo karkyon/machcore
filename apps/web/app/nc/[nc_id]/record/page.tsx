@@ -557,7 +557,9 @@ function RecordPageInner() {
               </button>
             </div>
           )}
-          <div className={!isAuthenticated && !editRecordId ? "opacity-40 pointer-events-none select-none" : ""}>
+          {/* コントラストごと薄れて読みにくいopacity-40から、白黒コントラストは保ったまま
+              操作不可を示せるgrayscaleに変更(MC作業記録画面と統一)。 */}
+          <div className={!isAuthenticated && !editRecordId ? "grayscale opacity-90 pointer-events-none select-none" : ""}>
           {/* モードバー */}
           <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold mb-4 ${
             editRecordId ? "bg-amber-100 border border-amber-300 text-amber-800" : "bg-sky-50 border border-sky-200 text-sky-700"

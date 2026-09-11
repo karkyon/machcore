@@ -1203,7 +1203,13 @@ function McRecordPageInner() {
             </div>
           )}
 
-          <div className={!isAuthenticated && !sbMode ? "opacity-40 pointer-events-none select-none px-5 pb-5" : "px-5 pb-5 pt-4"}>
+          {/* [バグ修正] 過去記録を選択して読み込んだか(editRecordId)ではなく無関係な
+              sbMode(段取シート選択モード)を見ていたため、未認証のまま過去記録を参照
+              すると読み込んだ内容までopacity-40で薄くフォグられて読めなくなっていた。
+              editRecordIdがセットされている(=過去記録を参照中)場合はフェードしない。
+              また空状態のフェードも、コントラストごと薄れて読みにくいopacity-40から、
+              白黒コントラストは保ったまま操作不可を示せるgrayscaleに変更する。 */}
+          <div className={!isAuthenticated && !sbMode && editRecordId === null ? "grayscale opacity-90 pointer-events-none select-none px-5 pb-5" : "px-5 pb-5 pt-4"}>
             {/* Ver・登録日・回収日時・オペレータ（表示専用）*/}
             {detail && (
               <div className="bg-slate-100 rounded-xl border border-slate-200 p-3 mb-4 max-w-3xl">
