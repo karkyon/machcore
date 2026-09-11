@@ -142,6 +142,8 @@ function RecordPageInner() {
 
   // 編集モード
   const [editRecordId, setEditRecordId] = useState<number | null>(null);
+  // [バグ修正] 過去記録一覧が画面に存在しなかったため追加。
+  const [records, setRecords] = useState<WorkRecord[]>([]);
 
   // フォーム
   const [workType,    setWorkType]    = useState("量産");
@@ -254,6 +256,16 @@ function RecordPageInner() {
     });
   }, [loading, ncId, isAuthenticated, sbMode]);
 
+  // [バグ修正] 過去記録一覧が画面に存在しなかったため追加(MC側と同じ方式)。
+  useEffect(() => {
+    ncApi.workRecords(ncId).then(r => {
+      const recs = (r as any).data ?? [];
+      setRecords(recs);
+      console.log("[RECORD] 作業記録一覧取得", { count: recs.length, latest: recs[0] });
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ncId]);
+
   // タイマー
   useEffect(() => {
     if (isAuthenticated) {
@@ -337,7 +349,10 @@ function RecordPageInner() {
   }, []);
 
   const handleEdit = (r: WorkRecord) => {
-    if (!isAuthenticated) { setShowAuth(true); return; }
+    // [バグ修正] 未認証だと読み込み自体をブロックしていたため、過去記録を
+    // 参照することすらできなかった(MC側は認証不要でまず参照できる)。
+    // 保存はhandleSave側でworkTokenが無ければ失敗するため、参照だけなら
+    // 未認証でも許可して良い。
     setEditRecordId(r.id);
     const sm = r.setup_time ?? 0;
     setSetupH(Math.floor(sm/60)); setSetupM(sm%60);
@@ -538,6 +553,24 @@ function RecordPageInner() {
               </div>
             ))}
           </div>
+          {/* [バグ修正] 過去記録一覧が画面に存在しなかったため追加(MC側と同じ方式)。 */}
+          <div className="px-3 py-2 border-t border-b border-slate-100 mt-2">
+            <p className="text-[10px] font-bold text-slate-400 uppercase">{tr("ncRecordPage.pastRecordsTitle2", "過去記録")}</p>
+          </div>
+          {records.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-400">{tr("ncRecordPage.noneShort3", "なし")}</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {records.map(r => (
+                <button key={r.id} onClick={() => handleEdit(r)}
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${editRecordId===r.id ? "bg-amber-50 border-l-2 border-amber-400" : ""}`}>
+                  <div className="font-bold text-slate-700">{toJstMonthDayString(r.work_date)}</div>
+                  <div className="text-slate-400">{r.operator_name ?? "—"} / {r.machine_code ?? "—"}</div>
+                  <div className="text-slate-400">{fmtMin(r.setup_time)} / {fmtMin(r.machining_time)}</div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 右ペイン: 入力フォーム */}
@@ -562,9 +595,15 @@ function RecordPageInner() {
           <div className={!isAuthenticated && !editRecordId ? "grayscale opacity-90 pointer-events-none select-none" : ""}>
           {/* モードバー */}
           <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold mb-4 ${
-            editRecordId ? "bg-amber-100 border border-amber-300 text-amber-800" : "bg-sky-50 border border-sky-200 text-sky-700"
+            editRecordId && isAuthenticated ? "bg-amber-100 border border-amber-300 text-amber-800" :
+            editRecordId && !isAuthenticated ? "bg-slate-100 border border-slate-300 text-slate-600" :
+            "bg-sky-50 border border-sky-200 text-sky-700"
           }`}>
-            <span>{editRecordId ? tr("ncRecordPage.editModeLabel2","✏️ 編集モード — 記録ID: {id}").replace("{id}", String(editRecordId)) : tr("ncRecordPage.newInputModeLabel2","＋ 新規入力モード")}</span>
+            <span>{
+              editRecordId && isAuthenticated ? tr("ncRecordPage.editModeLabel2","✏️ 編集モード — 記録ID: {id}").replace("{id}", String(editRecordId)) :
+              editRecordId && !isAuthenticated ? tr("ncRecordPage.viewModeLabel2","👁 参照モード（編集するには認証してください）") :
+              tr("ncRecordPage.newInputModeLabel2", "＋ 新規入力モード")
+            }</span>
             {editRecordId && (
               <button onClick={() => resetForm(nc)} className="text-xs bg-white border border-slate-300 text-slate-600 px-2 py-1 rounded hover:bg-slate-50">
                 {tr("ncRecordPage.resetToNewButton2", "＋ 新規に戻す")}

@@ -1236,9 +1236,15 @@ function McRecordPageInner() {
 
             {/* モードバー */}
             <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold mb-4 max-w-3xl ${
-              editRecordId ? "bg-amber-100 border border-amber-300 text-amber-800" : "bg-teal-50 border border-teal-200 text-teal-700"
+              editRecordId && isAuthenticated ? "bg-amber-100 border border-amber-300 text-amber-800" :
+              editRecordId && !isAuthenticated ? "bg-slate-100 border border-slate-300 text-slate-600" :
+              "bg-teal-50 border border-teal-200 text-teal-700"
             }`}>
-              <span>{editRecordId ? tr("mcRecordPage.editModeLabel", "✏️ 編集モード") : tr("mcRecordPage.newInputModeLabel", "＋ 新規入力モード")}</span>
+              <span>{
+                editRecordId && isAuthenticated ? tr("mcRecordPage.editModeLabel", "✏️ 編集モード") :
+                editRecordId && !isAuthenticated ? tr("mcRecordPage.viewModeLabel","👁 参照モード（編集するには認証してください）") :
+                tr("mcRecordPage.newInputModeLabel", "＋ 新規入力モード")
+              }</span>
               <div className="flex items-center gap-3">
                 {/* 入力方法切り替え */}
                 <div className="flex items-center gap-1 text-xs">
