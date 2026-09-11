@@ -57,6 +57,11 @@ function restoreAuthState(): { token: string | null; operator: Operator | null; 
     sessionStorage.removeItem("work_token");
     sessionStorage.removeItem("work_operator");
     sessionStorage.removeItem("work_session_type");
+    // [BUGFIX] 期限切れ等でセッションを自動クリアする際、段取シートバックの
+    // 一時マーカー(sb_next_record/sb_sheet_log_id)が残ったままだと、未認証の
+    // まま「段取シートバックSTEP2」表示が出てしまうため、ここでも除去する。
+    sessionStorage.removeItem("sb_next_record");
+    sessionStorage.removeItem("sb_sheet_log_id");
   };
 
   // トークン取得・有効期限チェック
@@ -160,6 +165,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionStorage.removeItem("work_token");
       sessionStorage.removeItem("work_operator");
       sessionStorage.removeItem("work_session_type");
+      // [BUGFIX] ログアウト時に段取シートバックの一時マーカーが残ったままだと、
+      // 次に同じタブで(未認証のまま)対象画面を開いた際に「段取シートバックSTEP2」
+      // 表示が誤って出てしまうため、ログアウト時にも一緒に除去する。
+      sessionStorage.removeItem("sb_next_record");
+      sessionStorage.removeItem("sb_sheet_log_id");
     }
     console.log("%c[AUTH][logout] sessionStorageクリア完了", "color:#dc2626");
   }, [mcProgramId, ncProgramId, operator, sessionType]);
