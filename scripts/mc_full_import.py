@@ -393,8 +393,8 @@ def phase2(pg, dry_run=False):
                     INSERT INTO mc_tooling (
                         machining_id, sort_order, tool_no, tool_name, t_no,
                         length_offset_no, dia_offset_no, d_value_content,
-                        sub_pg_no, note, raw_program_line
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        sub_pg_no, note, raw_program_line, created_at, updated_at
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())
                 """, (kakoid,
                       new_sort_order,
                       n_no_str,
@@ -489,8 +489,9 @@ def phase4(pg, dry_run=False):
             if not dry_run:
                 pgc.execute("""
                     INSERT INTO mc_work_offsets
-                      (machining_id, g_code, x_offset, y_offset, z_offset, a_offset, r_offset, note)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                      (machining_id, g_code, x_offset, y_offset, z_offset, a_offset, r_offset, note,
+                       created_at, updated_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())
                     ON CONFLICT DO NOTHING
                 """, (kakoid,
                       str(row_dict.get("G") or ""),
@@ -547,8 +548,9 @@ def phase5(pg, dry_run=False):
                 # STEP_Nは文字列（///はコメント）→ axis_0に格納、sort_orderはIP_ID昇順
                 pgc.execute("""
                     INSERT INTO mc_index_programs
-                      (machining_id, sort_order, axis_0, axis_1, axis_2, note)
-                    VALUES (%s,%s,%s,%s,%s,%s)
+                      (machining_id, sort_order, axis_0, axis_1, axis_2, note,
+                       created_at, updated_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,NOW(),NOW())
                     ON CONFLICT DO NOTHING
                 """, (kakoid,
                       int(row_dict.get("IP_ID") or 0),
