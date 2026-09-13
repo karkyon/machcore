@@ -85,7 +85,7 @@ SS_SERVER    = "192.168.1.9"
 SS_USER      = "sa"
 SS_PASS      = "RTW65b"
 SS_DB        = "imotomc"   # NC側ビューもMC側と同じDB内に存在(diag_v017/v018bで確認済み)
-LOG_FILE     = Path("/home/karkyon/projects/machcore-internal/logs/nc_full_import.log")
+LOG_FILE     = Path(__file__).resolve().parent.parent / "logs" / "nc_full_import.log"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ユーティリティ

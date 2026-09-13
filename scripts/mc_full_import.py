@@ -71,7 +71,7 @@ UPLOAD_BASE  = Path("/mnt/mc_files")
 UPLOAD_DRAW  = DST_DRAW
 UPLOAD_PHOTO = DST_PHOTO
 UPLOAD_PG    = DST_PRG
-LOG_FILE     = Path("/home/karkyon/projects/machcore-internal/logs/mc_full_import.log")
+LOG_FILE     = Path(__file__).resolve().parent.parent / "logs" / "mc_full_import.log"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ユーティリティ
