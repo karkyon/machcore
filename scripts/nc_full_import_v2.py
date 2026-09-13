@@ -111,6 +111,27 @@ def pg_connect():
     import psycopg2
     return psycopg2.connect(PG_DSN)
 
+def _resolve_upload_base_nc():
+    """company_settings.upload_base_path を見て、NCファイル格納先を実行時に上書きする。
+    未設定の場合は従来のSMB(/mnt/mc_files)にフォールバックする。"""
+    global DST_NC_ROOT, DST_NC_PRG
+    try:
+        _conn = pg_connect()
+        _cur = _conn.cursor()
+        _cur.execute("SELECT upload_base_path FROM company_settings LIMIT 1")
+        _row = _cur.fetchone()
+        _conn.close()
+        _base = _row[0] if _row and _row[0] else None
+    except Exception as _e:
+        log(f"upload_base_path取得失敗、既定値({DST_NC_ROOT})を使用します: {_e}", "WARN")
+        _base = None
+    if _base:
+        DST_NC_ROOT = Path(_base) / "NC" / "files"
+        DST_NC_PRG  = DST_NC_ROOT / "Programs"
+        log(f"NCファイル格納先: company_settings.upload_base_path = {DST_NC_ROOT}")
+    else:
+        log(f"company_settings.upload_base_path 未設定。既定値 {DST_NC_ROOT} を使用します", "WARN")
+
 
 def ss_connect():
     import pymssql

@@ -98,6 +98,34 @@ def pg_connect():
     import psycopg2
     return psycopg2.connect(PG_DSN)
 
+def _resolve_upload_base():
+    """company_settings.upload_base_path を見て、ファイル格納先のグローバル定数を
+    実行時に上書きする(internal/groupそれぞれの実DBの設定値を使うため)。
+    未設定の場合は従来のSMB(/mnt/mc_files)にフォールバックする。"""
+    global DST_ROOT, DST_DRAW, DST_PHOTO, DST_PRG, UPLOAD_BASE, UPLOAD_DRAW, UPLOAD_PHOTO, UPLOAD_PG
+    try:
+        _conn = pg_connect()
+        _cur = _conn.cursor()
+        _cur.execute("SELECT upload_base_path FROM company_settings LIMIT 1")
+        _row = _cur.fetchone()
+        _conn.close()
+        _base = _row[0] if _row and _row[0] else None
+    except Exception as _e:
+        log(f"upload_base_path取得失敗、既定値({UPLOAD_BASE})を使用します: {_e}", "WARN")
+        _base = None
+    if _base:
+        UPLOAD_BASE = Path(_base)
+        DST_ROOT    = UPLOAD_BASE / "MC" / "files"
+        DST_DRAW    = DST_ROOT / "Drawings"
+        DST_PHOTO   = DST_ROOT / "Pictures"
+        DST_PRG     = DST_ROOT / "Programs"
+        UPLOAD_DRAW = DST_DRAW
+        UPLOAD_PHOTO= DST_PHOTO
+        UPLOAD_PG   = DST_PRG
+        log(f"ファイル格納先: company_settings.upload_base_path = {UPLOAD_BASE}")
+    else:
+        log(f"company_settings.upload_base_path 未設定。既定値 {UPLOAD_BASE} を使用します", "WARN")
+
 def ss_connect(db):
     import pymssql
     return pymssql.connect(server=SS_MC_SERVER, user=SS_MC_USER,
@@ -1875,6 +1903,7 @@ def main():
     start = datetime.now()
     log(f"開始: {start.strftime('%Y-%m-%d %H:%M:%S')} phase={args.phase} dry_run={dry}")
 
+    _resolve_upload_base()
     pg = pg_connect()
     try:
         force_copy = args.force_copy
