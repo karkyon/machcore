@@ -499,10 +499,12 @@ def phase4(pg, dry_run=False):
                       row_dict.get("Z"), row_dict.get("A"),
                       row_dict.get("R"), None))
             ok += 1
+            if not dry_run and ok % 500 == 0:
+                pg.commit()
         except Exception as e:
             err += 1
             if not dry_run: pg.rollback()
-            if err <= 5: log(f"  ERR: {e}", "WARN")
+            if err <= 5: log(f"  ERR: {e}  row={row_dict}", "WARN")
 
     if not dry_run: pg.commit()
     pgc.execute("SELECT COUNT(*) FROM mc_work_offsets")
@@ -559,10 +561,12 @@ def phase5(pg, dry_run=False):
                       row_dict.get("第2軸"),
                       None))
             ok += 1
+            if not dry_run and ok % 500 == 0:
+                pg.commit()
         except Exception as e:
             err += 1
             if not dry_run: pg.rollback()
-            if err <= 5: log(f"  ERR: {e}", "WARN")
+            if err <= 5: log(f"  ERR: {e}  row={row_dict}", "WARN")
 
     if not dry_run: pg.commit()
     pgc.execute("SELECT COUNT(*) FROM mc_index_programs")

@@ -571,7 +571,7 @@ model McTooling {
 model McWorkOffset {
   id          Int      @id @default(autoincrement())
   machiningId Int                          @map("machining_id")
-  gCode       String   @db.VarChar(10)     @map("g_code")
+  gCode       String   @db.VarChar(50)     @map("g_code")
   // ★旧ACC_ワークオフセットのX/Y/Z/A/R列は小数点以下4桁の精度を持つ
   //   (例: -538.4672)。Decimal(12,3)では第4桁が丸められ、データが
   //   1桁少ない精度で保存されていた(実際に244件の不一致を確認)。
