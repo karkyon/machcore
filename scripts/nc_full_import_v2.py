@@ -149,7 +149,25 @@ def to_jst_utc(dt):
         return dt
 
 
-ADMIN_FALLBACK_ID = 22  # メモリ記載のADMIN_ID(MC側と共通)
+ADMIN_FALLBACK_ID = 22  # メモリ記載のADMIN_ID(MC側と共通、既定値。実行時に_resolve_admin_id_nc()で上書き)
+
+def _resolve_admin_id_nc():
+    """users.employee_code='ADMIN001' のidを実行時に取得し、NC側の2つのADMIN定数に反映する。"""
+    global ADMIN_FALLBACK_ID, NC_FILE_ADMIN_FALLBACK_ID
+    try:
+        _conn = pg_connect()
+        _cur = _conn.cursor()
+        _cur.execute("SELECT id FROM users WHERE employee_code='ADMIN001' LIMIT 1")
+        _row = _cur.fetchone()
+        _conn.close()
+        if _row:
+            ADMIN_FALLBACK_ID = _row[0]
+            NC_FILE_ADMIN_FALLBACK_ID = _row[0]
+            log(f"ADMIN_FALLBACK_ID(ADMIN001)を動的解決: {ADMIN_FALLBACK_ID}")
+        else:
+            log(f"users.employee_code='ADMIN001' が見つかりません。既定値{ADMIN_FALLBACK_ID}のまま続行します", "WARN")
+    except Exception as _e:
+        log(f"ADMIN_ID動的解決に失敗、既定値{ADMIN_FALLBACK_ID}のまま続行します: {_e}", "WARN")
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -975,6 +993,8 @@ def main():
 
     start = datetime.now()
     log(f"開始: {start.strftime('%Y-%m-%d %H:%M:%S')} phase={args.phase} dry_run={dry}")
+
+    _resolve_admin_id_nc()
 
     pg = pg_connect()
     try:

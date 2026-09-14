@@ -53,7 +53,26 @@ SS_MC_USER   = "sa"
 SS_MC_PASS   = "RTW65b"
 SS_MC_DB     = "imotomc"    # マシニングデータ
 SS_PB_DB     = "imotodb"    # 部品・得意先マスタ
-ADMIN_ID     = 22           # ADMIN001 users.id
+ADMIN_ID     = 22           # ADMIN001 users.id (既定値。実行時に_resolve_admin_id()で上書きされる)
+
+def _resolve_admin_id():
+    """users.employee_code='ADMIN001' のidを実行時に取得する。
+    internal/groupでADMIN001のidが異なる(internal=22, groupは環境依存)ため、
+    決め打ちをやめて動的解決する。見つからない場合のみ既定値のままとする。"""
+    global ADMIN_ID
+    try:
+        _conn = pg_connect()
+        _cur = _conn.cursor()
+        _cur.execute("SELECT id FROM users WHERE employee_code='ADMIN001' LIMIT 1")
+        _row = _cur.fetchone()
+        _conn.close()
+        if _row:
+            ADMIN_ID = _row[0]
+            log(f"ADMIN_ID(ADMIN001)を動的解決: {ADMIN_ID}")
+        else:
+            log(f"users.employee_code='ADMIN001' が見つかりません。既定値{ADMIN_ID}のまま続行します", "WARN")
+    except Exception as _e:
+        log(f"ADMIN_ID動的解決に失敗、既定値{ADMIN_ID}のまま続行します: {_e}", "WARN")
 
 # ファイルパス
 # d1共有(192.168.1.9/d1) → /mnt/mcfiles  ← 旧MC移行元
@@ -1904,6 +1923,7 @@ def main():
     log(f"開始: {start.strftime('%Y-%m-%d %H:%M:%S')} phase={args.phase} dry_run={dry}")
 
     _resolve_upload_base()
+    _resolve_admin_id()
     pg = pg_connect()
     try:
         force_copy = args.force_copy
