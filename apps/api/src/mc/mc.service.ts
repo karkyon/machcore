@@ -2411,8 +2411,16 @@ export class McService {
     const tmpPath = `/tmp/machcore-mc-newprint-${mcId}-${Date.now()}.pdf`;
     fs.writeFileSync(tmpPath, pdfBuffer);
     const duplexOptNew = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
+    const lpCmdNew = `lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOptNew} "${tmpPath}"`;
+    console.log(`[DUPLEX-DEBUG][MC][create-and-print] mc_id=${mcId} printer=${printerName} duplexPrint(DB)=${(setting as any)?.duplexPrint} cmd=${lpCmdNew}`);
+    this.prisma.systemLog.create({ data: { level: 'DEBUG', category: 'PRINT', message: `MC create-and-print lp実行: ${lpCmdNew}`, detail: { mcId, printerName, duplexPrint: (setting as any)?.duplexPrint } } }).catch(() => {});
     try {
-      execSync(`lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOptNew} "${tmpPath}"`, { timeout: 15000 });
+      const lpOutNew = execSync(lpCmdNew, { timeout: 15000 });
+      console.log(`[DUPLEX-DEBUG][MC][create-and-print] lp成功 stdout=${lpOutNew?.toString()?.trim()}`);
+    } catch (lpErrNew: any) {
+      console.error(`[DUPLEX-DEBUG][MC][create-and-print] lp失敗 message=${lpErrNew?.message} stderr=${lpErrNew?.stderr?.toString?.()}`);
+      this.prisma.systemLog.create({ data: { level: 'ERROR', category: 'PRINT', message: `MC create-and-print lp失敗: ${lpErrNew?.message}`, detail: { mcId, printerName, stderr: lpErrNew?.stderr?.toString?.() } } }).catch(() => {});
+      throw lpErrNew;
     } finally {
       try { fs.unlinkSync(tmpPath); } catch { /**/ }
     }
@@ -3304,8 +3312,16 @@ export class McService {
     const tmpPath = `/tmp/machcore-mc-print-${mcId}-${Date.now()}.pdf`;
     fs.writeFileSync(tmpPath, pdfBuffer);
     const duplexOpt = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
+    const lpCmdDirect = `lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOpt} "${tmpPath}"`;
+    console.log(`[DUPLEX-DEBUG][MC][direct-print] mc_id=${mcId} printer=${printerName} duplexPrint(DB)=${(setting as any)?.duplexPrint} cmd=${lpCmdDirect}`);
+    this.prisma.systemLog.create({ data: { level: 'DEBUG', category: 'PRINT', message: `MC direct-print lp実行: ${lpCmdDirect}`, detail: { mcId, printerName, duplexPrint: (setting as any)?.duplexPrint } } }).catch(() => {});
     try {
-      execSync(`lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOpt} "${tmpPath}"`, { timeout: 15000 });
+      const lpOutDirect = execSync(lpCmdDirect, { timeout: 15000 });
+      console.log(`[DUPLEX-DEBUG][MC][direct-print] lp成功 stdout=${lpOutDirect?.toString()?.trim()}`);
+    } catch (lpErrDirect: any) {
+      console.error(`[DUPLEX-DEBUG][MC][direct-print] lp失敗 message=${lpErrDirect?.message} stderr=${lpErrDirect?.stderr?.toString?.()}`);
+      this.prisma.systemLog.create({ data: { level: 'ERROR', category: 'PRINT', message: `MC direct-print lp失敗: ${lpErrDirect?.message}`, detail: { mcId, printerName, stderr: lpErrDirect?.stderr?.toString?.() } } }).catch(() => {});
+      throw lpErrDirect;
     } finally {
       try { fs.unlinkSync(tmpPath); } catch { /**/ }
     }

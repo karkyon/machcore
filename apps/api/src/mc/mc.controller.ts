@@ -719,8 +719,16 @@ export class McController {
     fs2.writeFileSync(tmpPath, pdf);
     const { execSync: execSync2 } = await import('child_process');
     const duplexOptRepeat = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
+    const lpCmdRepeat = `lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOptRepeat} "${tmpPath}"`;
+    console.log(`[DUPLEX-DEBUG][MC][repeat-direct-print] mc_id=${id} printer=${printerName} duplexPrint(DB)=${(setting as any)?.duplexPrint} cmd=${lpCmdRepeat}`);
+    this.mc['prisma'].systemLog.create({ data: { level: 'DEBUG', category: 'PRINT', message: `MC repeat-direct-print lp実行: ${lpCmdRepeat}`, detail: { mcId: id, printerName, duplexPrint: (setting as any)?.duplexPrint } } }).catch(() => {});
     try {
-      execSync2(`lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOptRepeat} "${tmpPath}"`, { timeout: 15000 });
+      const lpOutRepeat = execSync2(lpCmdRepeat, { timeout: 15000 });
+      console.log(`[DUPLEX-DEBUG][MC][repeat-direct-print] lp成功 stdout=${lpOutRepeat?.toString()?.trim()}`);
+    } catch (lpErrRepeat: any) {
+      console.error(`[DUPLEX-DEBUG][MC][repeat-direct-print] lp失敗 message=${lpErrRepeat?.message} stderr=${lpErrRepeat?.stderr?.toString?.()}`);
+      this.mc['prisma'].systemLog.create({ data: { level: 'ERROR', category: 'PRINT', message: `MC repeat-direct-print lp失敗: ${lpErrRepeat?.message}`, detail: { mcId: id, printerName, stderr: lpErrRepeat?.stderr?.toString?.() } } }).catch(() => {});
+      throw lpErrRepeat;
     } finally {
       try { fs2.unlinkSync(tmpPath); } catch { /**/ }
     }

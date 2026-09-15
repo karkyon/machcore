@@ -1010,8 +1010,16 @@ export class NcService {
     const tmpPath = `/tmp/machcore-print-${ncProgramId}-${Date.now()}.pdf`;
     fs.writeFileSync(tmpPath, pdfBuffer);
     const duplexOptNc = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
+    const lpCmdNc = `lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOptNc} "${tmpPath}"`;
+    console.log(`[DUPLEX-DEBUG][NC][direct-print] nc_id=${ncProgramId} printer=${printerName} duplexPrint(DB)=${(setting as any)?.duplexPrint} cmd=${lpCmdNc}`);
+    this.prisma.systemLog.create({ data: { level: 'DEBUG', category: 'PRINT', message: `NC direct-print lp実行: ${lpCmdNc}`, detail: { ncProgramId, printerName, duplexPrint: (setting as any)?.duplexPrint } } }).catch(() => {});
     try {
-      execSync(`lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOptNc} "${tmpPath}"`, { timeout: 15000 });
+      const lpOutNc = execSync(lpCmdNc, { timeout: 15000 });
+      console.log(`[DUPLEX-DEBUG][NC][direct-print] lp成功 stdout=${lpOutNc?.toString()?.trim()}`);
+    } catch (lpErrNc: any) {
+      console.error(`[DUPLEX-DEBUG][NC][direct-print] lp失敗 message=${lpErrNc?.message} stderr=${lpErrNc?.stderr?.toString?.()}`);
+      this.prisma.systemLog.create({ data: { level: 'ERROR', category: 'PRINT', message: `NC direct-print lp失敗: ${lpErrNc?.message}`, detail: { ncProgramId, printerName, stderr: lpErrNc?.stderr?.toString?.() } } }).catch(() => {});
+      throw lpErrNc;
     } finally {
       try { fs.unlinkSync(tmpPath); } catch {}
     }
