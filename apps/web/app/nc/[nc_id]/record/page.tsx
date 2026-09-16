@@ -179,7 +179,7 @@ function RecordPageInner() {
       const [ncRes, sheetRes, machRes, userRes] = await Promise.all([
         ncApi.findOne(ncId),
         ncApi.setupSheetLogs(ncId),
-        machinesApi.list("NC"),
+        machinesApi.list("NC", true),
         usersApi.list("NC", undefined, true),
       ]);
       setNc(ncRes.data);

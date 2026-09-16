@@ -335,7 +335,15 @@ export type Machine = {
 };
 
 export const machinesApi = {
-  list: (system?: "NC" | "MC") => api.get<Machine[]>("/machines", { params: system ? { system } : undefined }),
+  // includeInactive=true で無効(廃止)機械も含めて返す(作業記録画面の過去選択表示用。
+  // usersApi.listのincludeInactiveと同一パターン)。
+  list: (system?: "NC" | "MC", includeInactive?: boolean) =>
+    api.get<Machine[]>("/machines", {
+      params: {
+        ...(system ? { system } : {}),
+        ...(includeInactive ? { includeInactive: "true" } : {}),
+      },
+    }),
 };
 
 export type WorkRecord = {
