@@ -173,6 +173,13 @@ def phase1(pg, dry_run=False):
         pgc.execute("DELETE FROM mc_machining_details")
         pg.commit()
         log("全破棄完了")
+        log("⚠️  mc_files / mc_change_history / mc_setup_sheet_logs / work_records / "
+            "operation_logs / work_sessions も連動して全削除されました"
+            "（mc_programs.idがSERIALで再採番されるため、既存の紐付けが無効になる想定動作です）。", "WARN")
+        log("⚠️  --phase 0（全フェーズ一括）以外で個別フェーズ実行している場合、"
+            "この後に必ず python3 mc_full_import.py --phase 6 と --phase 7 を"
+            "再実行してください。実行し忘れると、物理ファイルは残っていてもDB上は"
+            "未登録のままになります（2026-09-15に実際に発生した事象）。", "WARN")
 
     pbc.execute("SELECT 部品ID, 図面番号, 名称, 主機種型式, 納入先ID FROM v_旧部品マスタ")
     buhin_rows = pbc.fetchall()
@@ -1900,6 +1907,43 @@ def phase10(pg, dry_run=False):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 完了時整合性チェック（2026-09-15のPHASE7再実行漏れ事故の再発防止）
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def _final_consistency_check(pg):
+    """mc_programsに対してmc_filesが異常に少ない/0件でないかを検知する。
+    個別フェーズ実行でPHASE7の再実行が漏れた状態を、実行者が気づかずに
+    放置してしまう事故(2026-09-15に実際に発生)を二度と見逃さないための
+    読み取り専用チェック。DB/ファイルへの書き込みは一切行わない。"""
+    pgc = pg.cursor()
+    pgc.execute("SELECT COUNT(*) FROM mc_programs")
+    n_programs = pgc.fetchone()[0]
+    pgc.execute("SELECT COUNT(*) FROM mc_files")
+    n_files = pgc.fetchone()[0]
+    pgc.execute("""
+        SELECT COUNT(*) FROM mc_machining_details
+        WHERE file_name IS NOT NULL AND file_name != '' AND folder1 IS NOT NULL
+    """)
+    n_expect_program = pgc.fetchone()[0]
+    pgc.execute("SELECT COUNT(DISTINCT mc_program_id) FROM mc_files WHERE file_type = 'PROGRAM'")
+    n_have_program = pgc.fetchone()[0]
+
+    log("\n--- 完了時整合性チェック ---")
+    if n_programs > 0 and n_files == 0:
+        log(f"[WARN] mc_programsは{n_programs}件あるのにmc_filesが0件です。", "WARN")
+        log("[WARN] PHASE7(図・写真・プログラム移行)が未実行、または個別フェーズ再実行で"
+            "破棄されたまま復元されていない可能性が高いです。", "WARN")
+        log("[WARN] → python3 mc_full_import.py --phase 7 を実行してください。", "WARN")
+    elif n_expect_program > 0 and n_have_program < n_expect_program * 0.9:
+        log(f"[WARN] プログラムファイル紐付けが不完全な可能性があります: "
+            f"旧DB側に情報のあるmachining_id={n_expect_program}件に対し、"
+            f"mc_files(PROGRAM)が紐付いているのは{n_have_program}件のみです。", "WARN")
+        log("[WARN] → PHASE7の再実行を検討してください: python3 mc_full_import.py --phase 7", "WARN")
+    else:
+        log(f"[OK] 整合性チェック: mc_programs={n_programs}件 mc_files={n_files}件 "
+            f"(PROGRAM紐付け {n_have_program}/{n_expect_program}件)")
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # メイン
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def main():
@@ -1946,6 +1990,7 @@ def main():
                 log(traceback.format_exc(), "ERROR")
                 raise
         final_report(pg)
+        _final_consistency_check(pg)
     finally:
         pg.close()
         elapsed = (datetime.now() - start).total_seconds()

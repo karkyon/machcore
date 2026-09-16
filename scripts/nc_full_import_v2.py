@@ -198,6 +198,13 @@ def phase1(pg, dry_run=False):
         pgc.execute("DELETE FROM nc_machining_details")
         pg.commit()
         log("全破棄完了")
+        log("⚠️  nc_files / change_history / setup_sheet_logs / work_records / "
+            "operation_logs / work_sessions / nc_tools も連動して全削除されました"
+            "（nc_programs.idがSERIALで再採番されるため、既存の紐付けが無効になる想定動作です）。", "WARN")
+        log("⚠️  --phase 0（全フェーズ一括）以外で個別フェーズ実行している場合、"
+            "この後に必ず python3 nc_full_import_v2.py --phase 3 と --phase 5 を"
+            "再実行してください。実行し忘れると、物理ファイルは残っていてもDB上は"
+            "未登録のままになります（MC側で2026-09-15に実際に発生した事象と同種）。", "WARN")
 
     # parts は既存資産を再利用(MC側 sync_parts.py で同期済み)
     pgc.execute("SELECT id, part_id FROM parts")
@@ -979,6 +986,39 @@ def phase5(pg, dry_run=False):
         log(f"PHASE5完了(dry-run): ok(K_id)={ok} nomatch={nomatch} notfound={notfound} err={err}")
 
 
+def _final_consistency_check_nc(pg):
+    """nc_programsに対してnc_filesが異常に少ない/0件でないかを検知する。
+    MC側と同じ構造の「個別フェーズ再実行でPHASE5(ファイル移行)の再実行が漏れる」
+    事故を二度と見逃さないための読み取り専用チェック。書き込みは一切行わない。"""
+    pgc = pg.cursor()
+    pgc.execute("SELECT COUNT(*) FROM nc_programs")
+    n_programs = pgc.fetchone()[0]
+    pgc.execute("SELECT COUNT(*) FROM nc_files")
+    n_files = pgc.fetchone()[0]
+    pgc.execute("""
+        SELECT COUNT(*) FROM nc_machining_details
+        WHERE file_name IS NOT NULL AND file_name != '' AND folder_name IS NOT NULL AND folder_name != ''
+    """)
+    n_expect_program = pgc.fetchone()[0]
+    pgc.execute("SELECT COUNT(DISTINCT nc_program_id) FROM nc_files WHERE file_type = 'PROGRAM'")
+    n_have_program = pgc.fetchone()[0]
+
+    log("\n--- 完了時整合性チェック ---")
+    if n_programs > 0 and n_files == 0:
+        log(f"[WARN] nc_programsは{n_programs}件あるのにnc_filesが0件です。", "WARN")
+        log("[WARN] PHASE5(プログラムファイル移行)が未実行、または個別フェーズ再実行で"
+            "破棄されたまま復元されていない可能性が高いです。", "WARN")
+        log("[WARN] → python3 nc_full_import_v2.py --phase 5 を実行してください。", "WARN")
+    elif n_expect_program > 0 and n_have_program < n_expect_program * 0.9:
+        log(f"[WARN] プログラムファイル紐付けが不完全な可能性があります: "
+            f"旧DB側に情報のあるmachining_id={n_expect_program}件に対し、"
+            f"nc_files(PROGRAM)が紐付いているのは{n_have_program}件のみです。", "WARN")
+        log("[WARN] → PHASE5の再実行を検討してください: python3 nc_full_import_v2.py --phase 5", "WARN")
+    else:
+        log(f"[OK] 整合性チェック: nc_programs={n_programs}件 nc_files={n_files}件 "
+            f"(PROGRAM紐付け {n_have_program}/{n_expect_program}件)")
+
+
 def main():
     parser = argparse.ArgumentParser(description="MachCore NC完全移行スクリプト v2(新スキーマ対応)")
     parser.add_argument("--phase", type=int, default=0, help="実行フェーズ (0=全, 1-5=個別)")
@@ -1013,6 +1053,7 @@ def main():
 
         if args.phase == 0:
             final_report(pg)
+        _final_consistency_check_nc(pg)
     except Exception as e:
         log(f"エラー: {e}", "ERROR")
         log(traceback.format_exc(), "ERROR")

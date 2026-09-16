@@ -35,6 +35,13 @@ uploads/
 fix_v*.py
 diag_v*.py
 cleanup_v*.py
+/apply_*.py
+/investigate_*.py
+/check_*.py
+
+# DBバックアップ・生成レポート(ローカルのみ保持)
+backups/
+scripts/verify_reports/
 *.bak_i18n_*
 
 # Python
