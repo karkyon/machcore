@@ -1227,7 +1227,10 @@ function McRecordPageInner() {
             !isAuthenticated && !sbMode && editRecordId === null ? "grayscale opacity-90" : ""
           }`}>
             {/* Ver・登録日・回収日時・オペレータ（表示専用）*/}
-            {detail && (
+            {/* [バグ修正] 新規入力モード用のライブプレビュー(回収日時=現在時刻、
+                オペレータ=ログイン中の担当者)であり、過去記録の内容とは無関係。
+                過去記録参照中(editRecordId有り)は紛らわしいので非表示にする。 */}
+            {detail && !editRecordId && (
               <div className="bg-slate-100 rounded-xl border border-slate-200 p-3 mb-4 max-w-3xl">
                 <div className="grid grid-cols-4 gap-3 text-xs">
                   <div>
