@@ -559,11 +559,30 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
 
     # 氏名文字列(Dan_Op/La_Op)逆引き用: users.name → id
     pgc.execute("SELECT id, name FROM users")
+    _user_rows = pgc.fetchall()
     name_to_userid = {}
-    for uid, name in pgc.fetchall():
+    for uid, name in _user_rows:
         normed = re.sub(r"[\s\u3000]+", " ", name or "").strip()
         name_to_userid[normed] = uid
         name_to_userid[name] = uid
+
+    # [バグ修正] Dan_Op/La_Opが「徳富」のように姓のみで記録されている旧データが
+    # あり、氏名フル表記("徳富 大嗣")との完全一致に失敗してsetup/production_
+    # operator_idsが空配列のままになっていた。姓だけでusers中に一意特定できる
+    # 場合に限り救済する(同姓が複数いる場合は誤属性を避けるため解決しない)。
+    surname_to_userid: dict = {}
+    _surname_seen: dict = {}
+    for uid, name in _user_rows:
+        normed = re.sub(r"[\s\u3000]+", " ", name or "").strip()
+        surname = normed.split(" ")[0] if " " in normed else normed
+        if not surname:
+            continue
+        if surname in _surname_seen and _surname_seen[surname] != uid:
+            surname_to_userid.pop(surname, None)  # 同姓複数 → 解決不能として除外
+            _surname_seen[surname] = None
+        elif surname not in _surname_seen:
+            surname_to_userid[surname] = uid
+            _surname_seen[surname] = uid
 
     if machine_id_map is None:
         ssc.execute("SELECT m_id, Model FROM ACC_Machine")
@@ -661,8 +680,10 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
                 # 投入していなかったため、NC側の作業記録画面で段取担当者・量産担当者が
                 # 常に空欄になっていた。旧システムは段取(Dan)/加工(La)それぞれ単一の
                 # 担当者名しか持たないため、解決できた場合は要素数1の配列として投入する。
-                setup_op_id = name_to_userid.get(dan_op_s) or name_to_userid.get(dan_norm)
-                prod_op_id  = name_to_userid.get(la_op_s) or name_to_userid.get(la_norm)
+                setup_op_id = (name_to_userid.get(dan_op_s) or name_to_userid.get(dan_norm)
+                               or surname_to_userid.get(dan_op_s) or surname_to_userid.get(dan_norm))
+                prod_op_id  = (name_to_userid.get(la_op_s) or name_to_userid.get(la_norm)
+                               or surname_to_userid.get(la_op_s) or surname_to_userid.get(la_norm))
                 work_op_id = (setup_op_id or prod_op_id or staff_id_map.get(in_op, ADMIN_FALLBACK_ID))
                 setup_operator_ids_json = _json.dumps([setup_op_id] if setup_op_id else [])
                 production_operator_ids_json = _json.dumps([prod_op_id] if prod_op_id else [])
