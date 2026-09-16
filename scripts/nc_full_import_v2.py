@@ -701,7 +701,12 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
                 ver_after = str(int(in_ver)) if in_ver is not None else None
                 field_changes = None
                 if out_cont_s and "印刷" not in out_cont_s:
-                    import json as _json
+                    # [バグ修正] ここにあったローカル`import json as _json`が、
+                    # 関数冒頭でモジュールレベルimportした_jsonをPythonの
+                    # スコープ規則上シャドーイングしてしまい、このローカルimportより
+                    # 前にある work_records 処理で_json参照時にUnboundLocalErrorに
+                    # なっていた(2026-09-16 --phase 3実行で全件エラー確認)。
+                    # モジュール冒頭で既にimport済みのためここでは何もしない。
                     field_changes = _json.dumps({"out_content": out_cont_s})
                 for idx, prog_id in enumerate(program_ids):
                     try:
