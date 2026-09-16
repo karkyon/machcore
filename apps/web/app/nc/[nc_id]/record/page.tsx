@@ -185,7 +185,11 @@ function RecordPageInner() {
       setNc(ncRes.data);
       // [バグ修正] 行方不明/回収済み処理(is_lost)されたシートも除外する。
       setSetupSheets((sheetRes.data as any[]).filter(s => !s.work_collected && !s.is_lost));
-      setMachines(machRes.data.filter((m: Machine) => m.isActive));
+      // [バグ修正] ここでisActiveフィルタをかけて非アクティブ機械をstateから
+      // 完全に除外していたため、過去記録がその機械を使っていた場合に
+      // machines.find()がヒットせず選択済み表示ができなかった。フィルタは
+      // セレクトの描画側(disabled付与)に移し、stateには全件保持する。
+      setMachines(machRes.data);
       setAllUsers(userRes.data);
       setAuthUsers(userRes.data.filter((u: UserInfo) => u.isActive));
       // 機械初期値
@@ -637,7 +641,13 @@ function RecordPageInner() {
                   onChange={e => setMachineId(e.target.value ? Number(e.target.value) : null)}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white">
                   <option value="">{tr("ncRecordPage.selectPlaceholder3", "— 選択 —")}</option>
-                  {machines.map(m => <option key={m.id} value={m.id}>{m.id} : {m.machineName}</option>)}
+                  {/* [バグ修正] 非アクティブ(廃止)機械でも「現在選択中の機械」なら表示だけはし、
+                      新規選択はdisabledで防ぐ。 */}
+                  {machines.filter(m => m.isActive || m.id === machineId).map(m => (
+                    <option key={m.id} value={m.id} disabled={!m.isActive}>
+                      {m.id} : {m.machineName}{!m.isActive ? tr("ncRecordPage.inactiveMachineSuffix2", "（無効）") : ""}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

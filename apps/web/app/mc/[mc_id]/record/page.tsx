@@ -1292,8 +1292,14 @@ function McRecordPageInner() {
                       }}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
                       <option value="">{tr("mcRecordPage.selectPlaceholder", "— 選択 —")}</option>
-                      {machines.filter(m => m.isActive).map(m => (
-                        <option key={m.id} value={m.id}>{m.machineCode}</option>
+                      {/* [バグ修正] 非アクティブ(廃止)機械を選択肢から完全除外していたため、
+                          過去記録がその機械を使っていた場合に選択済み表示ができなかった。
+                          非アクティブでも「現在選択中の機械」なら表示だけはし、新規選択は
+                          disabledで防ぐ。 */}
+                      {machines.filter(m => m.isActive || String(m.id) === machineId).map(m => (
+                        <option key={m.id} value={m.id} disabled={!m.isActive}>
+                          {m.machineCode}{!m.isActive ? tr("mcRecordPage.inactiveMachineSuffix", "（無効）") : ""}
+                        </option>
                       ))}
                     </select>
                   </div>
