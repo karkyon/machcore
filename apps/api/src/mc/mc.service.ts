@@ -1328,6 +1328,7 @@ export class McService {
       work_type:       r.workType,
       operator_name:   r.operator?.name ?? null,
       machine_code:    r.machine?.machineCode ?? null,
+      machine_id:      r.machineId,
       setup_time_min:    r.setupTimeMin,
       machining_time_min: r.machiningTimeMin,
       cycle_time_sec:  r.cycleTimeSec,

@@ -852,7 +852,9 @@ function McRecordPageInner() {
 
   const loadRecord = (r: McWorkRecord) => {
     setEditRecordId(r.id);
-    setMachineId("");
+    // [バグ修正] 無条件に空へリセットしていたため、DBには保存されている
+    // machine_id が過去記録読込時に復元表示されなかった。
+    setMachineId(r.machine_id != null ? String(r.machine_id) : "");
     const cSec = r.cycle_time_sec ?? 0;
     setCycleH(Math.floor(cSec / 3600)); setCycleM(Math.floor((cSec % 3600) / 60)); setCycleS(cSec % 60);
     setCyclePcs("");
@@ -870,7 +872,10 @@ function McRecordPageInner() {
     setYStopH(Math.floor(ystop / 60)); setYStopM(ystop % 60);
     setQuantity(r.quantity ? String(r.quantity) : "");
     setMachH(0); setMachMm(0); setMachInterruption(0);
-    setPrgMan(null);
+    // [バグ修正] prg_manはDBに氏名の文字列で保存されているため、
+    // usersリストから名前が一致するユーザーIDを逆引きして復元する。
+    // 無条件にnullへリセットしていたため復元表示されていなかった。
+    setPrgMan(r.prg_man ? (users.find(u => u.name === r.prg_man)?.id ?? null) : null);
     const pt = (r as any).prg_time_min ?? 0;
     setPrgTimeH(Math.floor(pt / 60)); setPrgTimeM(pt % 60);
     setPrgPlas((r as any).prg_plas ?? "");

@@ -60,7 +60,7 @@ ACC_FD は nc_programs.folder_name の補完にのみ使う(FD_name→FD_idの�
           新規ユーザー作成は行わない)。
 """
 
-import sys, os, re, argparse, traceback, subprocess
+import sys, os, re, argparse, traceback, subprocess, json as _json
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -656,9 +656,16 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
                 mach_min = (la_h_i * 60 + la_m_i) or None
                 dan_norm = re.sub(r"[\s\u3000]+", " ", dan_op_s).strip()
                 la_norm = re.sub(r"[\s\u3000]+", " ", la_op_s).strip()
-                work_op_id = (name_to_userid.get(dan_op_s) or name_to_userid.get(dan_norm)
-                              or name_to_userid.get(la_op_s) or name_to_userid.get(la_norm)
-                              or staff_id_map.get(in_op, ADMIN_FALLBACK_ID))
+                # [バグ修正] 従来operator_id(単一)にしか反映しておらず、新スキーマの
+                # setup_operator_ids/production_operator_ids(複数可の配列)に一切
+                # 投入していなかったため、NC側の作業記録画面で段取担当者・量産担当者が
+                # 常に空欄になっていた。旧システムは段取(Dan)/加工(La)それぞれ単一の
+                # 担当者名しか持たないため、解決できた場合は要素数1の配列として投入する。
+                setup_op_id = name_to_userid.get(dan_op_s) or name_to_userid.get(dan_norm)
+                prod_op_id  = name_to_userid.get(la_op_s) or name_to_userid.get(la_norm)
+                work_op_id = (setup_op_id or prod_op_id or staff_id_map.get(in_op, ADMIN_FALLBACK_ID))
+                setup_operator_ids_json = _json.dumps([setup_op_id] if setup_op_id else [])
+                production_operator_ids_json = _json.dumps([prod_op_id] if prod_op_id else [])
                 work_machine_id = machine_id_map.get(mc_raw) if mc_raw is not None else None
                 work_date = in_date_utc or out_date_utc or datetime(2005, 1, 1)
                 note_parts = [s for s in (
@@ -672,10 +679,12 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
                             pgc.execute("""
                                 INSERT INTO work_records (
                                     nc_program_id, operator_id, machine_id, work_date,
-                                    setup_time_min, machining_time_min, quantity, note, created_at
-                                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                                    setup_time_min, machining_time_min, quantity, note,
+                                    setup_operator_ids, production_operator_ids, created_at
+                                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
                             """, (prog_id, work_op_id, work_machine_id, work_date,
-                                  setup_min, mach_min, p_i if p_i > 0 else None, note_str))
+                                  setup_min, mach_min, p_i if p_i > 0 else None, note_str,
+                                  setup_operator_ids_json, production_operator_ids_json))
                         wr_ok += 1
                         if idx > 0:
                             wr_dup += 1

@@ -810,6 +810,7 @@ export type McWorkRecord = {
   work_type:        string | null;
   operator_name:    string | null;
   machine_code:     string | null;
+  machine_id:       number | null;
   setup_time_min:   number | null;
   machining_time_min: number | null;
   cycle_time_sec:   number | null;
