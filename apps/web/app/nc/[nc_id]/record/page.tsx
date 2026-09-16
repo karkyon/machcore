@@ -397,7 +397,13 @@ function RecordPageInner() {
         await workRecordsApi.update(ncId, editRecordId, base as UpdateWorkRecordBody, workToken);
         showToast(tr("ncRecordPage.updatedMsg","✅ 更新しました"));
       } else {
-        const res = await workRecordsApi.create(ncId, base as CreateWorkRecordBody, workToken);
+        // [追加] 段取シート選択中なら新規作成時のみそのIDを送信し、work_records側に
+        // 正しく紐付けて発行日時・発行者を後から正確に表示できるようにする。
+        const createBody: CreateWorkRecordBody = {
+          ...(base as CreateWorkRecordBody),
+          setup_sheet_log_id: selectedSheet ? selectedSheet.id : undefined,
+        };
+        const res = await workRecordsApi.create(ncId, createBody, workToken);
         if (!res.data?.id) throw new Error();
         // 段取シート回収済みマーク
         if (selectedSheet) {
@@ -632,6 +638,10 @@ function RecordPageInner() {
                 {tr("ncRecordPage.recordInputAtLabel2", "入力日時")}: {(rec as any).created_at ? String((rec as any).created_at).replace("T"," ").slice(0,16) : "—"}
                 {"　"}
                 {tr("ncRecordPage.recordInputByLabel2", "入力者")}: {rec.operator_name ?? "—"}
+                {"　|　"}
+                {tr("ncRecordPage.sheetIssuedAtLabel2", "段取シート発行日時")}: {(rec as any).setup_sheet_printed_at ? String((rec as any).setup_sheet_printed_at).replace("T"," ").slice(0,16) : "—"}
+                {"　"}
+                {tr("ncRecordPage.sheetIssuedByLabel2", "発行者")}: {(rec as any).setup_sheet_issued_by ?? "—"}
               </div>
             );
           })()}

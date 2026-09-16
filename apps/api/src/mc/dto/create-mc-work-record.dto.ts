@@ -43,6 +43,10 @@ export class CreateMcWorkRecordDto {
   @IsOptional() @IsInt()
   machine_id?: number;
 
+  /** 段取シートバック元のmc_setup_sheet_logs.id(新規登録時のみ、既存記録への後付けはしない) */
+  @IsOptional() @IsInt()
+  setup_sheet_log_id?: number;
+
   @IsOptional()
   setup_operator_ids?: number[];
 

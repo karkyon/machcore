@@ -1306,6 +1306,7 @@ export class McService {
       include: {
         operator: { select: { name: true } },
         machine:  { select: { machineCode: true } },
+        mcSetupSheetLog: { select: { printedAt: true, operator: { select: { name: true } } } },
       },
     });
     // 担当者IDリストを名前に変換するためにusers一覧を取得
@@ -1341,6 +1342,8 @@ export class McService {
       interrupt_work_min:  r.interruptWorkMin,
       note:            r.note,
       created_at:      r.createdAt,
+      setup_sheet_printed_at: (r as any).mcSetupSheetLog?.printedAt ?? null,
+      setup_sheet_issued_by:  (r as any).mcSetupSheetLog?.operator?.name ?? null,
       setup_operator_ids:      r.setupOperatorIds,
       production_operator_ids: r.productionOperatorIds,
       setup_operator_names:      ((r.setupOperatorIds ?? []) as number[]).map(id => userMap.get(id) ?? String(id)),
@@ -1383,6 +1386,7 @@ export class McService {
         prgMan:            dto.prg_man       ?? null,
         prgTimeMin:        dto.prg_time_min  ?? null,
         prgPlas:           dto.prg_plas      ?? null,
+        mcSetupSheetLogId: dto.setup_sheet_log_id ?? null,
       },
     });
     await this.prisma.operationLog.create({

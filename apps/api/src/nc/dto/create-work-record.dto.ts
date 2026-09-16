@@ -43,4 +43,8 @@ export class CreateWorkRecordDto {
   /** 量産担当者IDリスト（複数可） */
   @IsOptional()
   production_operator_ids?: number[];
+
+  /** 段取シートバック元のsetup_sheet_logs.id(新規登録時のみ、既存記録への後付けはしない) */
+  @IsOptional() @IsInt()
+  setup_sheet_log_id?: number;
 }

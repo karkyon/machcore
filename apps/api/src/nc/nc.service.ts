@@ -1122,6 +1122,7 @@ export class NcService {
       include: {
         operator: { select: { name: true } },
         machine:  { select: { machineCode: true } },
+        ncSetupSheetLog: { select: { printedAt: true, operator: { select: { name: true } } } },
       },
     });
     return rows.map(r => ({
@@ -1132,6 +1133,8 @@ export class NcService {
       cycle_time_sec: r.cycleTimeSec,
       quantity: r.quantity, note: r.note,
       created_at: r.createdAt,
+      setup_sheet_printed_at: (r as any).ncSetupSheetLog?.printedAt ?? null,
+      setup_sheet_issued_by:  (r as any).ncSetupSheetLog?.operator?.name ?? null,
       interruption_time_min: r.interruptionTimeMin,
       work_type: r.workType,
       setup_operator_ids:      r.setupOperatorIds,
@@ -1206,6 +1209,7 @@ export class NcService {
         note:                dto.note                  ?? null,
         setupOperatorIds:      dto.setup_operator_ids      ?? [],
         productionOperatorIds: dto.production_operator_ids ?? [],
+        ncSetupSheetLogId:     dto.setup_sheet_log_id ?? null,
       },
     });
  

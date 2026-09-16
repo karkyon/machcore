@@ -356,11 +356,18 @@ model WorkRecord {
   prgMan                  String?  @db.VarChar(100)  @map("prg_man")
   prgTimeMin              Int?                       @map("prg_time_min")
   prgPlas                 String?  @db.VarChar(50)   @map("prg_plas")
+  // [v136] 作業記録がどの段取シート発行に対応するかを正確に特定するためのFK。
+  // MC/NCでテーブルが別(setup_sheet_logs / mc_setup_sheet_logs)のため2列に分ける。
+  // 新規作成時のみ設定(既存記録への後付け推定はしない)。
+  ncSetupSheetLogId Int?             @map("nc_setup_sheet_log_id")
+  mcSetupSheetLogId Int?             @map("mc_setup_sheet_log_id")
   createdAt        DateTime @default(now())  @map("created_at")
   ncProgram        NcProgram? @relation(fields: [ncProgramId], references: [id])
   mcProgram        McProgram? @relation(fields: [mcProgramId], references: [id])
   operator         User       @relation(fields: [operatorId],  references: [id])
   machine          Machine?   @relation(fields: [machineId],   references: [id])
+  ncSetupSheetLog   SetupSheetLog?   @relation(fields: [ncSetupSheetLogId], references: [id])
+  mcSetupSheetLog   McSetupSheetLog? @relation(fields: [mcSetupSheetLogId], references: [id])
   @@index([ncProgramId, workDate])
   @@index([mcProgramId, workDate])
   @@index([operatorId, workDate])
@@ -389,6 +396,7 @@ model SetupSheetLog {
   purpose        String?  @db.VarChar(20)  @map("purpose")
   ncProgram   NcProgram @relation(fields: [ncProgramId], references: [id])
   operator    User      @relation(fields: [operatorId],  references: [id])
+  workRecords WorkRecord[]
   @@index([ncProgramId, printedAt])
   @@map("setup_sheet_logs")
 }
@@ -694,6 +702,7 @@ model McSetupSheetLog {
   mcProgram McProgram @relation(fields: [mcProgramId], references: [id])
   operator  User      @relation(fields: [operatorId],  references: [id])
   machine   Machine?  @relation("SetupSheetLogMachine", fields: [machineIdLog], references: [id])
+  workRecords WorkRecord[]
 
   @@index([mcProgramId, printedAt])
   @@map("mc_setup_sheet_logs")

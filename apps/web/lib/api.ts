@@ -359,6 +359,8 @@ export type WorkRecord = {
   work_type: string | null;
   note: string | null;
   created_at: string;
+  setup_sheet_printed_at: string | null;
+  setup_sheet_issued_by: string | null;
   setup_operator_ids: number[] | null;
   production_operator_ids: number[] | null;
 };
@@ -374,6 +376,7 @@ export type CreateWorkRecordBody = {
   machine_id?: number;
   setup_operator_ids?: number[];
   production_operator_ids?: number[];
+  setup_sheet_log_id?: number;
 };
 
 export type UpdateWorkRecordBody = {
@@ -832,6 +835,8 @@ export type McWorkRecord = {
   interrupt_work_min:  number | null;
   note:             string | null;
   created_at:       string;
+  setup_sheet_printed_at: string | null;
+  setup_sheet_issued_by:  string | null;
   setup_operator_ids:      number[] | null;
   production_operator_ids: number[] | null;
   prg_man:      string | null;
@@ -886,6 +891,7 @@ export type CreateMcWorkRecordBody = {
   prg_man?:      string;
   prg_time_min?: number;
   prg_plas?:     string;
+  setup_sheet_log_id?: number;
 };
 
 export type McPrintOptions = {

@@ -1041,6 +1041,11 @@ function McRecordPageInner() {
         prg_plas:            prgPlas || undefined,
         note:                note || undefined,
         machine_id:          (machineId && !isNaN(parseInt(machineId))) ? parseInt(machineId) : undefined,
+        // [追加] 段取シートバック元のログIDを新規作成時のみ送信し、work_records側に
+        // 正しく紐付けて発行日時・発行者を後から正確に表示できるようにする。
+        setup_sheet_log_id:  (!editRecordId && sbMode)
+          ? (sbSheetLogId || parseInt(sessionStorage.getItem("sb_sheet_log_id") ?? "0") || undefined)
+          : undefined,
       };
       await mcApi.createWorkRecord(mcId, body, token);
       const r = await mcApi.workRecords(mcId);
@@ -1288,6 +1293,10 @@ function McRecordPageInner() {
                   {tr("mcRecordPage.recordInputAtLabel", "入力日時")}: {(toLocalInput((rec as any).created_at) || "—").replace("T"," ")}
                   {"　"}
                   {tr("mcRecordPage.recordInputByLabel", "入力者")}: {rec.operator_name ?? "—"}
+                  {"　|　"}
+                  {tr("mcRecordPage.sheetIssuedAtLabel", "段取シート発行日時")}: {(rec as any).setup_sheet_printed_at ? (toLocalInput((rec as any).setup_sheet_printed_at) || "—").replace("T"," ") : "—"}
+                  {"　"}
+                  {tr("mcRecordPage.sheetIssuedByLabel", "発行者")}: {(rec as any).setup_sheet_issued_by ?? "—"}
                 </div>
               );
             })()}
