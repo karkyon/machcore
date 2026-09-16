@@ -1340,6 +1340,7 @@ export class McService {
       interrupt_setup_min: r.interruptSetupMin,
       interrupt_work_min:  r.interruptWorkMin,
       note:            r.note,
+      created_at:      r.createdAt,
       setup_operator_ids:      r.setupOperatorIds,
       production_operator_ids: r.productionOperatorIds,
       setup_operator_names:      ((r.setupOperatorIds ?? []) as number[]).map(id => userMap.get(id) ?? String(id)),

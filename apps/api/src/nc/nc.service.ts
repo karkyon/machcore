@@ -1131,6 +1131,7 @@ export class NcService {
       setup_time: r.setupTimeMin, machining_time: r.machiningTimeMin,
       cycle_time_sec: r.cycleTimeSec,
       quantity: r.quantity, note: r.note,
+      created_at: r.createdAt,
       interruption_time_min: r.interruptionTimeMin,
       work_type: r.workType,
       setup_operator_ids:      r.setupOperatorIds,

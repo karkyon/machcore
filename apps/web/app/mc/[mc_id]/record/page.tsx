@@ -1277,6 +1277,21 @@ function McRecordPageInner() {
               </div>
             </div>
 
+            {/* [追加] 過去記録参照中はその記録自体の入力日時・入力者を表示する。
+                段取シート発行日時・発行者は、work_recordsとsetup_sheet_logsを
+                紐付けるFKが存在しないため表示できない(調査済み)。 */}
+            {editRecordId && (() => {
+              const rec = records.find(r => r.id === editRecordId);
+              if (!rec) return null;
+              return (
+                <div className="text-xs text-slate-500 mb-3 max-w-3xl">
+                  {tr("mcRecordPage.recordInputAtLabel", "入力日時")}: {(toLocalInput((rec as any).created_at) || "—").replace("T"," ")}
+                  {"　"}
+                  {tr("mcRecordPage.recordInputByLabel", "入力者")}: {rec.operator_name ?? "—"}
+                </div>
+              );
+            })()}
+
             <div className="space-y-4 max-w-3xl">
               {/* 機械 + サイクルタイム */}
               <div className="bg-white rounded-xl border border-slate-200 p-4">

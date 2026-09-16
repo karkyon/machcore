@@ -358,6 +358,7 @@ export type WorkRecord = {
   interruption_time_min: number | null;
   work_type: string | null;
   note: string | null;
+  created_at: string;
   setup_operator_ids: number[] | null;
   production_operator_ids: number[] | null;
 };
@@ -830,6 +831,7 @@ export type McWorkRecord = {
   interrupt_setup_min: number | null;
   interrupt_work_min:  number | null;
   note:             string | null;
+  created_at:       string;
   setup_operator_ids:      number[] | null;
   production_operator_ids: number[] | null;
   prg_man:      string | null;

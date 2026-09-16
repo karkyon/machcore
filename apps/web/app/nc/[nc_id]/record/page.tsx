@@ -621,6 +621,21 @@ function RecordPageInner() {
             )}
           </div>
 
+          {/* [追加] 過去記録参照中はその記録自体の入力日時・入力者を表示する。
+              段取シート発行日時・発行者は、work_recordsとsetup_sheet_logsを
+              紐付けるFKが存在しないため表示できない(調査済み)。 */}
+          {editRecordId && (() => {
+            const rec = records.find(r => r.id === editRecordId);
+            if (!rec) return null;
+            return (
+              <div className="text-xs text-slate-500 mb-3">
+                {tr("ncRecordPage.recordInputAtLabel2", "入力日時")}: {(rec as any).created_at ? String((rec as any).created_at).replace("T"," ").slice(0,16) : "—"}
+                {"　"}
+                {tr("ncRecordPage.recordInputByLabel2", "入力者")}: {rec.operator_name ?? "—"}
+              </div>
+            );
+          })()}
+
           <div className="space-y-4 max-w-2xl">
             {/* 種別 + 機械 */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 grid grid-cols-2 gap-4">
