@@ -1318,8 +1318,13 @@ export class AdminController {
   ) {
     const y = parseInt(year ?? String(new Date().getFullYear()));
     const m = parseInt(month ?? String(new Date().getMonth() + 1));
-    const from = new Date(y, m - 1, 1);
-    const to   = new Date(y, m, 0);
+    // [バグ修正] ローカルタイムゾーンでのDate構築(new Date(y,m,d))とUTC文字列
+    // 解釈(setCalendar側)が混在し、サーバーがJSTで動く場合に月末日がlte条件から
+    // 漏れて「クリックしても切り替わらない」原因になっていた。mc.service.tsの
+    // initTimecards()と同じ「UTC正午」パターンに統一しTZの影響を受けなくする。
+    const lastDay = new Date(y, m, 0).getDate();
+    const from = new Date(`${y}-${String(m).padStart(2, '0')}-01T12:00:00Z`);
+    const to   = new Date(`${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T12:00:00Z`);
     const rows = await this.prisma.businessCalendar.findMany({
       where: { workDate: { gte: from, lte: to } },
       orderBy: { workDate: 'asc' },
@@ -1337,7 +1342,8 @@ export class AdminController {
   @Roles('ADMIN')
   @Post('calendar')
   async setCalendar(@Body() body: { work_date: string; is_holiday: boolean; note?: string }) {
-    const d = new Date(body.work_date);
+    // [バグ修正] UTC正午で解釈しTZの影響を受けないようにする(getCalendarと統一)
+    const d = new Date(`${body.work_date}T12:00:00Z`);
     const result = await this.prisma.businessCalendar.upsert({
       where: { workDate: d },
       update: { isHoliday: body.is_holiday, note: body.note ?? null },
@@ -1351,7 +1357,8 @@ export class AdminController {
   @Roles('ADMIN')
   @Delete('calendar/:date')
   async deleteCalendar(@Param('date') date: string) {
-    const d = new Date(date);
+    // [バグ修正] UTC正午で解釈しTZの影響を受けないようにする(getCalendarと統一)
+    const d = new Date(`${date}T12:00:00Z`);
     await this.prisma.businessCalendar.deleteMany({ where: { workDate: d } });
     return { message: '削除しました' };
   }
@@ -1366,8 +1373,11 @@ export class AdminController {
     for (let m = 0; m < 12; m++) {
       const days = new Date(y, m + 1, 0).getDate();
       for (let d = 1; d <= days; d++) {
-        const dt = new Date(y, m, d);
-        const dow = dt.getDay();
+        // [バグ修正] UTC正午で解釈しTZの影響を受けないようにする(getCalendarと統一)。
+        // dow判定用に別途ローカルDateも保持する。
+        const dowCheck = new Date(y, m, d);
+        const dow = dowCheck.getDay();
+        const dt = new Date(`${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}T12:00:00Z`);
         if (dow === 0 || dow === 6) {
           await this.prisma.businessCalendar.upsert({
             where: { workDate: dt },
