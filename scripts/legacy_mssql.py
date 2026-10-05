@@ -23,9 +23,12 @@ Shift_JISバイト列が格納されている。しかし pymssql(FreeTDS)がこ
    CP932で復元する。
 4. 旧データの改行コード CR+LF(\\r\\n) および単独CR を、新システム標準の LF(\\n) に統一する
    (Web画面入力はLF。CRが残ると帳票PDFの行分割等で改行位置が崩れるため)。
+5. 旧Access→SQL Server datetime(1/300秒刻み)の格納誤差で正秒が .997/.003 等の端数を
+   持つため、正秒から ±10ms 以内の日時は最も近い正秒に丸める(旧画面は秒単位表示)。
 処理内容は列単位で標準出力に記録する。
 """
 import re
+from datetime import datetime as _dt_datetime, timedelta as _dt_timedelta
 
 _CODEPAGE_CACHE = {}
 _UNICODE_TYPES = ("nchar", "nvarchar", "ntext")
@@ -40,7 +43,21 @@ for _b in range(0x80, 0xA0):
         pass
 
 STATS = {"binary_columns": {}, "decode_errors": 0, "unicode_repaired": 0, "unicode_unrepairable": 0,
-         "newline_normalized": 0}
+         "newline_normalized": 0, "datetime_rounded": 0}
+
+
+def _round_legacy_datetime(v):
+    """SQL Server datetime の格納誤差(正秒±10ms以内)を最も近い正秒に丸める"""
+    us = v.microsecond
+    if us == 0:
+        return v
+    if us <= 10000:
+        STATS["datetime_rounded"] += 1
+        return v.replace(microsecond=0)
+    if us >= 990000:
+        STATS["datetime_rounded"] += 1
+        return v.replace(microsecond=0) + _dt_timedelta(seconds=1)
+    return v
 
 
 def _normalize_newlines(s):
@@ -221,6 +238,8 @@ class _LegacyCursor:
         for i, v in enumerate(out):
             if isinstance(v, str):
                 out[i] = _normalize_newlines(v)
+            elif isinstance(v, _dt_datetime):
+                out[i] = _round_legacy_datetime(v)
         return tuple(out)
 
     def fetchone(self):
@@ -295,4 +314,5 @@ def report_lines():
     lines.append(f"デコード不能バイト列(置換文字で取得): {STATS['decode_errors']}件")
     lines.append(f"Unicode列の破損データ復元: {STATS['unicode_repaired']}件 / 復元不能: {STATS['unicode_unrepairable']}件")
     lines.append(f"改行コード CR+LF/CR → LF 統一: {STATS['newline_normalized']}件")
+    lines.append(f"日時の格納誤差(正秒±10ms)を正秒に丸め: {STATS['datetime_rounded']}件")
     return lines
