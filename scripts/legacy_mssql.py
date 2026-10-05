@@ -3,21 +3,20 @@
 """
 legacy_mssql.py — 旧SQL Server(192.168.1.9: imotomc / imotodb)読み出し共通層
 
-【文字化けの根本原因】
-旧DBの一部の列は「非Unicode型(char/varchar/text)」かつ「日本語以外の照合順序
-(例: SQL_Latin1_General_CP1_CI_AS = コードページ1252)」で定義されているのに、
-実データとしてはShift_JIS(CP932)のバイト列が格納されている。
-pymssql(FreeTDS)は列の照合順序のコードページを信じて文字コード変換するため、
-CP932のバイト列をCP1252/Latin-1として解釈してしまい、
-「（カイタック）」が「□i□J□C□^□b□N□j」のように化ける。
+【文字化けの根本原因(2026-10-05 旧DB実データで確定)】
+旧DBの非Unicode列(char/varchar/text)は日本語照合(コードページ932)で正しく定義され、
+Shift_JISバイト列が格納されている。しかし pymssql(FreeTDS)がこのサーバ上で
+コードページ932の変換を行えず、1バイト=1文字(Latin-1)として返していた。
+その結果「（カイタック）」(81 69 83 4A ...)が「\x81i\x83J...」となり
+画面上「□i□J□C□^□b□N□j」と化けていた。
 
-【本モジュールの対処(推測・ヒューリスティックではなく型情報に基づく確定処理)】
+【本モジュールの対処(型情報に基づく確定処理・推測なし)】
 1. 実行するSELECTごとに sp_describe_first_result_set で結果列の
    型・照合順序をSQL Server自身に問い合わせる。
-2. 「非Unicode型」かつ「照合順序のコードページ≠932」の列だけを
-   CAST(... AS VARBINARY(MAX)) で生バイトのまま取得し、Python側で
-   CP932として正しくデコードする(FreeTDSの誤変換を経由させない)。
-   日本語照合(コードページ932)の列・数値・日付列は従来どおりそのまま取得。
+2. 非Unicode型の列は照合順序に関係なく常に CAST(... AS VARBINARY(MAX)) で
+   生バイトのまま取得し、その列の照合順序のコードページ(932→cp932等)で
+   Python側がデコードする。FreeTDSの文字コード変換は一切経由させない。
+   Unicode型・数値・日付列は従来どおりそのまま取得。
 3. Unicode型(nchar/nvarchar/ntext)列に、正規の文字列では絶対に出現しない
    C1制御文字(U+0080-U+009F)が含まれる場合は、旧Access側でSJISバイトが
    1バイト=1文字として保存されてしまったデータであるため、バイト列に戻して
@@ -49,12 +48,24 @@ def _base_type(system_type_name):
     return (system_type_name or "").split("(")[0].strip().lower()
 
 
-def _decode_cp932(b):
+def _codec_for_codepage(cp):
+    """SQL Serverの照合順序コードページ → Pythonコーデック名"""
+    if cp in (None, 0, 932):
+        return "cp932"
     try:
-        return bytes(b).decode("cp932")
+        import codecs
+        codecs.lookup(f"cp{cp}")
+        return f"cp{cp}"
+    except LookupError:
+        return "cp932"
+
+
+def _decode_bytes(b, codec):
+    try:
+        return bytes(b).decode(codec)
     except UnicodeDecodeError:
         STATS["decode_errors"] += 1
-        return bytes(b).decode("cp932", errors="replace")
+        return bytes(b).decode(codec, errors="replace")
 
 
 def _repair_stored_unicode(s):
@@ -155,9 +166,10 @@ class _LegacyCursor:
         self._cur = cur
         self._bin = set()
         self._uni = set()
+        self._codec = {}
 
     def execute(self, sql, params=None):
-        self._bin, self._uni = set(), set()
+        self._bin, self._uni, self._codec = set(), set(), {}
         if params is not None:
             return self._cur.execute(sql, params)
         meta = self._owner.describe(sql)
@@ -169,16 +181,18 @@ class _LegacyCursor:
             bt = _base_type(m["type"])
             if bt in _UNICODE_TYPES:
                 self._uni.add(i)
-            elif bt in _NONUNI_TYPES and self._owner.codepage(m["collation"]) != 932:
+            elif bt in _NONUNI_TYPES:
+                # FreeTDSにコードページ変換をさせず、常に生バイト取得→列のコードページでデコード
                 need.add(i)
+                self._codec[i] = _codec_for_codepage(self._owner.codepage(m["collation"]))
         if not need:
             return self._cur.execute(sql)
         rewritten = build_binary_rewrite(sql, names, need)
         key = re.sub(r"\s+", " ", sql.strip())[:80]
-        cols = [f"{names[i]}({meta[i]['collation']})" for i in sorted(need)]
+        cols = [f"{names[i]}({self._codec[i]})" for i in sorted(need)]
         if STATS["binary_columns"].get(key) != cols:
             STATS["binary_columns"][key] = cols
-            print(f"[legacy_mssql] 非日本語照合の非Unicode列をCP932で確定デコード: {key} → {', '.join(cols)}")
+            print(f"[legacy_mssql] 非Unicode列を生バイト取得→コードページでデコード: {key} → {', '.join(cols)}")
         self._bin = need
         return self._cur.execute(rewritten)
 
@@ -188,7 +202,7 @@ class _LegacyCursor:
         out = list(row)
         for i in self._bin:
             if isinstance(out[i], (bytes, bytearray)):
-                out[i] = _decode_cp932(out[i])
+                out[i] = _decode_bytes(out[i], self._codec.get(i, "cp932"))
         for i in self._uni:
             if isinstance(out[i], str):
                 out[i] = _repair_stored_unicode(out[i])
@@ -260,9 +274,9 @@ def connect(server, user, password, database):
 
 
 def report_lines():
-    lines = [f"非Unicode列の確定デコード対象クエリ数: {len(STATS['binary_columns'])}"]
+    lines = [f"非Unicode列を生バイト取得→コードページデコードしたクエリ数: {len(STATS['binary_columns'])}"]
     for k, v in STATS["binary_columns"].items():
         lines.append(f"  {k} → {', '.join(v)}")
-    lines.append(f"CP932デコード不能バイト列(置換文字で取得): {STATS['decode_errors']}件")
+    lines.append(f"デコード不能バイト列(置換文字で取得): {STATS['decode_errors']}件")
     lines.append(f"Unicode列の破損データ復元: {STATS['unicode_repaired']}件 / 復元不能: {STATS['unicode_unrepairable']}件")
     return lines
