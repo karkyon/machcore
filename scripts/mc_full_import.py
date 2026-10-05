@@ -267,6 +267,8 @@ def phase1(pg, dry_run=False):
     log(f"旧DBマシニング取得: {len(rows)}件")
 
     ok = skip = err = 0
+    from datetime import timedelta as _p1td
+    _p1_unresolved_op = {}
     for row in rows:
         try:
             # 列順(28列):
@@ -307,14 +309,20 @@ def phase1(pg, dry_run=False):
 
             # ① 作成者(シート): 作成列名前→ID (直接解決)
             cr_id           = _p1_resolve(creator_name)
-            # ⑤ オペレーター: ｵﾍﾟﾚｰﾀｰ列名前→ID (直接解決、PHASE6Cで未解決分のみ上書き)
-            reg_id          = _p1_resolve(operater_name) or ADMIN_ID
-            # ③ 承認者: 氏名列名前→ID (PHASE6Dでも補完更新)
+            # ⑤ オペレーター(=このマシニングデータを画面入力した人): ｵﾍﾟﾚｰﾀｰ列が唯一の正。
+            #    変更履歴(段取シート印刷者・作成者等)による上書き・補完は一切行わない。
+            reg_id          = _p1_resolve(operater_name)
+            if reg_id is None:
+                _k = str(operater_name or "").strip() or "(空欄)"
+                _p1_unresolved_op[_k] = _p1_unresolved_op.get(_k, 0) + 1
+                reg_id = ADMIN_ID
+            # ③ 承認者: 氏名列が唯一の正(変更履歴による上書き・補完は行わない)
             approver_id     = _p1_resolve(approver_name)
-            # ④ 承認日: 入力日列（マシニング）
-            approved_at_v   = approved_date if approved_date else in_date
-            # ⑥ 入力日: IN_DATE列
-            registered_at_v = in_date if in_date else datetime.now()
+            # ④ 承認日: 入力日列(マシニング)。無ければ未設定(IN_DATEを流用しない)。
+            #    旧DBはJSTのnaive datetime → UTCで格納(PHASE6と同じ -9h 規則。画面はJST表示)
+            approved_at_v   = (approved_date - _p1td(hours=9)) if approved_date else None
+            # ⑥ 入力日: IN_DATE列(JST→UTC)
+            registered_at_v = (in_date - _p1td(hours=9)) if in_date else datetime.now()
 
             ver_str = str(version or "1.0001")
 
@@ -367,6 +375,12 @@ def phase1(pg, dry_run=False):
     if not dry_run: pg.commit()
     pgc.execute("SELECT COUNT(*) FROM mc_programs")
     log(f"PHASE1完了: ok={ok} skip={skip} err={err} DB総数={pgc.fetchone()[0]}")
+    if _p1_unresolved_op:
+        log(f"  [WARN] オペレーター名がusersに無く管理者で代替: "
+            f"{sum(_p1_unresolved_op.values())}件 / 名前一覧: "
+            + ", ".join(f"{k}({v})" for k, v in sorted(_p1_unresolved_op.items(), key=lambda x: -x[1])), "WARN")
+    else:
+        log("  オペレーター名は全件usersで解決")
     mc.close(); pb.close()
 
 
@@ -874,9 +888,11 @@ def phase6(pg, dry_run=False):
                 # 内容区分ID=1,3,7,12,17 は入れない
                 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 if nk in (2,4,5,6,8,9,10,11,13,14,15,16,99) and not dry_run:
+                    # 変更履歴の操作者 = その行を入力した人(ｵﾍﾟﾚｰﾀｰ列)。空欄時のみ作成者。
+                    _ch_inputter = _resolve(op_name)
                     if nk in (2, 8):
                         change_type = "NEW_REGISTRATION"
-                        ch_op_id = creator_id
+                        ch_op_id = _ch_inputter or creator_id
                     elif nk == 4:
                         change_type = "APPROVAL"
                         ch_op_id = approver_id or creator_id
@@ -884,7 +900,7 @@ def phase6(pg, dry_run=False):
                         input_dt_ch = _to_jst_utc(rd["承認日"]) if rd["承認日"] else input_dt
                     else:
                         change_type = "CHANGE"
-                        ch_op_id = creator_id
+                        ch_op_id = _ch_inputter or creator_id
                     if ch_op_id is None: ch_op_id = ADMIN_ID
 
                     changed_at_val = (input_dt_ch if nk == 4 else input_dt) or datetime.now()
@@ -994,80 +1010,18 @@ def phase6(pg, dry_run=False):
     log(f"  [印刷履歴={sl_ok} / 変更履歴={ch_ok} / 作業実績={wr_ok}]")
 
     if not dry_run:
-        # PHASE6B: registered_by/approved_by を変更履歴の新規登録・承認レコードで更新
-        log("PHASE6B: registered_by/approved_by 更新...")
-        pgc.execute("""
-            UPDATE mc_programs p SET registered_by = ch.operator_id
-            FROM (
-                SELECT DISTINCT ON (mc_program_id) mc_program_id, operator_id
-                FROM mc_change_history
-                WHERE change_type = 'NEW_REGISTRATION'
-                ORDER BY mc_program_id, changed_at ASC
-            ) ch
-            WHERE p.id = ch.mc_program_id AND ch.operator_id IS NOT NULL AND ch.operator_id != %s
-        """, (ADMIN_ID,))
-        pgc.execute("""
-            UPDATE mc_programs p SET approved_by = ch.operator_id, approved_at = ch.changed_at
-            FROM (
-                SELECT DISTINCT ON (mc_program_id) mc_program_id, operator_id, changed_at
-                FROM mc_change_history
-                WHERE change_type = 'APPROVAL'
-                ORDER BY mc_program_id, changed_at DESC
-            ) ch
-            WHERE p.id = ch.mc_program_id AND ch.operator_id IS NOT NULL
-        """)
-        pg.commit()
-        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE registered_by != %s", (ADMIN_ID,))
-        log(f"  管理者以外のregistered_by: {pgc.fetchone()[0]}件")
-        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE approved_by IS NOT NULL AND approved_by != %s", (ADMIN_ID,))
-        log(f"  管理者以外のapproved_by: {pgc.fetchone()[0]}件")
-
-        # PHASE6C: registered_by を ACC_変更履歴 ｵﾍﾟﾚｰﾀｰ列最新から補完（ADMIN_IDのままのもの）
-        log("PHASE6C: registered_by ｵﾍﾟﾚｰﾀｰ列最新から補完...")
+        # PHASE6B/6C/6D(廃止 2026-10-05):
+        # 旧版はここで registered_by/approved_by/approved_at を変更履歴(新規登録行の作成者・
+        # 最新ｵﾍﾟﾚｰﾀｰ=段取シート印刷者等・承認行)で上書き/補完していたため、旧画面の
+        # 「オペレーター(=入力者)」「承認者」と別人になっていた(例: MCID=9215)。
+        # 正は ACC_マシニングraw の ｵﾍﾟﾚｰﾀｰ/IN_DATE/氏名/入力日 であり、PHASE1で設定済み。
+        log("PHASE6B: オペレーター/入力日/承認者/承認日はPHASE1(ACC_マシニングraw)の値を正とし、変更履歴での上書きは行いません")
+        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE registered_by = %s", (ADMIN_ID,))
+        log(f"  オペレーター未解決(管理者代替): {pgc.fetchone()[0]}件")
+        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE approved_by IS NOT NULL")
+        log(f"  承認者あり: {pgc.fetchone()[0]}件")
         mc6c = ss_connect(SS_MC_DB)
         mc6c_c = mc6c.cursor()
-        mc6c_c.execute("""
-            SELECT MCID, ｵﾍﾟﾚｰﾀｰ, 入力日 FROM ACC_変更履歴
-            WHERE ｵﾍﾟﾚｰﾀｰ IS NOT NULL AND LEN(RTRIM(ｵﾍﾟﾚｰﾀｰ)) > 0
-            ORDER BY MCID, 入力日 DESC
-        """)
-        _op_map = {}
-        for _mcid, _op_name, _ in mc6c_c.fetchall():
-            if _mcid not in _op_map:
-                _uid = _resolve(_op_name)
-                if _uid and _uid != ADMIN_ID: _op_map[_mcid] = _uid
-        _reg_ok = 0
-        for _mcid, _uid in _op_map.items():
-            for _mc_db_id in mcid_map.get(_mcid, []):
-                pgc.execute("UPDATE mc_programs SET registered_by=%s WHERE id=%s AND registered_by=%s",
-                            (_uid, _mc_db_id, ADMIN_ID))
-                _reg_ok += 1
-        pg.commit()
-        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE registered_by != %s", (ADMIN_ID,))
-        log(f"  PHASE6C: registered_by補完={_reg_ok}件 管理者以外={pgc.fetchone()[0]}件")
-
-        # PHASE6D: approved_by を ACC_変更履歴 承認カラムから補完
-        log("PHASE6D: approved_by 承認カラムから補完...")
-        mc6c_c.execute("""
-            SELECT MCID, 承認, 承認日 FROM ACC_変更履歴
-            WHERE 承認 IS NOT NULL AND LEN(RTRIM(承認)) > 0 AND 承認日 IS NOT NULL
-            ORDER BY MCID, 承認日 DESC
-        """)
-        _seen = set(); _app_ok = 0
-        for _mcid, _aname, _adate in mc6c_c.fetchall():
-            if _mcid in _seen: continue
-            _seen.add(_mcid)
-            _uid = _resolve(_aname)
-            if not _uid: continue
-            for _mc_db_id in mcid_map.get(_mcid, []):
-                pgc.execute("""
-                    UPDATE mc_programs SET approved_by=%s, approved_at=%s
-                    WHERE id=%s AND (approved_by IS NULL OR approved_by = %s)
-                """, (_uid, _adate - _td(hours=9) if _adate else None, _mc_db_id, ADMIN_ID))
-                _app_ok += 1
-        pg.commit()
-        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE approved_by IS NOT NULL AND approved_by != %s", (ADMIN_ID,))
-        log(f"  PHASE6D: approved_by補完={_app_ok}件 管理者以外={pgc.fetchone()[0]}件")
 
         # PHASE6E: work_records 段取/量産担当者の再名寄せ（既にINSERT時に処理済みだが補完）
         log("PHASE6E: work_records setup/production_operator_ids 確認...")
