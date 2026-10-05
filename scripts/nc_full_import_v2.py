@@ -135,8 +135,10 @@ def _resolve_upload_base_nc():
 
 def ss_connect():
     import pymssql
-    return pymssql.connect(server=SS_SERVER, user=SS_USER,
-                            password=SS_PASS, database=SS_DB, tds_version='7.4')
+    from legacy_text import wrap_connection
+    # 旧DBのLatin照合列に格納されたSJISバイト列の文字化けを取得時に補正
+    return wrap_connection(pymssql.connect(server=SS_SERVER, user=SS_USER,
+                            password=SS_PASS, database=SS_DB, tds_version='7.4'))
 
 
 def to_jst_utc(dt):
@@ -693,7 +695,10 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
                     f"段取: {dan_op_s}" if dan_op_s else None,
                     f"加工: {la_op_s}" if la_op_s and la_op_s != dan_op_s else None,
                 ) if s]
-                note_str = ", ".join(note_parts) or None
+                # 備考: 旧システムの戻り内容(In_Cont)を先頭に継承し、担当者情報を併記
+                note_str = "\n".join(s for s in (in_cont_s, ", ".join(note_parts)) if s) or None
+                if note_str:
+                    note_str = note_str[:1000]
                 for idx, prog_id in enumerate(program_ids):
                     try:
                         if not dry_run:

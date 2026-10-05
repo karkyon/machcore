@@ -147,8 +147,10 @@ def _resolve_upload_base():
 
 def ss_connect(db):
     import pymssql
-    return pymssql.connect(server=SS_MC_SERVER, user=SS_MC_USER,
-                           password=SS_MC_PASS, database=db, tds_version='7.4')
+    from legacy_text import wrap_connection
+    # 旧DBのLatin照合列に格納されたSJISバイト列の文字化け(例: 主機種型式)を取得時に補正
+    return wrap_connection(pymssql.connect(server=SS_MC_SERVER, user=SS_MC_USER,
+                           password=SS_MC_PASS, database=db, tds_version='7.4'))
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # PHASE 1: mc_programs 基本データ移行
@@ -946,6 +948,10 @@ def phase6(pg, dry_run=False):
                     prg_h = int(rd["PrgTimeH"] or 0); prg_m = int(rd["PrgTimeM"] or 0)
                     prg_min = prg_h*60 + prg_m if (prg_h or prg_m) else None
 
+                    # 備考: 旧「段取シート戻り」画面の「内容」欄(ACC_変更履歴.内容)をそのまま継承
+                    #       (例: "変更 → 済 / 工程1,2 同時進行 量産加工中に0H15M中断有り")
+                    wr_note = content[:1000] if content else None
+
                     try:
                         pgc.execute("""
                             INSERT INTO work_records
@@ -954,8 +960,8 @@ def phase6(pg, dry_run=False):
                                cycle_time_sec, quantity, started_at, checked_at, finished_at,
                                setup_work_count, prg_man, prg_time_min, prg_plas,
                                setup_operator_ids, production_operator_ids,
-                               work_type, created_at)
-                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'MC',NOW())
+                               note, work_type, created_at)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'MC',NOW())
                         """, (mc_db_id, work_op_id, machine_id,
                               wd_date,
                               setup_min, mach_min, cycle_sec,
@@ -964,7 +970,8 @@ def phase6(pg, dry_run=False):
                               setup_qty,
                               prg_man, prg_min, prg_plas,
                               _json.dumps(setup_ids),
-                              _json.dumps(prod_ids)))
+                              _json.dumps(prod_ids),
+                              wr_note))
                         wr_ok += 1
                     except Exception as e2:
                         wr_err += 1
@@ -1102,6 +1109,8 @@ def phase6(pg, dry_run=False):
     log(f"  mc_setup_sheet_logs(MC): {pgc.fetchone()[0]}")
     pgc.execute("SELECT COUNT(*) FROM work_records WHERE mc_program_id IS NOT NULL")
     log(f"  work_records(MC):        {pgc.fetchone()[0]}")
+    pgc.execute("SELECT COUNT(*) FROM work_records WHERE mc_program_id IS NOT NULL AND note IS NOT NULL AND note <> ''")
+    log(f"  work_records(MC)備考あり: {pgc.fetchone()[0]}")
     pgc.execute("SELECT COUNT(*) FROM mc_change_history")
     log(f"  mc_change_history:       {pgc.fetchone()[0]}")
 
