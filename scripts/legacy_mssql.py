@@ -21,6 +21,8 @@ Shift_JISバイト列が格納されている。しかし pymssql(FreeTDS)がこ
    C1制御文字(U+0080-U+009F)が含まれる場合は、旧Access側でSJISバイトが
    1バイト=1文字として保存されてしまったデータであるため、バイト列に戻して
    CP932で復元する。
+4. 旧データの改行コード CR+LF(\\r\\n) および単独CR を、新システム標準の LF(\\n) に統一する
+   (Web画面入力はLF。CRが残ると帳票PDFの行分割等で改行位置が崩れるため)。
 処理内容は列単位で標準出力に記録する。
 """
 import re
@@ -37,7 +39,16 @@ for _b in range(0x80, 0xA0):
     except UnicodeDecodeError:
         pass
 
-STATS = {"binary_columns": {}, "decode_errors": 0, "unicode_repaired": 0, "unicode_unrepairable": 0}
+STATS = {"binary_columns": {}, "decode_errors": 0, "unicode_repaired": 0, "unicode_unrepairable": 0,
+         "newline_normalized": 0}
+
+
+def _normalize_newlines(s):
+    """CR+LF / 単独CR → LF(新システム標準の改行)"""
+    if "\r" not in s:
+        return s
+    STATS["newline_normalized"] += 1
+    return s.replace("\r\n", "\n").replace("\r", "\n")
 
 
 class LegacyCharsetError(RuntimeError):
@@ -197,7 +208,7 @@ class _LegacyCursor:
         return self._cur.execute(rewritten)
 
     def _fix(self, row):
-        if row is None or not (self._bin or self._uni):
+        if row is None:
             return row
         out = list(row)
         for i in self._bin:
@@ -206,6 +217,10 @@ class _LegacyCursor:
         for i in self._uni:
             if isinstance(out[i], str):
                 out[i] = _repair_stored_unicode(out[i])
+        # 旧データの改行(CR+LF/CR)を全文字列列でLFに統一
+        for i, v in enumerate(out):
+            if isinstance(v, str):
+                out[i] = _normalize_newlines(v)
         return tuple(out)
 
     def fetchone(self):
@@ -279,4 +294,5 @@ def report_lines():
         lines.append(f"  {k} → {', '.join(v)}")
     lines.append(f"デコード不能バイト列(置換文字で取得): {STATS['decode_errors']}件")
     lines.append(f"Unicode列の破損データ復元: {STATS['unicode_repaired']}件 / 復元不能: {STATS['unicode_unrepairable']}件")
+    lines.append(f"改行コード CR+LF/CR → LF 統一: {STATS['newline_normalized']}件")
     return lines
