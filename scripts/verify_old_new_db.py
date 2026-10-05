@@ -51,8 +51,10 @@ def pg_connect():
 
 def ss_connect(db):
     import pymssql
-    return pymssql.connect(server=SS_MC_SERVER, user=SS_MC_USER, password=SS_MC_PASS,
-                            database=db, tds_version="7.4")
+    from legacy_mssql import wrap
+    # 旧DB読み出しは必ず共通層経由(非日本語照合の非Unicode列をCP932で確定デコード)
+    return wrap(pymssql.connect(server=SS_MC_SERVER, user=SS_MC_USER,
+                                password=SS_MC_PASS, database=db, tds_version='7.4'))
 
 
 # ────────────────────────────────────────────────────────────

@@ -135,10 +135,10 @@ def _resolve_upload_base_nc():
 
 def ss_connect():
     import pymssql
-    from legacy_text import wrap_connection
-    # 旧DBのLatin照合列に格納されたSJISバイト列の文字化けを取得時に補正
-    return wrap_connection(pymssql.connect(server=SS_SERVER, user=SS_USER,
-                            password=SS_PASS, database=SS_DB, tds_version='7.4'))
+    from legacy_mssql import wrap
+    # 旧DB読み出しは必ず共通層経由(非日本語照合の非Unicode列をCP932で確定デコード)
+    return wrap(pymssql.connect(server=SS_SERVER, user=SS_USER,
+                                password=SS_PASS, database=SS_DB, tds_version='7.4'))
 
 
 def to_jst_utc(dt):
@@ -1030,6 +1030,9 @@ def _final_consistency_check_nc(pg):
     """nc_programsに対してnc_filesが異常に少ない/0件でないかを検知する。
     MC側と同じ構造の「個別フェーズ再実行でPHASE5(ファイル移行)の再実行が漏れる」
     事故を二度と見逃さないための読み取り専用チェック。書き込みは一切行わない。"""
+    from legacy_mssql import report_lines
+    for _ln in report_lines():
+        log(f"[旧DB文字コード] {_ln}")
     pgc = pg.cursor()
     pgc.execute("SELECT COUNT(*) FROM nc_programs")
     n_programs = pgc.fetchone()[0]

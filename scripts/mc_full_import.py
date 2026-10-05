@@ -147,10 +147,10 @@ def _resolve_upload_base():
 
 def ss_connect(db):
     import pymssql
-    from legacy_text import wrap_connection
-    # 旧DBのLatin照合列に格納されたSJISバイト列の文字化け(例: 主機種型式)を取得時に補正
-    return wrap_connection(pymssql.connect(server=SS_MC_SERVER, user=SS_MC_USER,
-                           password=SS_MC_PASS, database=db, tds_version='7.4'))
+    from legacy_mssql import wrap
+    # 旧DB読み出しは必ず共通層経由(非日本語照合の非Unicode列をCP932で確定デコード)
+    return wrap(pymssql.connect(server=SS_MC_SERVER, user=SS_MC_USER,
+                                password=SS_MC_PASS, database=db, tds_version='7.4'))
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # PHASE 1: mc_programs 基本データ移行
@@ -254,7 +254,7 @@ def phase1(pg, dry_run=False):
             m.ﾊﾞｰｼﾞｮﾝ, m.[MC工程No,], m.ﾌｫﾙﾀﾞ1, m.ﾌｫﾙﾀﾞ2, m.ﾌｧｲﾙ名,
             m.[ﾒｲﾝﾌﾟﾛｸﾞﾗﾑNo,], m.機械, m.加工時間H, m.加工時間M, m.加工時間S,
             m.加工個数, m.ｸﾗﾝﾌﾟ, m.備考,
-            NULL, m.[IP 有･無], m.[WD 有･無],
+            NULL AS [未使用列], m.[IP 有･無], m.[WD 有･無],
             m.写真枚数, m.RC, m.図枚数,
             m.ｵﾍﾟﾚｰﾀｰ, m.IN_DATE,
             m.作成, m.S_DATE,
@@ -1923,6 +1923,9 @@ def _final_consistency_check(pg):
     個別フェーズ実行でPHASE7の再実行が漏れた状態を、実行者が気づかずに
     放置してしまう事故(2026-09-15に実際に発生)を二度と見逃さないための
     読み取り専用チェック。DB/ファイルへの書き込みは一切行わない。"""
+    from legacy_mssql import report_lines
+    for _ln in report_lines():
+        log(f"[旧DB文字コード] {_ln}")
     pgc = pg.cursor()
     pgc.execute("SELECT COUNT(*) FROM mc_programs")
     n_programs = pgc.fetchone()[0]

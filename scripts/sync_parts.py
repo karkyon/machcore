@@ -8,21 +8,21 @@ cron例: 0 2 * * * /home/karkyon/.nvm/versions/node/$(node -v)/bin/python3 /home
 import pymssql, psycopg2, sys, os, re
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from legacy_text import fix_row
+from legacy_mssql import wrap as _legacy_wrap
 from datetime import datetime
 
 print(f"[{datetime.now()}] parts同期開始")
 
 try:
-    src = pymssql.connect(server='192.168.1.9', user='sa', password='RTW65b', database='imotodb', tds_version='7.4')
+    # 旧DB読み出しは必ず共通層経由(非日本語照合の非Unicode列をCP932で確定デコード)
+    src = _legacy_wrap(pymssql.connect(server='192.168.1.9', user='sa', password='RTW65b', database='imotodb', tds_version='7.4'))
     sc = src.cursor()
     sc.execute("""
         SELECT p.[部品ID], p.[図面番号], p.[名称], p.[主機種型式], t.[会社名]
         FROM [dbo].[v_旧部品マスタ] p
         LEFT JOIN [dbo].[v_旧得意先マスタ] t ON p.[納入先ID] = t.[納入先ID]
     """)
-    # 旧DBのLatin照合列(主機種型式等)に格納されたSJISバイト列の文字化けを補正
-    rows = [fix_row(r) for r in sc.fetchall()]
+    rows = sc.fetchall()
     src.close()
     print(f"旧DB取得: {len(rows)}件")
 except Exception as e:
