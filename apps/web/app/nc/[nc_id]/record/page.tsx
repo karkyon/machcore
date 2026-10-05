@@ -128,6 +128,8 @@ function RecordPageInner() {
   const [loading,  setLoading]  = useState(true);
   const [toast,    setToast]    = useState("");
   const [saving,   setSaving]   = useState(false);
+  // [二重登録防止] 連続クリックを確実に遮断する同期ロック
+  const saveLockRef = useRef(false);
 
   // 認証
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -314,8 +316,8 @@ function RecordPageInner() {
   };
 
   const fmtMin = (min: number | null) => {
-    if (!min) return "—";
-    return `${Math.floor(min/60)}h ${min%60}m`;
+    if (min == null) return "—";
+    return `${Math.floor(min/60)}h${min%60}m0s`;
   };
 
   const handleAuth = async () => {
@@ -374,7 +376,8 @@ function RecordPageInner() {
   };
 
   const handleSave = async () => {
-    if (saving) return;
+    if (saving || saveLockRef.current) return;
+    saveLockRef.current = true;
     setSaving(true);
     try {
       const base = {
@@ -431,7 +434,7 @@ function RecordPageInner() {
       await loadData();
       resetForm(nc);
     } catch { showToast(tr("ncRecordPage.saveFailedMsg2","❌ 保存に失敗しました")); }
-    finally { setSaving(false); }
+    finally { setSaving(false); saveLockRef.current = false; }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-400">{tr("ncRecordPage.loadingDots2","読み込み中...")}</div>;

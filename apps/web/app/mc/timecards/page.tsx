@@ -50,7 +50,7 @@ function calcKadouMin(start: string, end: string): number {
 
 function fmtMin(min: number): string {
   if (min <= 0) return "—";
-  return `${min}m`;
+  return `${Math.floor(min / 60)}h${min % 60}m0s`;
 }
 
 interface RowState {

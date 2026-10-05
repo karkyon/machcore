@@ -1193,6 +1193,22 @@ export class NcService {
       select: { machining: { select: { machineId: true } } },
     });
     const machineId = dto.machine_id ?? ncWithMachiningForWR?.machining?.machineId ?? null;
+
+    // [二重登録防止] 同一操作者・同一内容の作業記録が直近60秒以内に作成済みなら新規作成せず既存を返す
+    const dup = await this.prisma.workRecord.findFirst({
+      where: {
+        ncProgramId,
+        operatorId,
+        createdAt:        { gte: new Date(Date.now() - 60 * 1000) },
+        setupTimeMin:     dto.setup_time_min     ?? null,
+        machiningTimeMin: dto.machining_time_min ?? null,
+        cycleTimeSec:     dto.cycle_time_sec     ?? null,
+        quantity:         dto.quantity           ?? null,
+        note:             dto.note               ?? null,
+      },
+      orderBy: { id: 'desc' },
+    });
+    if (dup) return { id: dup.id, message: '作業記録を登録しました' };
  
     const record = await this.prisma.workRecord.create({
       data: {
@@ -1450,7 +1466,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   const machM = data.machiningTime ?? 0;
   const machS = data.setupTimeRef ?? 0;
   const machTimeStr = (data.machiningTime != null || data.setupTimeRef != null)
-    ? `${machM} M ${String(machS).padStart(2,'0')} S` : '—';
+    ? (() => { const t = machM * 60 + machS; return `${Math.floor(t/3600)}h${Math.floor((t%3600)/60)}m${t%60}s`; })() : '—';
 
   return `<!DOCTYPE html>
 <html lang="ja">

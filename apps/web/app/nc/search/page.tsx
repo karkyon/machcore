@@ -78,7 +78,7 @@ export default function NcSearchPage() {
   const groups = groupByPart(results);
   const fmtTime = (sec: number | null) => {
     if (!sec) return null;
-    return `${Math.floor(sec/3600)}H ${String(Math.floor((sec%3600)/60)).padStart(2,"0")}M`;
+    return `${Math.floor(sec/3600)}h${Math.floor((sec%3600)/60)}m${sec%60}s`;
   };
 
   return (

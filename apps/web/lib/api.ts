@@ -466,6 +466,8 @@ export type PrintData = {
   fileName:     string;
   oNumber:      string | null;
   machiningTime: number | null;
+  // 旧ACC_Lathe.Ts(秒)。APIのprint-dataは返却済みだが型に無かった
+  setupTimeRef: number | null;
   clampNote:    string | null;
   // [v101] 掴代(専用フィールド)
   clampAllowance: string | null;
@@ -956,6 +958,8 @@ export const mcApi = {
   workRecords:   (mcId: number) => api.get<McWorkRecord[]>(`/mc/${mcId}/work-records`),
   createWorkRecord: (mcId: number, body: CreateMcWorkRecordBody, token: string) =>
     api.post<{ id: number; message: string }>(`/mc/${mcId}/work-records`, body, { headers: { Authorization: `Bearer ${token}` } }),
+  updateWorkRecord: (mcId: number, recordId: number, body: Record<string, unknown>, token: string) =>
+    api.put<{ id: number; message: string }>(`/mc/${mcId}/work-records/${recordId}`, body, { headers: { Authorization: `Bearer ${token}` } }),
   changeHistory:   (mcId: number) => api.get<McChangeHistory[]>(`/mc/${mcId}/change-history`),
   setupSheetLogs:  (mcId: number) => api.get<McSetupSheetLog[]>(`/mc/${mcId}/setup-sheet-logs`),
   listFiles:       (mcId: number) => api.get<McFile[]>(`/mc/${mcId}/files`),

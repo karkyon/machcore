@@ -1363,6 +1363,26 @@ export class McService {
     const setupMin = dto.setup_time_min ?? null;
     const machMin  = dto.machining_time_min ?? null;
 
+    // [二重登録防止] 同一操作者・同一内容の作業記録が直近60秒以内に作成済みなら
+    // 新規作成せず既存を返す(連続クリック/再送信による二重登録の防止)。
+    const dup = await this.prisma.workRecord.findFirst({
+      where: {
+        mcProgramId: mcId,
+        operatorId,
+        createdAt:        { gte: new Date(Date.now() - 60 * 1000) },
+        startedAt:        dto.started_at  ? new Date(dto.started_at)  : null,
+        checkedAt:        dto.checked_at  ? new Date(dto.checked_at)  : null,
+        finishedAt:       dto.finished_at ? new Date(dto.finished_at) : null,
+        setupTimeMin:     setupMin,
+        machiningTimeMin: machMin,
+        cycleTimeSec:     dto.cycle_time_sec ?? null,
+        quantity:         dto.quantity       ?? null,
+        note:             dto.note           ?? null,
+      },
+      orderBy: { id: 'desc' },
+    });
+    if (dup) return { id: dup.id, message: '作業記録を登録しました', duplicate: true };
+
     const record = await this.prisma.workRecord.create({
       data: {
         mcProgramId:      mcId,
@@ -1393,6 +1413,44 @@ export class McService {
       data: { userId: operatorId, mcProgramId: mcId, actionType: 'MC_WORK_RECORD', metadata: { recordId: record.id } },
     });
     return { id: record.id, message: '作業記録を登録しました' };
+  }
+
+  // ══════════════════════════════════════════
+  // 作業記録 更新(編集モード)。従来は更新APIが無く、編集→更新で新規登録されていた。
+  // 操作者(operatorId=入力者)・作業日・段取シート紐付けは変更しない。
+  // ══════════════════════════════════════════
+  async updateWorkRecord(mcId: number, recordId: number, dto: CreateMcWorkRecordDto, operatorId: number) {
+    const rec = await this.prisma.workRecord.findFirst({ where: { id: recordId, mcProgramId: mcId } });
+    if (!rec) throw new NotFoundException(`work_record id:${recordId} が存在しません`);
+    const dt = (v: string | null | undefined, old: Date | null) =>
+      v !== undefined ? (v ? new Date(v) : null) : old;
+    const updated = await this.prisma.workRecord.update({
+      where: { id: recordId },
+      data: {
+        machineId:         dto.machine_id          !== undefined ? dto.machine_id          : rec.machineId,
+        workType:          dto.work_type           !== undefined ? dto.work_type           : rec.workType,
+        setupTimeMin:      dto.setup_time_min      !== undefined ? dto.setup_time_min      : rec.setupTimeMin,
+        machiningTimeMin:  dto.machining_time_min  !== undefined ? dto.machining_time_min  : rec.machiningTimeMin,
+        cycleTimeSec:      dto.cycle_time_sec      !== undefined ? dto.cycle_time_sec      : rec.cycleTimeSec,
+        quantity:          dto.quantity            !== undefined ? dto.quantity            : rec.quantity,
+        setupWorkCount:    dto.setup_work_count    !== undefined ? dto.setup_work_count    : rec.setupWorkCount,
+        startedAt:         dt(dto.started_at,  rec.startedAt),
+        checkedAt:         dt(dto.checked_at,  rec.checkedAt),
+        finishedAt:        dt(dto.finished_at, rec.finishedAt),
+        interruptSetupMin: dto.interrupt_setup_min !== undefined ? dto.interrupt_setup_min : rec.interruptSetupMin,
+        interruptWorkMin:  dto.interrupt_work_min  !== undefined ? dto.interrupt_work_min  : rec.interruptWorkMin,
+        note:              dto.note                !== undefined ? dto.note                : rec.note,
+        setupOperatorIds:      dto.setup_operator_ids      !== undefined ? (dto.setup_operator_ids      ?? []) : (rec.setupOperatorIds as any ?? []),
+        productionOperatorIds: dto.production_operator_ids !== undefined ? (dto.production_operator_ids ?? []) : (rec.productionOperatorIds as any ?? []),
+        prgMan:            dto.prg_man             !== undefined ? dto.prg_man             : rec.prgMan,
+        prgTimeMin:        dto.prg_time_min        !== undefined ? dto.prg_time_min        : rec.prgTimeMin,
+        prgPlas:           dto.prg_plas            !== undefined ? dto.prg_plas            : rec.prgPlas,
+      },
+    });
+    await this.prisma.operationLog.create({
+      data: { userId: operatorId, mcProgramId: mcId, actionType: 'MC_WORK_RECORD', metadata: { recordId, action: 'update' } },
+    });
+    return { id: updated.id, message: '作業記録を更新しました' };
   }
 
   // ══════════════════════════════════════════
@@ -2565,7 +2623,7 @@ export class McService {
         const h = Math.floor(totalSec / 3600);
         const m = Math.floor((totalSec % 3600) / 60);
         const s = totalSec % 60;
-        return `${h}H ${m}M ${s}S`;
+        return `${h}h${m}m${s}s`;
       }
       if (src === 'part.partId')  return String(part.partId  ?? '');
       // (4) 加工ID

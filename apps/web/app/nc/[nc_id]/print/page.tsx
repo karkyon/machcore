@@ -562,7 +562,7 @@ function DataPreview({
         <InfoBox title={tr("ncPrintPage.processingInfoTitle","加工情報")}>
           <InfoRow label={tr("ncPrintPage.processLabel2","工程")}     value={`L${nc.processL}`} />
           <InfoRow label={tr("ncPrintPage.machineLabel6","機械")}     value={nc.machine?.machineName ?? nc.machine?.machineCode ?? "—"} />
-          <InfoRow label={tr("ncPrintPage.machiningTimeLabel2","加工時間")} value={nc.machiningTime != null ? `${nc.machiningTime} ${tr("ncPrintPage.unitMinute2","分")}` : "—"} />
+          <InfoRow label={tr("ncPrintPage.machiningTimeLabel2","加工時間")} value={(nc.machiningTime != null || nc.setupTimeRef != null) ? (() => { const t = (nc.machiningTime ?? 0) * 60 + (nc.setupTimeRef ?? 0); return `${Math.floor(t/3600)}h${Math.floor((t%3600)/60)}m${t%60}s`; })() : "—"} />
           <InfoRow label={tr("ncPrintPage.oNumberLabel2","O番号")}    value={nc.oNumber ?? "—"} />
         </InfoBox>
         <InfoBox title={tr("ncPrintPage.fileInfoTitle","ファイル情報")}>

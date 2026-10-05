@@ -309,20 +309,15 @@ function fmtDate(s: string | null) {
   if (!s) return "—";
   return toJstMonthDayString(s) ?? s;
 }
-function fmtMin(min: number | null) {
-  if (min == null || min < 0) return "—";
-  const rounded = Math.round(min * 10) / 10; // 小数点1位に丸める
-  const h = Math.floor(rounded / 60);
-  const m = Math.round(rounded % 60 * 10) / 10;
-  return `${h}H ${m % 1 === 0 ? String(Math.round(m)).padStart(2,"0") : m}M`;
-}
+// 時間表記は 0h0m0s(小文字・常に時分秒)に統一
 function fmtSec(sec: number | null) {
-  if (sec == null || sec < 0) return "—";
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = Math.round(sec % 60);
-  if (h > 0) return `${h}H ${m}M ${s}S`;
-  return `${m}M ${s}S`;
+  if (sec == null || sec < 0 || isNaN(sec)) return "—";
+  const t = Math.round(sec);
+  return `${Math.floor(t / 3600)}h${Math.floor((t % 3600) / 60)}m${t % 60}s`;
+}
+function fmtMin(min: number | null) {
+  if (min == null || min < 0 || isNaN(min)) return "—";
+  return fmtSec(min * 60);
 }
 function fmtNow() {
   const d = new Date();
@@ -615,6 +610,8 @@ function McRecordPageInner() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [editRecordId, setEditRecordId] = useState<number | null>(null);
+  // [二重登録防止] state(saving)は再描画まで反映されないため、連続クリックを確実に遮断する同期ロック
+  const submitLockRef = useRef(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -1020,6 +1017,8 @@ function McRecordPageInner() {
       if (vErr) { setTimeValidErr(vErr); return; }
     }
     setTimeValidErr(null);
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     setSaving(true); setSaveError(null);
     try {
       const cycSec = cycleH * 3600 + cycleM * 60 + cycleS;
@@ -1047,12 +1046,21 @@ function McRecordPageInner() {
           ? (sbSheetLogId || parseInt(sessionStorage.getItem("sb_sheet_log_id") ?? "0") || undefined)
           : undefined,
       };
-      await mcApi.createWorkRecord(mcId, body, token);
+      const wasEdit = editRecordId != null;
+      if (wasEdit) {
+        // 編集モードは更新API。空欄にした項目もクリアされるよう undefined を null にして送る。
+        const upd: Record<string, unknown> = { ...body };
+        for (const k of Object.keys(upd)) if (upd[k] === undefined) upd[k] = null;
+        delete upd.setup_sheet_log_id;
+        await mcApi.updateWorkRecord(mcId, editRecordId as number, upd, token);
+      } else {
+        await mcApi.createWorkRecord(mcId, body, token);
+      }
       const r = await mcApi.workRecords(mcId);
       setRecords((r as any).data ?? []);
       resetForm();
-      showToast(tr("mcRecordPage.recordSavedMsg","✅ 作業記録を登録しました"));
-      if (sbMode && typeof window !== "undefined") {
+      showToast(wasEdit ? tr("mcRecordPage.recordUpdatedMsg","✅ 作業記録を更新しました") : tr("mcRecordPage.recordSavedMsg","✅ 作業記録を登録しました"));
+      if (!wasEdit && sbMode && typeof window !== "undefined") {
         const v = sessionStorage.getItem("sb_next_record");
         if (v && parseInt(v) === mcId) {
           const logId = sbSheetLogId || parseInt(sessionStorage.getItem("sb_sheet_log_id") ?? "0");
@@ -1071,7 +1079,7 @@ function McRecordPageInner() {
       const msg = e?.response?.data?.message ?? e?.message ?? tr("mcRecordPage.registerFailedDefault","登録に失敗しました");
       setSaveError(msg);
       console.error("[STEP2] submit error:", e);
-    } finally { setSaving(false); }
+    } finally { setSaving(false); submitLockRef.current = false; }
   };
 
   return (
@@ -1333,9 +1341,9 @@ function McRecordPageInner() {
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.cycleTimePerP2", "サイクルタイム / 1P")}</label>
                     <div className="flex items-center gap-1 flex-wrap">
-                      <NumInput value={cycleH} onChange={setCycleH} /><span className="text-xs text-slate-500">H</span>
-                      <NumInput value={cycleM} onChange={setCycleM} min={0} max={59} /><span className="text-xs text-slate-500">M</span>
-                      <NumInput value={cycleS} onChange={setCycleS} min={0} max={59} /><span className="text-xs text-slate-500">S</span>
+                      <NumInput value={cycleH} onChange={setCycleH} /><span className="text-xs text-slate-500">h</span>
+                      <NumInput value={cycleM} onChange={setCycleM} min={0} max={59} /><span className="text-xs text-slate-500">m</span>
+                      <NumInput value={cycleS} onChange={setCycleS} min={0} max={59} /><span className="text-xs text-slate-500">s</span>
                       <span className="text-xs text-slate-500 ml-2">{tr("mcRecordPage.piecesPerCycle", "個/1サイクル:")}</span>
                       <input type="number" min="1" value={cyclePcs} onChange={e => setCyclePcs(e.target.value)}
                         data-fi="true" onFocus={e => e.target.select()}

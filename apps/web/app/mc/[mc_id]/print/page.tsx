@@ -228,7 +228,7 @@ function McPrintPageInner() {
   const fmtCycle = (sec: number | null) => {
     if (!sec) return "—";
     const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
-    return `${h}H ${String(m).padStart(2,"0")}M ${String(s).padStart(2,"0")}S`;
+    return `${h}h${m}m${s}s`;
   };
 
   // リピート確認ブロック（isNew=false の時のみ表示）
@@ -417,7 +417,7 @@ function McPrintPageInner() {
                 </div>
                 <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200">
                   <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcPrintPage.mainONumberLabel2", "主Oナンバ")}</div><div className="font-mono font-bold">{(d as any).oNumber ?? "—"}</div></div>
-                  <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcPrintPage.cycleTimePerP3", "サイクルタイム/1P")}</div><div className="font-bold text-xs">{(d as any).cycleTimeSec != null ? (() => { const ct=(d as any).cycleTimeSec; const h=Math.floor(ct/3600); const m=Math.floor((ct%3600)/60); const s=ct%60; return `${h}H ${String(m).padStart(2,"0")}M ${String(s).padStart(2,"0")}S`; })() : "—"}</div></div>
+                  <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcPrintPage.cycleTimePerP3", "サイクルタイム/1P")}</div><div className="font-bold text-xs">{(d as any).cycleTimeSec != null ? (() => { const ct=(d as any).cycleTimeSec; const h=Math.floor(ct/3600); const m=Math.floor((ct%3600)/60); const s=ct%60; return `${h}h${m}m${s}s`; })() : "—"}</div></div>
                   <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcPrintPage.toolingLabel2", "ツーリング")}</div><div className="font-bold">{(d as any).rc ?? (d as any).tooling?.length ?? 0} {tr("mcPrintPage.unitPiece3", "本")}</div></div>
                 </div>
                 <div className="p-2.5 flex items-center justify-center gap-2 flex-wrap">

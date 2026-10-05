@@ -296,6 +296,18 @@ export class McController {
     return this.mc.createWorkRecord(id, dto, req.user.id);
   }
 
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Put(':mc_id/work-records/:record_id')
+  updateWorkRecord(
+    @Param('mc_id', ParseIntPipe) id: number,
+    @Param('record_id', ParseIntPipe) recordId: number,
+    @Body() dto: CreateMcWorkRecordDto,
+    @Req() req: any,
+  ) {
+    return this.mc.updateWorkRecord(id, recordId, dto, req.user.id);
+  }
+
   // ── 変更履歴 ────────────────────────────────
   @Get(':mc_id/change-history')
   changeHistory(@Param('mc_id', ParseIntPipe) id: number) {

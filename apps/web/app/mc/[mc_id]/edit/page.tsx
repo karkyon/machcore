@@ -1278,7 +1278,7 @@ export default function McEditPage() {
               </div>
               <div className="grid grid-cols-3 divide-x divide-slate-200">
                 <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.mainONumberLabel", "主Oナンバ")}</div><div className="font-mono font-bold">{detail.oNumber ?? "—"}</div></div>
-                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.cycleTimeLabel", "サイクルタイム/1P")}</div><div className="font-bold text-xs">{detail.cycleTimeSec != null ? (() => { const ct=detail.cycleTimeSec; const h=Math.floor(ct/3600); const m=Math.floor((ct%3600)/60); const s=ct%60; return `${h}H ${String(m).padStart(2,"0")}M ${String(s).padStart(2,"0")}S`; })() : "—"}</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.cycleTimeLabel", "サイクルタイム/1P")}</div><div className="font-bold text-xs">{detail.cycleTimeSec != null ? (() => { const ct=detail.cycleTimeSec; const h=Math.floor(ct/3600); const m=Math.floor((ct%3600)/60); const s=ct%60; return `${h}h${m}m${s}s`; })() : "—"}</div></div>
                 <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.machiningQtyLabel", "加工個数/1サイクル")}</div><div className="font-bold">{detail.machiningQty ?? 1} {tr("mcEditUi.unitPieces", "個")}</div></div>
               </div>
             </div>
@@ -1388,13 +1388,13 @@ export default function McEditPage() {
                     <div className="flex items-center gap-2">
                       <input type="number" min={0} data-fi="true" value={cycleH} onChange={e => setCycleH(Number(e.target.value))}
                         className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
-                      <span className="text-xs text-slate-400">H</span>
+                      <span className="text-xs text-slate-400">h</span>
                       <input type="number" min={0} max={59} data-fi="true" value={cycleM} onChange={e => setCycleM(Number(e.target.value))}
                         className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
-                      <span className="text-xs text-slate-400">M</span>
+                      <span className="text-xs text-slate-400">m</span>
                       <input type="number" min={0} max={59} data-fi="true" value={cycleS} onChange={e => setCycleS(Number(e.target.value))}
                         className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
-                      <span className="text-xs text-slate-400">S</span>
+                      <span className="text-xs text-slate-400">s</span>
                     </div>
                   </div>
                   <div>

@@ -313,7 +313,7 @@ export default function McDetailPage() {
   const fmtCycle = (sec: number | null) => {
     if (!sec) return "—";
     const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
-    return `${h}H ${String(m).padStart(2,"0")}M ${String(s).padStart(2,"0")}S`;
+    return `${h}h${m}m${s}s`;
   };
 
   const fmtElapsed = (s: number) =>
@@ -1184,18 +1184,12 @@ export default function McDetailPage() {
                 {!works || works.length === 0 ? (
                   <div className="p-8 text-center text-slate-400 text-sm">{tr("mcDetailPage.noWorkRecord", "作業記録がありません")}</div>
                 ) : works.map((r: McWorkRecord, i) => {
-                  const fmtMin = (m: number | null) => {
-                    if (m == null) return null;
-                    const h = Math.floor(m / 60), mn = m % 60;
-                    return h > 0 ? `${h}H ${mn}M` : `${mn}M`;
-                  };
                   const fmtSec = (s: number | null) => {
-                    if (!s) return null;
-                    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sc = s%60;
-                    if (h > 0) return `${h}H ${m}M ${sc}S`;
-                    if (m > 0) return `${m}M ${sc}S`;
-                    return `${sc}S`;
+                    if (s == null) return null;
+                    const t = Math.round(s);
+                    return `${Math.floor(t/3600)}h${Math.floor((t%3600)/60)}m${t%60}s`;
                   };
+                  const fmtMin = (m: number | null) => (m == null ? null : fmtSec(m * 60));
                   const fmtDT = (s: string | null) => s
                     ? toJstMonthDayTimeString(s)
                     : null;

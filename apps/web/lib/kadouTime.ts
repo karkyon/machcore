@@ -54,7 +54,8 @@ export function calcKadouMinutes(
   return total;
 }
 
-/** 分数を "1H 30M" 形式に整形する（稼働時間表示の共通フォーマッタ） */
+/** 分数を "1h30m0s" 形式に整形する（稼働時間表示の共通フォーマッタ。時間表記は 0h0m0s に統一） */
 export function fmtKadouMinutes(min: number): string {
-  return Math.floor(min / 60) + "H " + (min % 60) + "M";
+  const t = Math.round(min * 60);
+  return `${Math.floor(t / 3600)}h${Math.floor((t % 3600) / 60)}m${t % 60}s`;
 }

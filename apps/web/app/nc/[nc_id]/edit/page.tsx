@@ -727,7 +727,7 @@ export default function NcEditPage() {
                   <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200">
                     <div className="p-2.5"><div className="text-slate-400">{tr("ncEditUi.machineLabel", "機械")}</div><div className="font-bold">{d.machine?.machineCode ?? "—"}</div></div>
                     <div className="p-2.5"><div className="text-slate-400">{tr("ncEditUi.fileNameLabel", "ファイル名")}</div><div className="font-mono font-bold">{d.fileName ?? "—"}</div></div>
-                    <div className="p-2.5"><div className="text-slate-400">{tr("ncEditUi.machiningTimeLabel", "加工時間")}</div><div className="font-mono font-bold">{d.machiningTime != null ? tr("ncEditUi.minutesUnit","{n} 分").replace("{n}", String(d.machiningTime)) : "—"}</div></div>
+                    <div className="p-2.5"><div className="text-slate-400">{tr("ncEditUi.machiningTimeLabel", "加工時間")}</div><div className="font-mono font-bold">{(d.machiningTime != null || d.setupTimeRef != null) ? (() => { const t = (d.machiningTime ?? 0) * 60 + (d.setupTimeRef ?? 0); return `${Math.floor(t/3600)}h${Math.floor((t%3600)/60)}m${t%60}s`; })() : "—"}</div></div>
                   </div>
                   <div className="p-2.5"><div className="text-slate-400">{tr("ncEditUi.noteLabel", "備考")}</div><div className="text-slate-600">{d.clampNote ? d.clampNote.slice(0,40)+"…" : "—"}</div></div>
                 </div>

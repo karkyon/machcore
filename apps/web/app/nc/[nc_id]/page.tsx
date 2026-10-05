@@ -437,7 +437,7 @@ export default function NcDetailPage() {
                     { label: tr("ncDetailPage.colProcessL","工程 L"), value: String(d.processL), mono: true },
                     { label: tr("ncDetailPage.colVersion3","バージョン"), value: d.version ?? "—", mono: true },
                     { label: tr("ncDetailPage.colMachine2","機械"),   value: d.machine?.machineCode ?? "—", mono: true },
-                    { label: tr("ncDetailPage.colMachiningTime","加工時間"), value: d.machiningTime != null ? `${d.machiningTime} ${tr("ncDetailPage.unitMinute","分")}` : "—", mono: true },
+                    { label: tr("ncDetailPage.colMachiningTime","加工時間"), value: (d.machiningTime != null || d.setupTimeRef != null) ? (() => { const t = (d.machiningTime ?? 0) * 60 + (d.setupTimeRef ?? 0); return `${Math.floor(t/3600)}h${Math.floor((t%3600)/60)}m${t%60}s`; })() : "—", mono: true },
                     { label: tr("ncDetailPage.colFolder","フォルダ"), value: d.folderName ?? "—", mono: true },
                   ].map(f => (
                     <div key={f.label} className="p-3">
@@ -718,8 +718,8 @@ export default function NcDetailPage() {
                             <td className="px-3 py-2 font-mono whitespace-nowrap text-slate-500">{fmtDate(w.work_date)}</td>
                             <td className="px-3 py-2">{w.operator_name ?? "—"}</td>
                             <td className="px-3 py-2 font-mono">{w.machine_code ?? "—"}</td>
-                            <td className="px-3 py-2 text-right">{w.setup_time     ?? "—"}</td>
-                            <td className="px-3 py-2 text-right">{w.machining_time ?? "—"}</td>
+                            <td className="px-3 py-2 text-right">{w.setup_time     != null ? `${Math.floor(w.setup_time/60)}h${w.setup_time%60}m0s` : "—"}</td>
+                            <td className="px-3 py-2 text-right">{w.machining_time != null ? `${Math.floor(w.machining_time/60)}h${w.machining_time%60}m0s` : "—"}</td>
                             <td className="px-3 py-2 text-right">{w.quantity ?? "—"}</td>
                             <td className="px-3 py-2 text-slate-500">{w.note ?? ""}</td>
                             <td className="px-3 py-2">
