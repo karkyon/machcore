@@ -30,6 +30,19 @@ MachCore MC完全移行スクリプト (mc_full_import.py)
 import sys, os, re, shutil, argparse, traceback, subprocess
 from pathlib import Path
 from datetime import datetime
+from datetime import timezone as _tzmod
+
+# ━━ 日時の規則(2026-10-05 全件是正) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 旧DBの日時は JST の naive datetime。timestamp列は JST→UTC(-9h) で格納し、
+# DATE列は JST の日付をそのまま格納する(UTC変換後の日付は絶対に使わない)。
+def _utcnow():
+    """代替値用の現在時刻(UTC naive)。サーバローカル時刻(JST)は使わない"""
+    return datetime.now(_tzmod.utc).replace(tzinfo=None)
+
+
+def _mtime_utc(path):
+    """ファイル更新日時(UTC naive)"""
+    return datetime.fromtimestamp(path.stat().st_mtime, _tzmod.utc).replace(tzinfo=None)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 設定
@@ -322,7 +335,7 @@ def phase1(pg, dry_run=False):
             #    旧DBはJSTのnaive datetime → UTCで格納(PHASE6と同じ -9h 規則。画面はJST表示)
             approved_at_v   = (approved_date - _p1td(hours=9)) if approved_date else None
             # ⑥ 入力日: IN_DATE列(JST→UTC)
-            registered_at_v = (in_date - _p1td(hours=9)) if in_date else datetime.now()
+            registered_at_v = (in_date - _p1td(hours=9)) if in_date else _utcnow()
 
             ver_str = str(version or "1.0001")
 
@@ -871,7 +884,7 @@ def phase6(pg, dry_run=False):
                                quantity, machine_id_log)
                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """, (mc_db_id, op_id,
-                              input_dt or datetime.now(),
+                              input_dt or _utcnow(),
                               ver_str,
                               work_collected,
                               is_reference,
@@ -903,7 +916,7 @@ def phase6(pg, dry_run=False):
                         ch_op_id = _ch_inputter or creator_id
                     if ch_op_id is None: ch_op_id = ADMIN_ID
 
-                    changed_at_val = (input_dt_ch if nk == 4 else input_dt) or datetime.now()
+                    changed_at_val = (input_dt_ch if nk == 4 else input_dt) or _utcnow()
 
                     try:
                         pgc.execute("""
@@ -924,7 +937,9 @@ def phase6(pg, dry_run=False):
                 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 has_work = (nk == 17) or (rd["総時間"] is not None and str(rd["総時間"]).strip() != "")
                 if has_work and not dry_run:
-                    wd_date = input_dt.date() if input_dt else datetime.now().date()
+                    # 作業日(DATE列) = 旧入力日の JST 日付(UTC変換後の日付を使うと9時前が前日になる)
+                    _in_raw = rd["入力日"]
+                    wd_date = _in_raw.date() if hasattr(_in_raw, "year") else (_utcnow() + _td(hours=9)).date()
 
                     setup_min  = _parse_hms_min(rd["段取時間"])
                     mach_min   = _parse_hms_min(rd["加工時間"])
@@ -950,7 +965,7 @@ def phase6(pg, dry_run=False):
                         s = str(v).strip()
                         if not s: return None
                         for fmt in ["%Y/%m/%d", "%Y-%m-%d"]:
-                            try: return datetime.strptime(s, fmt)
+                            try: return _to_jst_utc(datetime.strptime(s, fmt))
                             except: pass
                         return None
 
@@ -1050,7 +1065,7 @@ def phase6(pg, dry_run=False):
                 SET sheet_created_at = COALESCE(sheet_created_at, %s),
                     creator_id = COALESCE(creator_id, %s)
                 WHERE machining_id = %s
-            """, (_sheet_date - _td(hours=9) if _sheet_date else None,
+            """, ((_sheet_date.date() if hasattr(_sheet_date, "year") else _sheet_date) if _sheet_date else None,
                   _creator_id, _kakoid))
             if pgc.rowcount > 0: _sheet_ok += 1
         pg.commit()
@@ -1466,9 +1481,9 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
         #   複数ファイルの場合はMAIN(.spf以外)優先、無ければ全体の最新mtimeを使う。
         _main_file = next((f for f in src_files if not f.name.lower().endswith(".spf")), src_files[0])
         try:
-            _uploaded_at = datetime.fromtimestamp(_main_file.stat().st_mtime)
+            _uploaded_at = _mtime_utc(_main_file)
         except Exception:
-            _uploaded_at = datetime.now()
+            _uploaded_at = _utcnow()
 
         copied_any = False
         for sort_idx, src_file in enumerate(src_files):
@@ -1480,7 +1495,7 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
                 pg_role = "SUB" if src_file.name.lower().endswith(".spf") else "MAIN"
                 # ファイル個別のmtimeをuploaded_atとして使う（MAINファイルはdst_file側にも反映）
                 try:
-                    _file_mtime = datetime.fromtimestamp(src_file.stat().st_mtime)
+                    _file_mtime = _mtime_utc(src_file)
                 except Exception:
                     _file_mtime = _uploaded_at
                 _insert_program_file(mc_id, src_file.name, src_file.name, "text/plain",

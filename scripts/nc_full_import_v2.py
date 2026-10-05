@@ -690,7 +690,9 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
                 setup_operator_ids_json = _json.dumps([setup_op_id] if setup_op_id else [])
                 production_operator_ids_json = _json.dumps([prod_op_id] if prod_op_id else [])
                 work_machine_id = machine_id_map.get(mc_raw) if mc_raw is not None else None
-                work_date = in_date_utc or out_date_utc or datetime(2005, 1, 1)
+                # 作業日(DATE列) = 旧 In_Date(無ければOut_Date) の JST 日付
+                _wd_raw = in_date or out_date
+                work_date = _wd_raw.date() if hasattr(_wd_raw, "year") else datetime(2005, 1, 1).date()
                 note_parts = [s for s in (
                     f"段取: {dan_op_s}" if dan_op_s else None,
                     f"加工: {la_op_s}" if la_op_s and la_op_s != dan_op_s else None,
