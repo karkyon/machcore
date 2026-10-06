@@ -14,6 +14,65 @@ import { SaveIndexProgramsDto } from './dto/save-index-programs.dto';
 import { PrintMcDto } from './dto/print-mc.dto';
 import { calcProgramFileName, calcProgramFolderName, normalizeWpdExt } from './program-file-naming.util';
 
+/**
+ * 段取シートPDFの印字テキストキット。
+ * ・safe   : 制御文字を除去し、フォントに無い文字はNFKC正規化(それでも無ければ'?')して、行ごと消えるのを防ぐ
+ * ・width  : 実フォントで文字幅を計測(推定幅による欄外はみ出しを防ぐ)
+ * ・wrap   : 指定幅で折返し(改行は保持)
+ * ・fitFs  : 1行で指定幅に収まるフォントサイズ
+ * ・fitCell: 欄(幅×高さ)に全文が入るフォントサイズと行。入らなければ ok=false
+ */
+export function makePdfTextKit(font: any) {
+  const fk: any = font?.embedder?.font;
+  const has = (cp: number): boolean => {
+    try { return !fk || typeof fk.hasGlyphForCodePoint !== 'function' || fk.hasGlyphForCodePoint(cp); }
+    catch { return true; }
+  };
+  const safe = (s: any): string => {
+    if (s == null) return '';
+    let out = '';
+    for (const ch of String(s).replace(/\r\n?/g, '\n').replace(/\t/g, '  ')) {
+      const cp = ch.codePointAt(0) ?? 0;
+      if (ch === '\n') { out += ch; continue; }
+      if (cp < 0x20 || (cp >= 0x7f && cp < 0xa0) || cp === 0xfeff) continue;
+      if (has(cp)) { out += ch; continue; }
+      const nf = ch.normalize('NFKC');
+      out += (nf && [...nf].every(c => has(c.codePointAt(0) ?? 0))) ? nf : '?';
+    }
+    return out;
+  };
+  const width = (s: string, fs: number): number => {
+    try { return font.widthOfTextAtSize(s, fs); }
+    catch { return [...s].reduce((a, c) => a + (c.charCodeAt(0) > 0xff ? fs * 0.95 : fs * 0.55), 0); }
+  };
+  const wrap = (text: any, maxW: number, fs: number): string[] => {
+    const out: string[] = [];
+    for (const raw of safe(text).split('\n')) {
+      if (!raw) { out.push(''); continue; }
+      let cur = '';
+      for (const ch of [...raw]) {
+        if (cur && width(cur + ch, fs) > maxW) { out.push(cur); cur = ch; } else { cur += ch; }
+      }
+      if (cur) out.push(cur);
+    }
+    return out;
+  };
+  const fitFs = (text: any, fs: number, maxW: number, minFs = 4): number => {
+    const t = safe(text).replace(/\n/g, ' ');
+    let f = fs;
+    while (f > minFs && width(t, f) > maxW) f = Math.max(minFs, f - 0.25);
+    return f;
+  };
+  const fitCell = (text: any, fs: number, maxW: number, maxH: number, minFs = 3.5) => {
+    for (let f = fs; f >= minFs - 1e-9; f -= 0.25) {
+      const lines = wrap(text, maxW, f);
+      if (lines.length * f * 1.15 <= maxH + 1e-6) return { fs: f, lines, ok: true };
+    }
+    return { fs: minFs, lines: wrap(text, maxW, minFs), ok: false };
+  };
+  return { safe, width, wrap, fitFs, fitCell };
+}
+
 /** ツーリング解析: 行パース中間型 */
 type McParsedLine = {
   raw:      string;
@@ -1625,7 +1684,7 @@ export class McService {
       where: { id: mcId },
       include: {
         part:      true,
-        machining: { include: { machine: true, tooling: { orderBy: { sortOrder: 'asc' } }, workOffsets: { orderBy: { gCode: 'asc' } }, indexPrograms: { orderBy: { sortOrder: 'asc' } } } },
+        machining: { include: { machine: true, creator: { select: { name: true } }, tooling: { orderBy: { sortOrder: 'asc' } }, workOffsets: { orderBy: { gCode: 'asc' } }, indexPrograms: { orderBy: { sortOrder: 'asc' } } } },
         registrar: { select: { name: true } },
         approver:  { select: { name: true } },
         files: { where: { fileType: 'DRAWING' }, orderBy: { uploadedAt: 'desc' } },
@@ -1669,6 +1728,8 @@ export class McService {
       // PDFフィールド定義のdata_source="folderName"用のエイリアス
       // (実カラムはpgFolderName優先、無ければ旧folder1にフォールバック)
       folderName:       r.machining?.pgFolderName ?? r.machining?.folder1 ?? null,
+      // 段取シート【作成】欄 = マシニング登録時に入力する「作成者(シート)」(オペレーターとは別)
+      sheetCreatorName: (r.machining as any)?.creator?.name ?? null,
       commonGroup,
     };
   }
@@ -2114,6 +2175,7 @@ export class McService {
     const finalDoc = await PDFDocument.create();
     finalDoc.registerFontkit(fontkit.default ?? fontkit);
     const singleFont = await finalDoc.embedFont(fontBytes, { subset: true });
+    const kit1 = makePdfTextKit(singleFont);
 
     // P1をfinalDocにコピーしてからそのページに描画
     const p1Doc = await PDFDocument.load(p1Bytes);
@@ -2135,28 +2197,96 @@ export class McService {
       });
     };
 
+    // テンプレート(template_p1.pdf)に焼き込まれた版数「0.00 01」を白塗り(実データの版数と二重印字になるため)
+    try { p1Page.drawRectangle({ x: 186, y: p1H - 55, width: 63, height: 19, color: rgb(1,1,1), borderWidth: 0 }); } catch(_) {}
+
+    // 続きページ(ツーリングの続き・備考全文・長い項目の全文)に回す情報
+    const contTools: any[] = [];
+    const cellOverflow: string[] = [];
+    let noteFullText = '';
+    let p1PageNoPos: { x: number; y: number; size: number } | null = null;
+    let p2PageNoPos: { x: number; y: number; size: number } | null = null;
+
     const p1Fields = templates.filter(f => f.name === 'mc_setup_p1');
     for (const f of p1Fields) {
-      // __page_no__ は「1 / 2」固定
+      // ページ番号は総ページ数が確定してから描画する(続きページが付く場合があるため)
       if (f.field_key === '__page_no__') {
-        p1Page.drawText('1 / 2', {
-          x: Number(f.x), y: Number(f.y), size: Number(f.font_size), font: font1, color: rgb(0,0,0),
-        });
+        p1PageNoPos = { x: Number(f.x), y: Number(f.y), size: Number(f.font_size) || 8 };
         continue;
       }
       const text = resolve(f.data_source);
       if (!text) continue;
-      // 備考フィールドは改行対応
-      if (f.field_key === 'note' && text.includes('\n')) {
-        drawMultiLine(p1Page, text, Number(f.x), Number(f.y), Number(f.font_size), font1);
-      } else {
-        p1Page.drawText(text, {
-          x: Number(f.x), y: Number(f.y), size: Number(f.font_size), font: font1, color: rgb(0,0,0),
+      const fx = Number(f.x), fy = Number(f.y), ffs = Number(f.font_size) || 7;
+      if (f.field_key === 'note') {
+        // [根本修正] 備考欄(右上の枠: 右端556pt・下端は上から254pt)に折返して収める。
+        //   入りきらなければ欄には入る分+案内を印字し、全文を「新規段取シート(続き)」に印字する。
+        const maxW = 554 - fx;
+        const boxBottom = (p1H - 254) + 3;
+        const maxH = Math.max(ffs, fy - boxBottom + ffs);
+        const r = kit1.fitCell(text, ffs, maxW, maxH, 5);
+        let lines = r.lines;
+        if (!r.ok) {
+          const n = Math.max(1, Math.floor(maxH / (r.fs * 1.15)));
+          lines = lines.slice(0, Math.max(0, n - 1)).concat(['※備考の全文は「新規段取シート(続き)」に印字']);
+          noteFullText = text;
+        }
+        lines.forEach((ln: string, i: number) => {
+          if (ln) p1Page.drawText(ln, { x: fx, y: fy - i * r.fs * 1.15, size: r.fs, font: font1, color: rgb(0,0,0) });
         });
+        continue;
       }
+      // その他の項目: ページ右端を越えないよう縮小して全文を印字
+      const t1 = kit1.safe(text).replace(/\n/g, ' ');
+      p1Page.drawText(t1, { x: fx, y: fy, size: kit1.fitFs(t1, ffs, 556 - fx, 4), font: font1, color: rgb(0,0,0) });
     }
 
     // ツーリングリスト差し込み（include_tooling=trueの場合のみ）
+    // [根本修正] ①T/H/D/D値/SUBを存在しない項目名で参照しており常に空欄、②24行で打ち切り、③長い値が欄外へ
+    //   はみ出す、の3点を解消。正しい項目で取得し、欄に収まるよう縮小・折返し、表に入りきらない行は
+    //   「新規段取シート(続き)」ページに全件印字する。
+    const NEW_TOOL_KEYS   = ['toolNo','toolName','tNumber','hValue','dRegister','dValue','subProgram','note'];
+    const NEW_TOOL_LABELS = ['N','工具','T','H','D','D値','SUB','コメント'];
+    const NEW_TOOL_DEF_XS = [40, 71, 168, 207, 247, 286, 332, 378];   // template_p1.pdf の罫線位置から算出
+    const NEW_TABLE_RIGHT = 556;
+    const newToolVal = (t: any, key: string): string => {
+      if (key === 'toolNo')     return String(t.toolNo ?? '');
+      if (key === 'toolName')   return String(t.toolName ?? '');
+      if (key === 'tNumber')    return String(t.tNo ?? '');
+      if (key === 'hValue')     return String(t.lengthOffsetNo ?? '');
+      if (key === 'dRegister')  return String(t.diaOffsetNo ?? '');
+      if (key === 'dValue')     return String(t.dValueContent ?? '');
+      if (key === 'subProgram') return String(t.subPgNo ?? '');
+      if (key === 'note')       return String(t.note ?? '');
+      return '';
+    };
+    let newToolXs: number[] = NEW_TOOL_DEF_XS;
+    let newToolRowH = 21.3;
+    // 1行分を描画(各セルは欄内に縮小・折返し。どうしても入らなければ※を付け全文を続きページへ)
+    const drawNewToolRow = (page: any, t: any, baseY: number, rowNo: number) => {
+      NEW_TOOL_KEYS.forEach((key, ci) => {
+        const text = newToolVal(t, key);
+        if (!text) return;
+        const x = newToolXs[ci];
+        const nextX = ci < newToolXs.length - 1 ? newToolXs[ci + 1] : NEW_TABLE_RIGHT;
+        const colW = Math.max(8, nextX - x - 3);
+        const r = kit1.fitCell(text, 7, colW, newToolRowH - 3, 3.5);
+        let lines = r.lines;
+        if (!r.ok) {
+          const maxN = Math.max(1, Math.floor((newToolRowH - 3) / (r.fs * 1.15)));
+          lines = lines.slice(0, maxN);
+          const last = lines[lines.length - 1] ?? '';
+          lines[lines.length - 1] = [...last].slice(0, Math.max(0, [...last].length - 1)).join('') + '※';
+          cellOverflow.push(`${t.toolNo || ('行' + rowNo)} ${NEW_TOOL_LABELS[ci]}: ${text}`);
+        }
+        const step = r.fs * 1.15;
+        const center = baseY + 7 * 0.35;                               // 1行時の文字中心
+        const first  = center + ((lines.length - 1) * step) / 2 - r.fs * 0.35;
+        lines.forEach((ln: string, i: number) => {
+          if (ln) page.drawText(ln, { x, y: first - i * step, size: r.fs, font: font1, color: rgb(0,0,0) });
+        });
+      });
+    };
+
     if (options.include_tooling === true && data.tooling?.length > 0) {
       const { Pool: Pool2 } = await import('pg');
       const DB_URL2 = process.env.DATABASE_URL || 'postgresql://machcore:machcore_pass_change_me@localhost:5440/machcore_dev?schema=public';
@@ -2169,37 +2299,84 @@ export class McService {
       `);
       await pool2.end();
       const toolFields: any[] = toolQr.rows;
-      // ツーリング行はfield_key='tooling_row'の定義を使用
       const rowDef = toolFields.find((f:any) => f.field_key === 'tooling_row');
+      const tools: any[] = data.tooling;
       if (rowDef) {
-        const ROW_H = Number(rowDef.note ?? '15'); // note列に行高を格納
-        const COLS = ['toolNo','toolName','tNumber','hValue','dRegister','dValue','subProgram','note'];
-        const COL_XS = String(rowDef.data_source).split(',').map(Number);
-        data.tooling.slice(0, 24).forEach((t: any, ri: number) => {
-          const ry = p1H - Number(rowDef.y) - ri * ROW_H;
-          COLS.forEach((col, ci) => {
-            const val = String(t[col] ?? '');
-            if (!val || !COL_XS[ci]) return;
-            p1Page.drawText(val, { x: COL_XS[ci], y: ry, size: 7, font: font1, color: rgb(0,0,0) });
-          });
-        });
+        newToolRowH = Number(rowDef.note ?? '15') || 15;
+        const xs = String(rowDef.data_source ?? '').split(',').map(Number);
+        newToolXs = NEW_TOOL_DEF_XS.map((d, i) => (Number.isFinite(xs[i]) && xs[i] > 0 ? xs[i] : d));
+        const firstBase = p1H - Number(rowDef.y);
+        // テンプレートの表の下端(上から761pt)より上に入る行数だけP1に印字し、残りは続きページへ
+        let cap = 0;
+        while (cap < 60 && firstBase - cap * newToolRowH >= (p1H - 761) + 3) cap++;
+        cap = Math.max(1, cap);
+        tools.slice(0, cap).forEach((t: any, ri: number) => drawNewToolRow(p1Page, t, firstBase - ri * newToolRowH, ri + 1));
+        contTools.push(...tools.slice(cap));
+        console.log(`[setupsheet][NEW] mc_id=${mcId} ツーリング ${tools.length}行 (P1=${Math.min(cap, tools.length)}行 / 続き=${contTools.length}行)`);
+      } else {
+        // 行定義が無い場合も情報を落とさない: 全行を続きページに印字
+        contTools.push(...tools);
       }
+    }
+
+    // ── 新規段取シート(続き)ページ: ツーリングの続き・備考全文・長い項目の全文 ──
+    if (contTools.length > 0 || noteFullText) {
+      const A4W = 595.28, A4H = 841.89, M = 37, BOTTOM = 50;
+      let pg: any = null;
+      let y = 0;
+      const newPage = () => {
+        pg = finalDoc.addPage([A4W, A4H]);
+        const title = kit1.safe(`新規段取シート(続き)　部品ID ${data.part?.partId ?? ''}　加工ID ${data.machiningId ?? ''}　MCID ${data.legacyMcid ?? ''}　図面番号 ${data.part?.drawingNo ?? ''}`);
+        pg.drawText(title, { x: M, y: A4H - 45, size: kit1.fitFs(title, 11, A4W - 2 * M, 6), font: font1, color: rgb(0,0,0) });
+        pg.drawLine({ start: { x: M, y: A4H - 52 }, end: { x: A4W - M, y: A4H - 52 }, thickness: 1, color: rgb(0,0,0) });
+        y = A4H - 64;
+      };
+      const section = (title: string) => {
+        if (!pg || y - 30 < BOTTOM) newPage();
+        pg.drawText(title, { x: M, y: y - 10, size: 9, font: font1, color: rgb(0,0,0) });
+        y -= 16;
+      };
+      const toolHeader = () => {
+        NEW_TOOL_LABELS.forEach((lb, ci) => pg.drawText(lb, { x: newToolXs[ci], y: y - 11, size: 8, font: font1, color: rgb(0,0,0) }));
+        pg.drawLine({ start: { x: M, y: y - 15 }, end: { x: NEW_TABLE_RIGHT, y: y - 15 }, thickness: 0.8, color: rgb(0,0,0) });
+        y -= 16;
+      };
+      if (contTools.length > 0) {
+        section('ツーリング(続き)');
+        toolHeader();
+        contTools.forEach((t: any, i: number) => {
+          if (y - newToolRowH < BOTTOM) { newPage(); section('ツーリング(続き)'); toolHeader(); }
+          drawNewToolRow(pg, t, y - newToolRowH / 2 - 7 * 0.35, i + 1);
+          pg.drawLine({ start: { x: M, y: y - newToolRowH }, end: { x: NEW_TABLE_RIGHT, y: y - newToolRowH }, thickness: 0.4, color: rgb(0.6,0.6,0.6) });
+          y -= newToolRowH;
+        });
+        y -= 8;
+      }
+      const printFullText = (title: string, body: string) => {
+        section(title);
+        for (const ln of kit1.wrap(body, A4W - 2 * M - 6, 8)) {
+          if (y - 11 < BOTTOM) { newPage(); section(`${title}(続き)`); }
+          if (ln) pg.drawText(ln, { x: M + 4, y: y - 9, size: 8, font: font1, color: rgb(0,0,0) });
+          y -= 11;
+        }
+        y -= 8;
+      };
+      if (noteFullText) printFullText('備考(全文)', noteFullText);
+      if (cellOverflow.length > 0) printFullText('欄に入りきらない項目(全文)', cellOverflow.join('\n'));
     }
 
     // P2をfinalDocにコピーしてからそのページに描画
     const p2Doc = await PDFDocument.load(p2Bytes);
     const [_p2Imported] = await finalDoc.copyPages(p2Doc, [0]);
     finalDoc.addPage(_p2Imported);
-    const p2Page = finalDoc.getPage(1);
+    const p2Page = finalDoc.getPage(finalDoc.getPageCount() - 1);   // 続きページがある場合も最終ページ
     const p2H = p2Page.getHeight();
     const font2 = singleFont;
 
     const p2Fields = templates.filter(f => f.name === 'mc_setup_p2');
     for (const f of p2Fields) {
       if (f.field_key === '__page_no__') {
-        p2Page.drawText('2 / 2', {
-          x: Number(f.x), y: Number(f.y), size: Number(f.font_size), font: font2, color: rgb(0,0,0),
-        });
+        p2PageNoPos = { x: Number(f.x), y: Number(f.y), size: Number(f.font_size) || 8 };
         // 発行日時をp2の左下余白に印字
         const issuedAtNew = new Date().toLocaleString('ja-JP', { timeZone:'Asia/Tokyo',
           year:'numeric', month:'2-digit', day:'2-digit',
@@ -2223,6 +2400,18 @@ export class McService {
           x: Number(f.x), y: Number(f.y), size: Number(f.font_size), font: font2, color: rgb(0,0,0),
         });
       }
+    }
+
+    // ページ番号: 続きページを含めた総ページ数で印字(図のページを付ける前の段取シート部分)
+    {
+      const total = finalDoc.getPageCount();
+      const pos = p1PageNoPos ?? p2PageNoPos ?? { x: 500, y: 18, size: 9 };
+      finalDoc.getPages().forEach((pg: any, i: number) => {
+        const isP2 = i === total - 1;
+        const ps = isP2 ? (p2PageNoPos ?? pos) : (i === 0 ? (p1PageNoPos ?? pos) : pos);
+        const txt = (i === 0 || isP2) ? `${i + 1} / ${total}` : `${i + 1} / ${total} ページ`;
+        try { pg.drawText(txt, { x: ps.x, y: ps.y, size: ps.size, font: singleFont, color: rgb(0,0,0) }); } catch(_) {}
+      });
     }
 
     // ★ P1/P2は既にfinalDocに追加済み（先行生成・描画済み）
@@ -2688,6 +2877,7 @@ export class McService {
     const finalDoc = await PDFLib.create();
     finalDoc.registerFontkit(fontkit.default ?? fontkit);
     const finalFont = await finalDoc.embedFont(fontBytes, { subset: true });
+    const kit = makePdfTextKit(finalFont);
     let totalPages = 0;
 
     // 定数
@@ -2733,7 +2923,10 @@ export class McService {
     // テキスト描画
     const drawTxt = (text: string, x: number, y: number, size: number, color = rgb(0,0,0)) => {
       if (!text || !curPage) return;
-      try { curPage.drawText(text, { x, y, size, font: finalFont, color }); } catch(_) {}
+      const t = kit.safe(text).replace(/\n/g, ' ');
+      if (!t) return;
+      try { curPage.drawText(t, { x, y, size, font: finalFont, color }); }
+      catch (e: any) { console.warn(`[setupsheet] 印字失敗 mc_id=${mcId}: ${e?.message} text=${t.slice(0, 40)}`); }
     };
 
     // 水平罫線
@@ -2809,19 +3002,20 @@ export class McService {
         if (f.field_key.startsWith('__')) continue;
         const text = resolveVal(f.data_source);
         if (!text) continue;
-        try {
-          curPage.drawText(text, {
-            x: Number(f.x), y: Number(f.y),
-            size: Number(f.font_size) || 7,
-            font: finalFont, color: rgb(0,0,0),
-          });
-        } catch(_) {}
+        // 値が長くてもページ右端を越えないよう縮小して全文を印字する
+        const hfs = Number(f.font_size) || 7;
+        drawTxt(text, Number(f.x), Number(f.y), kit.fitFs(text, hfs, 565 - Number(f.x), 4));
       }
 
       // ヘッダ固定部の下端Y: DBの __header_end_y__ の y列（pdf-lib座標=下から）をそのまま curY に使用
       // PDFエディタでフィールドをドラッグするだけで反映される
       const headerEndCfg = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__header_end_y__');
-      curY = headerEndCfg ? Number(headerEndCfg.y) : (curPageH - 310);
+      // [根本修正] repeat_header.pdf の固定部(NT-欄)の下端は上から217.4pt。備考は必ずその直下から始め、
+      //   NT-欄との間に大きな空白を作らない(設定値が固定部と重なる/大きく離れる場合は下端の直下に補正)。
+      const HEADER_FIXED_BOTTOM = curPageH - 217.4;
+      const cfgY = headerEndCfg ? Number(headerEndCfg.y) : NaN;
+      curY = (Number.isFinite(cfgY) && cfgY <= HEADER_FIXED_BOTTOM - 4 && cfgY >= HEADER_FIXED_BOTTOM - 24)
+        ? cfgY : (HEADER_FIXED_BOTTOM - 8);
     } else {
       curY = curPageH - 310;
     }
@@ -2849,22 +3043,12 @@ export class McService {
     // テキストを指定幅で折り返して行配列を返す（全角文字幅対応）
     const wrapLines = (text: string, maxW: number, fs: number): string[] => {
       if (!text) return [];
-      const result: string[] = [];
-      const rows = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-      for (const raw of rows) {
-        if (!raw) { result.push(''); continue; }
-        let cur = ''; let curW = 0;
-        for (const ch of [...raw]) {
-          const cw = ch.charCodeAt(0) > 0xFF ? fs * 0.95 : fs * 0.55;
-          if (curW + cw > maxW && cur) { result.push(cur); cur = ch; curW = cw; }
-          else { cur += ch; curW += cw; }
-        }
-        if (cur) result.push(cur);
-      }
-      return result.length ? result : [];
+      return kit.wrap(text, maxW, fs);   // 実フォント幅で折返し
     };
 
     // 備考ブロック描画関数
+    // [根本修正] 従来は全行を1枠として一括描画し、ページに入らなければ枠ごと次ページへ送り(前ページ下部が大きく空白)、
+    //   1ページを超える分はページ外に描かれて消失していた。入る行数だけ描いて枠を閉じ、残りは次ページに「(続き)」で描く。
     const drawNoteBlock = async (
       label: string, text: string,
       x: number, w: number, fs: number,
@@ -2875,47 +3059,49 @@ export class McService {
       const lblFs     = Math.max(4, fs - 2);   // ラベルフォントサイズ = fs-2
       const textAreaW = w - lblW - padH * 2;
       const lines     = wrapLines(text, textAreaW, bodyFs);
-      const blockH    = Math.max(minH, lines.length * lh + padV * 2);
+      while (lines.length && !lines[lines.length - 1].trim()) lines.pop();   // 末尾の空行は詰める
 
-      await ensureSpace(blockH + 2);
-
-      const blockY = curY - blockH;
-
-      // 外枠（4辺drawLine）
-      drawRect(x, blockY, w, blockH);
-
-      // ラベル列背景（薄いグレー・半透明）
-      try {
-        curPage.drawRectangle({
-          x: x, y: blockY, width: lblW, height: blockH,
-          color: LABEL_BG_COLOR, borderWidth: 0, opacity: 0.5,
+      const drawFrame = (lbl: string, chunk: string[], blockH: number) => {
+        const blockY = curY - blockH;
+        drawRect(x, blockY, w, blockH);
+        try {
+          curPage.drawRectangle({ x, y: blockY, width: lblW, height: blockH, color: LABEL_BG_COLOR, borderWidth: 0, opacity: 0.5 });
+        } catch(_) {}
+        try {
+          curPage.drawLine({ start: { x: x + lblW, y: blockY }, end: { x: x + lblW, y: blockY + blockH }, thickness: BOX_LINE_W, color: BOX_LINE_COLOR });
+        } catch(_) {}
+        const lblTextW = kit.width(kit.safe(lbl), lblFs);
+        const lblX = x + Math.max(2, (lblW - lblTextW) / 2);
+        const lblY = blockY + blockH / 2 - lblFs * 0.36;
+        drawTxt(lbl, lblX, lblY, kit.fitFs(lbl, lblFs, lblW - 4, 3.5), rgb(0.15, 0.15, 0.15));
+        const txtX0 = x + lblW + padH;
+        chunk.forEach((line, i) => {
+          const lineY = blockY + blockH - padV - (i + 1) * lh + lh * 0.28;
+          drawTxt(line, txtX0, lineY, bodyFs);
         });
-      } catch(_) {}
+      };
 
-      // ラベル・テキスト列の仕切り縦線
-      try {
-        curPage.drawLine({
-          start: { x: x + lblW, y: blockY },
-          end:   { x: x + lblW, y: blockY + blockH },
-          thickness: BOX_LINE_W, color: BOX_LINE_COLOR,
-        });
-      } catch(_) {}
-
-      // ラベルテキスト（縦中央・全角幅対応センタリング）
-      const lblTxtY  = blockY + blockH / 2 - lblFs * 0.36;
-      const lblTextW = [...label].reduce((acc, c) =>
-        acc + (c.charCodeAt(0) > 0xFF ? lblFs * 1.0 : lblFs * 0.55), 0);
-      const lblTxtX  = x + Math.max(2, (lblW - lblTextW) / 2);
-      drawTxt(label, lblTxtX, lblTxtY, lblFs, rgb(0.15, 0.15, 0.15));
-
-      // 本文テキスト
-      const txtX0 = x + lblW + padH;
-      lines.forEach((line, i) => {
-        const lineY = blockY + blockH - padV - (i + 1) * lh + lh * 0.28;
-        drawTxt(line, txtX0, lineY, bodyFs);
-      });
-
-      curY -= (blockH + BLOCK_MARGIN);
+      if (lines.length === 0) {
+        await ensureSpace(minH + 2);
+        drawFrame(label, [], minH);
+        curY -= (minH + BLOCK_MARGIN);
+        return;
+      }
+      let idx = 0, part = 0, guard = 0;
+      while (idx < lines.length && guard++ < 1000) {
+        const rest = lines.length - idx;
+        const avail = curY - PAGE_BOTTOM_MARGIN - 2;
+        let n = Math.floor((avail - padV * 2) / lh);
+        // 1行しか入らない位置で分割すると読みにくいため、2行未満(残り1行なら1行未満)しか入らなければ改ページ
+        if (n < Math.min(rest, 2)) { await addNewPage(null); continue; }
+        n = Math.min(n, rest);
+        const blockH = Math.max((part === 0 && n === rest) ? minH : 0, n * lh + padV * 2);
+        drawFrame(part === 0 ? label : `${label}(続き)`, lines.slice(idx, idx + n), blockH);
+        curY -= blockH;
+        idx += n; part++;
+        if (idx < lines.length) await addNewPage(null);
+      }
+      curY -= BLOCK_MARGIN;
     };
 
     // 備考
@@ -3035,40 +3221,45 @@ export class McService {
       // テキスト折り返し（全角考慮）
       const wrapTxt = (text: string, maxW: number, fs: number): string[] => {
         if (!text) return [];
-        const result: string[] = [];
-        const rows = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-        for (const raw of rows) {
-          if (!raw) { result.push(''); continue; }
-          let cur = ''; let curW = 0;
-          for (const ch of [...raw]) {
-            const cw = ch.charCodeAt(0) > 0xFF ? fs * 0.95 : fs * 0.55;
-            if (curW + cw > maxW && cur) { result.push(cur); cur = ch; curW = cw; }
-            else { cur += ch; curW += cw; }
-          }
-          if (cur) result.push(cur);
-        }
-        return result.length ? result : [''];
+        const r = kit.wrap(text, maxW, fs);   // 実フォント幅で折返し
+        return r.length ? r : [''];
       };
 
-      let needsColHdr = false;
+      // [根本修正] 改ページを起こした行を `continue` で読み飛ばしていたため、改ページ箇所のツーリングが
+      //   毎回1行消失していた。改ページ後に見出しを描いてから同じ行を描画する。
+      //   1ページに収まらない長い行は行の途中で分割し、次ページへ続けて描く。
+      const LINE_STEP = Math.max(...T_COLS.map(c => c.fs)) * 1.4;
+      const fullPageRoom = () => (curPageH - PAGE_BOTTOM_MARGIN) - PAGE_BOTTOM_MARGIN - COL_HDR_H - ROW_MARGIN;
+      const breakToolingPage = async () => { await addNewPage(null); await drawColHeader(); };
       for (const t of tooling) {
-        if (needsColHdr) { await drawColHeader(); needsColHdr = false; }
-        // 各カラムの折り返し行を計算（カラムごとのフォントサイズ使用）
         const colLines = T_COLS.map((col, i) => wrapTxt(getTV(t, col.dataKey), colWidths[i], col.fs));
         const maxLines = Math.max(1, ...colLines.map(l => l.length));
-        const maxFs = Math.max(...T_COLS.map(c => c.fs));
-        const rowH = Math.max(ROW_H, maxLines * (maxFs * 1.4));
-        const prevY = curY;
-        await ensureSpace(rowH + ROW_MARGIN, null);
-        if (curY > prevY) { needsColHdr = true; continue; }
-        T_COLS.forEach((col, ci) => {
-          // ③ 折り返し: 行上端からline_heightずつ下げる
-          colLines[ci].forEach((line, li) => {
-            if (line) drawTxt(line, col.x + 2, curY - col.fs * 1.2 - li * (col.fs * 1.4), col.fs);
+        let li0 = 0, guard = 0;
+        while (li0 < maxLines && guard++ < 1000) {
+          const rest  = maxLines - li0;
+          const restH = Math.max(ROW_H, rest * LINE_STEP);
+          const avail = curY - PAGE_BOTTOM_MARGIN - ROW_MARGIN;
+          let n: number;
+          if (restH <= avail) {
+            n = rest;
+          } else if (li0 === 0 && restH <= fullPageRoom()) {
+            await breakToolingPage();          // 行ごと次ページへ(行は分割しない)
+            continue;
+          } else {
+            n = Math.floor(avail / LINE_STEP);  // 1ページに収まらない長い行のみ分割
+            if (n < 1) { await breakToolingPage(); continue; }
+          }
+          const rowH = n === rest ? restH : n * LINE_STEP;
+          T_COLS.forEach((col, ci) => {
+            colLines[ci].slice(li0, li0 + n).forEach((line, k) => {
+              if (line) drawTxt(line, col.x + 2, curY - col.fs * 1.2 - k * (col.fs * 1.4), col.fs);
+            });
           });
-        });
-        drawHLine(LINE_X_START, LINE_X_END, curY - rowH);
-        curY -= (rowH + ROW_MARGIN);
+          drawHLine(LINE_X_START, LINE_X_END, curY - rowH);
+          curY -= (rowH + ROW_MARGIN);
+          li0 += n;
+          if (li0 < maxLines) await breakToolingPage();
+        }
       }
       curY -= BLOCK_MARGIN;
     }
@@ -3166,8 +3357,11 @@ export class McService {
             if (ri < WO_DATA_KEYS.length) {
               const raw = wo[WO_DATA_KEYS[ri]];
               if (raw != null && raw !== '') {
-                const val = typeof raw === 'number' ? raw.toFixed(3) : (parseFloat(String(raw)) === parseFloat(String(raw)) ? parseFloat(String(raw)).toFixed(3) : String(raw)); // (7) 0->0.000
-                drawTxt(val, valX + 2, txtY, woFs);
+                const rs  = String(raw).trim();
+                // 純粋な数値のみ小数3桁(0→0.000)。「54.1P14」「55(MC10)」等の文字を含む値は加工せずそのまま印字
+                // (従来はparseFloatで数値部分だけを残し「54.100」「55.000」と印字して情報が欠落していた)
+                const val = typeof raw === 'number' ? raw.toFixed(3) : (/^[-+]?(\d+\.?\d*|\.\d+)$/.test(rs) ? parseFloat(rs).toFixed(3) : rs);
+                drawTxt(val, valX + 2, txtY, kit.fitFs(val, woFs, valW - 4, 4));
               }
             }
           }
@@ -3262,7 +3456,7 @@ export class McService {
           const val = String((ip as any)[col.dataKey] ?? '');
           if (!val) return;
           const txtY = curY - IP_ROW_H + (IP_ROW_H - col.fs * 0.72) / 2;
-          drawTxt(val, col.x + 2, txtY, col.fs);
+          drawTxt(val, col.x + 2, txtY, kit.fitFs(val, col.fs, Math.min(col.w, IP_LINE_X2 - col.x) - 4, 4));
         });
         drawHLine(IP_LINE_X1, IP_LINE_X2, curY - IP_ROW_H);
         curY -= IP_ROW_H;
