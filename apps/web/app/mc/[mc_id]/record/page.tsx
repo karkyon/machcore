@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import { calcKadouMinutes, fmtKadouMinutes } from "@/lib/kadouTime";
-import { toJstDateString, toJstMonthDayString } from "@/lib/dateUtils";
+import { toJstDateString, toJstMonthDayString, toJstYearMonthDayTimeString } from "@/lib/dateUtils";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 // ── 共通コンポーネント ──────────────────────────────────────────
@@ -1211,10 +1211,13 @@ function McRecordPageInner() {
             <div className="px-3 py-2 text-xs text-slate-400">{tr("mcRecordPage.noneShort2", "なし")}</div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {records.map(r => (
+              {/* 過去記録は段取シートの印刷日時の新しい順(印刷記録が無ければ作業日) */}
+              {[...records].sort((a: any, b: any) => new Date(b.setup_sheet_printed_at ?? b.work_date).getTime() - new Date(a.setup_sheet_printed_at ?? a.work_date).getTime()).map(r => (
                 <button key={r.id} onClick={() => loadRecord(r)}
                   className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${editRecordId===r.id ? "bg-amber-50 border-l-2 border-amber-400" : ""}`}>
-                  <div className="font-bold text-slate-700">{fmtDate(r.work_date)}</div>
+                  <div className="font-bold text-slate-700">{(r as any).setup_sheet_printed_at
+                    ? toJstYearMonthDayTimeString((r as any).setup_sheet_printed_at)
+                    : <span className="font-normal text-slate-400">印刷記録なし（作業日 {toJstMonthDayString(r.work_date)}）</span>}</div>
                   <div className="text-slate-400">{r.operator_name ?? "—"} / {r.machine_code ?? "—"}</div>
                   <div className="text-slate-400">{fmtMin(r.setup_time_min)} / {fmtMin(r.machining_time_min)}</div>
                 </button>

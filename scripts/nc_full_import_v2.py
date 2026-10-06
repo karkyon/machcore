@@ -666,6 +666,7 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
 
     sl_ok = sl_skip = sl_err = 0
     wr_ok = wr_skip = wr_err = 0
+    wr_linked = 0
     ch_ok = ch_skip = ch_err = 0
     # 共通部品で複製INSERTされた件数をカウント(参考値)
     sl_dup = wr_dup = ch_dup = 0
@@ -690,6 +691,8 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
             out_date_utc = to_jst_utc(out_date)
             in_date_utc = to_jst_utc(in_date)
 
+            # 旧ACC_Historyは1行=1枚の段取シート。この行で作った印刷履歴に、同じ行の作業記録を結び付ける
+            row_sl_ids = {}
             # ── A: setup_sheet_logs（Out_Cont = "印刷"）→ 対応する全NcProgramに複製 ──
             if "印刷" in out_cont_s and out_date_utc:
                 op_id = staff_id_map.get(out_op, ADMIN_FALLBACK_ID)
@@ -702,7 +705,9 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
                                     nc_program_id, operator_id, printed_at, version,
                                     pdf_path, session_id, work_collected
                                 ) VALUES (%s,%s,%s,%s,NULL,NULL,true)
+                                RETURNING id
                             """, (prog_id, op_id, out_date_utc, out_ver_str))
+                            row_sl_ids[prog_id] = pgc.fetchone()[0]
                         sl_ok += 1
                         if idx > 0:
                             sl_dup += 1
@@ -756,12 +761,14 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
                                 INSERT INTO work_records (
                                     nc_program_id, operator_id, machine_id, work_date,
                                     setup_time_min, machining_time_min, quantity, note,
-                                    setup_operator_ids, production_operator_ids, created_at
-                                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                                    setup_operator_ids, production_operator_ids, nc_setup_sheet_log_id, created_at
+                                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
                             """, (prog_id, work_op_id, work_machine_id, work_date,
                                   setup_min, mach_min, p_i if p_i > 0 else None, note_str,
-                                  setup_operator_ids_json, production_operator_ids_json))
+                                  setup_operator_ids_json, production_operator_ids_json,
+                                  row_sl_ids.get(prog_id)))
                         wr_ok += 1
+                        if row_sl_ids.get(prog_id): wr_linked += 1
                         if idx > 0:
                             wr_dup += 1
                     except Exception:
@@ -813,6 +820,7 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
         pg.commit()
 
     log(f"PHASE3完了: setup_sheet_logs ok={sl_ok}(共通部品複製分={sl_dup}) skip={sl_skip} err={sl_err}")
+    log(f"  作業記録のうち段取シートに結び付けた件数: {wr_linked}/{wr_ok}")
     log(f"            work_records     ok={wr_ok}(共通部品複製分={wr_dup}) skip={wr_skip} err={wr_err}")
     if unresolved_op_names:
         log(f"  [WARN] 段取/量産担当者名がusersに無く担当者欄に入らなかった名前: "

@@ -3,7 +3,7 @@ import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useParams, useRouter } from "next/navigation";
-import { toJstMonthDayString, toJstTimeString, toJstDateString } from "@/lib/dateUtils";
+import { toJstMonthDayString, toJstTimeString, toJstDateString, toJstYearMonthDayTimeString } from "@/lib/dateUtils";
 import {
   ncApi, workRecordsApi, machinesApi, usersApi, authApi,
   NcDetail, WorkRecord, Machine, UserInfo, SetupSheetLog,
@@ -588,10 +588,13 @@ function RecordPageInner() {
             <div className="px-3 py-2 text-xs text-slate-400">{tr("ncRecordPage.noneShort3", "なし")}</div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {records.map(r => (
+              {/* 過去記録は段取シートの印刷日時の新しい順(印刷記録が無ければ作業日) */}
+              {[...records].sort((a: any, b: any) => new Date(b.setup_sheet_printed_at ?? b.work_date).getTime() - new Date(a.setup_sheet_printed_at ?? a.work_date).getTime()).map(r => (
                 <button key={r.id} onClick={() => handleEdit(r)}
                   className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${editRecordId===r.id ? "bg-amber-50 border-l-2 border-amber-400" : ""}`}>
-                  <div className="font-bold text-slate-700">{toJstMonthDayString(r.work_date)}</div>
+                  <div className="font-bold text-slate-700">{(r as any).setup_sheet_printed_at
+                    ? toJstYearMonthDayTimeString((r as any).setup_sheet_printed_at)
+                    : <span className="font-normal text-slate-400">印刷記録なし（作業日 {toJstMonthDayString(r.work_date)}）</span>}</div>
                   <div className="text-slate-400">{r.operator_name ?? "—"} / {r.machine_code ?? "—"}</div>
                   <div className="text-slate-400">{fmtMin(r.setup_time)} / {fmtMin(r.machining_time)}</div>
                 </button>

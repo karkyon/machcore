@@ -62,6 +62,7 @@ def _load_pg_dsn():
     raise RuntimeError(f"DATABASE_URL not found in {_env}")
 PG_DSN = _load_pg_dsn()
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from legacy_sheet_link import new_mc_candidate, pick_mc_sheet  # 作業記録⇔段取シートの結び付け規則
 from normalize_wpd_ext import norm_wpd  # プログラムフォルダ拡張子 .WPD 統一
 SS_MC_SERVER = "192.168.1.9"
 SS_MC_USER   = "sa"
@@ -817,6 +818,8 @@ def phase6(pg, dry_run=False):
     sl_ok = sl_skip = sl_err = 0
     ch_ok = ch_skip = ch_err = 0
     wr_ok = wr_skip = wr_err = 0
+    wr_linked = 0
+    sheet_cands = {}  # mc_program_id → 印刷(結び付け候補)の一覧(legacy_sheet_link.py)
     err_msgs = []
     commit_every = 500
     row_count = 0
@@ -824,6 +827,7 @@ def phase6(pg, dry_run=False):
     for raw_row in all_rows:
         rd = dict(zip(COL_NAMES, raw_row))
         row_count += 1
+        row_cands = {}  # この行で作った印刷(mc_program_id → 候補)
 
         try:
             mcid = rd["MCID"]
@@ -889,6 +893,7 @@ def phase6(pg, dry_run=False):
                                work_collected, is_reference, sheet_type,
                                quantity, machine_id_log)
                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            RETURNING id
                         """, (mc_db_id, op_id,
                               input_dt or _utcnow(),
                               ver_str,
@@ -897,6 +902,9 @@ def phase6(pg, dry_run=False):
                               sheet_type,
                               qty,
                               machine_id))
+                        _c = new_mc_candidate(pgc.fetchone()[0], rd["入力日"], return_dt, is_reference)
+                        sheet_cands.setdefault(mc_db_id, []).append(_c)
+                        row_cands[mc_db_id] = _c
                         sl_ok += 1
                     except Exception as e2:
                         sl_err += 1
@@ -989,6 +997,14 @@ def phase6(pg, dry_run=False):
                     #       (例: "変更 → 済 / 工程1,2 同時進行 量産加工中に0H15M中断有り")
                     wr_note = content[:1000] if content else None
 
+                    # 段取シート(印刷)との結び付け: 同じ行の印刷 → 無ければ R_IN_DATE(戻り日)=入力日 の印刷
+                    _rc = row_cands.get(mc_db_id)
+                    if _rc is not None and not _rc["used"] and not _rc["ref"]:
+                        _rc["used"] = True
+                        sheet_link_id = _rc["id"]
+                    else:
+                        sheet_link_id = pick_mc_sheet(sheet_cands.get(mc_db_id, []), rd["入力日"])
+
                     try:
                         pgc.execute("""
                             INSERT INTO work_records
@@ -997,8 +1013,8 @@ def phase6(pg, dry_run=False):
                                cycle_time_sec, quantity, started_at, checked_at, finished_at,
                                setup_work_count, prg_man, prg_time_min, prg_plas,
                                setup_operator_ids, production_operator_ids,
-                               note, work_type, created_at)
-                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'MC',NOW())
+                               note, work_type, mc_setup_sheet_log_id, created_at)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'MC',%s,NOW())
                         """, (mc_db_id, work_op_id, machine_id,
                               wd_date,
                               setup_min, mach_min, cycle_sec,
@@ -1008,8 +1024,9 @@ def phase6(pg, dry_run=False):
                               prg_man, prg_min, prg_plas,
                               _json.dumps(setup_ids),
                               _json.dumps(prod_ids),
-                              wr_note))
+                              wr_note, sheet_link_id))
                         wr_ok += 1
+                        if sheet_link_id: wr_linked += 1
                     except Exception as e2:
                         wr_err += 1
                         if wr_err <= 5: err_msgs.append(f"WR ERR mcid={mcid}: {e2}")
@@ -1027,6 +1044,7 @@ def phase6(pg, dry_run=False):
     ss_conn.close()
 
     for msg in err_msgs: log(f"  {msg}", "WARN")
+    log(f"  作業記録のうち段取シートに結び付けた件数: {wr_linked}/{wr_ok}")
     log(f"PHASE6完了: 入力={row_count} skip={sl_skip} SL_err={sl_err} CH_err={ch_err} WR_err={wr_err}")
     log(f"  [印刷履歴={sl_ok} / 変更履歴={ch_ok} / 作業実績={wr_ok}]")
 
