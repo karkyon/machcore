@@ -336,6 +336,8 @@ export type Machine = {
   sortOrder: number;
   // プログラムファイル形式マスタ設定: false=単体ファイル, true=フォルダ単位(メインPG+サブPG)
   pgIsFolder?: boolean;
+  // 機械種別: MC=マシニング / NC=旋盤 / BOTH=複合加工機
+  systemType?: "MC" | "NC" | "BOTH";
 };
 
 export const machinesApi = {

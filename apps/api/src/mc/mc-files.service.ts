@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import sharp from 'sharp';
-import { calcProgramFileName, calcProgramFolderName } from './program-file-naming.util';
+import { calcProgramFileName, calcProgramFolderName, normalizeWpdExt } from './program-file-naming.util';
 
 const PROGRAM_EXTS = new Set(['.mpf', '.spf', '.nc', '.cnc', '.min', '.prg', '']);
 
@@ -24,7 +24,7 @@ type PgRole = 'MAIN' | 'SUB' | null;
 //   PG 単体ファイル:
 //     {base}/MC/files/Programs/{machining_id}/{加工IDの下4桁}(拡張子無・元ファイル名は破棄)
 //   PG フォルダ:
-//     {base}/MC/files/Programs/{machining_id}/{machining_id}.pwd/{元ファイル名}
+//     {base}/MC/files/Programs/{machining_id}/{machining_id}.WPD/{元ファイル名}
 //     (フォルダ内の個別ファイル名はメインPG/サブPGの実名のため維持する)
 //   写真:    {base}/MC/files/Pictures/{machining_id}-{n}.jpg
 //   図:      {base}/MC/files/Drawings/{machining_id}-{n}.*
@@ -62,7 +62,7 @@ export class McFilesService {
     });
     const isFolder = !!detail?.pgIsFolder;
     if (isFolder) {
-      return { isFolder: true, fileName: '', folderName: detail?.pgFolderName || calcProgramFolderName(machId) };
+      return { isFolder: true, fileName: '', folderName: normalizeWpdExt(detail?.pgFolderName) || calcProgramFolderName(machId) };
     }
     return { isFolder: false, fileName: detail?.fileName || calcProgramFileName(machId), folderName: null };
   }
@@ -245,7 +245,7 @@ export class McFilesService {
    * 対応するDB行を全てisDeleted=trueへ更新することで、常に「実ファイル1つ=有効DB行1つ」
    * の状態を保つ。
    *   - 単体ファイルモード: 決定済みファイル名のファイル1つをタイムスタンプ付きでtrashへ
-   *   - フォルダモード: {machId}.pwdフォルダを「フォルダごと」タイムスタンプ付きでtrashへ
+   *   - フォルダモード: {machId}.WPDフォルダを「フォルダごと」タイムスタンプ付きでtrashへ
    *     (個別ファイル単位ではなく、フォルダ単位でまるごと退避する)
    */
   private async purgeExistingProgramFiles(
@@ -619,7 +619,7 @@ export class McFilesService {
     // ★フォルダ単位だった場合は、ZIP内も元のフォルダ名のサブディレクトリ配下に格納し
     //   「加工IDフォルダ以下を構成そのままUSBへ」という仕様を維持する。
     //   pgFolderNameが何らかの理由で空の場合はmachining_idへフォールバックする。
-    const folderNameForZip = isFolder ? (detail?.pgFolderName || String(mc.machiningId)) : null;
+    const folderNameForZip = isFolder ? (normalizeWpdExt(detail?.pgFolderName) || String(mc.machiningId)) : null;
 
     await new Promise<void>((resolve, reject) => {
       pt.on('end', resolve);
@@ -664,7 +664,7 @@ export class McFilesService {
       select: { pgIsFolder: true, pgFolderName: true },
     });
     const isFolder = detail?.pgIsFolder === true;
-    const folderNameToUse = isFolder ? (detail?.pgFolderName || String(mc.machiningId)) : null;
+    const folderNameToUse = isFolder ? (normalizeWpdExt(detail?.pgFolderName) || String(mc.machiningId)) : null;
 
     const files: Array<{ name: string; folderName?: string; content: string }> = [];
     for (const rec of recs) {

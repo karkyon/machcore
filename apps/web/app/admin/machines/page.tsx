@@ -9,7 +9,13 @@ const adminFetch = (path: string, opts?: RequestInit) =>
   fetch(`/api${path}`, { ...opts, headers: { "Content-Type": "application/json", ...(opts?.headers ?? {}) } });
 
 type DialogMode = "create" | "edit" | null;
-type SortKey = "id" | "machineName" | "machineType" | "maker" | "sortOrder" | "isActive";
+type SortKey = "id" | "machineName" | "systemType" | "maker" | "sortOrder" | "isActive";
+type SysType = "MC" | "NC" | "BOTH";
+// 機械種別: MC=マシニング / NC=旋盤 / BOTH=複合加工機(MC・NC両方の機械リストで選択できる)
+const SYS_TYPES: SysType[] = ["MC", "NC", "BOTH"];
+const SYS_COLOR: Record<SysType, string> = {
+  MC: "bg-teal-50 text-teal-700", NC: "bg-sky-50 text-sky-700", BOTH: "bg-violet-50 text-violet-700",
+};
 type SortDir = "asc" | "desc";
 
 export default function AdminMachinesPage() {
@@ -23,7 +29,7 @@ export default function AdminMachinesPage() {
   const [editTarget, setEditTarget] = useState<Machine | null>(null);
   const [fCode,  setFCode]  = useState("");
   const [fName,  setFName]  = useState("");
-  const [fType,  setFType]  = useState("MC");
+  const [fType,  setFType]  = useState<SysType>("MC");
   const [fMaker, setFMaker] = useState("");
   const [fSort,  setFSort]  = useState("0");
   const [fPgIsFolder, setFPgIsFolder] = useState(false);
@@ -37,6 +43,9 @@ export default function AdminMachinesPage() {
   const [sortDir,   setSortDir]   = useState<SortDir>("asc");
 
   const getToken = () => sessionStorage.getItem("admin_token") ?? "";
+  const sysLabel = (s?: string | null) =>
+    s === "BOTH" ? t("adminMachines.sysBoth", "複合加工機") : s === "NC" ? t("adminMachines.sysNc", "NC（旋盤）") : t("adminMachines.sysMc", "MC（マシニング）");
+  const sysOf = (m: Machine): SysType => ((m.systemType as SysType) ?? "NC");
   const showToast = (msg: string, ok: boolean) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
   const handleLogout = () => { sessionStorage.removeItem("admin_token"); sessionStorage.removeItem("admin_user"); router.push("/admin/login"); };
 
@@ -58,14 +67,14 @@ export default function AdminMachinesPage() {
   const filtered = machines.filter(m => {
     if (fltName   && !m.machineName?.includes(fltName))                  return false;
     // 種別は部分一致（NC旋盤, MCなど）+ NCだけ入力してもNC旋盤にヒット
-    if (fltType   && !(m as any).machineType?.includes(fltType))          return false;
+    if (fltType   && sysOf(m) !== fltType)                               return false;
     if (fltMaker  && !(m as any).maker?.includes(fltMaker))              return false;
     if (fltStatus === "active"   && !m.isActive)                         return false;
     if (fltStatus === "inactive" &&  m.isActive)                         return false;
     return true;
   }).sort((a, b) => {
-    let va: any = (a as any)[sortKey] ?? "";
-    let vb: any = (b as any)[sortKey] ?? "";
+    let va: any = sortKey === "systemType" ? sysOf(a) : ((a as any)[sortKey] ?? "");
+    let vb: any = sortKey === "systemType" ? sysOf(b) : ((b as any)[sortKey] ?? "");
     if (typeof va === "string") va = va.toLowerCase();
     if (typeof vb === "string") vb = vb.toLowerCase();
     if (va < vb) return sortDir === "asc" ? -1 : 1;
@@ -82,7 +91,7 @@ export default function AdminMachinesPage() {
   );
 
   const openCreate = () => { setFCode(""); setFName(""); setFType("MC"); setFMaker(""); setFSort("0"); setFPgIsFolder(false); setFError(null); setEditTarget(null); setDialogMode("create"); };
-  const openEdit   = (m: Machine) => { setFCode(m.machineCode); setFName(m.machineName ?? ""); setFType((m as any).machineType ?? "MC"); setFMaker((m as any).maker ?? ""); setFSort(String(m.sortOrder ?? 0)); setFPgIsFolder(!!(m as any).pgIsFolder); setFError(null); setEditTarget(m); setDialogMode("edit"); };
+  const openEdit   = (m: Machine) => { setFCode(m.machineCode); setFName(m.machineName ?? ""); setFType(sysOf(m)); setFMaker((m as any).maker ?? ""); setFSort(String(m.sortOrder ?? 0)); setFPgIsFolder(!!(m as any).pgIsFolder); setFError(null); setEditTarget(m); setDialogMode("edit"); };
 
   const handleSave = async () => {
     if (!fCode || !fName) { setFError(t("adminMachines.codeNameRequired", "機械コードと機械名は必須です")); return; }
@@ -92,13 +101,13 @@ export default function AdminMachinesPage() {
         await adminFetch("/admin/machines", {
           method: "POST",
           headers: { Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ machine_code: fCode, machine_name: fName, machine_type: fType, maker: fMaker, sort_order: parseInt(fSort)||0, is_active: true, pg_is_folder: fPgIsFolder }),
+          body: JSON.stringify({ machine_code: fCode, machine_name: fName, machine_type: fType === "BOTH" ? "複合加工機" : fType, system_type: fType, maker: fMaker, sort_order: parseInt(fSort)||0, is_active: true, pg_is_folder: fPgIsFolder }),
         });
       } else if (editTarget) {
         await adminFetch(`/admin/machines/${editTarget.id}`, {
           method: "PUT",
           headers: { Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ machine_code: fCode, machine_name: fName, machine_type: fType, maker: fMaker, sort_order: parseInt(fSort)||0, pg_is_folder: fPgIsFolder }),
+          body: JSON.stringify({ machine_code: fCode, machine_name: fName, machine_type: fType === "BOTH" ? "複合加工機" : fType, system_type: fType, maker: fMaker, sort_order: parseInt(fSort)||0, pg_is_folder: fPgIsFolder }),
         });
       }
       showToast(dialogMode === "edit" ? t("adminMachines.updated","更新しました") : t("adminMachines.created","登録しました"), true);
@@ -134,8 +143,7 @@ export default function AdminMachinesPage() {
             <select value={fltType} onChange={e => setFltType(e.target.value)}
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
               <option value="">{t("adminMachines.typeAll", "種別: すべて")}</option>
-              <option value="NC">NC</option>
-              <option value="MC">MC</option>
+              {SYS_TYPES.map(s => <option key={s} value={s}>{sysLabel(s)}</option>)}
             </select>
             <input type="text" value={fltMaker} onChange={e => setFltMaker(e.target.value)} placeholder={t("adminMachines.filterMaker", "メーカーでフィルタ")}
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none w-36" />
@@ -158,7 +166,7 @@ export default function AdminMachinesPage() {
                     <tr className="bg-slate-50 text-slate-600 text-xs uppercase">
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("id")}>{t("adminMachines.colId","ID")}<SortIcon k="id"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("machineName")}>{t("adminMachines.colMachineName","機械名")}<SortIcon k="machineName"/></th>
-                      <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("machineType")}>{t("adminMachines.colType","種別")}<SortIcon k="machineType"/></th>
+                      <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("systemType")}>{t("adminMachines.colType","種別")}<SortIcon k="systemType"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("maker")}>{t("adminMachines.colMaker","メーカー")}<SortIcon k="maker"/></th>
                       <th className="px-3 py-3 text-left">{t("adminMachines.colPgFormat", "PG形式")}</th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("sortOrder")}>{t("adminMachines.colOrder","順序")}<SortIcon k="sortOrder"/></th>
@@ -179,7 +187,9 @@ export default function AdminMachinesPage() {
                       <tr key={m.id} className={`${!m.isActive ? "opacity-40" : ""} ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
                         <td className="px-3 py-2.5 text-slate-400 text-xs">{m.id}</td>
                         <td className="px-3 py-2.5 font-bold text-slate-800 text-xs truncate">{m.machineName}</td>
-                        <td className="px-3 py-2.5 text-slate-500 text-xs">{(m as any).machineType ?? "—"}</td>
+                        <td className="px-3 py-2.5 text-xs">
+                          <span className={`px-1.5 py-0.5 rounded font-bold whitespace-nowrap ${SYS_COLOR[sysOf(m)]}`}>{sysLabel(sysOf(m))}</span>
+                        </td>
                         <td className="px-3 py-2.5 text-slate-500 text-xs truncate">{(m as any).maker ?? "—"}</td>
                         <td className="px-3 py-2.5 text-xs">
                           {(m as any).pgIsFolder
@@ -221,8 +231,15 @@ export default function AdminMachinesPage() {
                 <input type="text" value={fName} onChange={e => setFName(e.target.value)}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none" /></div>
               <div><label className="text-xs font-bold text-slate-500 block mb-1">{t("adminMachines.typeLabel", "種別")}</label>
-                <input type="text" value={fType} onChange={e => setFType(e.target.value)} placeholder={t("adminMachines.typePlaceholder", "例: NC旋盤, MC")}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none" /></div>
+                <div className="flex gap-2">
+                  {SYS_TYPES.map(s => (
+                    <button key={s} type="button" onClick={() => setFType(s)}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold border ${fType === s ? "bg-sky-600 text-white border-sky-600" : "bg-white text-slate-500 border-slate-300"}`}>
+                      {sysLabel(s)}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">{t("adminMachines.sysHint", "複合加工機は旋盤とマシニングの両方の機能を持つ機械で、MC・NC両方の機械リストで選択できます")}</p></div>
               <div><label className="text-xs font-bold text-slate-500 block mb-1">{t("adminMachines.makerLabel", "メーカー")}</label>
                 <input type="text" value={fMaker} onChange={e => setFMaker(e.target.value)}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none" /></div>

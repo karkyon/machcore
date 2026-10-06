@@ -35,6 +35,8 @@ nc_full_import_v2.py のPHASE1〜4の判定ロジックと完全に整合させ�
   JSON形式の中間データ(generate_verify_report.pyと同形式)
 """
 import sys, os, re, json, argparse, unicodedata
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from normalize_wpd_ext import norm_wpd  # 新DB側は .WPD に統一済みのため旧値も同じ規則で比較
 from collections import defaultdict
 from datetime import datetime
 
@@ -232,8 +234,8 @@ def verify_basic_info_nc(ss, pg, limit=None):
             ("K_id",        kid,        n_kid,            "num"),
             ("L(工程No)",   l_no,       n_process_l,       "num"),
             ("機械",        old_machine_str, n_machine_code, "machine"),
-            ("フォルダ名",  folder_name_old, n_folder_name,  "str"),
-            ("ファイル名",  f_name,     n_file_name,        "str"),
+            ("フォルダ名",  norm_wpd(folder_name_old), n_folder_name,  "str"),
+            ("ファイル名",  norm_wpd(f_name),     n_file_name,        "str"),
             ("oNo",        ono,        n_onumber,          "str"),
             ("クランプ(掴代)", clamp_str, n_clamp_allowance, "str"),
             ("備考",        note_str,   n_clamp_note,       "str"),

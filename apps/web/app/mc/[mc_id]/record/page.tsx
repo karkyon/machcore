@@ -923,7 +923,7 @@ function McRecordPageInner() {
         totalMin,
         cyclePerPSec,
         machPerPSec:  machMin > 0 && qtyN > 0 ? Math.round(machMin / machQtyBase * 60) : null,
-        totalPerPSec: totalMin > 0 && totalQty > 0 ? Math.round(totalMin / totalQty * 60) : null,
+        totalPerPSec: totalMin > 0 && qtyN > 0 ? Math.round(totalMin / qtyN * 60) : null,
       };
     }
 
@@ -948,7 +948,7 @@ function McRecordPageInner() {
       return {
         setupMin, machMin, totalMin, cyclePerPSec: cyclePerPSec2,
         machPerPSec:  machMin > 0 && qtyN > 0 ? Math.round(machMin / machQtyBase * 60) : null,
-        totalPerPSec: totalMin > 0 && totalQty > 0 ? Math.round(totalMin / totalQty * 60) : null,
+        totalPerPSec: totalMin > 0 && qtyN > 0 ? Math.round(totalMin / qtyN * 60) : null,
       };
     }
 
@@ -1001,7 +1001,7 @@ function McRecordPageInner() {
       totalMin,
       cyclePerPSec,
       machPerPSec:  machMin != null && machMin > 0 && qtyN > 0 ? Math.round(machMin / machQtyBase * 60) : null,
-      totalPerPSec: totalMin != null && totalMin > 0 && totalQty > 0 ? Math.round(totalMin / totalQty * 60) : null,
+      totalPerPSec: totalMin != null && totalMin > 0 && qtyN > 0 ? Math.round(totalMin / qtyN * 60) : null,
     };
   }, [timeMode, setupH, setupMm, machH, machMm, startedAt, checkedAt, finishedAt,
       dStopH, dStopM, yStopH, yStopM, quantity, setupQty, cycleH, cycleM, cycleS, cyclePcs,

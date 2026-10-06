@@ -106,6 +106,16 @@ def main():
                 print("[ABORT] NC再投入が失敗したため、後続処理を中止します。")
                 write_summary(ts, steps, aborted=True)
                 sys.exit(1)
+        # プログラムフォルダ拡張子 .WPD 統一(DB値・実フォルダ)。取込直後・検証前に実施する
+        cmd = [py, os.path.join(HERE, "normalize_wpd_ext.py")]
+        if args.dry_run:
+            cmd.append("--dry-run")
+        rc, el, st = run(cmd, ".WPD拡張子統一 (normalize_wpd_ext.py)")
+        steps.append((".WPD拡張子統一", rc, el, st))
+        if rc != 0:
+            print("[ABORT] .WPD拡張子統一でフォルダのリネームに失敗したため、後続処理を中止します。")
+            write_summary(ts, steps, aborted=True)
+            sys.exit(1)
     else:
         print("[INFO] --verify-only 指定のため、インポートをスキップします。")
 

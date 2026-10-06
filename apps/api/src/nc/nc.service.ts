@@ -14,7 +14,7 @@ import * as chardet from 'chardet';
 import * as iconv from 'iconv-lite';
 import { UpdateWorkRecordDto } from "./dto/update-work-record.dto";
 // ★新規登録フロー実装: MC側program-file-naming.utilと同一ロジックを再利用する。
-import { calcProgramFileName, calcProgramFolderName } from "../mc/program-file-naming.util";
+import { calcProgramFileName, calcProgramFolderName, normalizeWpdExt } from "../mc/program-file-naming.util";
 @Injectable()
 export class NcService {
   constructor(
@@ -312,7 +312,7 @@ export class NcService {
     // ★MC側McMachiningDetail.resolveProgramNamingと完全に同一の命名規則
     //   (calcProgramFileName/calcProgramFolderName)を適用する。
     //   folder_name/file_nameいずれもNOT NULL制約があるため:
-    //     - フォルダ単位機械: folder_nameに実際のフォルダ名({K_id}.pwd)を設定
+    //     - フォルダ単位機械: folder_nameに実際のフォルダ名({K_id}.WPD)を設定
     //       (MC側pgFolderNameと同じ意味)。file_nameはNOT NULL制約を満たす
     //       ためのフォールバック値としてcalcProgramFileNameを設定(実運用では
     //       PGアップロード機能から参照されない)。
@@ -342,8 +342,8 @@ export class NcService {
 
       // ★folder_name/file_nameが明示指定されていない場合、機械マスタに基づき
       //   サーバー側で自動算出する。
-      let folderName = dto.folder_name;
-      let fileName = dto.file_name;
+      let folderName = normalizeWpdExt(dto.folder_name);
+      let fileName = normalizeWpdExt(dto.file_name);
       if (!folderName || !fileName) {
         const naming = await this.resolveNewRegistrationNaming(dto.machine_id, newKid);
         folderName = folderName ?? naming.folderName;
@@ -674,8 +674,8 @@ export class NcService {
         data: {
           machineId:    dto.machine_id     !== undefined ? dto.machine_id     : existingM.machineId,
           machiningTime: dto.machining_time !== undefined ? dto.machining_time : existingM.machiningTime,
-          folderName:   dto.folder_name    ?? existingM.folderName,
-          fileName:     dto.file_name      ?? existingM.fileName,
+          folderName:   normalizeWpdExt(dto.folder_name) ?? existingM.folderName,
+          fileName:     normalizeWpdExt(dto.file_name)   ?? existingM.fileName,
           clampNote:    dto.clamp_note     !== undefined ? dto.clamp_note     : existingM.clampNote,
           clampAllowance: dto.clamp_allowance !== undefined ? dto.clamp_allowance : existingM.clampAllowance,
           // [v096] MC側update()との機能パリティのため追加。

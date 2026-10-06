@@ -12,7 +12,7 @@ import { SaveToolingDto } from './dto/save-tooling.dto';
 import { SaveWorkOffsetsDto } from './dto/save-work-offsets.dto';
 import { SaveIndexProgramsDto } from './dto/save-index-programs.dto';
 import { PrintMcDto } from './dto/print-mc.dto';
-import { calcProgramFileName, calcProgramFolderName } from './program-file-naming.util';
+import { calcProgramFileName, calcProgramFolderName, normalizeWpdExt } from './program-file-naming.util';
 
 /** ツーリング解析: 行パース中間型 */
 type McParsedLine = {
@@ -394,7 +394,7 @@ export class McService {
   // ══════════════════════════════════════════
   // プログラムファイル名/フォルダ名の自動算出(唯一の実装)
   // 機械マスタ(Machine.pgIsFolder)に基づき、単体ファイルなら加工IDの下4桁を
-  // fileNameに、フォルダ単位なら "{加工ID}.pwd" をpgFolderNameに設定する。
+  // fileNameに、フォルダ単位なら "{加工ID}.WPD" をpgFolderNameに設定する。
   // create()/previewNew()/createAndPrint()の3箇所で重複実装しないこと。
   // (フロント側の同等ロジックは apps/web/lib/programFileNaming.ts)
   // ══════════════════════════════════════════
@@ -435,7 +435,7 @@ export class McService {
             clampNote:     dto.clamp_note      ?? null,
             cycleTimeSec:  dto.cycle_time_sec  ?? null,
             mcProcessNo:   dto.mc_process_no   ?? null,
-            fileName:      dto.file_name       ?? naming.fileName,
+            fileName:      normalizeWpdExt(dto.file_name) ?? naming.fileName,
             pgIsFolder:    naming.pgIsFolder,
             pgFolderName:  naming.pgFolderName,
             commonPartCode: dto.common_part_code ?? null,
@@ -2354,7 +2354,7 @@ export class McService {
           clampNote:     dto.clamp_note      ?? null,
           cycleTimeSec:  dto.cycle_time_sec  ?? null,
           mcProcessNo:   dto.mc_process_no   ?? null,
-          fileName:      dto.file_name       ?? naming.fileName,
+          fileName:      normalizeWpdExt(dto.file_name) ?? naming.fileName,
           pgIsFolder:    naming.pgIsFolder,
           pgFolderName:  naming.pgFolderName,
           commonPartCode: dto.common_part_code ?? null,
@@ -2430,7 +2430,7 @@ export class McService {
                 clampNote:     dto.clamp_note      ?? null,
                 cycleTimeSec:  dto.cycle_time_sec  ?? null,
                 mcProcessNo:   dto.mc_process_no   ?? null,
-                fileName:      dto.file_name       ?? naming.fileName,
+                fileName:      normalizeWpdExt(dto.file_name) ?? naming.fileName,
                 pgIsFolder:    naming.pgIsFolder,
                 pgFolderName:  naming.pgFolderName,
                 commonPartCode: dto.common_part_code ?? null,

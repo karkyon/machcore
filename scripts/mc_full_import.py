@@ -61,6 +61,8 @@ def _load_pg_dsn():
                 return _url
     raise RuntimeError(f"DATABASE_URL not found in {_env}")
 PG_DSN = _load_pg_dsn()
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from normalize_wpd_ext import norm_wpd  # プログラムフォルダ拡張子 .WPD 統一
 SS_MC_SERVER = "192.168.1.9"
 SS_MC_USER   = "sa"
 SS_MC_PASS   = "RTW65b"
@@ -234,7 +236,7 @@ def phase1(pg, dry_run=False):
         pg.commit()
     log(f"parts同期完了: 新規={parts_inserted}件, 総数={len(parts_map)}件")
 
-    pgc.execute("SELECT id, machine_code FROM machines WHERE system_type='MC'")
+    pgc.execute("SELECT id, machine_code FROM machines WHERE system_type IN ('MC','BOTH')")
     machines_map = {r[1]: r[0] for r in pgc.fetchall()}
 
     pgc.execute("SELECT id, name FROM users")
@@ -727,7 +729,7 @@ def phase6(pg, dry_run=False):
         return list(dict.fromkeys(ids))
 
     # 機械マップ (機械名→machines.id)
-    pgc.execute("SELECT id, machine_code FROM machines WHERE system_type='MC'")
+    pgc.execute("SELECT id, machine_code FROM machines WHERE system_type IN ('MC','BOTH')")
     _machines_map = {r[1]: r[0] for r in pgc.fetchall()}
 
     # mcid_map (legacy_mcid → [mc_program_id,...])
@@ -1438,12 +1440,22 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
     """)
     programs = pgc.fetchall()
     log(f"  対象: {len(programs)}件")
+    _src_lc_cache = {}  # 取込元フォルダ内の名前(小文字)→実パス。.WPD統一後のfile_nameでも実名を引くため
     for mach_id, mc_id, folder1, folder2, file_name in programs:
         key      = (folder1, folder2)
         src_dir  = folder_map.get(key)
         if not src_dir: nomatch += 1; continue
 
         src_item = src_dir / str(file_name).strip()
+        if not src_item.exists():
+            if src_dir not in _src_lc_cache:
+                try:
+                    _src_lc_cache[src_dir] = {p.name.lower(): p for p in src_dir.iterdir()}
+                except Exception:
+                    _src_lc_cache[src_dir] = {}
+            _alt = _src_lc_cache[src_dir].get(str(file_name).strip().lower())
+            if _alt is not None:
+                src_item = _alt
         if not src_item.exists():
             notfound += 1
             continue
@@ -1464,7 +1476,7 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
             dst_dir = mach_base_dir
             src_files = [src_item]
         elif _src_is_dir:
-            dst_dir = mach_base_dir / src_item.name
+            dst_dir = mach_base_dir / norm_wpd(src_item.name)
             dst_dir.mkdir(parents=True, exist_ok=True)
             try:
                 src_files = sorted(f for f in src_item.iterdir() if f.is_file())
@@ -1522,7 +1534,7 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
             #   判別できているにも関わらず、従来はpg_is_folder/pg_folder_nameを一切更新しておらず、
             #   PG->USB機能がインポート済みデータをすべて「単体ファイル」と誤判定していた。
             _is_folder_import = _src_is_dir
-            _folder_name_import = src_item.name if _is_folder_import else None
+            _folder_name_import = norm_wpd(src_item.name) if _is_folder_import else None
             if not dry_run:
                 try:
                     pgc.execute("""

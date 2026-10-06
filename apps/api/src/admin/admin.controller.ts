@@ -634,12 +634,15 @@ export class AdminController {
     maker?: string;
     sort_order?: number;
     pg_is_folder?: boolean;
+    system_type?: 'MC' | 'NC' | 'BOTH';
   }) {
     return this.prisma.machine.create({
       data: {
         machineCode: body.machine_code,
         machineName: body.machine_name,
         machineType: body.machine_type,
+        // 機械種別: MC=マシニング / NC=旋盤 / BOTH=複合加工機(MC・NC両方の機械リストに出る)
+        ...(body.system_type && ['MC', 'NC', 'BOTH'].includes(body.system_type) ? { systemType: body.system_type } : {}),
         maker:       body.maker,
         sortOrder:   body.sort_order ?? 0,
         isActive:    true,
@@ -661,6 +664,7 @@ export class AdminController {
       sort_order?: number;
       is_active?: boolean;
       pg_is_folder?: boolean;
+      system_type?: 'MC' | 'NC' | 'BOTH';
     },
   ) {
     return this.prisma.machine.update({
@@ -673,6 +677,7 @@ export class AdminController {
         ...(body.sort_order   != null && { sortOrder: body.sort_order }),
         ...(body.is_active    != null && { isActive: body.is_active }),
         ...(body.pg_is_folder != null && { pgIsFolder: body.pg_is_folder }),
+        ...(body.system_type && ['MC', 'NC', 'BOTH'].includes(body.system_type) ? { systemType: body.system_type } : {}),
       },
     });
   }
@@ -1079,7 +1084,7 @@ export class AdminController {
   @Post('timecards/init')
   async adminInitTimecards(@Body() body: { work_date: string }) {
     const machines = await this.prisma.machine.findMany({
-      where: { isActive: true, systemType: 'MC' },
+      where: { isActive: true, systemType: { in: ['MC', 'BOTH'] } },
       orderBy: { sortOrder: 'asc' },
     });
     // ADMINユーザID=1をoperatorIdとして使用

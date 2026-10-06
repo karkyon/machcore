@@ -16,6 +16,8 @@ verify_old_new_db.py
   JSON形式の中間データ(後続のHTMLレポート生成スクリプトの入力)
 """
 import sys, os, re, json, argparse, unicodedata
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from normalize_wpd_ext import norm_wpd  # 新DB側は .WPD に統一済みのため旧値も同じ規則で比較
 from datetime import datetime
 
 def _load_pg_dsn():
@@ -223,9 +225,9 @@ def verify_basic_info(ss_mc, pg, limit=None):
             ("加工ID",       kakoid,       n_kakoid,     "num"),
             ("バージョン",    version,      n_version,    "str"),
             ("MC工程No",     process_no,   n_process_no, "num"),
-            ("フォルダ1",     folder1,      n_folder1,    "str"),
-            ("フォルダ2",     folder2,      n_folder2,    "str"),
-            ("ファイル名",    file_name,    n_file_name,  "str"),
+            ("フォルダ1",     norm_wpd(folder1),   n_folder1,    "str"),
+            ("フォルダ2",     norm_wpd(folder2),   n_folder2,    "str"),
+            ("ファイル名",    norm_wpd(file_name), n_file_name,  "str"),
             ("機械",         machine_name, n_machine_code, "machine"),
             ("サイクルタイム(秒)", old_cycle_sec, n_cycle_sec, "num"),
             ("加工個数",      qty,          n_qty,        "num"),

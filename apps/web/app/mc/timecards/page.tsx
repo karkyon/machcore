@@ -154,7 +154,7 @@ export default function TimecardPage() {
     showToast(tr("mcTimecardsPage.setAllTimeMsg","全機械の{field}を{val}にセット").replace("{field}", field === "startTime" ? tr("mcTimecardsPage.startFieldLabel","開始") : tr("mcTimecardsPage.endFieldLabel","終了")).replace("{val}", val));
   };
 
-  const filteredRows = rows.filter(r => r.systemType === sysType);
+  const filteredRows = rows.filter(r => r.systemType === sysType || r.systemType === "BOTH"); // 複合加工機はMC/NC両方に表示
   const dirtyCount = filteredRows.filter(r => r.dirty).length;
 
   return (
