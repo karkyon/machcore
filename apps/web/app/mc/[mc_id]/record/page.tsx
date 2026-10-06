@@ -49,12 +49,21 @@ function TimeInput({ h, m, onH, onM }: { h:number; m:number; onH:(v:number)=>voi
   );
 }
 
+// [担当者リスト] 選択肢に出すのは「有効かつMC/共通(BOTH)の担当者」だけ。
+// 編集時(過去記録)は、その記録に登録済みの担当者に限り、無効/他システムでも表示する。
+const isMcSelectable = (u: UserInfo) =>
+  u.isActive !== false && (!u.systemType || u.systemType === "MC" || u.systemType === "BOTH");
+
 // 複数選択（段取担当・量産作業者）
 function MultiUserSelect({ users, selected, onChange, placeholder }: {
   users: UserInfo[]; selected: number[]; onChange: (ids: number[]) => void; placeholder?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
+  // [バグ修正] マウスで1回目にクリックすると onFocus で開いた直後に onClick のトグルで閉じていた。
+  // マウス操作によるフォーカスでは開かず、クリックだけで開閉する(キーボードのTab移動では従来どおり開く)。
+  const mouseDownRef = React.useRef(false);
+  const visibleUsers = users.filter(u => isMcSelectable(u) || selected.includes(u.id));
   React.useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener("mousedown", h);
@@ -106,8 +115,11 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
   };
   return (
     <div ref={ref} className="relative">
-      <button type="button" data-fi="true" onClick={() => setOpen(v=>!v)}
+      <button type="button" data-fi="true"
+        onMouseDown={() => { mouseDownRef.current = true; }}
+        onClick={() => { mouseDownRef.current = false; setOpen(v=>!v); }}
         onFocus={e => {
+          if (mouseDownRef.current) return;
           setOpen(true);
           const lbl = e.currentTarget.closest("div.relative")?.closest("div")?.querySelector("label")?.textContent?.trim().slice(0,15) ?? placeholder ?? "MultiSelect";
           console.log(`[RECORD][MultiSelect:${lbl}] フォーカスIN→ドロップダウンOPEN`);
@@ -118,9 +130,9 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
       </button>
       {open && (
         <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto" onKeyDown={closeNav}>
-          {users.map(u => (
-            <label key={u.id} className={`flex items-center gap-2 px-3 py-1.5 text-sm ${u.isActive===false ? "opacity-50 cursor-not-allowed" : "hover:bg-teal-50 cursor-pointer"}`}>
-              <input type="checkbox" checked={selected.includes(u.id)} disabled={u.isActive===false} onChange={() => toggle(u.id)} className="accent-teal-600" />
+          {visibleUsers.map(u => (
+            <label key={u.id} className={`flex items-center gap-2 px-3 py-1.5 text-sm ${u.isActive===false ? "opacity-60 hover:bg-slate-50 cursor-pointer" : "hover:bg-teal-50 cursor-pointer"}`}>
+              <input type="checkbox" checked={selected.includes(u.id)} disabled={u.isActive===false && !selected.includes(u.id)} onChange={() => toggle(u.id)} className="accent-teal-600" />
               {u.name}{u.isActive===false && <span className="ml-1 text-[10px] text-slate-400">(無効)</span>}
             </label>
           ))}
@@ -157,7 +169,7 @@ function SingleUserSelect({ users, selected, onChange, placeholder }: {
       onKeyDown={nav}
       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
       <option value="">{placeholder ?? tr("mcRecordPage.selectPlaceholder", "— 選択 —")}</option>
-      {users.map(u => <option key={u.id} value={u.id} disabled={u.isActive===false}>{u.name}{u.isActive===false ? " (無効)" : ""}</option>)}
+      {users.filter(u => isMcSelectable(u) || u.id === selected).map(u => <option key={u.id} value={u.id} disabled={u.isActive===false && u.id !== selected}>{u.name}{u.isActive===false ? " (無効)" : ""}</option>)}
     </select>
   );
 }
@@ -610,6 +622,9 @@ function McRecordPageInner() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [editRecordId, setEditRecordId] = useState<number | null>(null);
+  // 今回使用機械を手動変更したか(自動設定で上書きしないため)/フォームリセット通知
+  const machineTouchedRef = useRef(false);
+  const [formResetSeq, setFormResetSeq] = useState(0);
   // [二重登録防止] state(saving)は再描画まで反映されないため、連続クリックを確実に遮断する同期ロック
   const submitLockRef = useRef(false);
   const [saving, setSaving] = useState(false);
@@ -670,11 +685,7 @@ function McRecordPageInner() {
       const d = (r as any).data ?? (r as any);
       console.log("[RECORD] 初期データ取得", JSON.stringify({id:d?.id,mcid:d?.mcid,part:d?.part,machine:d?.machine,cycleTimeSec:d?.cycleTimeSec,machiningQty:d?.machiningQty},null,2));
       setDetail(d);
-      // 機械・サイクルタイムの初期値をdetailから設定
-      if (d?.machine?.machineCode) {
-        // machinesが未取得の場合はmachineCodeを一時セット、取得後にidに変換
-        setMachineId(d.machine.machineCode);
-      }
+      // 機械の初期値は下の自動解決effect(段取シートの印刷機械 → 登録機械の順)で決める
       if (d?.cycleTimeSec != null && d.cycleTimeSec > 0) {
         setCycleH(Math.floor(d.cycleTimeSec / 3600));
         setCycleM(Math.floor((d.cycleTimeSec % 3600) / 60));
@@ -692,36 +703,41 @@ function McRecordPageInner() {
     }).catch(() => {});
     mcApi.workRecords(mcId).then(r => { const recs=(r as any).data??[]; setRecords(recs); console.log("[RECORD] 作業記録一覧取得",{count:recs.length,latest:recs[0]}); }).catch(() => {});
     machinesApi.list("MC", true).then(r => setMachines((r as any).data ?? [])).catch(() => {});
-    usersApi.list("MC", undefined, true).then(r => setUsers((r as any).data ?? [])).catch(() => {});
+    usersApi.list(undefined, undefined, true).then(r => setUsers((r as any).data ?? [])).catch(() => {});
   }, [mcId]);
 
-  // machines/selectedSheet/detail変化時に machineId を自動解決
+  // [段取シートバック] STEP2では回収対象(sb_sheet_log_id)の段取シートを選択する
+  useEffect(() => {
+    if (!sbMode || !sbSheetLogId || setupSheets.length === 0) return;
+    const target = setupSheets.find(s => s.id === sbSheetLogId);
+    if (target) setSelectedSheet(target);
+  }, [sbMode, sbSheetLogId, setupSheets]);
+
+  // [バグ修正] 今回使用機械の自動解決。
+  // 従来は詳細の登録機械を先に仮セットしていたため、段取シート印刷時に入力した機械が反映されなかった。
+  // 新規入力時は「選択中の段取シートの印刷機械」→「登録機械」の順で決める。
+  // 手動で機械を変更した後と、過去記録の編集中は上書きしない。
   useEffect(() => {
     if (!machines.length) return;
-    // machineIdがmachineCode文字列なら数値idに変換
-    if (machineId && isNaN(parseInt(machineId))) {
-      const m = machines.find(m => m.machineCode === machineId);
-      setMachineId(m ? String(m.id) : "");
-      return;
-    }
-    // machineIdが既に数値なら何もしない
-    if (machineId && !isNaN(parseInt(machineId))) return;
-    // 段取シートバック時: selectedSheetの印刷機械を最優先で自動セット
+    if (editRecordId != null) return;
+    if (machineTouchedRef.current) return;
+    let found: Machine | undefined;
     if (selectedSheet) {
-      const mid: number|null = (selectedSheet as any).machine_id_log ?? null;
-      const mcode: string|null = (selectedSheet as any).machine_code ?? null;
-      let found: Machine|undefined;
-      if (mid)   found = machines.find(m => m.id === mid);
+      const mid: number | null = selectedSheet.machine_id_log ?? null;
+      const mcode: string | null = (selectedSheet as any).machine_code ?? null;
+      if (mid) found = machines.find(m => m.id === mid);
       if (!found && mcode) found = machines.find(m => m.machineCode === mcode);
-      if (found && found.isActive !== false) { setMachineId(String(found.id)); return; }
     }
-    // detailの機械をフォールバックとしてセット
-    if (detail?.machine?.machineCode) {
-      const m = machines.find(m => m.machineCode === detail.machine!.machineCode && m.isActive !== false);
-      if (m) { setMachineId(String(m.id)); return; }
+    if (!found && detail?.machine?.machineCode) {
+      found = machines.find(m => m.machineCode === detail.machine!.machineCode && m.isActive !== false);
+    }
+    const next = found ? String(found.id) : "";
+    if (next !== machineId) {
+      console.log("[RECORD] 今回使用機械を自動設定", { sheetId: selectedSheet?.id ?? null, machine: found?.machineCode ?? null });
+      setMachineId(next);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [machines, selectedSheet, detail]);
+  }, [machines, selectedSheet, detail, editRecordId, formResetSeq]);
 
   // タイムカードバックグラウンド取得 & kadouMin自動計算
   const fetchKadouFromTimecards = React.useCallback(async (sa: string, ca: string, fa: string, mId: number | string) => {
@@ -836,6 +852,8 @@ function McRecordPageInner() {
 
   const resetForm = () => {
     setEditRecordId(null);
+    machineTouchedRef.current = false;
+    setFormResetSeq(s => s + 1);
     setMachineId(""); setCycleH(0); setCycleM(0); setCycleS(0); setCyclePcs("");
     setSetupOps([]); setStartedAt(""); setCheckedAt(""); setCheckMan(null);
     setDStopH(0); setDStopM(0); setSetupQty("");
@@ -1177,7 +1195,7 @@ function McRecordPageInner() {
           ) : (
             <div className="divide-y divide-slate-100">
               {setupSheets.map(s => (
-                <button key={s.id} onClick={() => setSelectedSheet(s)}
+                <button key={s.id} onClick={() => { machineTouchedRef.current = false; setSelectedSheet(s); }}
                   className={`w-full text-left px-3 py-2 text-xs transition-colors ${selectedSheet?.id===s.id ? "bg-teal-50 border-l-2 border-teal-500" : "hover:bg-slate-50"}`}>
                   <div className="font-bold text-slate-700">{fmtDate(s.printed_at)}</div>
                   <div className="text-slate-400">Ver{s.version ?? "—"} {s.operator_name ?? ""}</div>
@@ -1318,7 +1336,7 @@ function McRecordPageInner() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcRecordPage.thisMachineLabel", "今回使用機械")}</label>
-                    <select value={machineId} onChange={e => { setMachineId(e.target.value); console.log("[RECORD] 機械変更",{machineId:e.target.value,label:e.target.options[e.target.selectedIndex]?.text}); }} data-fi="true"
+                    <select value={machineId} onChange={e => { machineTouchedRef.current = true; setMachineId(e.target.value); console.log("[RECORD] 機械変更",{machineId:e.target.value,label:e.target.options[e.target.selectedIndex]?.text}); }} data-fi="true"
                       onKeyDown={e => {
                         const allFi = Array.from(document.querySelectorAll<HTMLElement>("[data-fi]:not([disabled])"));
                         const idx = allFi.indexOf(e.currentTarget);

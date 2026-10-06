@@ -27,7 +27,7 @@ export class UsersController {
     }
     return this.prisma.user.findMany({
       where,
-      select: { id: true, name: true, role: true, avatarPath: true, isActive: true, canApprove: true },
+      select: { id: true, name: true, role: true, avatarPath: true, isActive: true, canApprove: true, systemType: true },
       orderBy: { name: 'asc' },
     });
   }

@@ -1524,7 +1524,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   <table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
     <tr>
       <td style="vertical-align:bottom;">
-        <h1 class="title">NC段取シート</h1>
+        <h1 class="title">NC段取シート${opts.purpose === 'reference' ? '<span style="display:inline-block;margin-left:12px;padding:1px 8px;border:1.5px solid #000;font-size:13pt;vertical-align:middle;">参考資料</span>' : ''}</h1>
       </td>
       <td style="text-align:right;vertical-align:bottom;font-size:8pt;color:#555;">
         出力日時: ${fmtNow}
@@ -1623,6 +1623,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
     </tr>
   </table>
 
+  ${opts.purpose === 'reference' ? '' : `
   <!-- 段取担当 / 量産担当 -->
   <table class="work">
     <tr>
@@ -1662,7 +1663,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
       <td class="lbl">掴　代</td>
       <td><span style="margin-right:30px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; mm</span>FD名&nbsp;&nbsp;&nbsp;${data.folderName ?? ''}</td>
     </tr>
-  </table>
+  </table>`}
 
   ${drawingsHtml}
 

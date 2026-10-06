@@ -2781,6 +2781,21 @@ export class McService {
     const headerTpl = await loadTpl('repeat_header.pdf');
     await addNewPage(headerTpl);
 
+    // 用途「参考資料」: タイトル横に『参考資料』を印字し、作業記録ページ(template_repeat_p2)は出さない
+    const isReferenceSheet = (options as any).purpose === 'reference';
+    if (isReferenceSheet) {
+      try {
+        const refText = '参考資料';
+        const refSize = 14;
+        const refW = finalFont.widthOfTextAtSize(refText, refSize);
+        const refX = 126;
+        const refY = curPageH - 53;
+        curPage.drawRectangle({ x: refX - 5, y: refY - 5, width: refW + 10, height: refSize + 9,
+                                borderColor: rgb(0,0,0), borderWidth: 1.2 });
+        curPage.drawText(refText, { x: refX, y: refY, size: refSize, font: finalFont, color: rgb(0,0,0) });
+      } catch(_) {}
+    }
+
     const SKIP_KEYS_HEADER = new Set([
       '__note_start_y__', '__clamp_start_y__',
       '__note_cfg__', '__clamp_cfg__', '__header_end_y__', '__page_no__',
@@ -3259,7 +3274,7 @@ export class McService {
     // ⑤ template_repeat_p2.pdf を最終ページに結合
     // ══════════════════════════════════════════
     const p2Path = `${ASSETS}/template_repeat_p2.pdf`;
-    if (fs.existsSync(p2Path)) {
+    if (!isReferenceSheet && fs.existsSync(p2Path)) {
       const p2Doc  = await PDFLib.load(fs.readFileSync(p2Path));
       // p2Docにembedしない → copyPages後に finalFont で描画
       const [p2pg] = await finalDoc.copyPages(p2Doc, [0]);

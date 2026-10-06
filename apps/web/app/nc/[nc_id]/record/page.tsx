@@ -34,6 +34,11 @@ function TimeInput({ h, m, onH, onM }: { h:number; m:number; onH:(v:number)=>voi
   );
 }
 
+// [担当者リスト] 選択肢に出すのは「有効かつNC/共通(BOTH)の担当者」だけ。
+// 編集時(過去記録)は、その記録に登録済みの担当者に限り、無効/他システムでも表示する。
+const isNcSelectable = (u: UserInfo) =>
+  u.isActive !== false && (!u.systemType || u.systemType === "NC" || u.systemType === "BOTH");
+
 // ─── 複数選択コンポーネント（Select2スタイル） ─────────────────
 function MultiUserSelect({ users, selected, onChange, placeholder }: {
   users: UserInfo[]; selected: number[]; onChange: (ids: number[]) => void; placeholder: string;
@@ -55,6 +60,7 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
   };
 
   const selectedUsers = users.filter(u => selected.includes(u.id));
+  const visibleUsers  = users.filter(u => isNcSelectable(u) || selected.includes(u.id));
 
   return (
     <div ref={ref} className="relative">
@@ -76,10 +82,10 @@ function MultiUserSelect({ users, selected, onChange, placeholder }: {
       </div>
       {open && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-          {users.map(u => (
+          {visibleUsers.map(u => (
             <div key={u.id}
-              onClick={() => { if (u.isActive) toggle(u.id); }}
-              className={`px-3 py-2 text-sm flex items-center gap-2 ${u.isActive ? "cursor-pointer hover:bg-sky-50" : "cursor-not-allowed opacity-50"} ${selected.includes(u.id) ? "bg-sky-50 font-bold text-sky-700" : "text-slate-700"}`}
+              onClick={() => { if (u.isActive || selected.includes(u.id)) toggle(u.id); }}
+              className={`px-3 py-2 text-sm flex items-center gap-2 ${u.isActive ? "cursor-pointer hover:bg-sky-50" : "cursor-pointer opacity-60 hover:bg-slate-50"} ${selected.includes(u.id) ? "bg-sky-50 font-bold text-sky-700" : "text-slate-700"}`}
             >
               <span className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${selected.includes(u.id) ? "bg-sky-500 border-sky-500 text-white" : "border-slate-300"}`}>
                 {selected.includes(u.id) && "✓"}
@@ -182,7 +188,7 @@ function RecordPageInner() {
         ncApi.findOne(ncId),
         ncApi.setupSheetLogs(ncId),
         machinesApi.list("NC", true),
-        usersApi.list("NC", undefined, true),
+        usersApi.list(undefined, undefined, true),
       ]);
       setNc(ncRes.data);
       // [バグ修正] 行方不明/回収済み処理(is_lost)されたシートも除外する。
@@ -193,7 +199,7 @@ function RecordPageInner() {
       // セレクトの描画側(disabled付与)に移し、stateには全件保持する。
       setMachines(machRes.data);
       setAllUsers(userRes.data);
-      setAuthUsers(userRes.data.filter((u: UserInfo) => u.isActive));
+      setAuthUsers(userRes.data.filter((u: UserInfo) => isNcSelectable(u)));
       // 機械初期値
       if (ncRes.data?.machine?.id) setMachineId(ncRes.data.machine.id);
     } catch { showToast(tr("ncRecordPage.dataFetchFailedMsg","❌ データ取得失敗")); }
@@ -215,6 +221,14 @@ function RecordPageInner() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sbMode, sbSheetLogId, setupSheets, ctxIsAuthenticated]);
+
+  // [バグ修正] 段取シート選択時(段取シートバックSTEP2含む)は、印刷時に入力した機械を
+  // 今回使用機械にセットする(過去記録の編集中は上書きしない)。
+  useEffect(() => {
+    if (!selectedSheet || editRecordId != null || machines.length === 0) return;
+    const mid = selectedSheet.machine_id_log ?? null;
+    if (mid && machines.some(m => m.id === mid)) setMachineId(mid);
+  }, [selectedSheet, machines, editRecordId]);
 
   // [段取シートバック] STEP1(編集)のAuthContextセッションをSTEP2(作業記録)の
   // ローカル認証状態へそのまま引き継ぐ。担当者認証UIの再表示は不要 — MC側は

@@ -197,6 +197,8 @@ export type SetupSheetLog = {
   printed_at: string;
   printer_name: string | null;
   version: string | null;
+  // 印刷時に入力した使用機械(段取シートバックSTEP2の初期値)
+  machine_id_log?: number | null;
 };
 
 export type NcPartSearchResult = {
@@ -288,6 +290,8 @@ export type UserInfo = {
   avatarPath: string | null;
   isActive: boolean;
   canApprove: boolean;
+  // 担当者の所属システム。作業記録の担当者リストを MC/NC で絞り込むために使う
+  systemType?: "NC" | "MC" | "BOTH";
 };
 
 export type WorkSessionResponse = {
