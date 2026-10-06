@@ -39,6 +39,10 @@ export default function McSearchPage() {
   const [recent,   setRecent]   = useState<any[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [clientNames, setClientNames] = useState<string[]>([]);
+  // 右ペインの図面表示(認証なし・FIT表示)
+  const [drawing, setDrawing] = useState<{ mcId: number; drawingNo: string } | null>(null);
+  const [drawingState, setDrawingState] = useState<"loading" | "ok" | "error">("loading");
+  const openDrawing = (mcId: number, drawingNo: string) => { setDrawingState("loading"); setDrawing({ mcId, drawingNo }); };
 
   useEffect(() => {
     mcApi.recent().then(r => setRecent(r.data ?? [])).catch(() => {});
@@ -126,6 +130,25 @@ export default function McSearchPage() {
             {results.length > 0 && <button onClick={() => { setMcIdInput(""); setMachiningIdInput(""); setPartIdInput(""); setDrawingNoInput(""); setNameInput(""); setClientInput(""); setMachineInput(""); setResults([]); setTotal(null); }} className="w-full border border-slate-200 text-slate-500 hover:bg-slate-50 py-1.5 rounded-lg text-xs">{t("search.clearButton", "クリア")}</button>}
             {total !== null && <div className="text-xs text-slate-500 bg-slate-50 rounded p-2">{total > 0 ? <span>{t("search.hitCount","{n} 件ヒット").replace("{n}", String(total))}</span> : <span className="text-red-500">{t("search.noHit", "0件（条件を変更してください）")}</span>}</div>}
 
+            {/* 最近のアクセス(直近10件) — 検索条件の下に表示。はみ出しはサイドバーごとスクロール */}
+            {recent.length > 0 && (
+              <div className="border-t border-slate-100 pt-2">
+                <h3 className="text-xs font-bold text-slate-600 mb-2">{t("search.recentAccess", "最近のアクセス")} <span className="font-normal text-slate-400 text-[10px]">{t("search.recent10", "直近10件")}</span></h3>
+                <div className="space-y-1.5">
+                  {recent.map((r: any, i) => (
+                    <div key={i} onClick={() => handleSelect(r.mc_id)} className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all">
+                      <div className="font-mono text-teal-600 font-bold text-xs truncate">{r.drawing_no}</div>
+                      <div className="font-mono text-[10px] text-slate-400 truncate">
+                        {t("search.mcIdColon","MCID : {id}").replace(" : ", ":").replace("{id}", String(r.legacy_mcid ?? r.mc_id))}
+                        {r.machining_id != null && <> {t("search.machiningIdColon","加工ID:{id}").replace("{id}", String(r.machining_id))}</>}
+                      </div>
+                      <div className="text-[11px] text-slate-500 truncate">{r.part_name}</div>
+                      {r.accessed_at && <div className="text-[10px] text-slate-400">{toJstMonthDayTimeString(r.accessed_at)}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </aside>
         <main className="w-[460px] shrink-0 border-r border-slate-200 flex flex-col overflow-hidden">
@@ -142,6 +165,12 @@ export default function McSearchPage() {
                   <span className="font-mono text-slate-800 font-bold text-sm">{g.drawing_no}</span>
                   <span className="text-slate-700 font-medium text-sm truncate flex-1">{g.part_name}</span>
                   {g.client_name && <span className="text-slate-400 text-xs shrink-0 truncate max-w-[120px]">{g.client_name}</span>}
+                  {g.drawing_no && g.rows[0] && (
+                    <button onClick={e => { e.stopPropagation(); openDrawing(g.rows[0].mc_id, g.drawing_no); }}
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded border shrink-0 transition-colors ${drawing?.drawingNo === g.drawing_no ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-indigo-700 border-indigo-300 hover:bg-indigo-50"}`}>
+                      📋 図面
+                    </button>
+                  )}
                 </div>
                 {g.rows.map((r, ri) => (
                   <div key={r.mc_id} onClick={() => handleSelect(r.mc_id)}
@@ -163,36 +192,42 @@ export default function McSearchPage() {
             ))}
           </div>
         </main>
-        <section className="flex-1 overflow-y-auto p-5">
-          {recent.length > 0 ? (<>
-            <h3 className="text-sm font-bold text-slate-600 mb-3">{t("search.recentAccess", "最近のアクセス")} <span className="font-normal text-slate-400 text-xs">{t("search.recent10", "直近10件")}</span></h3>
-            <div className="space-y-2">
-              {recent.map((r: any,i) => (
-                <div key={i} onClick={() => handleSelect(r.mc_id)} className="bg-white border border-slate-200 rounded-lg px-4 py-3 cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-mono text-teal-600 font-bold text-sm">{r.drawing_no}</span>
-                      <span className="font-mono text-[10px] text-slate-400">{t("search.mcIdColon","MCID : {id}").replace(" : ", ":").replace("{id}", String(r.legacy_mcid ?? r.mc_id))}</span>
-                      {r.machining_id != null && <span className="font-mono text-[10px] text-slate-400">{t("search.machiningIdColon","加工ID:{id}").replace("{id}", String(r.machining_id))}</span>}
-                      {r.part_id && <span className="font-mono text-[10px] text-slate-400">{t("search.partIdBadge","部品ID:{id}").replace("{id}", r.part_id)}</span>}
-                    </div>
-                    <div className="text-xs text-slate-500 truncate">{r.part_name}</div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    {r.operator_name && <div className="text-[11px] text-slate-500">{t("search.operatorPrefix","👤 {name}").replace("{name}", r.operator_name)}</div>}
-                    {r.accessed_at && <div className="text-[10px] text-slate-400">{toJstMonthDayTimeString(r.accessed_at)}</div>}
-                  </div>
+        <section className="flex-1 min-w-0 flex flex-col bg-slate-900" onContextMenu={e => e.preventDefault()}>
+          {drawing ? (<>
+            {/* 図面は表示のみ(印刷不可): ブラウザ印刷時は白紙にする */}
+            <style>{"@media print{body{display:none !important}}"}</style>
+            <div className="px-4 py-2 bg-slate-800 text-white text-sm font-bold flex items-center gap-2 shrink-0">
+              <span>📋 図面 —</span><span className="font-mono">{drawing.drawingNo}</span>
+              <button onClick={() => setDrawing(null)} className="ml-auto text-slate-300 hover:text-white text-lg px-1.5">✕</button>
+            </div>
+            <div className="flex-1 min-h-0 flex items-center justify-center p-2">
+              {drawingState === "loading" && (
+                <div className="flex flex-col items-center gap-3 text-slate-400">
+                  <div className="w-8 h-8 border-2 border-slate-500 border-t-white rounded-full animate-spin" />
+                  <span className="text-sm">図面を取得中…</span>
                 </div>
-              ))}
+              )}
+              {drawingState === "error" && (
+                <p className="text-slate-400 text-sm text-center px-8">図面を取得できませんでした<br /><span className="text-xs text-slate-500">（Ridocに図面が無い、またはRidocサーバー未応答）</span></p>
+              )}
+              <img key={`${drawing.mcId}-${drawing.drawingNo}`} src={`/api/mc/${drawing.mcId}/drawing-image?imgType=ORG`}
+                alt={drawing.drawingNo} draggable={false}
+                onLoad={() => setDrawingState("ok")} onError={() => setDrawingState("error")}
+                className={`max-w-full max-h-full object-contain select-none ${drawingState === "ok" ? "" : "hidden"}`} />
             </div>
-          </>) : (<div className="bg-white border border-slate-200 rounded-lg p-5">
-            <h3 className="text-sm font-bold text-slate-700 mb-2">{t("search.welcomeMc", "⚙ MC システムへようこそ")}</h3>
-            <div className="text-xs text-slate-500 space-y-1">
-              <div>{t("search.mcTip1", "• 図面番号・部品名称・MCID・加工IDで検索可能")}</div>
-              <div>{t("search.tip2", "• 加工IDが同じ = 共通加工")}</div>
-              <div>{t("search.tip3", "• 空欄のまま検索 = 全件表示")}</div>
+          </>) : (
+            <div className="flex-1 overflow-y-auto p-5 bg-slate-50">
+              <div className="bg-white border border-slate-200 rounded-lg p-5">
+                <h3 className="text-sm font-bold text-slate-700 mb-2">{t("search.welcomeMc", "⚙ MC システムへようこそ")}</h3>
+                <div className="text-xs text-slate-500 space-y-1">
+                  <div>{t("search.mcTip1", "• 図面番号・部品名称・MCID・加工IDで検索可能")}</div>
+                  <div>{t("search.tip2", "• 加工IDが同じ = 共通加工")}</div>
+                  <div>{t("search.tip3", "• 空欄のまま検索 = 全件表示")}</div>
+                  <div>• 検索結果の「📋 図面」でこの欄に図面を表示（認証不要）</div>
+                </div>
+              </div>
             </div>
-          </div>)}
+          )}
         </section>
       </div>
     </div>

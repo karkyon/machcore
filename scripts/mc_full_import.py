@@ -527,7 +527,11 @@ def phase3(pg, dry_run=False):
     if not dry_run:
         pgc.execute("""
             UPDATE mc_machining_details d
-            SET rc = (SELECT COUNT(*) FROM mc_tooling t WHERE t.machining_id = d.machining_id)
+            SET rc = (SELECT COUNT(*) FROM mc_tooling t WHERE t.machining_id = d.machining_id
+                      AND NOT (COALESCE(TRIM(t.tool_no),'')='' AND COALESCE(TRIM(t.tool_name),'')='' AND COALESCE(TRIM(t.t_no),'')=''
+              AND COALESCE(TRIM(t.length_offset_no),'')='' AND COALESCE(TRIM(t.dia_offset_no),'')=''
+              AND COALESCE(TRIM(t.d_value_content),'')='' AND COALESCE(TRIM(t.sub_pg_no),'')=''
+              AND COALESCE(TRIM(t.tool_type),'')='' AND COALESCE(TRIM(t.note),'')='' AND t.diameter IS NULL))
         """)
         pg.commit()
     pgc.execute("SELECT SUM(rc) FROM mc_machining_details")

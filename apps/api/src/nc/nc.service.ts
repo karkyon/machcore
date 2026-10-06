@@ -7,6 +7,7 @@ import { UpdateNcDto } from "./dto/update-nc.dto";
 import { SaveNcToolingDto } from "./dto/save-nc-tooling.dto";
 
 import * as fs from 'fs';
+import { appendDrawingPages } from '../common/drawing-pages';
 import { execSync } from 'child_process';
 import * as path from 'path';
 import * as chardet from 'chardet';
@@ -1368,27 +1369,9 @@ async generateSetupSheetPdf(
 
   try {
     const page = await browser.newPage();
-    // 図ファイルをBase64に変換（include_drawings=true の場合）
+    // 図は段取シート本文に縮小埋め込み(最大3枚)していたが、全ての図を段取シートの後に
+    // 1図1ページで続けて印刷する方式に変更(PDF生成後に appendDrawingPages で追加)
     const drawingBase64s: string[] = [];
-    if (options.include_drawings === true && data.files && data.files.length > 0) {
-      const sharpLib = (await import('sharp')).default;
-      for (const f of (data.files as any[]).slice(0, 3)) {
-        try {
-          const filePath: string = f.filePath ?? f.file_path ?? '';
-          if (!filePath || !fs.existsSync(filePath)) continue;
-          const buf = fs.readFileSync(filePath);
-          const mime: string = f.mimeType ?? f.mime_type ?? '';
-          if (mime.includes('tiff') || mime.includes('tif')) {
-            const imgBuf = await sharpLib(buf).png().toBuffer();
-            drawingBase64s.push('data:image/png;base64,' + imgBuf.toString('base64'));
-          } else if (!mime.includes('pdf')) {
-            drawingBase64s.push('data:' + mime + ';base64,' + buf.toString('base64'));
-          }
-        } catch (e: any) {
-          console.warn('Drawing embed failed:', e?.message);
-        }
-      }
-    }
     const html = this.buildSetupSheetHtml(data, { ...options, drawingBase64s });
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
@@ -1404,7 +1387,23 @@ async generateSetupSheetPdf(
         </div>`,
     });
 
-    const pdfBuffer = Buffer.from(pdfUint8);
+    let pdfBuffer = Buffer.from(pdfUint8);
+
+    // ── 「図を含める」: 段取シートの後に全ての図(DRAWING)を続けて印刷 ──
+    if (options.include_drawings === true) {
+      const drawFiles = await this.prisma.ncFile.findMany({
+        where:   { ncProgramId, fileType: 'DRAWING', isDeleted: false },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        select:  { filePath: true, mimeType: true, originalName: true },
+      });
+      if (drawFiles.length > 0) {
+        const { PDFDocument } = await import('pdf-lib');
+        const doc = await PDFDocument.load(pdfBuffer);
+        const added = await appendDrawingPages(doc, drawFiles);
+        pdfBuffer = Buffer.from(await doc.save({ useObjectStreams: true }));
+        console.log(`[setupsheet] 図を追加 nc_id=${ncProgramId}: ${drawFiles.length}ファイル → ${added}ページ`);
+      }
+    }
 
     // SetupSheetLog INSERT（エラーはログのみ）。プレビューの場合はDB記録をスキップする(MC側と同一仕様)。
     if (!(options as any).is_preview) {

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { AppLoggerService } from '../common/app-logger.service';
+import { appendDrawingPages } from '../common/drawing-pages';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
 import { PrismaService } from '../prisma/prisma.service';
@@ -726,6 +727,7 @@ export class McService {
             machiningId:    mc.machiningId,
             sortOrder:      item.sort_order,
             toolNo:         item.tool_no,
+            tNo:            item.t_no            ?? null,
             toolName:       item.tool_name       ?? null,
             diameter:       item.diameter        ?? null,
             lengthOffsetNo: item.length_offset_no ?? null,
@@ -738,10 +740,15 @@ export class McService {
           })),
         });
       }
-      // RC自動更新（ツーリング件数をmc_machining_detailsに反映）
+      // RC自動更新: ツーリング本数 = 空白行以外の行数
+      const filled = (v: unknown) => v != null && String(v).trim() !== '';
+      const rcCount = dto.items.filter(it =>
+        filled(it.tool_no) || filled(it.tool_name) || filled(it.t_no) || filled(it.length_offset_no) ||
+        filled(it.dia_offset_no) || filled(it.d_value_content) || filled(it.sub_pg_no) ||
+        filled(it.tool_type) || filled(it.note) || filled(it.diameter)).length;
       await tx.mcMachiningDetail.update({
         where: { machiningId: mc.machiningId },
-        data:  { rc: dto.items.length },
+        data:  { rc: rcCount },
       });
       await tx.operationLog.create({
         data: { userId: operatorId, mcProgramId: mcId, actionType: 'MC_EDIT_SAVE', metadata: { action: 'save_tooling' } },
@@ -2237,6 +2244,17 @@ export class McService {
       });
     }
 
+    // ── 「図を含める」: 段取シートの後に全ての図(DRAWING)を続けて印刷 ──
+    if (options.include_drawings === true) {
+      const drawFiles = await this.prisma.mcFile.findMany({
+        where:   { mcProgramId: mcId, fileType: 'DRAWING', isDeleted: false },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        select:  { filePath: true, mimeType: true, originalName: true },
+      });
+      const added = await appendDrawingPages(finalDoc, drawFiles);
+      console.log(`[setupsheet] 図を追加 mc_id=${mcId}: ${drawFiles.length}ファイル → ${added}ページ`);
+    }
+
     // ── プレビュー透かし処理 ──
     const isPreview = (options as any).is_preview === true;
     if (isPreview) {
@@ -3277,6 +3295,17 @@ export class McService {
           pg.drawText(`発行: ${issuedAt}`, { x: dtX, y: pnY, size: dtSz, font: finalFont, color: rgb(0.4,0.4,0.4) });
         } catch(_) {}
       });
+    }
+
+    // ── 「図を含める」: 段取シートの後に全ての図(DRAWING)を続けて印刷 ──
+    if (options.include_drawings === true) {
+      const drawFiles = await this.prisma.mcFile.findMany({
+        where:   { mcProgramId: mcId, fileType: 'DRAWING', isDeleted: false },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        select:  { filePath: true, mimeType: true, originalName: true },
+      });
+      const added = await appendDrawingPages(finalDoc, drawFiles);
+      console.log(`[setupsheet] 図を追加 mc_id=${mcId}: ${drawFiles.length}ファイル → ${added}ページ`);
     }
 
     // ── プレビュー透かし ──

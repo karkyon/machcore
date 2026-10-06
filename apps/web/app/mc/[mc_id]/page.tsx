@@ -1330,7 +1330,6 @@ export default function McDetailPage() {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-white rounded-xl border-2 border-indigo-300 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                     onClick={async () => {
-                      if (!isAuthenticated) { setDrawingAuthOpen(true); return; }
                       setDrawingModal(true);
                       setDrawingLoading(true);
                       try {
@@ -1606,12 +1605,7 @@ export default function McDetailPage() {
                 <button onClick={() => setDrawingZoom(z => { const cur = typeof z === "number" ? z : 100; return Math.min(800, cur + 20); })}
                   className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50">＋</button>
                 <div className="w-px h-5 bg-slate-200 mx-1" />
-                {drawingBlobUrl && (
-                  <a href={drawingBlobUrl} download={`drawing-${d.part.drawingNo}.jpg`}
-                    className="px-2.5 py-1 text-xs font-bold rounded border bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100">
-                    {tr("mcDetailPage.downloadLabel", "⬇ ダウンロード")}
-                  </a>
-                )}
+                <style>{"@media print{body{display:none !important}}"}</style>
                 <button onClick={() => { setDrawingModal(false); setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}
                   className="ml-1 text-slate-400 hover:text-slate-700 text-lg px-1.5">✕</button>
               </div>

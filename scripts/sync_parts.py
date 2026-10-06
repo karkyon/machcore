@@ -60,6 +60,10 @@ try:
     clean_dsn = urlunparse(_parsed._replace(query=urlencode(_kept, doseq=True)))
     dst = psycopg2.connect(clean_dsn)
     dc = dst.cursor()
+    # 同期の健全性を判断できるよう、同期先DBと件数をログに残す
+    dc.execute("SELECT current_database(), COUNT(*), MAX(CASE WHEN part_id ~ '^[0-9]+$' THEN part_id::bigint END) FROM parts")
+    _db, _cnt, _mx = dc.fetchone()
+    print(f"同期先DB={_db} 同期前parts={_cnt}件 最大部品ID={_mx}")
 
     inserted = updated = 0
     for part_id, drawing_no, name, main_model, client_name in rows:
@@ -79,8 +83,8 @@ try:
             updated += 1
         else:
             dc.execute("""
-                INSERT INTO parts (part_id, drawing_no, name, main_model, client_name, synced_at)
-                VALUES (%s, %s, %s, %s, %s, NOW())
+                INSERT INTO parts (part_id, drawing_no, name, main_model, client_name, is_active, synced_at)
+                VALUES (%s, %s, %s, %s, %s, true, NOW())
             """, (pid, dno, nm, mm, cn))
             inserted += 1
 
