@@ -436,7 +436,7 @@ def verify_history_nc(ss, pg, limit=None):
 
     # K_idごとに旧側で予測される各テーブルの件数を、
     # nc_full_import_v2.py PHASE3 A/B/C の判定ロジックをそのまま再現して集計する。
-    expected = defaultdict(lambda: {"setup_sheet_logs": 0, "change_history": 0, "work_records": 0})
+    expected = defaultdict(lambda: {"setup_sheet_logs": 0, "change_history": 0, "work_records": 0, "uncollected": 0})
 
     for row in old_rows:
         (hist_id, k_id, nc_id_old, mc_raw,
@@ -451,8 +451,11 @@ def verify_history_nc(ss, pg, limit=None):
         in_cont_s = str(in_cont or "").strip()
 
         # A: setup_sheet_logs（Out_Cont = "印刷"、Out_Dateあり）
-        if "印刷" in out_cont_s and out_date:
+        # 段取シート = Out_Cont「印刷…」または「仮登録」。未回収 = 旧判定(Like '印刷*' or ='仮登録') かつ IsNull(In_Cont)
+        if ("印刷" in out_cont_s or out_cont_s == "仮登録") and out_date:
             expected[k_id]["setup_sheet_logs"] += 1
+            if in_cont is None and (out_cont_s.startswith("印刷") or out_cont_s == "仮登録"):
+                expected[k_id]["uncollected"] += 1
 
         # B: work_records（Dan_*/La_*/P に実データあり）
         dan_h_i = int(dan_h) if dan_h is not None else 0
@@ -471,6 +474,8 @@ def verify_history_nc(ss, pg, limit=None):
             expected[k_id]["change_history"] += 1
 
     # 新側の実際の件数を nc_program_id 単位で集計
+    pgc.execute("SELECT nc_program_id, COUNT(*) FROM setup_sheet_logs WHERE NOT work_collected GROUP BY nc_program_id")
+    actual_unc = dict(pgc.fetchall())
     pgc.execute("SELECT nc_program_id, COUNT(*) FROM setup_sheet_logs GROUP BY nc_program_id")
     actual_sl = dict(pgc.fetchall())
     pgc.execute("SELECT nc_program_id, COUNT(*) FROM change_history GROUP BY nc_program_id")
@@ -501,14 +506,17 @@ def verify_history_nc(ss, pg, limit=None):
         exp_sl = exp["setup_sheet_logs"] * dup_factor
         exp_ch = exp["change_history"] * dup_factor
         exp_wr = exp["work_records"] * dup_factor
+        exp_unc = exp["uncollected"] * dup_factor
         act_sl = sum(actual_sl.get(pid, 0) for pid in prog_ids)
         act_ch = sum(actual_ch.get(pid, 0) for pid in prog_ids)
         act_wr = sum(actual_wr.get(pid, 0) for pid in prog_ids)
+        act_unc = sum(actual_unc.get(pid, 0) for pid in prog_ids)
 
         field_checks = [
             ("印刷履歴件数", exp_sl, act_sl, "num"),
             ("変更履歴件数", exp_ch, act_ch, "num"),
             ("作業記録件数", exp_wr, act_wr, "num"),
+            ("未回収件数",   exp_unc, act_unc, "num"),
         ]
         diffs = []
         for label, old_v, new_v, kind in field_checks:

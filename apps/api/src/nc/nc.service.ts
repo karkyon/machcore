@@ -1264,8 +1264,9 @@ export class NcService {
         workType:            dto.work_type             !== undefined ? dto.work_type             : record.workType,
         note:                dto.note                 !== undefined ? dto.note                  : record.note,
         machineId:           dto.machine_id            !== undefined ? dto.machine_id            : record.machineId,
-        setupOperatorIds:      dto.setup_operator_ids      !== undefined ? dto.setup_operator_ids      : (record.setupOperatorIds as any ?? []),
-        productionOperatorIds: dto.production_operator_ids !== undefined ? dto.production_operator_ids : (record.productionOperatorIds as any ?? []),
+        // null(画面で全員外した)は空配列にする(MC updateWorkRecordと同じ)
+        setupOperatorIds:      dto.setup_operator_ids      !== undefined ? (dto.setup_operator_ids      ?? []) : (record.setupOperatorIds as any ?? []),
+        productionOperatorIds: dto.production_operator_ids !== undefined ? (dto.production_operator_ids ?? []) : (record.productionOperatorIds as any ?? []),
       },
     });
 
@@ -1417,7 +1418,9 @@ async generateSetupSheetPdf(
         data: {
           ncProgramId, operatorId,
           version: (data as any)?.machining?.version ?? (data as any)?.version ?? null,
-          ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}),
+          // 参考資料は回収対象外(旧システムでも参考出力は回収済み扱い)。未回収一覧・段取シートバックに出さない(MCと同じ)
+          ...(((options as any).purpose === 'reference' || (options as any).is_reference === true) ? { isReference: true, workCollected: true }
+              : (typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {})),
           sheetType:    (options as any).sheet_type    ?? 'NEW',
           quantity:     (options as any).quantity      ?? null,
           machineIdLog: (options as any).machine_id    ?? null,

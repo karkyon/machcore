@@ -2967,7 +2967,7 @@ export class McService {
     await addNewPage(headerTpl);
 
     // 用途「参考資料」: タイトル横に『参考資料』を印字し、作業記録ページ(template_repeat_p2)は出さない
-    const isReferenceSheet = (options as any).purpose === 'reference';
+    const isReferenceSheet = (options as any).purpose === 'reference' || (options as any).is_reference === true;
     if (isReferenceSheet) {
       try {
         const refText = '参考資料';
@@ -3557,7 +3557,9 @@ export class McService {
       await this.prisma.mcSetupSheetLog.create({
         data: { mcProgramId: mcId, operatorId, version: data.version ?? null,
                 pdfPath: savedPdfPath,
-                ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}),
+                // 参考資料は回収対象外(旧システムでも参考出力は回収済み扱い)。未回収一覧・段取シートバックに出さない
+                ...(isReferenceSheet ? { isReference: true, workCollected: true }
+                    : (typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {})),
                 sheetType: 'REPEAT',
                 quantity:     (options as any).quantity    ?? null,
                 machineIdLog: (options as any).machine_id  ?? null,

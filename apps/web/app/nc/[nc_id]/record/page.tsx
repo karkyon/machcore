@@ -411,7 +411,10 @@ function RecordPageInner() {
         production_operator_ids:prodOps.length  > 0 ? prodOps  : undefined,
       };
       if (editRecordId) {
-        await workRecordsApi.update(ncId, editRecordId, base as UpdateWorkRecordBody, workToken);
+        // 編集モードは空欄にした項目もクリアされるよう undefined を null にして送る(MCと同じ)
+        const upd: Record<string, unknown> = { ...base };
+        for (const k of Object.keys(upd)) if (upd[k] === undefined) upd[k] = null;
+        await workRecordsApi.update(ncId, editRecordId, upd as unknown as UpdateWorkRecordBody, workToken);
         showToast(tr("ncRecordPage.updatedMsg","✅ 更新しました"));
       } else {
         // [追加] 段取シート選択中なら新規作成時のみそのIDを送信し、work_records側に

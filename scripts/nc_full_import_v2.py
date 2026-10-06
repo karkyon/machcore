@@ -694,7 +694,12 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
             # 旧ACC_Historyは1行=1枚の段取シート。この行で作った印刷履歴に、同じ行の作業記録を結び付ける
             row_sl_ids = {}
             # ── A: setup_sheet_logs（Out_Cont = "印刷"）→ 対応する全NcProgramに複製 ──
-            if "印刷" in out_cont_s and out_date_utc:
+            # 旧システムの段取シート = Out_Cont が「印刷…」または「仮登録」(新規段取シート r_New_NC_Lathe)。
+            # 未回収 = 旧「段取シート戻り」画面の判定(Out_Cont Like '印刷*' or ='仮登録') かつ IsNull(In_Cont)。
+            is_new_sheet = (out_cont_s == "仮登録")
+            if ("印刷" in out_cont_s or is_new_sheet) and out_date_utc:
+                sheet_collected = not (in_cont is None and (out_cont_s.startswith("印刷") or is_new_sheet))
+                sheet_type = "NEW" if is_new_sheet else "REPEAT"
                 op_id = staff_id_map.get(out_op, ADMIN_FALLBACK_ID)
                 out_ver_str = legacy_nc_ver_to_version(out_ver)
                 for idx, prog_id in enumerate(program_ids):
@@ -703,10 +708,10 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
                             pgc.execute("""
                                 INSERT INTO setup_sheet_logs (
                                     nc_program_id, operator_id, printed_at, version,
-                                    pdf_path, session_id, work_collected
-                                ) VALUES (%s,%s,%s,%s,NULL,NULL,true)
+                                    pdf_path, session_id, work_collected, sheet_type
+                                ) VALUES (%s,%s,%s,%s,NULL,NULL,%s,%s)
                                 RETURNING id
-                            """, (prog_id, op_id, out_date_utc, out_ver_str))
+                            """, (prog_id, op_id, out_date_utc, out_ver_str, sheet_collected, sheet_type))
                             row_sl_ids[prog_id] = pgc.fetchone()[0]
                         sl_ok += 1
                         if idx > 0:
@@ -850,7 +855,7 @@ def phase4(pg, dry_run=False):
     APPROVAL_CONTENTS = {"承認"}
 
     ssc.execute("""
-        SELECT K_id, In_Cont, Out_Cont, In_Date
+        SELECT K_id, In_Cont, Out_Cont, In_Date, In_Op
         FROM ACC_History
         WHERE In_Cont IS NOT NULL OR Out_Cont IS NOT NULL
         ORDER BY K_id, In_Date DESC
@@ -861,8 +866,9 @@ def phase4(pg, dry_run=False):
     kid_latest_in = {}
     kid_has_print = set()
     kid_has_approval = set()
+    kid_latest_approval = {}  # K_id → (In_Op, In_Date) 最新の「承認」行
 
-    for k_id, in_cont, out_cont, in_date in rows:
+    for k_id, in_cont, out_cont, in_date, in_op in rows:
         if k_id is None:
             continue
         ic = str(in_cont or "").strip()
@@ -873,6 +879,8 @@ def phase4(pg, dry_run=False):
             kid_has_print.add(k_id)
         if any(kw in ic for kw in APPROVAL_CONTENTS):
             kid_has_approval.add(k_id)
+            if k_id not in kid_latest_approval and in_date is not None:
+                kid_latest_approval[k_id] = (in_op, in_date)
 
     log(f"PRINT系有りK_id: {len(kid_has_print)}件")
     log(f"承認有りK_id: {len(kid_has_approval)}件")
@@ -880,6 +888,16 @@ def phase4(pg, dry_run=False):
     # K_id(=machining_id)単位で、その全NcProgram行(id一覧)を取得
     pgc.execute("SELECT id, machining_id FROM nc_programs")
     program_rows = pgc.fetchall()
+
+    # 承認者(旧In_Op = ACC_Staff.St_id → users.employee_code "STAFF{St_id:03d}")
+    pgc.execute("SELECT id, employee_code FROM users")
+    _code_to_uid = {r[1]: r[0] for r in pgc.fetchall()}
+    def _approver_uid(st_id):
+        try:
+            return _code_to_uid.get(f"STAFF{int(st_id):03d}")
+        except (TypeError, ValueError):
+            return None
+    stat_approver = 0
     log(f"nc_programs取得: {len(program_rows)}件")
 
     stat_new = stat_approved = stat_pending = 0
@@ -907,12 +925,18 @@ def phase4(pg, dry_run=False):
                     new_status = "PENDING_APPROVAL"
                     stat_pending += 1
 
+            # 承認者・承認日: 承認済みで旧「承認」行があるものは、その最新行の In_Op / In_Date(JST→UTC)
+            appr = kid_latest_approval.get(kid) if new_status == "APPROVED" else None
+            appr_by = _approver_uid(appr[0]) if appr else None
+            appr_at = to_jst_utc(appr[1]) if appr else None
+            if appr_by: stat_approver += 1
             pgc.execute(
-                "UPDATE nc_programs SET status = %s::nc_program_status WHERE id = %s",
-                (new_status, nc_db_id)
+                "UPDATE nc_programs SET status = %s::nc_program_status, approved_by = %s, approved_at = %s WHERE id = %s",
+                (new_status, appr_by, appr_at, nc_db_id)
             )
         pg.commit()
         log(f"status更新: NEW={stat_new} APPROVED={stat_approved} PENDING_APPROVAL={stat_pending}")
+        log(f"承認者・承認日を設定: {stat_approver}件")
 
         pgc.execute("SELECT status, COUNT(*) FROM nc_programs GROUP BY status ORDER BY status")
         for row in pgc.fetchall():
