@@ -42,6 +42,10 @@ from datetime import datetime
 
 def _load_pg_dsn():
     import re as _re
+    # 接続先の明示指定(コンバート試験 run_conversion_test.py が試験用DBを指定する)
+    _ov = os.environ.get("MACHCORE_PG_DSN")
+    if _ov:
+        return _ov.split("?", 1)[0]
     _env = Path(__file__).resolve().parent.parent / "apps" / "api" / ".env"
     with open(_env, encoding="utf-8") as _f:
         for _line in _f:
@@ -305,13 +309,23 @@ def verify_tooling_nc(ss, pg, limit=None):
     if limit:
         old_rows = old_rows[:limit]
 
+    # 旧DBで加工データ本体(ACC_Lathe)が存在しない加工IDの工具行は、旧DB側の孤立データ。
+    # コンバートは加工データ本体単位で工具を持つため移行対象にならない(不一致ではなく別集計にする)。
+    ssc.execute("SELECT K_id FROM ACC_Lathe")
+    lathe_kids = {r[0] for r in ssc.fetchall()}
     old_by_kid = defaultdict(list)
     orphan_old_count = 0
+    orphan_old_kids = set()
     for row in old_rows:
         if row[1] is None:
             orphan_old_count += 1
             continue
+        if row[1] not in lathe_kids:
+            orphan_old_kids.add(row[1])
+            continue
         old_by_kid[row[1]].append(row)
+    if orphan_old_kids:
+        log(f"  [INFO] 旧DB側でACC_Latheに無い加工IDの工具行(移行対象外): 加工ID {len(orphan_old_kids)}件 {sorted(orphan_old_kids)}")
     if orphan_old_count:
         log(f"  [WARN] 旧DB側でK_idがNULLの孤立行: {orphan_old_count}件（比較対象外として除外）")
 
@@ -395,6 +409,7 @@ def verify_tooling_nc(ss, pg, limit=None):
         "mismatched": mismatched,
         "missing_in_new": missing_in_new,
         "row_count_mismatch": row_count_mismatch,
+        "old_orphan_kids": len(orphan_old_kids),
     }
     log(f"  ② 完了: total={len(kids)} matched={matched} mismatched={mismatched} "
         f"row_count_mismatch={row_count_mismatch} missing={missing_in_new}")

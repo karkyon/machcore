@@ -1511,7 +1511,9 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   table.tools { width: 100%; border-collapse: collapse; }
   table.tools th { background: #333; color: #fff; font-weight: 700; padding: 4px 6px;
                    border: 1px solid #888; font-size: 10.5pt; text-align: left; }
-  table.tools td { border: 1px solid #ccc; padding: 3px 6px; font-size: 10.5pt; vertical-align: top; }
+  /* 加工リストは全列(No/加工/ノーズR/備考も)を「0」に点の入らないIPA Pゴシックで印字する */
+  table.tools td { border: 1px solid #ccc; padding: 3px 6px; font-size: 10.5pt; vertical-align: top;
+                   font-family: "IPAPGothic", "IPAGothic", "Noto Sans CJK JP", sans-serif; }
   table.tools tr:nth-child(even) td { background: #f5f5f5; }
   .c { text-align: center; }
   .mono { font-family: 'Courier New', monospace; }

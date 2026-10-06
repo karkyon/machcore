@@ -69,6 +69,10 @@ from datetime import datetime, timedelta
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def _load_pg_dsn():
     import re as _re
+    # 接続先の明示指定(コンバート試験 run_conversion_test.py が試験用DBを指定する)
+    _ov = os.environ.get("MACHCORE_PG_DSN")
+    if _ov:
+        return _ov.split("?", 1)[0]
     _env = Path(__file__).resolve().parent.parent / "apps" / "api" / ".env"
     with open(_env, encoding="utf-8") as _f:
         for _line in _f:
@@ -85,7 +89,7 @@ SS_SERVER    = "192.168.1.9"
 SS_USER      = "sa"
 SS_PASS      = "RTW65b"
 SS_DB        = "imotomc"   # NC側ビューもMC側と同じDB内に存在(diag_v017/v018bで確認済み)
-LOG_FILE     = Path(__file__).resolve().parent.parent / "logs" / "nc_full_import.log"
+LOG_FILE     = (Path(os.environ["MACHCORE_IMPORT_LOG_DIR"]) / "nc_full_import.log") if os.environ.get("MACHCORE_IMPORT_LOG_DIR") else Path(__file__).resolve().parent.parent / "logs" / "nc_full_import.log"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ユーティリティ
@@ -493,11 +497,12 @@ def phase2(pg, dry_run=False, kid_to_dbid=None):
 
             # [v101] NorzRはSQL Server側でreal(浮動小数点)型のため、str()でそのまま
             # 文字列化すると "0.800000011920929" のような誤差込みの桁数になる。
-            # 旧システムの段取シート・加工リスト表示は小数第1位までのため、それに合わせて丸める。
+            # [修正] 従来は小数第1位に丸めていたため 0.25→0.2、0.05→0.1、0.87→0.9 と値が変わっていた。
+            # real型の誤差(0.23999999463558197 等)だけを取り除き、旧システムの値をそのまま継承する。
             nose_r_str = None
             if nose_r is not None:
                 try:
-                    nose_r_str = f"{round(float(nose_r), 1):g}"
+                    nose_r_str = f"{round(float(nose_r), 4):g}"
                 except (TypeError, ValueError):
                     nose_r_str = str(nose_r).strip() or None
 

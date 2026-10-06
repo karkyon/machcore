@@ -57,7 +57,8 @@ def link_nc(ss, pg, dry):
                   FROM ACC_History ORDER BY K_id, In_Date""")
     upd = []; no_log = no_wr = 0
     for kid, out_cont, out_date, in_date, dan_op, dan_h, dan_m, la_h, la_m, p, la_op in sc.fetchall():
-        if kid is None or "印刷" not in str(out_cont or "") or not out_date:
+        _oc = str(out_cont or "").strip()
+        if kid is None or not ("印刷" in _oc or _oc == "仮登録") or not out_date:
             continue
         dh = int(dan_h or 0); dm = int(dan_m or 0); lh = int(la_h or 0); lm = int(la_m or 0); pi = int(p or 0)
         if not (str(dan_op or "").strip() or dh or dm or lh or lm or pi):

@@ -49,6 +49,10 @@ def _mtime_utc(path):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def _load_pg_dsn():
     import re as _re
+    # 接続先の明示指定(コンバート試験 run_conversion_test.py が試験用DBを指定する)
+    _ov = os.environ.get("MACHCORE_PG_DSN")
+    if _ov:
+        return _ov.split("?", 1)[0]
     _env = Path(__file__).resolve().parent.parent / "apps" / "api" / ".env"
     with open(_env, encoding="utf-8") as _f:
         for _line in _f:
@@ -106,7 +110,7 @@ UPLOAD_BASE  = Path("/mnt/mc_files")
 UPLOAD_DRAW  = DST_DRAW
 UPLOAD_PHOTO = DST_PHOTO
 UPLOAD_PG    = DST_PRG
-LOG_FILE     = Path(__file__).resolve().parent.parent / "logs" / "mc_full_import.log"
+LOG_FILE     = (Path(os.environ["MACHCORE_IMPORT_LOG_DIR"]) / "mc_full_import.log") if os.environ.get("MACHCORE_IMPORT_LOG_DIR") else Path(__file__).resolve().parent.parent / "logs" / "mc_full_import.log"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ユーティリティ
