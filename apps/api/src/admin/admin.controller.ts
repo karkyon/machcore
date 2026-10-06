@@ -429,29 +429,63 @@ export class AdminController {
   @Roles('ADMIN')
   @Post('users')
   async createUser(@Body() body: {
-    employee_code: string;
+    employee_code?: string;
     name: string;
     name_kana?: string;
     password: string;
     role?: 'VIEWER' | 'OPERATOR' | 'ADMIN';
     can_approve?: boolean;
+    system_type?: 'NC' | 'MC' | 'BOTH';
   }) {
     const hash = await bcrypt.hash(body.password, 10);
-    return this.prisma.user.create({
-      data: {
-        employeeCode: body.employee_code,
-        name:         body.name,
-        nameKana:     body.name_kana,
-        passwordHash: hash,
-        role:         body.role ?? 'OPERATOR',
-        isActive:     true,
-        canApprove:   body.can_approve ?? false,
-      },
-      select: {
-        id: true, employeeCode: true, name: true, nameKana: true,
-        role: true, isActive: true, systemType: true, canApprove: true, createdAt: true,
-      },
+    const systemType: 'NC' | 'MC' | 'BOTH' =
+      body.system_type === 'MC' || body.system_type === 'BOTH' ? body.system_type : 'NC';
+    // 社員コードは原則サーバー側で自動採番する(明示指定があればそれを使う)。
+    // 同時登録で番号が重なった場合(P2002)は採番し直す。
+    const explicit = (body.employee_code ?? '').trim();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const employeeCode = explicit || await this.nextEmployeeCode(systemType);
+      try {
+        return await this.prisma.user.create({
+          data: {
+            employeeCode,
+            name:         body.name,
+            nameKana:     body.name_kana,
+            passwordHash: hash,
+            role:         body.role ?? 'OPERATOR',
+            isActive:     true,
+            canApprove:   body.can_approve ?? false,
+            systemType,
+          },
+          select: {
+            id: true, employeeCode: true, name: true, nameKana: true,
+            role: true, isActive: true, systemType: true, canApprove: true, createdAt: true,
+          },
+        });
+      } catch (e: any) {
+        if (e?.code === 'P2002' && !explicit) continue;
+        if (e?.code === 'P2002') throw new BadRequestException(`社員コード ${employeeCode} は既に使われています`);
+        throw e;
+      }
+    }
+    throw new BadRequestException('社員コードの採番に失敗しました。もう一度保存してください');
+  }
+
+  /** 社員コード採番: MC→MC001～ / NC→NC001～ / 共通(BOTH)→MN001～
+   *  (同じ接頭文字の最大番号+1、3桁ゼロ埋め。1000人目以降は4桁になる) */
+  private async nextEmployeeCode(systemType: 'NC' | 'MC' | 'BOTH'): Promise<string> {
+    const prefix = systemType === 'MC' ? 'MC' : systemType === 'BOTH' ? 'MN' : 'NC';
+    const rows = await this.prisma.user.findMany({
+      where:  { employeeCode: { startsWith: prefix } },
+      select: { employeeCode: true },
     });
+    const re = new RegExp(`^${prefix}(\\d+)$`);
+    let max = 0;
+    for (const r of rows) {
+      const m = re.exec(r.employeeCode);
+      if (m) max = Math.max(max, parseInt(m[1], 10));
+    }
+    return `${prefix}${String(max + 1).padStart(3, '0')}`;
   }
 
   /** ADM-USR-03: ユーザ更新（PW変更は /password エンドポイントで） */

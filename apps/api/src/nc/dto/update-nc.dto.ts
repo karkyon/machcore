@@ -16,8 +16,8 @@ export class UpdateNcDto {
   @IsOptional() @IsString() @MaxLength(50)
   file_name?: string;
 
-  @IsOptional() @IsString() @Matches(/^\d+\.\d{4}$/, { message: 'version は "1.0001" 形式の数値文字列' })
-  version?: string;
+  // [MC統一] バージョンは手入力しない(終了確認=finalize()の作業種別でサーバー側が更新する)。
+  // MCのUpdateMcDtoと同じく version は受け付けない。
 
   @IsOptional() @IsString() @MaxLength(2000)
   clamp_note?: string;

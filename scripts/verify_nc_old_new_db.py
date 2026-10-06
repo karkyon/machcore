@@ -147,6 +147,17 @@ def values_equal(a, b, kind="str"):
 #     同じ考え方で「行単位」の突合が可能(K_idの共有は加工データ側のみ)。
 # ────────────────────────────────────────────────────────────
 
+def legacy_nc_ver_to_version(ver):
+    """nc_full_import_v2.py の同名関数と同じ規則(旧NC整数Ver → X.YYZZ)"""
+    if ver is None:
+        return None
+    try:
+        v = max(0, int(ver))
+    except (TypeError, ValueError):
+        return None
+    return f"{v // 100}.00{v % 100:02d}"
+
+
 def verify_basic_info_nc(ss, pg, limit=None):
     log("① 基本情報(NC) 比較開始...")
     ssc = ss.cursor()
@@ -241,6 +252,7 @@ def verify_basic_info_nc(ss, pg, limit=None):
             ("備考",        note_str,   n_clamp_note,       "str"),
             ("図枚数",      fig,        n_drawing_count,     "num"),
             ("写真枚数",    photo,      n_photo_count,       "num"),
+            ("Ver",         legacy_nc_ver_to_version(ver) or "1.0001", n_version, "str"),
         ]
 
         diffs = []

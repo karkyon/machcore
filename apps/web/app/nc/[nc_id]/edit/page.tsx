@@ -409,7 +409,7 @@ export default function NcEditPage() {
       // 入っているだけなので、画面上は空欄で表示する(未編集のままならDB値は変わらない)。
       setFolderName(d.folderName === "USB" ? "" : (d.folderName ?? ""));
       setFileName(d.fileName ?? "");
-      setVersion(d.version ?? "A");
+      setVersion(d.version ?? "");
       setClampNote(d.clampNote ?? "");
       setClampAllowance(d.clampAllowance ?? "");
       setCreatorId(d.creatorId ? String(d.creatorId) : ""); // [v096]
@@ -448,7 +448,6 @@ export default function NcEditPage() {
       if (dirty.has("machiningTime")) body.machining_time = machiningTime === "" ? undefined : Number(machiningTime);
       if (dirty.has("folderName"))    body.folder_name    = folderName;
       if (dirty.has("fileName"))      body.file_name      = fileName;
-      if (dirty.has("version"))       body.version        = version;
       if (dirty.has("clampNote"))     body.clamp_note     = clampNote;
       if (dirty.has("clampAllowance")) body.clamp_allowance = clampAllowance;
       if (dirty.has("creatorId"))     body.creator_id     = creatorId === "" ? null : Number(creatorId);
@@ -471,7 +470,7 @@ export default function NcEditPage() {
         // これ以降、離脱時の仮登録破棄(abandon-provisional)は発火しない。
         // 新規登録の確定は変更種別が一意("新規登録")のため、MC側sbModeと同様に
         // モーダルを経由せず直接finalizeする。
-        await ncApi.finalize(ncId, tr("ncEdit.newRegistrationType", "新規登録"), undefined, token);
+        await ncApi.finalize(ncId, "新規登録", undefined, token);
         registrationCompletedRef.current = true;
         // [段取シートバック] STEP1(新規)フロー中の確定完了 → STEP2(作業記録)へ引き継ぐ。
         if (sbMode) {
@@ -488,7 +487,7 @@ export default function NcEditPage() {
       }
 
       // 新規(sbMode)の場合は変更内容を「新規登録」に固定する — MC側と同一仕様。
-      if (sbMode) setKanryoType(tr("ncEdit.newRegistrationType", "新規登録"));
+      if (sbMode) setKanryoType("新規登録");
       // [v112] 通常編集(確定済みレコードの変更): MC側と同一仕様で、保存後に
       // 「終了確認モーダル」(変更種別選択 + バージョンインクリ、または一時保存)を表示する。
       setShowKanryoModal(true);
@@ -835,16 +834,13 @@ export default function NcEditPage() {
                       </div>
                       <div>
                         <label className="text-xs text-slate-500 block mb-1">
-                          {tr("ncEditUi.verLabel", "Ver")} <span className="text-red-400">*</span>
-                          {dirty.has("version") && <span className="text-orange-500 ml-1">●</span>}
+                          {tr("ncEditUi.verLabel", "Ver")}
                         </label>
-                        <input
-                          type="text" maxLength={3}
-                          value={version}
-                          onChange={e => { setVersion(e.target.value.toUpperCase()); markDirty("version"); }}
-                          className={fieldCls("version", "font-mono font-bold")}
-                          placeholder="A"
-                        />
+                        {/* [MC統一] バージョンは手入力しない。作業完了時の作業種別に応じて自動更新(MCと同じ) */}
+                        <div className="px-3 py-2 text-sm border rounded bg-slate-50 border-slate-200 text-slate-700 font-mono font-bold"
+                          title={tr("ncEditUi.versionAutoHint", "バージョンは作業完了時に選ぶ作業種別に応じて自動で更新されます")}>
+                          {version || "—"}
+                        </div>
                       </div>
                     </div>
 
@@ -1183,6 +1179,7 @@ export default function NcEditPage() {
                   {(sbMode || sbRepeatMode) ? tr("ncEditUi.step1CompleteButton","STEP1完了 → STEP2(作業記録)へ") : tr("ncEditUi.workCompleteButton","✓ 作業完了（登録）")}
                 </button>
                 <div className="text-xs text-amber-700">{tr("ncEditUi.historyRecordHint", "← 登録と同時に変更履歴に記録されます")}</div>
+                {saveError && <div className="w-full order-last text-xs text-red-600 font-bold">⚠️ {saveError}</div>}
                 <div className="flex-1"></div>
                 <button
                   onClick={handleCancel}
@@ -1212,6 +1209,7 @@ export default function NcEditPage() {
               {(sbMode && !sbRepeatMode) ? (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
                   <p className="text-sm font-bold text-blue-700 mb-1">{tr("ncEditUi.changeTypeNewLabel", "変更種別: 新規登録")}</p>
+                  <p className="text-xs text-blue-600">{tr("ncEditUi.versionUpgradeNote", "バージョン 0.0001 → 1.0001（整数部+1）")}</p>
                   <p className="text-xs text-blue-600">{tr("ncEditUi.versionUpdateStep2Note", "バージョン更新後、STEP2(作業記録)へ進みます")}</p>
                 </div>
               ) : (

@@ -39,8 +39,11 @@ export class NcController {
     @Query("offset") offset: string,
     @Query("client_name") clientName: string,
     @Query("machine_id") machineId: string,
+    @Query("machine_code") machineCode: string,
   ) {
-    return this.nc.search(key, q, parseInt(limit) || 50, parseInt(offset) || 0, clientName, machineId ? parseInt(machineId) : undefined);
+    const mid = machineId ? parseInt(machineId) : NaN;
+    return this.nc.search(key, q, parseInt(limit) || 50, parseInt(offset) || 0, clientName,
+      isNaN(mid) ? undefined : mid, machineCode || undefined);
   }
 
   // ══════════════════════════════════════════

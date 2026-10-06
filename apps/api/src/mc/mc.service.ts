@@ -13,6 +13,7 @@ import { SaveWorkOffsetsDto } from './dto/save-work-offsets.dto';
 import { SaveIndexProgramsDto } from './dto/save-index-programs.dto';
 import { PrintMcDto } from './dto/print-mc.dto';
 import { calcProgramFileName, calcProgramFolderName, normalizeWpdExt } from './program-file-naming.util';
+import { INITIAL_VERSION, bumpVersion } from '../common/version.util';
 
 /**
  * 段取シートPDFの印字テキストキット。
@@ -488,7 +489,7 @@ export class McService {
         await tx.mcMachiningDetail.create({
           data: {
             machiningId:   dto.machining_id,
-            version:       '1.0001',
+            version:       INITIAL_VERSION,
             machineId:     dto.machine_id      ?? null,
             oNumber:       dto.o_number        ?? null,
             clampNote:     dto.clamp_note      ?? null,
@@ -541,18 +542,9 @@ export class McService {
     if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
     const mach = (mc as any).machining ?? {};
 
-    const verStr   = (mc as any).machining?.version ?? '1.0001';
-    const verFloat = parseFloat(verStr) || 1.0001;
-    const ver1 = Math.floor(verFloat);
-    const ver2 = Math.floor(verFloat * 100) - ver1 * 100;
-    const ver3 = Math.floor(verFloat * 10000) - ver1 * 10000 - ver2 * 100;
-    const isMajor = ['大変更', '新規登録', '試作登録'].includes(changeType);
-    const newVerFloat = isMajor
-      ? ver1 + 1 + ver3 / 10000
-      : ver1 + ver2 / 100 + 0.01 + ver3 / 10000;
-    const newVer1    = Math.floor(newVerFloat);
-    const newVer2    = Math.round((newVerFloat - newVer1) * 10000);
-    const newVersion = `${newVer1}.${String(newVer2).padStart(4, '0')}`;
+    // 規則は従来どおり(大変更/新規登録/試作登録=整数部+1・YYは00、それ以外=100分の1位+1)。
+    // 浮動小数点計算でリビジョン(下2桁)が欠ける誤差があったため整数計算(common/version.util.ts)に変更。
+    const newVersion = bumpVersion((mc as any).machining?.version ?? '1.0001', changeType);
     const content    = `${changeType}${changeDetail ? ' ' + changeDetail : ''}`;
 
     return this.prisma.$transaction(async (tx) => {
@@ -2537,7 +2529,7 @@ export class McService {
       await this.prisma.mcMachiningDetail.create({
         data: {
           machiningId:   prevMachId,
-          version:       '1.0001',
+          version:       INITIAL_VERSION,
           machineId:     dto.machine_id      ?? null,
           oNumber:       dto.o_number        ?? null,
           clampNote:     dto.clamp_note      ?? null,
@@ -2613,7 +2605,7 @@ export class McService {
             await tx.mcMachiningDetail.create({
               data: {
                 machiningId,
-                version:       '1.0001',
+                version:       INITIAL_VERSION,
                 machineId:     dto.machine_id      ?? null,
                 oNumber:       dto.o_number        ?? null,
                 clampNote:     dto.clamp_note      ?? null,

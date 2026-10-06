@@ -141,6 +141,20 @@ def ss_connect():
                                 password=SS_PASS, database=SS_DB, tds_version='7.4'))
 
 
+def legacy_nc_ver_to_version(ver):
+    """旧NCの整数Ver(ACC_Lathe.Ver / ACC_History.Out_Ver,In_Ver)をMCと同じ X.YYZZ 形式に変換する。
+    旧システム: 仮登録=1、新規登録/変更ごとに+100(101, 201, ...)。
+    百の位以上 → 整数部X、下2桁 → リビジョンZZ(1 → 0.0001、101 → 1.0001、201 → 2.0001)。
+    apps/api/src/common/version.util.ts の legacyNcVerToVersion() と同じ規則。"""
+    if ver is None:
+        return None
+    try:
+        v = max(0, int(ver))
+    except (TypeError, ValueError):
+        return None
+    return f"{v // 100}.00{v % 100:02d}"
+
+
 def to_jst_utc(dt):
     """SQL Serverから来るJSTのnaive datetimeをUTCに変換（-9h）。mc_full_import.pyと同じ規則。"""
     if dt is None:
@@ -285,7 +299,8 @@ def phase1(pg, dry_run=False):
             machining_time = int(tm) if tm is not None else None
             setup_time_ref = int(ts) if ts is not None else None
             process_l = int(l_no) if l_no is not None else 1
-            ver_str = str(int(ver)) if ver is not None else "0"
+            # [MC統一] 旧Ver(101等)は X.YYZZ に変換して保持する(旧値そのものは legacy_ver に残す)
+            ver_str = legacy_nc_ver_to_version(ver) or "1.0001"
 
             if dry_run:
                 kid_set.add(int(kid))
@@ -586,6 +601,40 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
             surname_to_userid[surname] = uid
             _surname_seen[surname] = uid
 
+    def _resolve_op(s):
+        s = (s or "").strip()
+        if not s:
+            return None
+        n = re.sub(r"[\s\u3000]+", " ", s).strip()
+        return (name_to_userid.get(s) or name_to_userid.get(n)
+                or surname_to_userid.get(s) or surname_to_userid.get(n))
+
+    _op_split = re.compile(r"\s*(?:&|＆|、|,|，|・|/|／)\s*")
+
+    def _resolve_ops(s):
+        """Dan_Op/La_Op の担当者名 → users.id の配列。
+        「井本 昌成 & ティン」のような複数名併記は分割して全員を解決する(1名として一致すればそれを優先)。"""
+        s = (s or "").strip()
+        if not s:
+            return [], []
+        one = _resolve_op(s)
+        if one:
+            return [one], []
+        ids, unresolved = [], []
+        for part in _op_split.split(s):
+            part = part.strip()
+            if not part:
+                continue
+            uid = _resolve_op(part)
+            if uid:
+                if uid not in ids:
+                    ids.append(uid)
+            else:
+                unresolved.append(part)
+        return ids, unresolved
+
+    unresolved_op_names = {}
+
     if machine_id_map is None:
         ssc.execute("SELECT m_id, Model FROM ACC_Machine")
         acc_rows = ssc.fetchall()
@@ -644,7 +693,7 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
             # ── A: setup_sheet_logs（Out_Cont = "印刷"）→ 対応する全NcProgramに複製 ──
             if "印刷" in out_cont_s and out_date_utc:
                 op_id = staff_id_map.get(out_op, ADMIN_FALLBACK_ID)
-                out_ver_str = str(int(out_ver)) if out_ver is not None else None
+                out_ver_str = legacy_nc_ver_to_version(out_ver)
                 for idx, prog_id in enumerate(program_ids):
                     try:
                         if not dry_run:
@@ -682,23 +731,22 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
                 # 投入していなかったため、NC側の作業記録画面で段取担当者・量産担当者が
                 # 常に空欄になっていた。旧システムは段取(Dan)/加工(La)それぞれ単一の
                 # 担当者名しか持たないため、解決できた場合は要素数1の配列として投入する。
-                setup_op_id = (name_to_userid.get(dan_op_s) or name_to_userid.get(dan_norm)
-                               or surname_to_userid.get(dan_op_s) or surname_to_userid.get(dan_norm))
-                prod_op_id  = (name_to_userid.get(la_op_s) or name_to_userid.get(la_norm)
-                               or surname_to_userid.get(la_op_s) or surname_to_userid.get(la_norm))
-                work_op_id = (setup_op_id or prod_op_id or staff_id_map.get(in_op, ADMIN_FALLBACK_ID))
-                setup_operator_ids_json = _json.dumps([setup_op_id] if setup_op_id else [])
-                production_operator_ids_json = _json.dumps([prod_op_id] if prod_op_id else [])
+                setup_ids, setup_unres = _resolve_ops(dan_op_s)
+                prod_ids, prod_unres = _resolve_ops(la_op_s)
+                for _nm in setup_unres + prod_unres:
+                    unresolved_op_names[_nm] = unresolved_op_names.get(_nm, 0) + 1
+                work_op_id = ((setup_ids[0] if setup_ids else None) or (prod_ids[0] if prod_ids else None)
+                              or staff_id_map.get(in_op, ADMIN_FALLBACK_ID))
+                setup_operator_ids_json = _json.dumps(setup_ids)
+                production_operator_ids_json = _json.dumps(prod_ids)
                 work_machine_id = machine_id_map.get(mc_raw) if mc_raw is not None else None
                 # 作業日(DATE列) = 旧 In_Date(無ければOut_Date) の JST 日付
                 _wd_raw = in_date or out_date
                 work_date = _wd_raw.date() if hasattr(_wd_raw, "year") else datetime(2005, 1, 1).date()
-                note_parts = [s for s in (
-                    f"段取: {dan_op_s}" if dan_op_s else None,
-                    f"加工: {la_op_s}" if la_op_s and la_op_s != dan_op_s else None,
-                ) if s]
-                # 備考: 旧システムの戻り内容(In_Cont)を先頭に継承し、担当者情報を併記
-                note_str = "\n".join(s for s in (in_cont_s, ", ".join(note_parts)) if s) or None
+                # 備考: 旧システムの戻り内容(In_Cont)のみを継承する。
+                # [仕様変更] 段取/量産の担当者は setup_operator_ids / production_operator_ids に入れて
+                # 担当者欄に表示するため、備考への「段取: ○○, 加工: ○○」の併記は行わない。
+                note_str = in_cont_s or None
                 if note_str:
                     note_str = note_str[:1000]
                 for idx, prog_id in enumerate(program_ids):
@@ -725,8 +773,8 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
             is_nc_change = any(kw in in_cont_s for kw in ("新規登録", "仮登録", "変更", "承認"))
             if is_nc_change and in_date_utc:
                 op_id = staff_id_map.get(in_op, ADMIN_FALLBACK_ID)
-                ver_before = str(int(out_ver)) if out_ver is not None else None
-                ver_after = str(int(in_ver)) if in_ver is not None else None
+                ver_before = legacy_nc_ver_to_version(out_ver)
+                ver_after = legacy_nc_ver_to_version(in_ver)
                 field_changes = None
                 if out_cont_s and "印刷" not in out_cont_s:
                     # [バグ修正] ここにあったローカル`import json as _json`が、
@@ -766,6 +814,11 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
 
     log(f"PHASE3完了: setup_sheet_logs ok={sl_ok}(共通部品複製分={sl_dup}) skip={sl_skip} err={sl_err}")
     log(f"            work_records     ok={wr_ok}(共通部品複製分={wr_dup}) skip={wr_skip} err={wr_err}")
+    if unresolved_op_names:
+        log(f"  [WARN] 段取/量産担当者名がusersに無く担当者欄に入らなかった名前: "
+            + ", ".join(f"{k}({v}件)" for k, v in sorted(unresolved_op_names.items(), key=lambda x: -x[1])), "WARN")
+    else:
+        log("  段取/量産担当者名は全件usersで解決")
     log(f"            change_history   ok={ch_ok}(共通部品複製分={ch_dup}) skip={ch_skip} err={ch_err}")
     log(f"  【内訳】ACC_History {len(rows)}件 → 最大 {sl_ok + wr_ok + ch_ok} レコードに展開")
     log("  ※ legacy_hist_idは複製元の旧Hist_idをそのまま保持するため、共通部品では")

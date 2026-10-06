@@ -15,6 +15,7 @@ import * as iconv from 'iconv-lite';
 import { UpdateWorkRecordDto } from "./dto/update-work-record.dto";
 // ★新規登録フロー実装: MC側program-file-naming.utilと同一ロジックを再利用する。
 import { calcProgramFileName, calcProgramFolderName, normalizeWpdExt } from "../mc/program-file-naming.util";
+import { INITIAL_VERSION, bumpVersion, normalizeVersion } from "../common/version.util";
 @Injectable()
 export class NcService {
   constructor(
@@ -23,17 +24,18 @@ export class NcService {
   ) {}
 
   /** NC-01: 部品検索 */
-  async search(key: string, q: string, limit = 50, offset = 0, clientName?: string, machineId?: number) {
+  async search(key: string, q: string, limit = 50, offset = 0, clientName?: string, machineId?: number, machineCode?: string) {
     const where: any = {};
     if (q && q.trim()) {
       const trimQ = q.trim();
       switch (key) {
-        case "nc_id":
+        case "nc_id": {
+          // NC ID(旧NC_id)のみで一致させる。加工ID(旧K_id)は別条件(machining_id)。
+          // legacyNcIdが無い行は一覧の表示値(legacyNcId ?? machiningId)と同じく machiningId で一致させる。
           const ncId = parseInt(trimQ);
-          // [v116] 詳細画面の「NC_id」(legacy_nc_id)と「加工ID」(machining_id)の
-          // どちらで検索されても一致するようにする。内部PK(id)には一致させない。
-          if (!isNaN(ncId)) where.OR = [{ legacyNcId: ncId }, { machiningId: ncId }];
+          if (!isNaN(ncId)) where.OR = [{ legacyNcId: ncId }, { legacyNcId: null, machiningId: ncId }];
           break;
+        }
         case "machining_id": {
           // 検索画面で「NC ID(旧NCID)」と「加工ID(旧K_id)」を別項目として
           // 分離するために追加。machiningIdのみの厳密一致。
@@ -64,6 +66,10 @@ export class NcService {
     if (machineId) {
       where.machining = { ...(where.machining ?? {}), machineId };
     }
+    // 主機種型式(機械コードの部分一致) — MC search()と同じ
+    if (machineCode) {
+      where.machining = { ...(where.machining ?? {}), machine: { machineCode: { contains: machineCode, mode: "insensitive" } } };
+    }
 
     const [total, data] = await Promise.all([
       this.prisma.ncProgram.count({ where }),
@@ -77,7 +83,7 @@ export class NcService {
           machining: {
             select: {
               processL: true, version: true, folderName: true,
-              fileName: true, machiningTime: true,
+              fileName: true, machiningTime: true, setupTimeRef: true,
               machine: { select: { machineCode: true } },
             },
           },
@@ -99,6 +105,9 @@ export class NcService {
         status: r.status, version: r.machining?.version ?? null,
         folder_name: r.machining?.folderName ?? null, file_name: r.machining?.fileName ?? null,
         machining_time: r.machining?.machiningTime ?? null,
+        // 加工時間(秒) = machiningTime(分)×60 + setupTimeRef(秒)。NC詳細画面の「加工時間」と同じ算出
+        machining_time_sec: (r.machining?.machiningTime != null || r.machining?.setupTimeRef != null)
+          ? (r.machining?.machiningTime ?? 0) * 60 + (r.machining?.setupTimeRef ?? 0) : null,
         // [v104] 共通加工登録(ncApi.registerCommonPart)のsource_machining_idに必要
         machining_id: r.machiningId,
       })),
@@ -134,19 +143,19 @@ export class NcService {
     }));
   }
 
-  /** NC-02: 最近のアクセス5件 */
+  /** NC-02: 最近のアクセス10件(MC recent()と同じ件数・項目) */
   async recent() {
     const logs = await this.prisma.operationLog.findMany({
       where:   { ncProgramId: { not: null } },
-      take:    5,
+      take:    10,
       orderBy: { createdAt: "desc" },
       select: {
         actionType: true, createdAt: true,
         user: { select: { name: true } },
         ncProgram: {
           select: {
-            id: true, status: true,
-            part:     { select: { drawingNo: true, name: true } },
+            id: true, status: true, legacyNcId: true, machiningId: true,
+            part:     { select: { partId: true, drawingNo: true, name: true } },
             machining: {
               select: {
                 processL: true, version: true,
@@ -158,7 +167,11 @@ export class NcService {
       },
     });
     return logs.map(l => ({
-      nc_id: l.ncProgram?.id, drawing_no: l.ncProgram?.part.drawingNo,
+      nc_id: l.ncProgram?.id,
+      legacy_nc_id: l.ncProgram ? (l.ncProgram.legacyNcId ?? l.ncProgram.machiningId ?? l.ncProgram.id) : null,
+      machining_id: l.ncProgram?.machiningId ?? null,
+      part_id: l.ncProgram?.part.partId ?? null,
+      drawing_no: l.ncProgram?.part.drawingNo,
       part_name: l.ncProgram?.part.name, process_l: l.ncProgram?.machining?.processL ?? null,
       machine_code: l.ncProgram?.machining?.machine?.machineCode ?? null,
       version: l.ncProgram?.machining?.version ?? null, action_type: l.actionType,
@@ -360,7 +373,8 @@ export class NcService {
           machiningTime: dto.machining_time ?? null,
           folderName,
           fileName,
-          version:      dto.version ?? "1.0001",
+          // 新規作成(仮登録)は0.0001。「新規登録」の確定(finalize)で1.0001になる(MCと同じ)
+          version:      INITIAL_VERSION,
           clampNote:    dto.clamp_note     ?? null,
           clampAllowance: dto.clamp_allowance ?? null,
         },
@@ -385,7 +399,7 @@ export class NcService {
           operatorId,
           changeType:    "NEW_REGISTRATION",
           versionBefore: null,
-          versionAfter:  dto.version ?? "1.0001",
+          versionAfter:  INITIAL_VERSION,
           content:       `新規登録: ${part.drawingNo} L${dto.process_l}`,
         },
       });
@@ -720,18 +734,10 @@ export class NcService {
     if (!ncWithMachining) throw new NotFoundException(`NC_id ${id} が存在しません`);
     const nc = ncWithMachining;
 
-    const verStr   = nc.machining?.version ?? "1.0001";
-    const verFloat = parseFloat(verStr) || 1.0001;
-    const ver1 = Math.floor(verFloat);
-    const ver2 = Math.floor(verFloat * 100) - ver1 * 100;
-    const ver3 = Math.floor(verFloat * 10000) - ver1 * 10000 - ver2 * 100;
-    const isMajor = ["大変更", "新規登録", "試作登録"].includes(changeType);
-    const newVerFloat = isMajor
-      ? ver1 + 1 + ver3 / 10000
-      : ver1 + ver2 / 100 + 0.01 + ver3 / 10000;
-    const newVer1    = Math.floor(newVerFloat);
-    const newVer2    = Math.round((newVerFloat - newVer1) * 10000);
-    const newVersion = `${newVer1}.${String(newVer2).padStart(4, "0")}`;
+    // MCと同一規則(common/version.util.ts): 大変更/新規登録/試作登録=整数部+1(YYは00)、
+    // それ以外=100分の1位+1。旧NCの整数Ver(101等)が残っていても X.YYZZ に読み替えて計算する。
+    const verBefore  = normalizeVersion(nc.machining?.version ?? "1.0001", { legacyNcInt: true });
+    const newVersion = bumpVersion(nc.machining?.version ?? "1.0001", changeType, { legacyNcInt: true });
     const content    = `${changeType}${changeDetail ? " " + changeDetail : ""}`;
 
     return this.prisma.$transaction(async (tx) => {
@@ -757,7 +763,7 @@ export class NcService {
           ncProgramId:   id,
           changeType:    "CHANGE",
           operatorId,
-          versionBefore: nc.machining?.version ?? "1.0001",
+          versionBefore: verBefore,
           versionAfter:  newVersion,
           content,
         },

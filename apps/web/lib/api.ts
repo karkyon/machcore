@@ -67,10 +67,16 @@ export type NcSearchResult = {
   machining_time: number | null;
   // [v104] 共通加工登録(ncApi.registerCommonPart)のsource_machining_idに必要
   machining_id: number;
+  // 加工時間(秒) = machiningTime(分)×60 + setupTimeRef(秒)
+  machining_time_sec?: number | null;
 };
 
 export type RecentAccess = {
   nc_id: number;
+  // 表示用NC ID(legacyNcId ?? machiningId ?? id)・加工ID・部品ID(MCの最近のアクセスと同じ項目)
+  legacy_nc_id?: number | null;
+  machining_id?: number | null;
+  part_id?: string | null;
   drawing_no: string;
   part_name: string;
   process_l: number;
@@ -514,7 +520,9 @@ export type AdminUserInfo = {
 };
 
 export type CreateAdminUserBody = {
-  employee_code: string;
+  // 省略時はシステム区分に応じてサーバー側で自動採番(MC001～ / NC001～ / MN001～)
+  employee_code?: string;
+  system_type?: 'NC' | 'MC' | 'BOTH';
   name: string;
   name_kana?: string;
   password: string;

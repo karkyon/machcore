@@ -107,8 +107,10 @@ export default function AdminUsersPage() {
     try {
       if (dialogMode === "create") {
         if (!fPW) { setFError(t("adminUsers.passwordRequired", "パスワードは必須です")); setSaving(false); return; }
-        await adminUsersApi.create({ employee_code: `STAFF${Date.now()}`, name: fName2, name_kana: fKana2 || undefined, password: fPW, role: fRole2 as any, can_approve: fCanApprove2 }, token);
-        showToast(t("adminUsers.userCreated", "ユーザを登録しました"), true);
+        // 社員コードはシステム区分に応じてサーバー側で自動採番する(MC001～ / NC001～ / MN001～)
+        const created = await adminUsersApi.create({ name: fName2, name_kana: fKana2 || undefined, password: fPW, role: fRole2 as any, can_approve: fCanApprove2, system_type: fSys2 as any }, token);
+        const newCode = ((created as any).data ?? created)?.employeeCode;
+        showToast(`${t("adminUsers.userCreated", "ユーザを登録しました")}${newCode ? `（${t("adminUsers.colEmployeeCode","社員コード")}: ${newCode}）` : ""}`, true);
       } else if (dialogMode === "edit" && editTarget) {
         await adminUsersApi.update(editTarget.id, { name: fName2, name_kana: fKana2 || undefined, role: fRole2 as any, is_active: fActive2 !== "inactive", system_type: fSys2 as any, can_approve: fCanApprove2 }, token);
         showToast(t("adminUsers.updated", "更新しました"), true);
@@ -261,7 +263,10 @@ export default function AdminUsersPage() {
                     <option value="NC">NC</option>
                     <option value="MC">MC</option>
                     <option value="BOTH">{t("adminUsers.sysBothFull", "NC+MC（両方）")}</option>
-                  </select></div>
+                  </select>
+                  {dialogMode === "create" && (
+                    <p className="text-[10px] text-slate-400 mt-1">{t("adminUsers.employeeCodeAutoHint", "社員コードは区分に応じて自動採番（MC001～ / NC001～ / 両方: MN001～）")}</p>
+                  )}</div>
                 <div><label className="text-xs font-bold text-slate-500 block mb-1">{t("adminUsers.roleLabel", "ロール")}</label>
                   <select value={fRole2} onChange={e => setFRole2(e.target.value)}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
