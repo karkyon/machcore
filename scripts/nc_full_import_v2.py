@@ -453,15 +453,15 @@ def phase2(pg, dry_run=False, kid_to_dbid=None):
         pg.commit()
         log("nc_tools既存データ削除完了")
 
+    # [仕様] 加工リストの並びは旧システムと同じ T_id の昇順。No(TNo)は t_number にそのまま保持し、
+    # 段取シート/NC情報画面のNo欄に表示する(従来の K_id, No, T_id 順は旧システムの表示順と異なっていた)。
     ssc.execute("""
         SELECT T_id, K_id, No, Shave1, Shave2, Chip, Holder, NorzR, Note
         FROM ACC_Tool
-        ORDER BY K_id,
-                 CASE WHEN No IS NULL THEN 1 ELSE 0 END,
-                 No, T_id
+        ORDER BY K_id, T_id
     """)
     rows = ssc.fetchall()
-    log(f"ACC_Tool取得: {len(rows)}件")
+    log(f"ACC_Tool取得: {len(rows)}件 (K_id, T_id 昇順)")
 
     ok = skip = err = 0
     reseq_prev_kid = None

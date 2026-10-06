@@ -1447,12 +1447,13 @@ private buildSetupSheetHtml(data: any, opts: any): string {
     catch { return d; }
   };
 
+  // No = 旧システムのTNo(t3_Tool.No → nc_tools.t_number)。並びは sort_order(旧T_id昇順で採番済み)。
   const toolRows = (includeTools && data.tools && data.tools.length > 0) ? data.tools.map((t: any) => `
     <tr style="page-break-inside:avoid;">
-      <td class="c">${t.sortOrder ?? ''}</td>
+      <td class="c">${t.tNumber ?? ''}</td>
       <td>${t.processType ?? ''}</td>
-      <td class="mono">${t.chipModel ?? ''}</td>
-      <td class="mono">${t.holderModel ?? ''}</td>
+      <td class="shape">${t.chipModel ?? ''}</td>
+      <td class="holder">${t.holderModel ?? ''}</td>
       <td class="c">${t.noseR ?? ''}</td>
       <td>${t.note ?? ''}</td>
     </tr>`).join('') : '<tr><td colspan="6" class="c" style="color:#aaa;font-size:10.5pt;padding:5px;">加工データなし</td></tr>';
@@ -1511,6 +1512,12 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   table.tools tr:nth-child(even) td { background: #f5f5f5; }
   .c { text-align: center; }
   .mono { font-family: 'Courier New', monospace; }
+  /* 加工リストの形状(◇△□)とホルダー。従来の 'Courier New', monospace はサーバで等幅の代替フォントになり、
+     記号が小さく「0」に点が入って見えていた。日本語フォント(IPA)で記号を大きく・字間を広げて印字する。 */
+  table.tools td.shape { font-family: "IPAGothic", "IPAPGothic", "Noto Sans CJK JP", sans-serif;
+                         font-size: 14pt; letter-spacing: 0.3em; line-height: 1.1; white-space: nowrap; vertical-align: middle; }
+  table.tools td.holder { font-family: "IPAPGothic", "IPAGothic", "Noto Sans CJK JP", sans-serif;
+                          font-size: 11pt; letter-spacing: 0.03em; }
   .foot { margin-top: 8px; padding-top: 4px; border-top: 1px solid #ccc;
           display: flex; justify-content: space-between; font-size: 9pt; color: #666; }
   @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
@@ -1608,7 +1615,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
       <tr>
         <th class="c" style="width:28px;">No</th>
         <th style="width:90px;">加　工</th>
-        <th style="width:70px;">形　状</th>
+        <th style="width:96px;">形　状</th>
         <th>ホルダー</th>
         <th class="c" style="width:50px;">ノーズR</th>
         <th>備　考</th>

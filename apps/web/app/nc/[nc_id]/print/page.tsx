@@ -601,7 +601,7 @@ function DataPreview({
             <table className="w-full text-xs border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
-                  {[tr("ncPrintPage.colNo2","No"), tr("ncPrintPage.colProcessType","加工種別"), tr("ncPrintPage.colChipModel","チップ型番"), tr("ncPrintPage.colHolderModel","ホルダー型番"), tr("ncPrintPage.colNoseR2","ノーズR"), tr("ncPrintPage.colTNumber","T番号")].map(h => (
+                  {[tr("ncPrintPage.colNo2","No"), tr("ncPrintPage.colProcessType","加工種別"), tr("ncPrintPage.colChipModel","チップ型番"), tr("ncPrintPage.colHolderModel","ホルダー型番"), tr("ncPrintPage.colNoseR2","ノーズR")].map(h => (
                     <th key={h} className="px-2 py-1.5 text-left font-bold border-b border-slate-200 text-[10px]">{h}</th>
                   ))}
                 </tr>
@@ -609,12 +609,11 @@ function DataPreview({
               <tbody>
                 {nc.tools.map((t: NcTool, i: number) => (
                   <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                    <td className="px-2 py-1.5 font-mono text-slate-400">{t.sortOrder}</td>
+                    <td className="px-2 py-1.5 text-slate-600">{t.tNumber ?? "—"}</td>
                     <td className="px-2 py-1.5">{t.processType ?? "—"}</td>
-                    <td className="px-2 py-1.5 font-mono">{t.chipModel   ?? "—"}</td>
-                    <td className="px-2 py-1.5 font-mono">{t.holderModel ?? "—"}</td>
+                    <td className="px-2 py-1.5 text-sm tracking-[0.25em] whitespace-nowrap">{t.chipModel   ?? "—"}</td>
+                    <td className="px-2 py-1.5">{t.holderModel ?? "—"}</td>
                     <td className="px-2 py-1.5 text-center">{t.noseR   ?? "—"}</td>
-                    <td className="px-2 py-1.5 font-mono text-center">{t.tNumber ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>

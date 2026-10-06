@@ -607,7 +607,7 @@ export default function NcDetailPage() {
                     <table className="w-full text-xs border-collapse">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
-                          {[tr("ncDetailPage.colNo","NO"), tr("ncDetailPage.colProcessing","加工"), tr("ncDetailPage.colShapeChip","形状（チップ）"), tr("ncDetailPage.colHolder","ホルダー"), tr("ncDetailPage.colNoseR","ノーズR"), tr("ncDetailPage.colTNo","T NO"), tr("ncDetailPage.colNote3","備考")].map(h => (
+                          {[tr("ncDetailPage.colNo","NO"), tr("ncDetailPage.colProcessing","加工"), tr("ncDetailPage.colShapeChip","形状（チップ）"), tr("ncDetailPage.colHolder","ホルダー"), tr("ncDetailPage.colNoseR","ノーズR"), tr("ncDetailPage.colNote3","備考")].map(h => (
                             <th key={h} className="px-3 py-2 text-left font-bold text-slate-500 text-[10px] uppercase tracking-wider whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -615,12 +615,12 @@ export default function NcDetailPage() {
                       <tbody>
                         {d.tools.map((t: NcTool, i: number) => (
                           <tr key={t.id} className={`border-b border-slate-100 last:border-b-0 ${i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}>
-                            <td className="px-3 py-2.5 font-mono text-slate-500 text-center w-10">{t.sortOrder}</td>
+                            {/* No = 旧TNo(t3_Tool.No)。並びは旧T_id昇順(sort_order) */}
+                            <td className="px-3 py-2.5 text-slate-600 text-center w-10">{t.tNumber ?? "—"}</td>
                             <td className="px-3 py-2.5 text-slate-700">{t.processType ?? "—"}</td>
-                            <td className="px-3 py-2.5 font-mono text-slate-700">{t.chipModel ?? "—"}</td>
-                            <td className="px-3 py-2.5 font-mono text-slate-700">{t.holderModel ?? "—"}</td>
+                            <td className="px-3 py-2.5 text-slate-800 text-sm tracking-[0.25em] whitespace-nowrap">{t.chipModel ?? "—"}</td>
+                            <td className="px-3 py-2.5 text-slate-700">{t.holderModel ?? "—"}</td>
                             <td className="px-3 py-2.5 text-center text-slate-600">{t.noseR ?? "—"}</td>
-                            <td className="px-3 py-2.5 font-mono text-slate-600 text-center">{t.tNumber ?? "—"}</td>
                             <td className="px-3 py-2.5 text-slate-500">{t.note ?? ""}</td>
                           </tr>
                         ))}

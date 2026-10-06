@@ -287,7 +287,7 @@ def verify_basic_info_nc(ss, pg, limit=None):
 # ────────────────────────────────────────────────────────────
 # ② ツーリング 比較
 #   ACC_Tool vs nc_tools (machining_id = K_id単位でグルーピング)
-#   nc_full_import_v2.py PHASE2のソート基準(K_id, No, T_id)と完全に一致させる。
+#   nc_full_import_v2.py PHASE2のソート基準(K_id, T_id = 旧システムの表示順)と完全に一致させる。
 # ────────────────────────────────────────────────────────────
 
 def verify_tooling_nc(ss, pg, limit=None):
@@ -298,9 +298,7 @@ def verify_tooling_nc(ss, pg, limit=None):
     ssc.execute("""
         SELECT T_id, K_id, No, Shave1, Shave2, Chip, Holder, NorzR, Note
         FROM ACC_Tool
-        ORDER BY K_id,
-                 CASE WHEN No IS NULL THEN 1 ELSE 0 END,
-                 No, T_id
+        ORDER BY K_id, T_id
     """)
     old_rows = ssc.fetchall()
     log(f"  旧DB取得: {len(old_rows)}件")
@@ -321,7 +319,7 @@ def verify_tooling_nc(ss, pg, limit=None):
         SELECT machining_id, sort_order, process_type, chip_model,
                holder_model, nose_r, t_number, note
         FROM nc_tools
-        ORDER BY machining_id, sort_order
+        ORDER BY machining_id, sort_order, id
     """)
     new_by_kid = defaultdict(list)
     orphan_new_count = 0
