@@ -11,6 +11,8 @@ clamp_vise / clamp_shiki / clamp_chuck / clamp_tsume / clamp_index から表示�
 フォールバック一覧と同一の内容)を、空のテーブルにだけ投入する。
 既に1件でも登録があるテーブルには何もしない(管理画面 /admin/clamp-master での追加・修正を上書きしない)。
 
+フルコンバート(mc_full_import.py --phase 0)の PHASE11 でも自動実行される。
+
 実行方法:
   python3 scripts/seed_clamp_master.py            # 空のテーブルに投入
   python3 scripts/seed_clamp_master.py --dry-run  # 件数確認のみ
@@ -114,23 +116,18 @@ def load_pg_dsn():
     raise RuntimeError(f"DATABASE_URL not found in {env}")
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--dry-run", action="store_true")
-    args = ap.parse_args()
-
-    import psycopg2
-    pg = psycopg2.connect(load_pg_dsn())
+def seed(pg, log=print, dry_run=False):
+    """空のクランプマスタ表にだけ候補を投入する。投入件数を返す(フルコンバート mc_full_import.py PHASE11 からも呼ぶ)"""
     cur = pg.cursor()
     total = 0
     for table, cols, rows in PLAN:
         cur.execute(f"SELECT COUNT(*), COUNT(*) FILTER (WHERE is_active) FROM {table}")
         cnt, active = cur.fetchone()
         if cnt > 0:
-            print(f"[クランプマスタ] {table}: 登録済み {cnt}件(有効 {active}件) → 投入しない")
+            log(f"[クランプマスタ] {table}: 登録済み {cnt}件(有効 {active}件) → 投入しない")
             continue
-        if args.dry_run:
-            print(f"[クランプマスタ] {table}: 0件 → {len(rows)}件 投入予定(dry-run)")
+        if dry_run:
+            log(f"[クランプマスタ] {table}: 0件 → {len(rows)}件 投入予定(dry-run)")
             continue
         col_sql = ", ".join(cols)
         ph = ", ".join(["%s"] * len(cols))
@@ -140,11 +137,24 @@ def main():
                 f"VALUES ({ph}, %s, TRUE, NOW(), NOW())",
                 tuple(r) + (i,))
         total += len(rows)
-        print(f"[クランプマスタ] {table}: 0件 → {len(rows)}件 投入")
-    if not args.dry_run:
+        log(f"[クランプマスタ] {table}: 0件 → {len(rows)}件 投入")
+    if not dry_run:
         pg.commit()
-    pg.close()
-    print(f"[クランプマスタ] 投入合計: {total}件")
+    log(f"[クランプマスタ] 投入合計: {total}件")
+    return total
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true")
+    args = ap.parse_args()
+
+    import psycopg2
+    pg = psycopg2.connect(load_pg_dsn())
+    try:
+        seed(pg, dry_run=args.dry_run)
+    finally:
+        pg.close()
     return 0
 
 

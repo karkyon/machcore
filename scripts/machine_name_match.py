@@ -13,7 +13,7 @@ machines.machine_code と完全一致でしか引かないと、表記ゆれだ�
   照合順: ①machine_code 完全一致 → ②正規化キー一致 → ③'MC'を付けた正規化キー一致('7' → MC7)
           正規化キーが複数の機械に該当する場合(マスタ側の重複)はどれにも結び付けない(誤結合防止)。
 
-利用元: mc_full_import.py PHASE1/PHASE6、verify_old_new_db.py、apply_* の一度きり補正
+利用元: mc_full_import.py PHASE1/PHASE6、nc_full_import_v2.py PHASE1/PHASE3、verify_old_new_db.py
 """
 import re
 import unicodedata
@@ -65,8 +65,12 @@ class MachineResolver:
 
     @classmethod
     def from_db(cls, pgc, system_types=("MC", "BOTH")):
-        pgc.execute("SELECT id, machine_code FROM machines WHERE system_type::text = ANY(%s)",
-                    (list(system_types),))
+        """system_types=None なら全機械(NC: ACC_Machine.Model の照合で使用)"""
+        if system_types is None:
+            pgc.execute("SELECT id, machine_code FROM machines")
+        else:
+            pgc.execute("SELECT id, machine_code FROM machines WHERE system_type::text = ANY(%s)",
+                        (list(system_types),))
         return cls(pgc.fetchall())
 
     def resolve(self, raw, count_unresolved=True):

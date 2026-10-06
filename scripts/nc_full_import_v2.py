@@ -35,6 +35,7 @@ v038で導入された新スキーマ(NcMachiningDetail + NcProgram)に対応す
       K_id→全対応NcProgramへ複製）
   4 = nc_programs.status 正規化（K_id単位の判定をその全対応NcProgramへ展開）
   5 = NCプログラムファイル移行（folder_name配下→K_idフォルダへ。図・写真は対象外）
+  6 = NC 加工リスト マスタ(加/工/形状/ホルダーの候補)投入（空のテーブルのみ）
 
 ソースDB: imotomc (192.168.1.9) ※NC側ビューもMC側と同じimotomc DB内に存在
   - ACC_NC      : NC_id, B_id, K_id
@@ -63,6 +64,9 @@ ACC_FD は nc_programs.folder_name の補完にのみ使う(FD_name→FD_idの�
 import sys, os, re, argparse, traceback, subprocess, json as _json
 from pathlib import Path
 from datetime import datetime, timedelta
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from machine_name_match import MachineResolver  # ACC_Machine.Model(全角/半角・大小文字・ハイフンのゆれ) → machines.id
+from name_match import PersonResolver  # 旧担当者名(全角/半角・空白のゆれ、複数名併記) → users.id
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 設定
@@ -231,20 +235,22 @@ def phase1(pg, dry_run=False):
     parts_map = {r[1]: r[0] for r in pgc.fetchall()}
     log(f"parts既存件数: {len(parts_map)}件（新規移行は行わない）")
 
-    # machines は既存資産を再利用。ACC_Machine.Model(文字列) → machines.machine_code 直引き
+    # machines は既存資産を再利用。ACC_Machine.Model(文字列) → machines.machine_code
+    # (全角/半角・大小文字・ハイフンの表記ゆれを正規化して照合: machine_name_match.py)
     ssc.execute("SELECT m_id, Model FROM ACC_Machine")
     acc_machine_rows = ssc.fetchall()
-    pgc.execute("SELECT id, machine_code FROM machines")
-    machine_code_map = {r[1]: r[0] for r in pgc.fetchall()}
+    _mres = MachineResolver.from_db(pgc, system_types=None)
     machine_id_map = {}
     machine_unmatched = 0
     for m_id, model in acc_machine_rows:
-        model_str = str(model or "").strip()
-        if model_str in machine_code_map:
-            machine_id_map[m_id] = machine_code_map[model_str]
+        _mid = _mres.resolve(model)
+        if _mid is not None:
+            machine_id_map[m_id] = _mid
         else:
             machine_unmatched += 1
     log(f"ACC_Machine取得: {len(acc_machine_rows)}件, machines対応: {len(machine_id_map)}件, 未対応: {machine_unmatched}件")
+    if _mres.unresolved:
+        log(f"  [WARN] machinesマスタに無い旧機械(Model): {_mres.unresolved_summary()}", "WARN")
 
     # ACC_FD: 参考情報のみ(folder_name解決には未使用、v1から継続)
     ssc.execute("SELECT FD_id, FD_name FROM ACC_FD")
@@ -579,77 +585,24 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
             if code in code_to_userid:
                 staff_id_map[st_id] = code_to_userid[code]
 
-    # 氏名文字列(Dan_Op/La_Op)逆引き用: users.name → id
-    pgc.execute("SELECT id, name FROM users")
-    _user_rows = pgc.fetchall()
-    name_to_userid = {}
-    for uid, name in _user_rows:
-        normed = re.sub(r"[\s\u3000]+", " ", name or "").strip()
-        name_to_userid[normed] = uid
-        name_to_userid[name] = uid
-
-    # [バグ修正] Dan_Op/La_Opが「徳富」のように姓のみで記録されている旧データが
-    # あり、氏名フル表記("徳富 大嗣")との完全一致に失敗してsetup/production_
-    # operator_idsが空配列のままになっていた。姓だけでusers中に一意特定できる
-    # 場合に限り救済する(同姓が複数いる場合は誤属性を避けるため解決しない)。
-    surname_to_userid: dict = {}
-    _surname_seen: dict = {}
-    for uid, name in _user_rows:
-        normed = re.sub(r"[\s\u3000]+", " ", name or "").strip()
-        surname = normed.split(" ")[0] if " " in normed else normed
-        if not surname:
-            continue
-        if surname in _surname_seen and _surname_seen[surname] != uid:
-            surname_to_userid.pop(surname, None)  # 同姓複数 → 解決不能として除外
-            _surname_seen[surname] = None
-        elif surname not in _surname_seen:
-            surname_to_userid[surname] = uid
-            _surname_seen[surname] = uid
-
-    def _resolve_op(s):
-        s = (s or "").strip()
-        if not s:
-            return None
-        n = re.sub(r"[\s\u3000]+", " ", s).strip()
-        return (name_to_userid.get(s) or name_to_userid.get(n)
-                or surname_to_userid.get(s) or surname_to_userid.get(n))
-
-    _op_split = re.compile(r"\s*(?:&|＆|、|,|，|・|/|／)\s*")
-
-    def _resolve_ops(s):
-        """Dan_Op/La_Op の担当者名 → users.id の配列。
-        「井本 昌成 & ティン」のような複数名併記は分割して全員を解決する(1名として一致すればそれを優先)。"""
-        s = (s or "").strip()
-        if not s:
-            return [], []
-        one = _resolve_op(s)
-        if one:
-            return [one], []
-        ids, unresolved = [], []
-        for part in _op_split.split(s):
-            part = part.strip()
-            if not part:
-                continue
-            uid = _resolve_op(part)
-            if uid:
-                if uid not in ids:
-                    ids.append(uid)
-            else:
-                unresolved.append(part)
-        return ids, unresolved
+    # 氏名文字列(Dan_Op/La_Op) → users.id
+    # 全角/半角・空白の表記ゆれを正規化、姓だけの記載は同姓が1人なら救済、
+    # 「井本　昌成 アイン」「ソン＋フォン」のような複数名併記は分割して全員を照合(name_match.py)
+    _person = PersonResolver.from_db(pgc)
+    _resolve_op = _person.resolve
+    _resolve_ops = _person.resolve_multi
 
     unresolved_op_names = {}
 
     if machine_id_map is None:
         ssc.execute("SELECT m_id, Model FROM ACC_Machine")
         acc_rows = ssc.fetchall()
-        pgc.execute("SELECT id, machine_code FROM machines")
-        code_map = {r[1]: r[0] for r in pgc.fetchall()}
+        _mres = MachineResolver.from_db(pgc, system_types=None)
         machine_id_map = {}
         for m_id, model in acc_rows:
-            model_str = str(model or "").strip()
-            if model_str in code_map:
-                machine_id_map[m_id] = code_map[model_str]
+            _mid = _mres.resolve(model)
+            if _mid is not None:
+                machine_id_map[m_id] = _mid
 
     if not dry_run:
         pgc.execute("DELETE FROM change_history")
@@ -1118,6 +1071,19 @@ def phase5(pg, dry_run=False):
         log(f"PHASE5完了(dry-run): ok(K_id)={ok} nomatch={nomatch} notfound={notfound} err={err}")
 
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PHASE 6: NC 加工リスト マスタ(加/工/形状/ホルダーの候補)投入 — 空のテーブルにだけ投入
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def phase6(pg, dry_run=False):
+    section("PHASE 6: NC 加工リスト マスタ(加/工/形状/ホルダーの候補)投入")
+    import seed_nc_tool_master
+    ss = ss_connect()
+    try:
+        seed_nc_tool_master.seed(pg, ss, log=log, dry_run=dry_run)
+    finally:
+        ss.close()
+
+
 def _final_consistency_check_nc(pg):
     """nc_programsに対してnc_filesが異常に少ない/0件でないかを検知する。
     MC側と同じ構造の「個別フェーズ再実行でPHASE5(ファイル移行)の再実行が漏れる」
@@ -1156,7 +1122,7 @@ def _final_consistency_check_nc(pg):
 
 def main():
     parser = argparse.ArgumentParser(description="MachCore NC完全移行スクリプト v2(新スキーマ対応)")
-    parser.add_argument("--phase", type=int, default=0, help="実行フェーズ (0=全, 1-5=個別)")
+    parser.add_argument("--phase", type=int, default=0, help="実行フェーズ (0=全, 1-6=個別。6=加工リスト マスタ候補投入)")
     parser.add_argument("--dry-run", action="store_true", help="DBへの書き込みなし")
     parser.add_argument("--skip-file-copy", action="store_true",
                         help="PHASE5をスキップ（プログラムファイルコピーなし、データのみ移行）")
@@ -1185,6 +1151,8 @@ def main():
             phase4(pg, dry_run=dry)
         if args.phase == 5 or (args.phase == 0 and not args.skip_file_copy):
             phase5(pg, dry_run=dry)
+        if args.phase in (0, 6):
+            phase6(pg, dry_run=dry)
 
         if args.phase == 0:
             final_report(pg)

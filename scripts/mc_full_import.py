@@ -16,6 +16,9 @@ MachCore MC完全移行スクリプト (mc_full_import.py)
   6 = mc_change_history移行
   7 = 図・写真・プログラムファイル移行
   8 = drawing_count/photo_count更新
+  9 = 採番整合性確認
+  10 = mc_programs.status / 段取シート回収状態の正規化
+  11 = クランプ マスタ(アイテム選択の候補)投入(空のテーブルのみ)
 
 ソースDB: imotomc (192.168.1.9)
   - ACC_MC          : 部品ID, MCID, 加工ID
@@ -69,6 +72,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from legacy_sheet_link import new_mc_candidate, pick_mc_sheet  # 作業記録⇔段取シートの結び付け規則
 from normalize_wpd_ext import norm_wpd  # プログラムフォルダ拡張子 .WPD 統一
 from machine_name_match import MachineResolver  # 旧機械名(全角/半角・大小文字・ハイフンのゆれ) → machines.id
+from name_match import PersonResolver  # 旧担当者名(全角/半角・空白のゆれ、複数名併記) → users.id
+import seed_clamp_master  # クランプ マスタ(アイテム選択の候補)の投入(PHASE11)
 SS_MC_SERVER = "192.168.1.9"
 SS_MC_USER   = "sa"
 SS_MC_PASS   = "RTW65b"
@@ -246,16 +251,9 @@ def phase1(pg, dry_run=False):
     #       → 表記ゆれを正規化して machines.machine_code と照合(machine_name_match.py)
     machine_resolver = MachineResolver.from_db(pgc)
 
-    pgc.execute("SELECT id, name FROM users")
-    users_map = {r[1]: r[0] for r in pgc.fetchall()}
-    import re as _p1re
-    _u_norm_p1 = {_p1re.sub(r'[\s\u3000]+', ' ', k).strip(): v for k, v in users_map.items()}
-    def _p1_resolve(raw):
-        if not raw: return None
-        val = str(raw).strip()
-        if val in users_map: return users_map[val]
-        normed = _p1re.sub(r'[\s\u3000]+', ' ', val).strip()
-        return _u_norm_p1.get(normed)
+    # 担当者名 → users.id (全角/半角・空白の表記ゆれを正規化して照合: name_match.py)
+    _p1_person = PersonResolver.from_db(pgc)
+    _p1_resolve = _p1_person.resolve
 
     # ACC_マシニングraw 確定カラム(ログより):
     # 加工ID, ﾊﾞｰｼﾞｮﾝ, [MC工程No,], ﾌｫﾙﾀﾞ1, ﾌｫﾙﾀﾞ2, ﾌｧｲﾙ名, [ﾒｲﾝﾌﾟﾛｸﾞﾗﾑNo,],
@@ -693,43 +691,16 @@ def phase6(pg, dry_run=False):
         pg.commit()
         log("mc_change_history / mc_setup_sheet_logs / work_records(MC分) 削除完了")
 
-    # ユーザーマップ
-    pgc.execute("SELECT id, name FROM users")
-    _u_rows = pgc.fetchall()
-    _u_exact = {r[1]: r[0] for r in _u_rows}
-    _u_norm  = {_re2.sub(r"[\s\u3000]+", " ", r[1]).strip(): r[0] for r in _u_rows}
-
-    def _resolve(raw_val):
-        if not raw_val: return None
-        val = str(raw_val).strip()
-        if val in _u_exact: return _u_exact[val]
-        normed = _re2.sub(r"[\s\u3000]+", " ", val).strip()
-        if normed in _u_norm: return _u_norm[normed]
-        return None
+    # 担当者名 → users.id (全角/半角・空白の表記ゆれを正規化、複数名併記は分割して照合: name_match.py)
+    _person = PersonResolver.from_db(pgc)
+    _resolve = _person.resolve
+    _unresolved_work_names = {}
 
     def _resolve_multi(raw_val):
-        if not raw_val: return []
-        parts = _re2.split(r"[&\uff06,\u3001]", str(raw_val))
-        ids = []
-        for part in parts:
-            part = part.strip()
-            if not part: continue
-            uid = _resolve(part)
-            if uid:
-                ids.append(uid)
-                continue
-            # スペース区切り複数名前方貪欲マッチ
-            remaining = _re2.sub(r"[\s\u3000]+", " ", part).strip()
-            while remaining:
-                matched_id = None; matched_len = 0
-                for nm, uid in _u_norm.items():
-                    if remaining.startswith(nm) and len(nm) > matched_len:
-                        matched_id = uid; matched_len = len(nm)
-                if matched_id:
-                    ids.append(matched_id); remaining = remaining[matched_len:].strip()
-                else:
-                    break
-        return list(dict.fromkeys(ids))
+        ids, unres = _person.resolve_multi(raw_val)
+        for _nm in unres:
+            _unresolved_work_names[_nm] = _unresolved_work_names.get(_nm, 0) + 1
+        return ids
 
     # 機械 (旧機械名→machines.id、表記ゆれを正規化して照合)
     _machine_resolver = MachineResolver.from_db(pgc)
@@ -1048,6 +1019,9 @@ def phase6(pg, dry_run=False):
     log(f"  作業記録のうち段取シートに結び付けた件数: {wr_linked}/{wr_ok}")
     log(f"PHASE6完了: 入力={row_count} skip={sl_skip} SL_err={sl_err} CH_err={ch_err} WR_err={wr_err}")
     log(f"  [印刷履歴={sl_ok} / 変更履歴={ch_ok} / 作業実績={wr_ok}]")
+    if _unresolved_work_names:
+        log(f"  [WARN] 段取/作業者名がusersに無く担当者欄に入らなかった名前: "
+            + ", ".join(f"{k}({v}件)" for k, v in sorted(_unresolved_work_names.items(), key=lambda x: -x[1])), "WARN")
     if _machine_resolver.unresolved:
         log(f"  [WARN] 履歴の機械名がmachinesマスタに無く機械が空欄: "
             f"{sum(_machine_resolver.unresolved.values())}件 / 名前一覧: "
@@ -1926,6 +1900,14 @@ def phase10(pg, dry_run=False):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 完了時整合性チェック（2026-09-15のPHASE7再実行漏れ事故の再発防止）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PHASE 11: クランプ マスタ(アイテム選択の候補)投入 — 空のテーブルにだけ投入
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def phase11(pg, dry_run=False):
+    section("PHASE 11: クランプ マスタ(アイテム選択の候補)投入")
+    seed_clamp_master.seed(pg, log=log, dry_run=dry_run)
+
+
 def _final_consistency_check(pg):
     """mc_programsに対してmc_filesが異常に少ない/0件でないかを検知する。
     個別フェーズ実行でPHASE7の再実行が漏れた状態を、実行者が気づかずに
@@ -1969,7 +1951,7 @@ def _final_consistency_check(pg):
 def main():
     parser = argparse.ArgumentParser(description="MachCore MC完全移行スクリプト")
     parser.add_argument("--phase", type=int, default=0,
-                        help="実行フェーズ (0=全, 1-9=個別)")
+                        help="実行フェーズ (0=全, 1-11=個別)")
     parser.add_argument("--dry-run", action="store_true",
                         help="DBへの書き込みなし")
     parser.add_argument("--force-copy", action="store_true",
@@ -1994,9 +1976,9 @@ def main():
         skip_file  = args.skip_file_copy
         prg_only   = args.prg_only
         phases = {1:phase1, 2:phase2, 3:phase3, 4:phase4,
-                  5:phase5, 6:phase6, 7:phase7, 8:phase8, 9:phase9, 10:phase10}
+                  5:phase5, 6:phase6, 7:phase7, 8:phase8, 9:phase9, 10:phase10, 11:phase11}
         if args.phase == 0:
-            run = [p for p in range(1, 11) if not (skip_file and p == 7)]
+            run = [p for p in range(1, 12) if not (skip_file and p == 7)]
         else:
             run = [args.phase]
         for p in run:
