@@ -192,7 +192,10 @@ def run_checks(test_dsn):
     # ── NC: 承認者 ──
     appr = q1(c, "SELECT COUNT(*) FROM nc_programs WHERE status='APPROVED'")
     appr_by = q1(c, "SELECT COUNT(*) FROM nc_programs WHERE status='APPROVED' AND approved_by IS NOT NULL")
-    check("NC-A1", "NC承認者・承認日の取り込み", appr_by > 0, f"承認済 {appr}件のうち承認者あり {appr_by}件(旧に承認行が無いものは空)")
+    sc.execute("SELECT K_id, In_Cont FROM ACC_History WHERE In_Cont IS NOT NULL")
+    leg_appr = {k for k, ic in sc.fetchall() if k is not None and "承認" in str(ic)}
+    check("NC-A1", "NC承認者・承認日の取り込み", (appr_by > 0) if leg_appr else (appr_by == 0),
+          f"旧の「承認」行がある加工ID {len(leg_appr)}件 / 新で承認者あり {appr_by}件(承認済 {appr}件)")
 
     # ── NC: 作業記録と段取シートの結び付け ──
     sc.execute("SELECT K_id, Out_Cont, Out_Date, Dan_Op, Dan_H, Dan_M, La_H, La_M, P FROM ACC_History")
@@ -239,8 +242,11 @@ def run_checks(test_dsn):
             cat["同じ行に印刷"] += 1; prints[mcid][-1]["used"] = True; continue
         pool = [p for p in prints[mcid] if not p["used"] and not p["ref"] and (p["in"] is None or p["in"] <= ind)]
         hit = [p for p in pool if p["rin"] == ind.date()]
+        hit2 = [p for p in pool if p["rin"] is None]
         if hit:
             max(hit, key=lambda x: x["in"] or datetime.min)["used"] = True; cat["R_IN_DATE=入力日"] += 1
+        elif hit2:
+            max(hit2, key=lambda x: x["in"] or datetime.min)["used"] = True; cat["戻り日が空→作業記録より前の最新の印刷"] += 1
         elif not prints[mcid]:
             cat["(結び付かず)その部品に印刷が1件も無い"] += 1
         elif not pool:
@@ -266,6 +272,23 @@ def summarize_verify(path, label):
             out("  " + ", ".join(f"{k}={v}" for k, v in s.items()))
     except Exception as e:
         out(f"{label} 検証結果を読めませんでした: {e}")
+        return
+    # 不一致の内訳(項目別件数と具体例)
+    from collections import Counter
+    for cat, items in (d.get("details") or {}).items():
+        if not items:
+            continue
+        fc = Counter()
+        for x in items:
+            st = x.get("status")
+            if st and st != "MISMATCH":
+                fc[st] += 1
+            flds = list(x.get("fields") or []) + [f for r in (x.get("rows") or []) for f in (r.get("fields") or [])]
+            for fd in flds:
+                fc[fd.get("field")] += 1
+        out(f"  [{label}/{cat}] 不一致 {len(items)}件 内訳: {dict(fc)}")
+        for x in items[:12]:
+            out("    " + json.dumps(x, ensure_ascii=False)[:400])
 
 
 def main():

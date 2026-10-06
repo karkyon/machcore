@@ -57,11 +57,13 @@ def pick_mc_sheet(cands, work_input_raw):
         return None
     wday = work_input_raw.date()
     pool = [c for c in cands
-            if not c["used"] and not c["ref"] and c["r_in"] == wday
+            if not c["used"] and not c["ref"]
             and (c["in"] is None or c["in"] <= work_input_raw)]
-    if not pool:
+    # ①戻り日(R_IN_DATE)=入力日の印刷 → ②無ければ戻り日が空(旧で未記録)の印刷。戻り日が別の日の印刷は別の回収に対応するため対象外
+    hit = [c for c in pool if c["r_in"] == wday] or [c for c in pool if c["r_in"] is None]
+    if not hit:
         return None
-    c = max(pool, key=lambda x: x["in"] or datetime.min)
+    c = max(hit, key=lambda x: x["in"] or datetime.min)
     c["used"] = True
     return c["id"]
 
