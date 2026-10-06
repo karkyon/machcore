@@ -68,6 +68,7 @@ PG_DSN = _load_pg_dsn()
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from legacy_sheet_link import new_mc_candidate, pick_mc_sheet  # 作業記録⇔段取シートの結び付け規則
 from normalize_wpd_ext import norm_wpd  # プログラムフォルダ拡張子 .WPD 統一
+from machine_name_match import MachineResolver  # 旧機械名(全角/半角・大小文字・ハイフンのゆれ) → machines.id
 SS_MC_SERVER = "192.168.1.9"
 SS_MC_USER   = "sa"
 SS_MC_PASS   = "RTW65b"
@@ -241,8 +242,9 @@ def phase1(pg, dry_run=False):
         pg.commit()
     log(f"parts同期完了: 新規={parts_inserted}件, 総数={len(parts_map)}件")
 
-    pgc.execute("SELECT id, machine_code FROM machines WHERE system_type IN ('MC','BOTH')")
-    machines_map = {r[1]: r[0] for r in pgc.fetchall()}
+    # 機械: ACC_マシニングrawの「機械」列は手入力文字列("MC5","ＭＣ7","A500z"等)
+    #       → 表記ゆれを正規化して machines.machine_code と照合(machine_name_match.py)
+    machine_resolver = MachineResolver.from_db(pgc)
 
     pgc.execute("SELECT id, name FROM users")
     users_map = {r[1]: r[0] for r in pgc.fetchall()}
@@ -254,13 +256,6 @@ def phase1(pg, dry_run=False):
         if val in users_map: return users_map[val]
         normed = _p1re.sub(r'[\s\u3000]+', ' ', val).strip()
         return _u_norm_p1.get(normed)
-
-    # 機械: ACC_マシニングrawの「機械」列は文字列("MC5"等) → machines_mapから直引き
-    ss_machine_map = dict(machines_map)  # machine_code → machines.id
-    # "MC"プレフィックスなし対応
-    for code, mid in list(machines_map.items()):
-        if code.startswith("MC"):
-            ss_machine_map[code[2:]] = mid
 
     # ACC_マシニングraw 確定カラム(ログより):
     # 加工ID, ﾊﾞｰｼﾞｮﾝ, [MC工程No,], ﾌｫﾙﾀﾞ1, ﾌｫﾙﾀﾞ2, ﾌｧｲﾙ名, [ﾒｲﾝﾌﾟﾛｸﾞﾗﾑNo,],
@@ -314,11 +309,8 @@ def phase1(pg, dry_run=False):
             part_db_id = parts_map.get(str(buhin_id))
             if not part_db_id: skip += 1; continue
 
-            # 機械名文字列→machines.id
-            machine_db_id = None
-            if machine_name:
-                mn = str(machine_name).strip()
-                machine_db_id = ss_machine_map.get(mn)
+            # 機械名文字列→machines.id(表記ゆれを正規化して照合)
+            machine_db_id = machine_resolver.resolve(machine_name)
 
             ct_sec = None
             if time_h is not None or time_m is not None or time_s is not None:
@@ -401,6 +393,12 @@ def phase1(pg, dry_run=False):
             + ", ".join(f"{k}({v})" for k, v in sorted(_p1_unresolved_op.items(), key=lambda x: -x[1])), "WARN")
     else:
         log("  オペレーター名は全件usersで解決")
+    if machine_resolver.unresolved:
+        log(f"  [WARN] 機械名がmachinesマスタに無く機械が空欄: "
+            f"{sum(machine_resolver.unresolved.values())}件 / 名前一覧: "
+            + machine_resolver.unresolved_summary(), "WARN")
+    else:
+        log("  機械名は全件machinesマスタで解決")
     mc.close(); pb.close()
 
 
@@ -733,9 +731,8 @@ def phase6(pg, dry_run=False):
                     break
         return list(dict.fromkeys(ids))
 
-    # 機械マップ (機械名→machines.id)
-    pgc.execute("SELECT id, machine_code FROM machines WHERE system_type IN ('MC','BOTH')")
-    _machines_map = {r[1]: r[0] for r in pgc.fetchall()}
+    # 機械 (旧機械名→machines.id、表記ゆれを正規化して照合)
+    _machine_resolver = MachineResolver.from_db(pgc)
 
     # mcid_map (legacy_mcid → [mc_program_id,...])
     pgc.execute("SELECT id, legacy_mcid FROM mc_programs WHERE legacy_mcid IS NOT NULL")
@@ -855,7 +852,7 @@ def phase6(pg, dry_run=False):
             op_id       = _resolve(op_name) or ADMIN_ID
             creator_id  = _resolve(creator_name) or ADMIN_ID
             approver_id = _resolve(approver_name) if approver_name else None
-            machine_id  = _machines_map.get(machine_name)
+            machine_id  = _machine_resolver.resolve(machine_name)
 
             # ━━ work_collected 判定 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             # ストアド準拠:
@@ -1051,6 +1048,10 @@ def phase6(pg, dry_run=False):
     log(f"  作業記録のうち段取シートに結び付けた件数: {wr_linked}/{wr_ok}")
     log(f"PHASE6完了: 入力={row_count} skip={sl_skip} SL_err={sl_err} CH_err={ch_err} WR_err={wr_err}")
     log(f"  [印刷履歴={sl_ok} / 変更履歴={ch_ok} / 作業実績={wr_ok}]")
+    if _machine_resolver.unresolved:
+        log(f"  [WARN] 履歴の機械名がmachinesマスタに無く機械が空欄: "
+            f"{sum(_machine_resolver.unresolved.values())}件 / 名前一覧: "
+            + _machine_resolver.unresolved_summary(), "WARN")
 
     if not dry_run:
         # PHASE6B/6C/6D(廃止 2026-10-05):

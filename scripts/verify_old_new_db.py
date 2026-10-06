@@ -18,6 +18,7 @@ verify_old_new_db.py
 import sys, os, re, json, argparse, unicodedata
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from normalize_wpd_ext import norm_wpd  # 新DB側は .WPD に統一済みのため旧値も同じ規則で比較
+from machine_name_match import machine_names_equal  # 取込(mc_full_import.py)と同じ機械名照合規則
 from datetime import datetime
 
 def _load_pg_dsn():
@@ -146,7 +147,7 @@ def values_equal(a, b, kind="str"):
     if kind == "num":
         return normalize_num(a) == normalize_num(b)
     if kind == "machine":
-        return normalize_machine(a) == normalize_machine(b)
+        return machine_names_equal(a, b)
     return normalize_str(a) == normalize_str(b)
 
 
