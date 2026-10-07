@@ -237,10 +237,12 @@ def verify_mc(ss, pg, tally):
     for pid, lm in pgc.fetchall():
         mcid_map[lm].append(pid)
 
-    pgc.execute("SELECT id, name FROM users ORDER BY id")
+    pgc.execute("SELECT id, name, employee_code, system_type::text, is_active FROM users ORDER BY id")
     users = pgc.fetchall()
     uname = {u[0]: u[1] for u in users}
-    person = PersonResolver(users)
+    person = PersonResolver(users, system="MC")  # 取込と同じ照合(同姓同名は系統で決める)
+    if person.ambiguous:
+        log(f"  [注意] 同姓同名で担当者が決まらない名前: {person.ambiguous}")
     pgc.execute("SELECT id, machine_code FROM machines")
     mcode = dict(pgc.fetchall())
     mres = MachineResolver.from_db(pgc)
@@ -472,10 +474,12 @@ def verify_nc(ss, pg, tally):
     kid_map = defaultdict(list)
     for pid, kid in pgc.fetchall():
         kid_map[kid].append(pid)
-    pgc.execute("SELECT id, name FROM users ORDER BY id")
+    pgc.execute("SELECT id, name, employee_code, system_type::text, is_active FROM users ORDER BY id")
     users = pgc.fetchall()
     uname = {u[0]: u[1] for u in users}
-    person = PersonResolver(users)
+    person = PersonResolver(users, system="NC")  # 取込と同じ照合(同姓同名は系統で決める)
+    if person.ambiguous:
+        log(f"  [注意] 同姓同名で担当者が決まらない名前: {person.ambiguous}")
     pgc.execute("SELECT id, machine_code FROM machines")
     mcode = dict(pgc.fetchall())
     mres = MachineResolver.from_db(pgc, system_types=None)

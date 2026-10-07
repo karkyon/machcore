@@ -12,7 +12,9 @@ users.name との完全一致だけでは担当者欄が空になるため、次
   複数名の照合: 区切り文字(& ＆ 、 , ， ・ / ／ + ＋)で分割し、各部分を
                 さらに空白区切りの語の並びとして、先頭から「最も長く一致する連続した語」を順に当てはめる
                 (例: 「井本　昌成 アイン」→ 井本 昌成 / アイン)
-  同じ正規化キーや同じ姓の利用者が複数いる場合は、誤った人に結び付けないよう照合しない。
+  同じ正規化キーや同じ姓の利用者が複数いる場合は、系統(MC/NC)で1人に決まるときだけ結び付け、
+  決まらなければ誤った人に結び付けないよう照合しない。
+  旧の通称(LEGACY_ALIASES)は社員コードで結び付ける。
 
 利用元: mc_full_import.py PHASE1/PHASE6、nc_full_import_v2.py PHASE3
 """
@@ -32,55 +34,86 @@ def person_key(raw):
     return s or None
 
 
-class PersonResolver:
-    """users から作る 旧担当者名 → users.id の照合器"""
+# 旧データの通称・あだ名 → 社員コード(users.employee_code)。氏名と別の書き方で記録されている人
+# (ユーザー指定 2026-10-07: 「チューン」= 日長 陽介 / MC140)
+LEGACY_ALIASES = {
+    "チューン": "MC140",
+}
 
-    def __init__(self, rows):
-        """rows: [(id, name), ...]"""
-        self.exact = {}
-        self.key = {}
-        self.surname = {}
-        dup_key, dup_sur = set(), set()
-        for uid, name in rows:
+
+class PersonResolver:
+    """users から作る 旧担当者名 → users.id の照合器
+
+    system: "MC" / "NC" を渡すと、同じ氏名の利用者が複数いる場合にその系統(または共通 BOTH)の
+            利用者が1人だけならその人に結び付ける(例: MC と NC に同姓同名の「ティン」が別人でいる)。
+            それでも決まらない氏名は誤った人に結び付けないよう照合しない(ambiguous に記録)。
+    """
+
+    def __init__(self, rows, system=None):
+        """rows: [(id, name), ...] または [(id, name, employee_code, system_type, is_active), ...]"""
+        self.system = system
+        self.ambiguous = {}          # 一意に決まらなかった名前 → 候補の説明
+        exact_c, key_c, sur_c = {}, {}, {}
+        self._code = {}
+        self._info = {}
+        for r in rows:
+            uid, name = r[0], r[1]
+            code = r[2] if len(r) > 2 else None
+            stype = str(r[3]) if len(r) > 3 and r[3] is not None else None
+            self._info[uid] = (name, code, stype)
+            if code:
+                self._code[str(code).strip().upper()] = uid
             if not name:
                 continue
-            self.exact.setdefault(str(name).strip(), uid)
+            exact_c.setdefault(str(name).strip(), []).append(uid)
             k = person_key(name)
             if k:
-                if k in self.key and self.key[k] != uid:
-                    dup_key.add(k)
-                self.key[k] = uid
+                key_c.setdefault(k, []).append(uid)
             tokens = _WS.split(unicodedata.normalize("NFKC", str(name)).strip())
             if len(tokens) >= 2:
                 sk = person_key(tokens[0])
                 if sk and sk != k:
-                    if sk in self.surname and self.surname[sk] != uid:
-                        dup_sur.add(sk)
-                    self.surname[sk] = uid
-        for k in dup_key:
-            self.key.pop(k, None)
-        for k in dup_sur:
-            self.surname.pop(k, None)
+                    sur_c.setdefault(sk, []).append(uid)
+        self.exact = {n: self._choose(n, c) for n, c in exact_c.items()}
+        self.key = {k: self._choose(k, c) for k, c in key_c.items()}
         # 姓が誰かの氏名全体と同じ場合は氏名全体を優先(姓での救済はしない)
-        for k in list(self.surname):
-            if k in self.key:
-                self.surname.pop(k, None)
+        self.surname = {k: self._choose(k, c, record=False) for k, c in sur_c.items() if k not in key_c}
+        self.alias = {}
+        for a, code in LEGACY_ALIASES.items():
+            uid = self._code.get(code.upper())
+            if uid is not None:
+                self.alias[person_key(a)] = uid
+
+    def _choose(self, label, cands, record=True):
+        cands = list(dict.fromkeys(cands))
+        if len(cands) == 1:
+            return cands[0]
+        if self.system:
+            pref = [u for u in cands if self._info.get(u, (None, None, None))[2] in (self.system, "BOTH")]
+            if len(pref) == 1:
+                return pref[0]
+        if record:
+            self.ambiguous[label] = ", ".join(
+                f"id={u}({self._info.get(u, ('', '', ''))[1]}/{self._info.get(u, ('', '', ''))[2]})" for u in cands)
+        return None
 
     @classmethod
-    def from_db(cls, pgc):
-        pgc.execute("SELECT id, name FROM users")
-        return cls(pgc.fetchall())
+    def from_db(cls, pgc, system=None):
+        pgc.execute("SELECT id, name, employee_code, system_type::text, is_active FROM users ORDER BY id")
+        return cls(pgc.fetchall(), system=system)
 
     def resolve(self, raw):
-        """1名として照合。見つからなければ None"""
+        """1名として照合。見つからない・同姓同名で決まらなければ None"""
         if raw is None:
             return None
         s = str(raw).strip()
         if not s:
             return None
+        k = person_key(s)
+        if k and k in self.alias:
+            return self.alias[k]
         if s in self.exact:
             return self.exact[s]
-        k = person_key(s)
         if not k:
             return None
         return self.key.get(k) or self.surname.get(k)

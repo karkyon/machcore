@@ -253,7 +253,7 @@ def phase1(pg, dry_run=False):
     machine_resolver = MachineResolver.from_db(pgc)
 
     # 担当者名 → users.id (全角/半角・空白の表記ゆれを正規化して照合: name_match.py)
-    _p1_person = PersonResolver.from_db(pgc)
+    _p1_person = PersonResolver.from_db(pgc, system="MC")
     _p1_resolve = _p1_person.resolve
 
     # ACC_マシニングraw 確定カラム(ログより):
@@ -693,7 +693,7 @@ def phase6(pg, dry_run=False):
         log("mc_change_history / mc_setup_sheet_logs / work_records(MC分) 削除完了")
 
     # 担当者名 → users.id (全角/半角・空白の表記ゆれを正規化、複数名併記は分割して照合: name_match.py)
-    _person = PersonResolver.from_db(pgc)
+    _person = PersonResolver.from_db(pgc, system="MC")
     _resolve = _person.resolve
     _unresolved_work_names = {}
 

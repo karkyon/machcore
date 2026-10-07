@@ -588,7 +588,7 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
     # 氏名文字列(Dan_Op/La_Op) → users.id
     # 全角/半角・空白の表記ゆれを正規化、姓だけの記載は同姓が1人なら救済、
     # 「井本　昌成 アイン」「ソン＋フォン」のような複数名併記は分割して全員を照合(name_match.py)
-    _person = PersonResolver.from_db(pgc)
+    _person = PersonResolver.from_db(pgc, system="NC")
     _resolve_op = _person.resolve
     _resolve_ops = _person.resolve_multi
 
