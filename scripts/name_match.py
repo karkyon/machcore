@@ -34,10 +34,13 @@ def person_key(raw):
     return s or None
 
 
-# 旧データの通称・あだ名 → 社員コード(users.employee_code)。氏名と別の書き方で記録されている人
-# (ユーザー指定 2026-10-07: 「チューン」= 日長 陽介 / MC140)
+# 旧データの名前 → 社員コード(users.employee_code)。氏名だけでは一人に決まらない人を明示する
+#   「チューン」: 通称。日長 陽介 / MC140 (ユーザー指定 2026-10-07)
+#   「ティン」  : 同姓同名の別人が2人いる(STAFF030=旧システムからの利用者 / NC003=新システムで追加した利用者)。
+#                 旧データに記録されている「ティン」は旧システムの利用者 STAFF030 (旧 ACC_Staff St_id=30)
 LEGACY_ALIASES = {
     "チューン": "MC140",
+    "ティン": "STAFF030",
 }
 
 
@@ -83,6 +86,8 @@ class PersonResolver:
             uid = self._code.get(code.upper())
             if uid is not None:
                 self.alias[person_key(a)] = uid
+        # 通称の表で決まる名前は「決まらない名前」から外す
+        self.ambiguous = {n: v for n, v in self.ambiguous.items() if person_key(n) not in self.alias}
 
     def _choose(self, label, cands, record=True):
         cands = list(dict.fromkeys(cands))
