@@ -1431,6 +1431,8 @@ export class AdminController {
   }
 
   // ══ UploadAgent 配布管理 ══
+  // 配布先は UPLOAD_AGENT_DIR(apps/api/.env)で指定する。未指定は従来の /var/www/machcore-cert。
+  // .14 では internal/group で別の場所を指定し、片方の配置がもう片方の配布物を上書きしないようにする。
 
   /** UA-01: 現在のバージョン情報取得 */
   @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -1438,7 +1440,7 @@ export class AdminController {
   @Get('upload-agent/version')
   async getUploadAgentVersion() {
     const fs = await import('fs');
-    const certDir = '/var/www/machcore-cert';
+    const certDir = process.env.UPLOAD_AGENT_DIR || '/var/www/machcore-cert';
     const latestPath = `${certDir}/UploadAgent_Setup_latest.exe`;
     const exists = fs.existsSync(latestPath);
     const stat = exists ? fs.statSync(latestPath) : null;
@@ -1456,7 +1458,7 @@ export class AdminController {
   @Get('upload-agent/download')
   async downloadUploadAgent(@Res() reply: FastifyReply) {
     const fs = await import('fs');
-    const path = '/var/www/machcore-cert/UploadAgent_Setup_latest.exe';
+    const path = `${process.env.UPLOAD_AGENT_DIR || '/var/www/machcore-cert'}/UploadAgent_Setup_latest.exe`;
     if (!fs.existsSync(path)) {
       reply.code(404).send({ message: 'ファイルが存在しません' });
       return;
@@ -1490,7 +1492,7 @@ export class AdminController {
 
     if (!fileBuffer) { reply.code(400).send({ message: 'ファイルがありません' }); return; }
 
-    const certDir = '/var/www/machcore-cert';
+    const certDir = process.env.UPLOAD_AGENT_DIR || '/var/www/machcore-cert';
     if (!fs.existsSync(certDir)) fs.mkdirSync(certDir, { recursive: true });
 
     const versionedPath = path.join(certDir, `UploadAgent_Setup_v${version}.exe`);

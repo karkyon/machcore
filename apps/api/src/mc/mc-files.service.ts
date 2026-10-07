@@ -88,11 +88,15 @@ export class McFilesService {
     // (company_settings.upload_base_path) を優先する。未設定時のみ従来のデフォルト値。
     const setting = await this.prisma.companySetting.findFirst();
     const localBase = setting?.uploadBasePath ?? '/home/karkyon/projects/machcore/uploads';
+    // MCファイルの格納ルート。.11 は upload_base_path=/mnt/mc_files なので従来と同じ。
+    // .14 internal/group は各インスタンスの upload_base_path 配下だけを探し、他インスタンスや
+    // 共有SMB(/mnt/mc_files)のファイルを参照しない。
+    const mcRoot = setting?.uploadBasePath ?? '/mnt/mc_files';
     // 候補1: /mnt/mc_files/mc_files/xxx → uploads/mc_files/xxx
     const c1 = filePath.replace(/^\/mnt\/mc_files\/mc_files\//, localBase + '/mc_files/');
     if (c1 !== filePath && fs.existsSync(c1)) return c1;
     // 候補2: /mnt/mc_files/xxx → /mnt/mc_files/MC/files/xxx (パス修正後の旧パス救済)
-    const c2 = filePath.replace(/^\/mnt\/mc_files\/(?!MC\/)/, '/mnt/mc_files/MC/files/');
+    const c2 = filePath.replace(/^\/mnt\/mc_files\/(?!MC\/)/, mcRoot + '/MC/files/');
     if (c2 !== filePath && fs.existsSync(c2)) return c2;
     // 候補3: /mnt/ncfiles/mc_files/xxx → uploads/mc_files/xxx
     const c3 = filePath.replace(/^\/mnt\/ncfiles\/mc_files\//, localBase + '/mc_files/');
@@ -107,14 +111,14 @@ export class McFilesService {
       if (fs.existsSync(c5)) return c5;
     }
     // 候補6: /mnt/ncfiles/mc_files/xxx → /mnt/mc_files/xxx (SMBマウント先)
-    const c6 = filePath.replace(/^\/mnt\/ncfiles\/mc_files\//, '/mnt/mc_files/');
+    const c6 = filePath.replace(/^\/mnt\/ncfiles\/mc_files\//, mcRoot + '/');
     if (c6 !== filePath && fs.existsSync(c6)) return c6;
     // 候補7: /mnt/ncfiles/xxx → /mnt/mc_files/xxx
-    const c7 = filePath.replace(/^\/mnt\/ncfiles\//, '/mnt/mc_files/');
+    const c7 = filePath.replace(/^\/mnt\/ncfiles\//, mcRoot + '/');
     if (c7 !== filePath && fs.existsSync(c7)) return c7;
     // 候補8: ファイル名だけで /mnt/mc_files/{drawings,photos,pg} を探索
     for (const sub of ['Drawings', 'Pictures', 'Programs']) {
-      const c8 = `/mnt/mc_files/MC/files/${sub}/${basename}`;
+      const c8 = `${mcRoot}/MC/files/${sub}/${basename}`;
       if (fs.existsSync(c8)) return c8;
     }
     return null;
@@ -146,8 +150,11 @@ export class McFilesService {
 
     // サムネ生成
     try {
-      // thumbDir: SMBマウント先を優先、マウント失敗時はローカルフォールバック
-      const smbThumbDir = '/mnt/mc_files/MC/files/thumbnails';
+      // thumbDir: このインスタンスの upload_base_path 配下({base}/MC/files/thumbnails)。
+      // .11 は upload_base_path=/mnt/mc_files なので従来と同じ場所。.14 internal/group は
+      // それぞれ自分の格納先に作り、共有SMBや他インスタンスへ書き込まない。
+      const baseForThumb = (await this.prisma.companySetting.findFirst())?.uploadBasePath;
+      const smbThumbDir = baseForThumb ? `${baseForThumb}/MC/files/thumbnails` : '/mnt/mc_files/MC/files/thumbnails';
       const localThumbDir = '/home/karkyon/projects/machcore/uploads/mc_files/thumbnails';
       let thumbDir: string;
       try {
@@ -155,6 +162,7 @@ export class McFilesService {
         require('fs').accessSync(smbThumbDir, require('fs').constants.W_OK);
         thumbDir = smbThumbDir;
       } catch {
+        if (baseForThumb) throw new Error(`サムネイル格納先に書き込めません: ${smbThumbDir}`);
         this.ensureDir(localThumbDir);
         thumbDir = localThumbDir;
       }
