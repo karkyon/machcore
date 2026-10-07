@@ -61,4 +61,16 @@ export class CreateMcWorkRecordDto {
 
   @IsOptional() @IsString() @MaxLength(50)
   prg_plas?: string;
+
+  /** 個/1サイクル(旧 1S_個数) */
+  @IsOptional() @IsInt() @Min(0)
+  cycle_pcs?: number;
+
+  /** チェック担当(旧 ﾁｪｯｸMan) users.id */
+  @IsOptional() @IsInt()
+  check_operator_id?: number;
+
+  /** 総時間(分)。段取+加工と別に保持(旧データ互換) */
+  @IsOptional() @IsInt() @Min(0)
+  total_time_min?: number;
 }

@@ -1195,7 +1195,8 @@ export default function McDetailPage() {
                     : null;
                   const setupNames = ((r as any).setup_operator_names as string[] | undefined) ?? [];
                   const prodNames  = ((r as any).production_operator_names as string[] | undefined) ?? [];
-                  const totalMin   = (r.setup_time_min ?? 0) + (r.machining_time_min ?? 0);
+                  // 総時間: 保存値(旧データの総時間を含む)を優先。無ければ段取+加工
+                  const totalMin   = r.total_time_min ?? ((r.setup_time_min ?? 0) + (r.machining_time_min ?? 0));
                   // 加工時間/1P・総時間/1P はDBに保存していないため表示なし（旧DBテキスト型のため）
                   return (
                   <div key={r.id} className={`px-3 py-2 border-b border-slate-100 text-xs ${i % 2 === 0 ? "bg-white" : "bg-slate-50"}`}>

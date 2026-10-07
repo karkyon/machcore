@@ -73,6 +73,7 @@ from legacy_sheet_link import new_mc_candidate, pick_mc_sheet  # 作業記録⇔
 from normalize_wpd_ext import norm_wpd  # プログラムフォルダ拡張子 .WPD 統一
 from machine_name_match import MachineResolver  # 旧機械名(全角/半角・大小文字・ハイフンのゆれ) → machines.id
 from name_match import PersonResolver  # 旧担当者名(全角/半角・空白のゆれ、複数名併記) → users.id
+import legacy_work_time as _lwt  # 作業記録の時間・サイクルの変換規則(取込・検証・補正で共通)
 import seed_clamp_master  # クランプ マスタ(アイテム選択の候補)の投入(PHASE11)
 SS_MC_SERVER = "192.168.1.9"
 SS_MC_USER   = "sa"
@@ -754,29 +755,6 @@ def phase6(pg, dry_run=False):
         "ｻｲｸﾙﾀｲﾑ/1P","加工時間/1P","総時間/1P"
     ]
 
-    # ──────────────────────────────────────────────
-    # 時間パース (HH:MM:SS または "3H 30M" テキスト形式)
-    # ──────────────────────────────────────────────
-    def _parse_hms_min(s):
-        if not s: return None
-        s = str(s).strip()
-        mh = _re2.search(r"(\d+)H", s); mm = _re2.search(r"H\s*(\d+)M", s)
-        if mh:
-            h = int(mh.group(1)); m = int(mm.group(1)) if mm else 0
-            return h * 60 + m if (h > 0 or m > 0) else None
-        return None
-
-    def _parse_hms_sec(s):
-        if not s: return None
-        s = str(s).strip()
-        mh = _re2.search(r"(\d+)H", s)
-        mm = _re2.search(r"H\s*(\d+)M", s)
-        ms = _re2.search(r"M\s*(\d+)S", s)
-        h = int(mh.group(1)) if mh else 0
-        m = int(mm.group(1)) if mm else 0
-        sc= int(ms.group(1)) if ms else 0
-        return h*3600 + m*60 + sc if (h or m or sc) else None
-
     def _to_jst_utc(dt):
         """SQL Serverから来るJSTのnaive datetimeをUTCに変換（-9h）"""
         if dt is None: return None
@@ -927,12 +905,21 @@ def phase6(pg, dry_run=False):
                     _in_raw = rd["入力日"]
                     wd_date = _in_raw.date() if hasattr(_in_raw, "year") else (_utcnow() + _td(hours=9)).date()
 
-                    setup_min  = _parse_hms_min(rd["段取時間"])
-                    mach_min   = _parse_hms_min(rd["加工時間"])
-                    th = int(rd["TH"] or 0); tm = int(rd["TM"] or 0); ts = int(rd["TS"] or 0)
-                    cycle_sec  = _parse_hms_sec(rd["ｻｲｸﾙﾀｲﾑ/1P"])
-                    if cycle_sec is None and (th or tm or ts):
-                        cycle_sec = th*3600 + tm*60 + ts
+                    # 時間・サイクルは共通規則(legacy_work_time.py)で変換する
+                    #   段取時間/加工時間/総時間: '1H 15M' '45M'(Hなし) を分に。負(入力ミス)は値なし
+                    #   サイクルタイム: TH/TM/TS(1サイクルの生の値)を正とする。
+                    #     旧はここに ｻｲｸﾙﾀｲﾑ/1P(= TH/TM/TS ÷ 1S_個数)を入れていたため、
+                    #     個/1サイクルが1以外の記録でサイクルタイムが半分等になっていた
+                    #   個/1サイクル(1S_個数)・総時間・チェック担当(ﾁｪｯｸMan)も移行する
+                    setup_min  = _lwt.parse_hms_min(rd["段取時間"])
+                    mach_min   = _lwt.parse_hms_min(rd["加工時間"])
+                    total_min  = _lwt.parse_hms_min(rd["総時間"])
+                    cycle_sec  = _lwt.cycle_sec(rd)
+                    cyc_pcs    = _lwt.cycle_pcs(rd)
+                    check_op_id = _resolve(rd["ﾁｪｯｸMan"])
+                    if rd["ﾁｪｯｸMan"] and str(rd["ﾁｪｯｸMan"]).strip() and check_op_id is None:
+                        _nm = str(rd["ﾁｪｯｸMan"]).strip()
+                        _unresolved_work_names[_nm] = _unresolved_work_names.get(_nm, 0) + 1
 
                     qty_val = rd["ﾜｰｸ数"]
                     work_qty = int(float(str(qty_val))) if qty_val else None
@@ -985,8 +972,9 @@ def phase6(pg, dry_run=False):
                                cycle_time_sec, quantity, started_at, checked_at, finished_at,
                                setup_work_count, prg_man, prg_time_min, prg_plas,
                                setup_operator_ids, production_operator_ids,
-                               note, work_type, mc_setup_sheet_log_id, created_at)
-                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'MC',%s,NOW())
+                               note, work_type, mc_setup_sheet_log_id,
+                               cycle_pcs, check_operator_id, total_time_min, created_at)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'MC',%s,%s,%s,%s,NOW())
                         """, (mc_db_id, work_op_id, machine_id,
                               wd_date,
                               setup_min, mach_min, cycle_sec,
@@ -996,7 +984,8 @@ def phase6(pg, dry_run=False):
                               prg_man, prg_min, prg_plas,
                               _json.dumps(setup_ids),
                               _json.dumps(prod_ids),
-                              wr_note, sheet_link_id))
+                              wr_note, sheet_link_id,
+                              cyc_pcs, check_op_id, total_min))
                         wr_ok += 1
                         if sheet_link_id: wr_linked += 1
                     except Exception as e2:
@@ -1020,7 +1009,7 @@ def phase6(pg, dry_run=False):
     log(f"PHASE6完了: 入力={row_count} skip={sl_skip} SL_err={sl_err} CH_err={ch_err} WR_err={wr_err}")
     log(f"  [印刷履歴={sl_ok} / 変更履歴={ch_ok} / 作業実績={wr_ok}]")
     if _unresolved_work_names:
-        log(f"  [WARN] 段取/作業者名がusersに無く担当者欄に入らなかった名前: "
+        log(f"  [WARN] 段取/作業者/チェック担当の名前がusersに無く担当者欄に入らなかった名前: "
             + ", ".join(f"{k}({v}件)" for k, v in sorted(_unresolved_work_names.items(), key=lambda x: -x[1])), "WARN")
     if _machine_resolver.unresolved:
         log(f"  [WARN] 履歴の機械名がmachinesマスタに無く機械が空欄: "

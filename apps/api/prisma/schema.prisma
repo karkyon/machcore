@@ -356,6 +356,11 @@ model WorkRecord {
   prgMan                  String?  @db.VarChar(100)  @map("prg_man")
   prgTimeMin              Int?                       @map("prg_time_min")
   prgPlas                 String?  @db.VarChar(50)   @map("prg_plas")
+  // MC作業記録: 個/1サイクル(旧 1S_個数)・チェック担当(旧 ﾁｪｯｸMan)・総時間(旧 総時間)。
+  // 総時間は旧データで段取+加工と一致しない記録があるため段取/加工とは別に保持する(NULLなら段取+加工)。
+  cyclePcs                Int?                       @map("cycle_pcs")
+  checkOperatorId         Int?                       @map("check_operator_id")
+  totalTimeMin            Int?                       @map("total_time_min")
   // [v136] 作業記録がどの段取シート発行に対応するかを正確に特定するためのFK。
   // MC/NCでテーブルが別(setup_sheet_logs / mc_setup_sheet_logs)のため2列に分ける。
   // 新規作成時のみ設定(既存記録への後付け推定はしない)。

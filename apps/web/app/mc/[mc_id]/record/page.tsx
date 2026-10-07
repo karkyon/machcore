@@ -327,6 +327,10 @@ function fmtSec(sec: number | null) {
   const t = Math.round(sec);
   return `${Math.floor(t / 3600)}h${Math.floor((t % 3600) / 60)}m${t % 60}s`;
 }
+/** 時間集計に関わる入力値の組(過去記録の保存値を使うか判定するため) */
+function timeInputKey(...v: Array<string | number>): string {
+  return JSON.stringify(v);
+}
 function fmtMin(min: number | null) {
   if (min == null || min < 0 || isNaN(min)) return "—";
   return fmtSec(min * 60);
@@ -635,6 +639,11 @@ function McRecordPageInner() {
   const [tcModalOpen, setTcModalOpen] = useState(false);
   const [setupKadouMin, setSetupKadouMin] = useState<number | null>(null);
   const [machKadouMin,  setMachKadouMin]  = useState<number | null>(null);
+  // [過去記録の時間表示] 過去記録を開いたときは保存されている段取/加工/総時間をそのまま表示する。
+  // 従来は開くたびに段取開始〜加工終了の日時の差(昼休みのみ控除)から計算し直していたため、
+  // 旧システムの値(例 加工 14H15M)が 27h0m 等に化けていた。
+  // 時間に関わる入力(日時・中断・h/m・入力モード)を変更したときだけ再計算に切り替える。
+  const [storedTimes, setStoredTimes] = useState<{ key: string; setupMin: number | null; machMin: number | null; totalMin: number | null } | null>(null);
 
   // ── 入力mode ──────────────────────────────────
   const [timeMode, setTimeMode] = useState<"hm" | "datetime">("datetime");
@@ -837,6 +846,8 @@ function McRecordPageInner() {
   // 機械選択時にサイクルタイム自動セット
   useEffect(() => {
     if (!detail || !machineId) return;
+    // 過去記録の編集中は記録に保存されているサイクルタイムを上書きしない
+    if (editRecordId != null) return;
     const sel = machines.find(m => String(m.id) === machineId);
     if (sel && detail.machine && sel.machineCode === detail.machine.machineCode) {
       const sec = detail.cycleTimeSec ?? 0;
@@ -863,6 +874,7 @@ function McRecordPageInner() {
     setMachH(0); setMachMm(0); setMachInterruption(0);
     setPrgMan(null); setPrgTimeH(0); setPrgTimeM(0); setPrgPlas("");
     setNote(""); setSaveError(null);
+    setStoredTimes(null);
   };
 
   const loadRecord = (r: McWorkRecord) => {
@@ -872,21 +884,24 @@ function McRecordPageInner() {
     setMachineId(r.machine_id != null ? String(r.machine_id) : "");
     const cSec = r.cycle_time_sec ?? 0;
     setCycleH(Math.floor(cSec / 3600)); setCycleM(Math.floor((cSec % 3600) / 60)); setCycleS(cSec % 60);
-    setCyclePcs("");
+    // [バグ修正] 個/1サイクルを空にしていたため、過去記録でサイクルタイム/1Pが表示されなかった
+    setCyclePcs(r.cycle_pcs ? String(r.cycle_pcs) : "");
     setSetupOps((r.setup_operator_ids ?? []) as number[]);
     setStartedAt(toLocalInput(r.started_at));
     setCheckedAt(toLocalInput(r.checked_at));
-    setCheckMan(null);
+    setCheckMan(r.check_operator_id ?? null);
     const dstop = r.interrupt_setup_min ?? 0;
     setDStopH(Math.floor(dstop / 60)); setDStopM(dstop % 60);
     setSetupQty(r.setup_work_count ? String(r.setup_work_count) : "");
-    setSetupH(0); setSetupMm(0); setSetupInterruption(0);
+    const sMin = r.setup_time_min ?? 0;
+    setSetupH(Math.floor(sMin / 60)); setSetupMm(sMin % 60); setSetupInterruption(0);
     setProdOps((r.production_operator_ids ?? []) as number[]);
     setFinishedAt(toLocalInput(r.finished_at));
     const ystop = r.interrupt_work_min ?? 0;
     setYStopH(Math.floor(ystop / 60)); setYStopM(ystop % 60);
     setQuantity(r.quantity ? String(r.quantity) : "");
-    setMachH(0); setMachMm(0); setMachInterruption(0);
+    const mMin = r.machining_time_min ?? 0;
+    setMachH(Math.floor(mMin / 60)); setMachMm(mMin % 60); setMachInterruption(0);
     // [バグ修正] prg_manはDBに氏名の文字列で保存されているため、
     // usersリストから名前が一致するユーザーIDを逆引きして復元する。
     // 無条件にnullへリセットしていたため復元表示されていなかった。
@@ -896,7 +911,19 @@ function McRecordPageInner() {
     setPrgPlas((r as any).prg_plas ?? "");
     setNote(r.note ?? "");
     // 日時入力データがあればdatetime modeに切り替え
-    if (r.started_at || r.finished_at) setTimeMode("datetime"); else setTimeMode("hm");
+    const mode: "hm" | "datetime" = (r.started_at || r.finished_at) ? "datetime" : "hm";
+    setTimeMode(mode);
+    // 保存されている時間をそのまま表示する(時間に関わる入力を変えるまで)
+    const hasStored = r.setup_time_min != null || r.machining_time_min != null || r.total_time_min != null;
+    setStoredTimes(hasStored ? {
+      key: timeInputKey(mode, toLocalInput(r.started_at), toLocalInput(r.checked_at), toLocalInput(r.finished_at),
+                        Math.floor(dstop / 60), dstop % 60, Math.floor(ystop / 60), ystop % 60,
+                        Math.floor(sMin / 60), sMin % 60, Math.floor(mMin / 60), mMin % 60),
+      setupMin: r.setup_time_min ?? null,
+      machMin:  r.machining_time_min ?? null,
+      totalMin: r.total_time_min ?? (r.setup_time_min != null || r.machining_time_min != null
+        ? (r.setup_time_min ?? 0) + (r.machining_time_min ?? 0) : null),
+    } : null);
   };
 
   // ── VBA W_TIME準拠の時間自動計算 ──────────────────────────────
@@ -911,6 +938,17 @@ function McRecordPageInner() {
     const totalQty  = qtyN + setupQtyN;
     // 加工時間/1P の分母: ワーク数 - 段取良品数 (同じ場合はワーク数)
     const machQtyBase = qtyN > 0 && qtyN !== setupQtyN ? Math.max(1, qtyN - setupQtyN) : Math.max(1, totalQty);
+
+    // 過去記録を開いた直後(時間に関わる入力が未変更)は保存値をそのまま使う
+    if (storedTimes && storedTimes.key === timeInputKey(timeMode, startedAt, checkedAt, finishedAt,
+          dStopH, dStopM, yStopH, yStopM, setupH, setupMm, machH, machMm)) {
+      const { setupMin, machMin, totalMin } = storedTimes;
+      return {
+        setupMin, machMin, totalMin, cyclePerPSec,
+        machPerPSec:  machMin != null && machMin > 0 && qtyN > 0 ? Math.round(machMin / machQtyBase * 60) : null,
+        totalPerPSec: totalMin != null && totalMin > 0 && qtyN > 0 ? Math.round(totalMin / qtyN * 60) : null,
+      };
+    }
 
     if (timeMode === "hm") {
       const setupMin = setupH * 60 + setupMm;
@@ -1005,7 +1043,7 @@ function McRecordPageInner() {
     };
   }, [timeMode, setupH, setupMm, machH, machMm, startedAt, checkedAt, finishedAt,
       dStopH, dStopM, yStopH, yStopM, quantity, setupQty, cycleH, cycleM, cycleS, cyclePcs,
-      setupKadouMin, machKadouMin]);
+      setupKadouMin, machKadouMin, storedTimes]);
 
   const times = calcTimes();
 
@@ -1056,6 +1094,9 @@ function McRecordPageInner() {
         prg_man:             prgMan ? (users.find(u=>u.id===prgMan)?.name ?? undefined) : undefined,
         prg_time_min:        (prgTimeH * 60 + prgTimeM) > 0 ? (prgTimeH * 60 + prgTimeM) : undefined,
         prg_plas:            prgPlas || undefined,
+        cycle_pcs:           (cyclePcs && !isNaN(parseInt(cyclePcs)) && parseInt(cyclePcs) > 0) ? parseInt(cyclePcs) : undefined,
+        check_operator_id:   checkMan ?? undefined,
+        total_time_min:      (times?.totalMin != null && !isNaN(times.totalMin)) ? times.totalMin : undefined,
         note:                note || undefined,
         machine_id:          (machineId && !isNaN(parseInt(machineId))) ? parseInt(machineId) : undefined,
         // [追加] 段取シートバック元のログIDを新規作成時のみ送信し、work_records側に

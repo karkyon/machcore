@@ -858,6 +858,9 @@ export type McWorkRecord = {
   prg_man:      string | null;
   prg_time_min: number | null;
   prg_plas:     string | null;
+  cycle_pcs?:         number | null;
+  check_operator_id?: number | null;
+  total_time_min?:    number | null;
 };
 
 export type McChangeHistory = {
@@ -908,6 +911,9 @@ export type CreateMcWorkRecordBody = {
   prg_time_min?: number;
   prg_plas?:     string;
   setup_sheet_log_id?: number;
+  cycle_pcs?:         number;
+  check_operator_id?: number;
+  total_time_min?:    number;
 };
 
 export type McPrintOptions = {

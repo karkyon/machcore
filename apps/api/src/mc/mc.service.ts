@@ -1409,6 +1409,9 @@ export class McService {
       prg_man:         (r as any).prgMan      ?? null,
       prg_time_min:    (r as any).prgTimeMin  ?? null,
       prg_plas:        (r as any).prgPlas     ?? null,
+      cycle_pcs:         r.cyclePcs        ?? null,
+      check_operator_id: r.checkOperatorId ?? null,
+      total_time_min:    r.totalTimeMin    ?? null,
     }));
   }
 
@@ -1464,6 +1467,9 @@ export class McService {
         prgMan:            dto.prg_man       ?? null,
         prgTimeMin:        dto.prg_time_min  ?? null,
         prgPlas:           dto.prg_plas      ?? null,
+        cyclePcs:          dto.cycle_pcs         ?? null,
+        checkOperatorId:   dto.check_operator_id ?? null,
+        totalTimeMin:      dto.total_time_min    ?? null,
         mcSetupSheetLogId: dto.setup_sheet_log_id ?? null,
       },
     });
@@ -1503,6 +1509,9 @@ export class McService {
         prgMan:            dto.prg_man             !== undefined ? dto.prg_man             : rec.prgMan,
         prgTimeMin:        dto.prg_time_min        !== undefined ? dto.prg_time_min        : rec.prgTimeMin,
         prgPlas:           dto.prg_plas            !== undefined ? dto.prg_plas            : rec.prgPlas,
+        cyclePcs:          dto.cycle_pcs           !== undefined ? dto.cycle_pcs           : rec.cyclePcs,
+        checkOperatorId:   dto.check_operator_id   !== undefined ? dto.check_operator_id   : rec.checkOperatorId,
+        totalTimeMin:      dto.total_time_min      !== undefined ? dto.total_time_min      : rec.totalTimeMin,
       },
     });
     await this.prisma.operationLog.create({
@@ -2753,13 +2762,13 @@ export class McService {
     try {
       const wrs = await this.prisma.workRecord.findMany({
         where: { mcProgramId: mcId },
-        select: { setupTimeMin: true, machiningTimeMin: true, quantity: true },
+        select: { setupTimeMin: true, machiningTimeMin: true, totalTimeMin: true, quantity: true },
       });
       const recCount = wrs.length;
-      const wrsWithData = wrs.filter((r: any) => r.setupTimeMin != null || r.machiningTimeMin != null);
+      const wrsWithData = wrs.filter((r: any) => r.setupTimeMin != null || r.machiningTimeMin != null || r.totalTimeMin != null);
       const setupMins  = wrsWithData.map((r:any) => r.setupTimeMin  ?? 0).filter((v:number)=>v>0);
       const machMins   = wrsWithData.map((r:any) => r.machiningTimeMin ?? 0).filter((v:number)=>v>0);
-      const totalMins  = wrsWithData.map((r:any) => (r.setupTimeMin??0) + (r.machiningTimeMin??0)).filter((v:number)=>v>0);
+      const totalMins  = wrsWithData.map((r:any) => r.totalTimeMin ?? ((r.setupTimeMin??0) + (r.machiningTimeMin??0))).filter((v:number)=>v>0);
       const qtyTotal   = wrs.reduce((s:number, r:any) => s + (r.quantity ?? 0), 0);
       const setupAvg   = setupMins.length  ? Math.round(setupMins.reduce((a:number,b:number)=>a+b,0)  / setupMins.length)  : null;
       const setupBest  = setupMins.length  ? Math.min(...setupMins)  : null;

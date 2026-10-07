@@ -36,6 +36,7 @@ sys.path.insert(0, HERE)
 from verify_old_new_db import pg_connect, ss_connect, SS_MC_DB, log  # 接続先は既存の検証と同じ
 from machine_name_match import MachineResolver
 from name_match import PersonResolver
+import legacy_work_time as lwt  # 取込と同じ時間・サイクルの変換規則
 
 OUT_DIR = os.path.join(HERE, "verify_reports")
 
@@ -65,19 +66,7 @@ def i_or_none(v):
     return n or None
 
 
-def parse_hms_sec(v):
-    """旧の時間文字列 '1H 15M' / '0H 44M 24S' / '14H15M' → 秒。空/解釈不可は None"""
-    if v is None:
-        return None
-    s = unicodedata.normalize("NFKC", str(v)).strip().upper()
-    if not s:
-        return None
-    mh = re.search(r"(\d+)\s*H", s)
-    mm = re.search(r"(\d+)\s*M", s)
-    ms = re.search(r"(\d+)\s*S", s)
-    if not (mh or mm or ms):
-        return None
-    return (int(mh.group(1)) if mh else 0) * 3600 + (int(mm.group(1)) if mm else 0) * 60 + (int(ms.group(1)) if ms else 0)
+parse_hms_sec = lwt.parse_hms_sec   # 旧の時間文字列 → 秒(負・空は None)
 
 
 def has_sec_part(v):
@@ -248,7 +237,7 @@ def verify_mc(ss, pg, tally):
     for pid, lm in pgc.fetchall():
         mcid_map[lm].append(pid)
 
-    pgc.execute("SELECT id, name FROM users")
+    pgc.execute("SELECT id, name FROM users ORDER BY id")
     users = pgc.fetchall()
     uname = {u[0]: u[1] for u in users}
     person = PersonResolver(users)
@@ -265,7 +254,8 @@ def verify_mc(ss, pg, tally):
                started_at, checked_at, finished_at,
                interrupt_setup_min, interrupt_work_min, interruption_time_min,
                setup_work_count, prg_man, prg_time_min, prg_plas,
-               setup_operator_ids, production_operator_ids, note, created_at
+               setup_operator_ids, production_operator_ids, note, created_at,
+               cycle_pcs, check_operator_id, total_time_min
         FROM work_records WHERE mc_program_id IS NOT NULL ORDER BY mc_program_id, id
     """)
     wcols = [d[0] for d in pgc.description]
@@ -285,8 +275,8 @@ def verify_mc(ss, pg, tally):
     def okey(o):
         return (o["入力日"].date() if hasattr(o.get("入力日"), "year") else None,
                 (old_dt_to_utc(o.get("段取開始")), old_dt_to_utc(o.get("加工終了")),
-                 (parse_hms_sec(o.get("段取時間")) or 0) // 60 or None,
-                 (parse_hms_sec(o.get("加工時間")) or 0) // 60 or None,
+                 lwt.parse_hms_min(o.get("段取時間")),
+                 lwt.parse_hms_min(o.get("加工時間")),
                  i_or_none(o.get("ﾜｰｸ数"))))
 
     def nkey(n):
@@ -349,15 +339,20 @@ def compare_mc_pair(o, n, mcid, pid, tally, person, mres, uname, mcode, admin_id
     o_setup = parse_hms_sec(o.get("段取時間"))
     o_mach = parse_hms_sec(o.get("加工時間"))
     o_total = parse_hms_sec(o.get("総時間"))
-    chk(G1, "段取時間(列)", ((o_setup or 0) // 60) == (n["setup_time_min"] or 0), o.get("段取時間"), fmt_min(n["setup_time_min"]))
-    chk(G1, "加工時間(列)", ((o_mach or 0) // 60) == (n["machining_time_min"] or 0), o.get("加工時間"), fmt_min(n["machining_time_min"]))
-    n_total_col = (n["setup_time_min"] or 0) + (n["machining_time_min"] or 0)
-    chk(G1, "総時間(段取+加工の列)", ((o_total or 0) // 60) == n_total_col, o.get("総時間"), fmt_min(n_total_col))
+    e_setup, e_mach, e_total = lwt.parse_hms_min(o.get("段取時間")), lwt.parse_hms_min(o.get("加工時間")), lwt.parse_hms_min(o.get("総時間"))
+    chk(G1, "段取時間(列)", e_setup == (n["setup_time_min"] or None), o.get("段取時間"), fmt_min(n["setup_time_min"]))
+    chk(G1, "加工時間(列)", e_mach == (n["machining_time_min"] or None), o.get("加工時間"), fmt_min(n["machining_time_min"]))
+    chk(G1, "総時間(列)", e_total == (n["total_time_min"] or None), o.get("総時間"), fmt_min(n["total_time_min"]))
 
-    th, tm, ts = i_or0(o.get("TH")), i_or0(o.get("TM")), i_or0(o.get("TS"))
-    o_cycle = th * 3600 + tm * 60 + ts
-    chk(G1, "サイクルタイム(列)", (o_cycle or None) == (n["cycle_time_sec"] or None),
-        f"{th}H {tm}M {ts}S", fmt_sec(n["cycle_time_sec"]) if n["cycle_time_sec"] else None)
+    e_cyc, e_pcs = lwt.cycle_sec(o), lwt.cycle_pcs(o)
+    chk(G1, "サイクルタイム(列)", e_cyc == (n["cycle_time_sec"] or None),
+        f"{i_or0(o.get('TH'))}H {i_or0(o.get('TM'))}M {i_or0(o.get('TS'))}S", fmt_sec(n["cycle_time_sec"]) if n["cycle_time_sec"] else None)
+    chk(G1, "個/1サイクル(列)", e_pcs == (n["cycle_pcs"] or None), o.get("1S_個数"), n["cycle_pcs"])
+    o_chk = s_norm(o.get("ﾁｪｯｸMan"))
+    e_chk = person.resolve(o_chk) if o_chk else None
+    chk(G1, "チェック担当(列)", e_chk == n["check_operator_id"], o_chk, uname.get(n["check_operator_id"]))
+    if o_chk and e_chk is None:
+        chk(G3, "チェック担当(usersに無く空欄)", False, o_chk, None)
 
     chk(G1, "全良品数(ワーク数)", i_or_none(o.get("ﾜｰｸ数")) == (n["quantity"] or None), o.get("ﾜｰｸ数"), n["quantity"])
     chk(G1, "段取良品数", i_or_none(o.get("段取_ﾜｰｸ数")) == (n["setup_work_count"] or None), o.get("段取_ﾜｰｸ数"), n["setup_work_count"])
@@ -388,33 +383,27 @@ def compare_mc_pair(o, n, mcid, pid, tally, person, mres, uname, mcode, admin_id
         o_ystop = i_or0(o.get(st_cols["yH"])) * 60 + i_or0(o.get(st_cols["yM"]))
         chk(G1, "量産時の中断", (o_ystop or None) == (n["interrupt_work_min"] or None), fmt_min(o_ystop), fmt_min(n["interrupt_work_min"]))
 
-    # ── 未移行(新DBに入れる列が無い/入れていない) ──
-    pcs = i_or0(o.get("1S_個数"))
-    chk(G3, "個/1サイクル(1S_個数)", pcs in (0, 1), o.get("1S_個数"), "(列なし)")
-    chk(G3, "チェック担当(ﾁｪｯｸMan)", s_norm(o.get("ﾁｪｯｸMan")) is None, s_norm(o.get("ﾁｪｯｸMan")), "(列なし)")
-
-    # ── 画面表示: page.tsx loadRecord → calcTimes(未認証=タイムカード不使用) を再現 ──
-    sa, ca, fa = utc_to_jst(n["started_at"]), utc_to_jst(n["checked_at"]), utc_to_jst(n["finished_at"])
+    # ── 画面表示: page.tsx loadRecord → calcTimes を再現 ──
+    #   過去記録を開いた直後は保存値(段取/加工/総時間)をそのまま表示する。
+    #   総時間 = total_time_min、無ければ 段取+加工。サイクルタイム/1P = サイクルタイム ÷ 個/1サイクル
     qty = n["quantity"] or 0
     sq = n["setup_work_count"] or 0
     mach_base = max(1, qty - sq) if (qty > 0 and qty != sq) else max(1, qty + sq)
-    dstop = n["interrupt_setup_min"] or 0
-    ystop = n["interrupt_work_min"] or 0
-    if sa or fa:
-        smin = max(0, js_round((ca - sa).total_seconds() / 60) - lunch_deduct_min(sa, ca) - dstop) if (sa and ca) else None
-        mmin = max(0, js_round((fa - ca).total_seconds() / 60) - lunch_deduct_min(ca, fa) - ystop) if (ca and fa) else None
-        tmin = max(0, js_round((fa - sa).total_seconds() / 60) - lunch_deduct_min(sa, fa) - dstop - ystop) if (sa and fa) else None
-        mode = "日時"
+    smin, mmin = n["setup_time_min"], n["machining_time_min"]
+    if n["total_time_min"] is not None:
+        tmin = n["total_time_min"]
+    elif smin is not None or mmin is not None:
+        tmin = (smin or 0) + (mmin or 0)
     else:
-        smin, mmin, tmin = 0, 0, 0   # 時間入力モードで開くと loadRecord が段取/加工の h・m を 0 にする
-        mode = "時間"
-    shown = smin is not None or mmin is not None or tmin is not None
+        tmin = None
+    mode = "保存値"
     disp_mach_p = js_round(mmin / mach_base * 60) if (mmin and qty > 0) else None
     disp_total_p = js_round(tmin / qty * 60) if (tmin and qty > 0) else None
+    disp_cyc_p = (n["cycle_time_sec"] / n["cycle_pcs"]) if (n["cycle_time_sec"] and n["cycle_pcs"]) else None
 
     def same_min(old_txt, new_min):
         ov = parse_hms_sec(old_txt)
-        if ov is None and not new_min:
+        if not ov and not new_min:      # 旧 空/0/負 と 新 空/0 は同じ(どちらも時間なし)
             return True
         if ov is None or new_min is None:
             return False
@@ -434,8 +423,8 @@ def compare_mc_pair(o, n, mcid, pid, tally, person, mres, uname, mcode, admin_id
     chk(G2, f"加工時間", same_min(o.get("加工時間"), mmin), o.get("加工時間"), f"{fmt_min(mmin)}[{mode}]")
     chk(G2, f"総時間", same_min(o.get("総時間"), tmin), o.get("総時間"), f"{fmt_min(tmin)}[{mode}]")
     o_cyc_p = o.get("ｻｲｸﾙﾀｲﾑ/1P")
-    # loadRecord が 個/1サイクル を空にするため サイクルタイム/1P は過去記録では常に表示されない
-    chk(G2, "サイクルタイム/1P(表示されない)", parse_hms_sec(o_cyc_p) in (None, 0), o_cyc_p, "表示なし")
+    chk(G2, "サイクルタイム/1P", same_sec(o_cyc_p, disp_cyc_p), o_cyc_p,
+        fmt_sec(disp_cyc_p) if disp_cyc_p is not None else "表示なし")
     chk(G2, "加工時間/1P", same_sec(o.get("加工時間/1P"), disp_mach_p), o.get("加工時間/1P"),
         fmt_sec(disp_mach_p) if disp_mach_p is not None else "表示なし")
     chk(G2, "総時間/1P", same_sec(o.get("総時間/1P"), disp_total_p), o.get("総時間/1P"),
@@ -478,7 +467,7 @@ def verify_nc(ss, pg, tally):
     kid_map = defaultdict(list)
     for pid, kid in pgc.fetchall():
         kid_map[kid].append(pid)
-    pgc.execute("SELECT id, name FROM users")
+    pgc.execute("SELECT id, name FROM users ORDER BY id")
     users = pgc.fetchall()
     uname = {u[0]: u[1] for u in users}
     person = PersonResolver(users)
