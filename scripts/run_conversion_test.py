@@ -7,7 +7,9 @@ run_conversion_test.py — 本番DB(machcore_dev)を一切変更せずにデー�
   2. 試験用DBに対して MC/NC の全フェーズコンバートを実行する
      (--skip-file-copy: 図・写真・プログラムの実ファイルには一切触れない)
   3. 新旧DB検証(verify_old_new_db.py / verify_nc_old_new_db.py)を試験用DBで実行し、HTMLレポートを作る
-  4. これまでに直した不具合が解消しているかを項目ごとに確認する(OK/NG)
+  4. 作業記録の新旧全件・全項目検証(verify_work_records.py)を試験用DBで実行する
+  5. これまでに直した不具合が解消しているかを項目ごとに確認する(OK/NG)
+     ・候補マスタ(クランプ / NC加工リスト)は試験用DBで空にしてからコンバートし、投入されることを確かめる
   5. 試験用DBを削除する(--keep で残す)
 
   結果: scripts/verify_reports/conversion_test_YYYYMMDD_HHMMSS.md (+ 検証のjson/html)
@@ -124,6 +126,49 @@ def check(no, title, ok, detail):
 def q1(cur, sql, args=None):
     cur.execute(sql, args or ())
     return cur.fetchone()[0]
+
+
+MASTER_TABLES = ["clamp_vise", "clamp_shiki", "clamp_chuck", "clamp_tsume", "clamp_index",
+                 "nc_tool_shave1_master", "nc_tool_shave2_master", "nc_tool_chip_master", "nc_tool_holder_master"]
+
+
+def empty_masters(test_dsn):
+    """試験用DBだけ: 候補マスタを空にして、コンバート(MC PHASE11 / NC PHASE6)が投入することを試験する"""
+    import psycopg2
+    pg = psycopg2.connect(test_dsn); c = pg.cursor()
+    for t in MASTER_TABLES:
+        c.execute(f"DELETE FROM {t}")
+    pg.commit(); pg.close()
+    out("試験用DBの候補マスタを空にしました: " + ", ".join(MASTER_TABLES))
+
+
+# 作業記録検証で 0 件でなければならない項目(格納値は全部、画面は段取/加工/総時間)
+# /1P の表示は旧データ自体の食い違い(旧の /1P が空・旧の時間や数量と合わない)が残るため上限で判定する
+PER1P_LIMIT = {"サイクルタイム/1P": 39, "加工時間/1P": 48, "総時間/1P": 31}
+
+
+def check_work_records(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception as e:
+        check("WR-0", "作業記録の新旧全件検証", False, f"結果を読めません: {e}")
+        return
+    for sysname in ("mc", "nc"):
+        st = (d.get("stats") or {}).get(sysname) or {}
+        check(f"WR-{sysname.upper()}0", f"{sysname.upper()}作業記録の件数", st.get("missing_in_new") == 0 and st.get("new_only") == 0,
+              f"旧 {st.get('old')} / 対応 {st.get('paired')} / 新に無し {st.get('missing_in_new')} / 新のみ {st.get('new_only')} / 孤立 {st.get('no_program')}")
+        for it in (d.get("items") or {}).get(sysname, []):
+            g, lab, ng = it["group"], it["label"], it["ng"]
+            ex = "; ".join(f"{e.get('旧')}→{e.get('新')}" for e in it.get("examples", [])[:3])
+            if g == "格納値":
+                check(f"WR-{sysname.upper()}", f"{sysname.upper()}作業記録 格納値 {lab}", ng == 0, f"不一致 {ng}/{it['checked']}件 {ex}")
+            elif g == "画面表示(時間集計)":
+                lim = PER1P_LIMIT.get(lab, 0)
+                check(f"WR-{sysname.upper()}", f"{sysname.upper()}作業記録 画面 {lab}", ng <= lim,
+                      f"不一致 {ng}/{it['checked']}件(旧データ起因の上限 {lim}) {ex}")
+            else:
+                check(f"WR-{sysname.upper()}", f"{sysname.upper()}作業記録 {g} {lab}", None, f"{ng}/{it['checked']}件")
 
 
 def run_checks(test_dsn):
@@ -260,6 +305,36 @@ def run_checks(test_dsn):
 
     users = q1(c, "SELECT COUNT(*) FROM users")
     check("CM-U1", "ユーザーマスタ(コンバートで変更しない)", None, f"{users}件")
+
+    # ── 候補マスタ(空にしてからコンバート → 投入されていること) ──
+    for t in MASTER_TABLES:
+        n = q1(c, f"SELECT COUNT(*) FROM {t}")
+        check("CM-M1", f"候補マスタ {t} の投入", n > 0, f"{n}件")
+    from seed_nc_tool_master import width_key   # 投入時と同じ全角/半角の同一視
+    for t in MASTER_TABLES[5:]:
+        c.execute(f"SELECT name FROM {t}")
+        names = [r[0] for r in c.fetchall()]
+        dup = len(names) - len({width_key(n) for n in names})
+        check("CM-M2", f"{t} に全角/半角違いの重複が無い", dup == 0, f"重複 {dup}件")
+
+    # ── 機械名(表記ゆれで空欄にならない) ──
+    sc2 = ss.cursor()
+    sc2.execute("SELECT COUNT(*) FROM ACC_マシニングraw WHERE 機械 IS NOT NULL AND LTRIM(RTRIM(機械)) <> ''")
+    leg_m = sc2.fetchone()[0]
+    new_m = q1(c, "SELECT COUNT(*) FROM mc_machining_details WHERE machine_id IS NOT NULL")
+    check("MC-M1", "MCマシニングの機械(旧に機械名あり→新で機械あり)", None, f"旧 機械名あり {leg_m}件 / 新 機械あり {new_m}件(差はマスタ未登録 G-5/MV40 等)")
+
+    # ── 担当者の通称・同姓同名(name_match.py LEGACY_ALIASES) ──
+    from name_match import LEGACY_ALIASES
+    for alias, code in LEGACY_ALIASES.items():
+        uid = q1(c, "SELECT COALESCE(MAX(id), -1) FROM users WHERE employee_code=%s", (code,))
+        n = q1(c, """SELECT COUNT(*) FROM work_records WHERE setup_operator_ids @> %s::jsonb
+                       OR production_operator_ids @> %s::jsonb OR check_operator_id = %s""",
+               (json.dumps([uid]), json.dumps([uid]), uid))
+        check("CM-U2", f"旧の「{alias}」→ {code}", uid > 0 and n > 0, f"users.id={uid} 作業記録で担当者 {n}件")
+    adm_wr = q1(c, """SELECT COUNT(*) FROM work_records w JOIN users u ON u.id=w.operator_id
+                       WHERE w.mc_program_id IS NOT NULL AND u.employee_code='ADMIN001'""")
+    check("MC-O2", "MC作業記録の操作者が管理者で代替された件数", None, f"{adm_wr}件(旧のオペレーター名がusersに無いもの)")
     pg.close(); ss.close()
 
 
@@ -307,6 +382,7 @@ def main():
     ok = True
     try:
         create_test_db(dsn, a.test_db)
+        empty_masters(test_dsn)
         for cmd, label in [([py, "mc_full_import.py", "--phase", "0", "--skip-file-copy"], "MCコンバート(全フェーズ・ファイル除く)"),
                            ([py, "nc_full_import_v2.py", "--phase", "0", "--skip-file-copy"], "NCコンバート(全フェーズ・ファイル除く)")]:
             rc, _, _ = sh(cmd, env=env, label=label)
@@ -317,8 +393,11 @@ def main():
         sh([py, "generate_verify_report.py", "--in", mj, "--out", mj.replace(".json", ".html")], env=env, label="MC検証レポート")
         sh([py, "verify_nc_old_new_db.py", "--out", nj], env=env, label="NC新旧DB検証")
         sh([py, "generate_verify_report_nc.py", "--in", nj, "--out", nj.replace(".json", ".html")], env=env, label="NC検証レポート")
+        wb = os.path.join(OUT_DIR, f"convtest_work_records_{ts}")
+        sh([py, "verify_work_records.py", "--target", "all", "--out", wb], env=env, label="作業記録 新旧全件検証")
         summarize_verify(mj, "MC"); summarize_verify(nj, "NC")
         run_checks(test_dsn)
+        check_work_records(wb + ".json")
     except Exception as e:
         ok = False
         out(f"\n!!! 試験を中断: {e}")

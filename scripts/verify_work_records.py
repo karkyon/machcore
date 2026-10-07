@@ -601,11 +601,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", choices=["mc", "nc", "all"], default="all")
     ap.add_argument("--examples", type=int, default=20, help="レポートに載せる不一致の例の件数(項目ごと)")
+    ap.add_argument("--out", default=None, help="出力ファイル名(拡張子なし)。省略時は verify_reports/verify_work_records_日時")
     args = ap.parse_args()
 
     os.makedirs(OUT_DIR, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base = os.path.join(OUT_DIR, f"verify_work_records_{stamp}")
+    base = args.out or os.path.join(OUT_DIR, f"verify_work_records_{stamp}")
 
     ss = ss_connect(SS_MC_DB)
     pg = pg_connect()

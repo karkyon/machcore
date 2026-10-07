@@ -175,6 +175,30 @@ def to_jst_utc(dt):
 
 ADMIN_FALLBACK_ID = 22  # メモリ記載のADMIN_ID(MC側と共通、既定値。実行時に_resolve_admin_id_nc()で上書き)
 
+
+def build_staff_id_map(pgc, ssc):
+    """旧 ACC_Staff.St_id → users.id。
+    ① 社員コード STAFF{St_id:03d}(旧システムから移した利用者の規則)
+    ② ①が無い(社員コードを振り直した等)ときは氏名で照合(name_match.py、同姓同名は通称の表/系統NCで決める)
+    返り値: (staff_id_map, 未対応の (St_id, 氏名) 一覧)"""
+    pgc.execute("SELECT id, employee_code FROM users")
+    code_to_userid = {r[1]: r[0] for r in pgc.fetchall()}
+    person = PersonResolver.from_db(pgc, system="NC")
+    ssc.execute("SELECT St_id, S_name FROM ACC_Staff")
+    staff_id_map, unmatched = {}, []
+    for st_id, s_name in ssc.fetchall():
+        try:
+            code = f"STAFF{int(st_id):03d}"
+        except (TypeError, ValueError):
+            continue
+        uid = code_to_userid.get(code) or person.resolve(s_name)
+        if uid is not None:
+            staff_id_map[st_id] = uid
+            staff_id_map[int(st_id)] = uid   # 参照側(Out_Op/In_Op等)の型の違いに備えて整数でも引けるように
+        else:
+            unmatched.append((st_id, s_name))
+    return staff_id_map, unmatched
+
 def _resolve_admin_id_nc():
     """users.employee_code='ADMIN001' のidを実行時に取得し、NC側の2つのADMIN定数に反映する。"""
     global ADMIN_FALLBACK_ID, NC_FILE_ADMIN_FALLBACK_ID
@@ -257,22 +281,12 @@ def phase1(pg, dry_run=False):
     fd_map = {r[0]: (r[1] or "").strip() for r in ssc.fetchall()}
     log(f"ACC_FD取得: {len(fd_map)}件 (参考情報として取得のみ。folder_name解決には未使用)")
 
-    # ACC_Staff: St_id → employee_code "STAFF{:03d}" → users.id 解決
-    pgc.execute("SELECT id, employee_code FROM users")
-    code_to_userid = {r[1]: r[0] for r in pgc.fetchall()}
-    ssc.execute("SELECT St_id, S_name FROM ACC_Staff")
-    staff_rows = ssc.fetchall()
-    staff_id_map = {}
-    staff_unmatched = 0
-    for st_id, s_name in staff_rows:
-        code = f"STAFF{int(st_id):03d}"
-        if code in code_to_userid:
-            staff_id_map[st_id] = code_to_userid[code]
-        else:
-            staff_unmatched += 1
-    log(f"ACC_Staff取得: {len(staff_rows)}件, users対応: {len(staff_id_map)}件, 未対応: {staff_unmatched}件")
+    # ACC_Staff: St_id → users.id (社員コード STAFF{:03d}、無ければ氏名で照合: build_staff_id_map)
+    staff_id_map, _staff_unmatched = build_staff_id_map(pgc, ssc)
+    staff_unmatched = len(_staff_unmatched)
+    log(f"ACC_Staff: users対応 {len({int(k) for k in staff_id_map})}件, 未対応: {staff_unmatched}件")
     if staff_unmatched > 0:
-        log(f"  [WARN] 未対応St_idが{staff_unmatched}件あります。registered_byはADMIN(id=22)にフォールバックします。", "WARN")
+        log(f"  [WARN] 未対応St_id(管理者で代替): " + ", ".join(f"{a}:{b}" for a, b in _staff_unmatched), "WARN")
 
     # ── ① ACC_Lathe単位(K_id単位)でnc_machining_detailsを構築 ──
     ssc.execute("""
@@ -576,14 +590,7 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
     log(f"kid_to_program_ids構築: {len(kid_to_program_ids)}件のK_idに対応するNcProgram群")
 
     if staff_id_map is None:
-        pgc.execute("SELECT id, employee_code FROM users")
-        code_to_userid = {r[1]: r[0] for r in pgc.fetchall()}
-        ssc.execute("SELECT St_id, S_name FROM ACC_Staff")
-        staff_id_map = {}
-        for st_id, s_name in ssc.fetchall():
-            code = f"STAFF{int(st_id):03d}"
-            if code in code_to_userid:
-                staff_id_map[st_id] = code_to_userid[code]
+        staff_id_map, _ = build_staff_id_map(pgc, ssc)
 
     # 氏名文字列(Dan_Op/La_Op) → users.id
     # 全角/半角・空白の表記ゆれを正規化、姓だけの記載は同姓が1人なら救済、
@@ -847,12 +854,11 @@ def phase4(pg, dry_run=False):
     pgc.execute("SELECT id, machining_id FROM nc_programs")
     program_rows = pgc.fetchall()
 
-    # 承認者(旧In_Op = ACC_Staff.St_id → users.employee_code "STAFF{St_id:03d}")
-    pgc.execute("SELECT id, employee_code FROM users")
-    _code_to_uid = {r[1]: r[0] for r in pgc.fetchall()}
+    # 承認者(旧In_Op = ACC_Staff.St_id → users.id。PHASE1/3と同じ build_staff_id_map)
+    _staff_map4, _ = build_staff_id_map(pgc, ssc)
     def _approver_uid(st_id):
         try:
-            return _code_to_uid.get(f"STAFF{int(st_id):03d}")
+            return _staff_map4.get(st_id) or _staff_map4.get(int(st_id))
         except (TypeError, ValueError):
             return None
     stat_approver = 0
