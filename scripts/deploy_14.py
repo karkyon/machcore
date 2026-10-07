@@ -561,7 +561,7 @@ def check(env, cfg, rep, other_cfg=None):
     try:
         c.execute("""SELECT (created_at + interval '9 hour')::date, COUNT(*) FROM work_records
                      GROUP BY 1 ORDER BY 1 DESC LIMIT 8""")
-        rep.add("INFO", "作業記録の登録日別件数(新しい順。コンバート日以外は画面からの入力)",
+        rep.add("INFO", "作業記録の登録日(created_at)別件数 新しい順",
                 " / ".join(f"{d}={n}" for d, n in c.fetchall()))
     except Exception:
         pg.rollback()
@@ -582,6 +582,11 @@ def check(env, cfg, rep, other_cfg=None):
         rep.add("NG", "旧DB(SQL Server)", f"{srv} に接続できません: {e}")
     roots = re.findall(r'(?:SMB_MC_ROOT|SRC_NC_ROOT)\s*=\s*Path\("([^"]+)"\)',
                        src + (SCRIPTS_DIR / "nc_full_import_v2.py").read_text(encoding="utf-8"))
+    for l in Path("/proc/mounts").read_text().splitlines():
+        f = l.split()
+        if len(f) >= 4 and f[1] == "/mnt/mcfiles":
+            rep.add("OK" if "ro" in f[3].split(",") else "WARN", "旧ファイル共有のマウント",
+                    f"{f[0]} {f[2]} " + ("読み取り専用" if "ro" in f[3].split(",") else "読み書き可(ro を推奨)"))
     for r in roots:
         try:
             ents = sorted(os.listdir(r))
@@ -798,9 +803,22 @@ def ensure_legacy_mount(rep):
 
     def clear_ng():
         rep.items = [i for i in rep.items if not (i[0] == "NG" and i[1].startswith(f"旧ファイル {LEGACY_MOUNT}"))]
+    def opts():
+        for l in Path("/proc/mounts").read_text().splitlines():
+            f = l.split()
+            if len(f) >= 4 and f[1] == LEGACY_MOUNT and f[2] == "cifs":
+                return f[0], f[3].split(",")
+        return None, []
+
+    def report(title):
+        dev, o = opts()
+        ro = "ro" in o
+        rep.add("OK" if ro else "WARN", title, f"{dev} → {LEGACY_MOUNT} " + ("読み取り専用(ro)" if ro else
+                f"読み書き可({','.join(x for x in o if x in ('rw', 'ro'))})。コンバートは読むだけだが、"
+                f"/etc/fstab の {LEGACY_SHARE} 行の rw を ro に変えておくと安全"))
     if ok():
         clear_ng()
-        rep.add("OK", "旧ファイル共有", f"{LEGACY_MOUNT}(MC / NC を読めます)")
+        report("旧ファイル共有")
         return
     if _mount_done:
         rep.add("NG", "旧ファイル共有をマウントできません", f"{LEGACY_SHARE} → {LEGACY_MOUNT}")
@@ -822,7 +840,7 @@ def ensure_legacy_mount(rep):
         sudo(cmd, label)
     if ok():
         clear_ng()
-        rep.add("OK", "旧ファイル共有をマウント", f"{LEGACY_SHARE} → {LEGACY_MOUNT}(読み取り専用)")
+        report("旧ファイル共有をマウント")
     else:
         rep.add("NG", "旧ファイル共有をマウントできません",
                 f"{LEGACY_SHARE} → {LEGACY_MOUNT}。mount の表示を確認してください(cifs-utils が無ければ sudo apt install cifs-utils)")
@@ -866,14 +884,18 @@ def deploy(env, cfg, rep, args, other_cfg):
     # ── DBスキーマ同期(削除を伴う差分は止める) ──
     rc, diff = run(["pnpm", "exec", "prisma", "migrate", "diff", "--from-config-datasource",
                     "--to-schema", "prisma/schema.prisma", "--script"], cwd=api, label="DBスキーマ差分(読むだけ)", check=False)
-    sql = "\n".join(l for l in diff.splitlines() if not l.startswith(("Loaded Prisma", "[dotenv", "$")))
+    sql = "\n".join(l for l in diff.splitlines()
+                    if not l.strip().startswith(("Loaded Prisma", "[dotenv", "$", "--")))
     if rc != 0:
         rep.add("WARN", "DBスキーマ差分", "差分の取得に失敗(db push の判定に任せます)")
     else:
-        stmts = [s.strip() for s in re.split(r";\s*\n", sql) if s.strip() and not s.strip().startswith("--")]
+        stmts = [s.strip() for s in re.split(r";\s*(?:\n|$)", sql) if s.strip()]
         risky = [s for s in stmts if re.search(r"\bDROP\s+(TABLE|COLUMN|TYPE|INDEX)|\bALTER\s+COLUMN\b.*\bTYPE\b|SET NOT NULL", s, re.I | re.S)]
+        for st in stmts:
+            log("  [差分] " + re.sub(r"\s+", " ", st)[:300])
         rep.add("OK" if not stmts else "INFO", "DBスキーマ差分", f"{len(stmts)}文" + (": " + " / ".join(
-            re.sub(r"\s+", " ", s)[:90] for s in stmts[:12]) if stmts else "(同期済み)"))
+            re.sub(r"\s+", " ", s)[:90] for s in stmts[:12]) if stmts else "(同期済み)")
+                + (f"(うちデータが消える可能性のある変更 {len(risky)}文)" if risky else ""))
         if risky and not args.accept_data_loss:
             for s in risky:
                 log("  [削除・型変更を伴う差分] " + re.sub(r"\s+", " ", s)[:300])
