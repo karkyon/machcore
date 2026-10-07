@@ -1053,7 +1053,7 @@ def convert(env, cfg, rep, args):
     pg.close()
     schema = (repo / "apps" / "api" / "prisma" / "schema.prisma").read_text(encoding="utf-8")
     wr = re.search(r"model WorkRecord \{(.*?)\n\}", schema, re.S).group(1)
-    need = set(re.findall(r'@map\("([a-z0-9_]+)"\)', wr))
+    need = set(re.findall(r'(?<!@)@map\("([a-z0-9_]+)"\)', wr))   # @@map("work_records") は表名なので除く
     miss = sorted(need - have)
     if miss:
         raise Abort(f"work_records に列がありません({miss})。先に --mode deploy を実行してください")
