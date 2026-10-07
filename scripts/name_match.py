@@ -25,11 +25,16 @@ _SEP = re.compile(r"[&＆、,，・/／+＋]")
 _WS = re.compile(r"[\s　]+")
 
 
+# カタカナの後のハイフン類は長音「ー」の打ち間違い(例: 旧NCの「チュ-ン」= チューン)
+_KANA_DASH = re.compile(r"(?<=[\u30A1-\u30FA\u30FC])[-‐‑‒–—―−－]")
+
+
 def person_key(raw):
     """担当者名の正規化キー。空なら None"""
     if raw is None:
         return None
     s = unicodedata.normalize("NFKC", str(raw))
+    s = _KANA_DASH.sub("ー", s)
     s = _WS.sub("", s).upper()
     return s or None
 
