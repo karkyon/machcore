@@ -388,7 +388,7 @@ def compare_mc_pair(o, n, mcid, pid, tally, person, mres, uname, mcode, admin_id
     #   総時間 = total_time_min、無ければ 段取+加工。サイクルタイム/1P = サイクルタイム ÷ 個/1サイクル
     qty = n["quantity"] or 0
     sq = n["setup_work_count"] or 0
-    mach_base = max(1, qty - sq) if (qty > 0 and qty != sq) else max(1, qty + sq)
+    mach_base = max(1, qty - sq) if (qty > 0 and qty != sq) else max(1, qty)
     smin, mmin = n["setup_time_min"], n["machining_time_min"]
     if n["total_time_min"] is not None:
         tmin = n["total_time_min"]
@@ -415,6 +415,11 @@ def compare_mc_pair(o, n, mcid, pid, tally, person, mres, uname, mcode, admin_id
             return True
         if ov is None or new_sec is None:
             return False
+        # 旧画面はちょうどx時間を「xH 1M」と表示する(旧の端数処理の癖)。値としては一致とみなし参考として数える
+        m1 = re.fullmatch(r"\s*(\d+)\s*H\s*1\s*M\s*", unicodedata.normalize("NFKC", str(old_txt)).upper())
+        if m1 and int(m1.group(1)) > 0 and abs(new_sec - int(m1.group(1)) * 3600) < 60:
+            chk("参考(旧データ内)", "旧の/1P表示の端数(ちょうどx時間を xH 1M と表示)", False, old_txt, fmt_sec(new_sec))
+            return True
         if has_sec_part(old_txt):
             return abs(ov - new_sec) <= 1
         return abs(ov - new_sec) < 60      # 旧が分までの表示なら分の単位で比較

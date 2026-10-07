@@ -24,14 +24,15 @@ def parse_hms_sec(v):
     s = unicodedata.normalize("NFKC", str(v)).strip().upper()
     if not s or "-" in s:
         return None
-    mh = re.search(r"(\d+)\s*H", s)
-    mm = re.search(r"(\d+)\s*M", s)
-    ms = re.search(r"(\d+)\s*S", s)
+    # 旧には '0H 2.1M' '1H 29.3M' のような小数の分もある
+    mh = re.search(r"(\d+(?:\.\d+)?)\s*H", s)
+    mm = re.search(r"(\d+(?:\.\d+)?)\s*M", s)
+    ms = re.search(r"(\d+(?:\.\d+)?)\s*S", s)
     if not (mh or mm or ms):
         return None
-    return ((int(mh.group(1)) if mh else 0) * 3600
-            + (int(mm.group(1)) if mm else 0) * 60
-            + (int(ms.group(1)) if ms else 0))
+    return int(round((float(mh.group(1)) if mh else 0) * 3600
+                     + (float(mm.group(1)) if mm else 0) * 60
+                     + (float(ms.group(1)) if ms else 0)))
 
 
 def parse_hms_min(v):
@@ -51,10 +52,22 @@ def _int0(v):
         return 0
 
 
+def _raw_cycle(row):
+    return _int0(row.get("TH")) * 3600 + _int0(row.get("TM")) * 60 + _int0(row.get("TS"))
+
+
 def cycle_pcs(row):
-    """1S_個数 → 個/1サイクル。空・0 は None"""
+    """1S_個数 → 個/1サイクル。
+    1S_個数 が空(古い記録に多い)でも旧画面は ｻｲｸﾙﾀｲﾑ/1P を出しているため、
+    TH/TM/TS ÷ ｻｲｸﾙﾀｲﾑ/1P から個数を求める(ふつうは1)。求められなければ None"""
     n = _int0(row.get("1S_個数"))
-    return n if n > 0 else None
+    if n > 0:
+        return n
+    raw = _raw_cycle(row)
+    per1 = parse_hms_sec(row.get("ｻｲｸﾙﾀｲﾑ/1P"))
+    if raw > 0 and per1:
+        return max(1, int(round(raw / per1)))
+    return None
 
 
 def cycle_sec(row):
@@ -68,10 +81,24 @@ def cycle_sec(row):
     return None
 
 
+def _old_import_parse_sec(v):
+    """補正前の取込(mc_full_import.py 5abf136 より前)の _parse_hms_sec をそのまま再現(小数の分は読めず0になる)"""
+    if not v:
+        return None
+    s = str(v).strip()
+    mh = re.search(r"(\d+)H", s)
+    mm = re.search(r"H\s*(\d+)M", s)
+    ms = re.search(r"M\s*(\d+)S", s)
+    h = int(mh.group(1)) if mh else 0
+    m = int(mm.group(1)) if mm else 0
+    sc = int(ms.group(1)) if ms else 0
+    return h * 3600 + m * 60 + sc if (h or m or sc) else None
+
+
 def converted_cycle_sec_before_fix(row):
-    """補正前の取込(2731938 以前の mc_full_import.py)が入れていた値: ｻｲｸﾙﾀｲﾑ/1P を優先、無ければ TH/TM/TS"""
-    per1 = parse_hms_sec(row.get("ｻｲｸﾙﾀｲﾑ/1P"))
-    if per1:
+    """補正前の取込が入れていた値: ｻｲｸﾙﾀｲﾑ/1P を優先、無ければ TH/TM/TS"""
+    per1 = _old_import_parse_sec(row.get("ｻｲｸﾙﾀｲﾑ/1P"))
+    if per1 is not None:
         return per1
-    raw = _int0(row.get("TH")) * 3600 + _int0(row.get("TM")) * 60 + _int0(row.get("TS"))
-    return raw or None
+    th, tm, ts = _int0(row.get("TH")), _int0(row.get("TM")), _int0(row.get("TS"))
+    return th * 3600 + tm * 60 + ts if (th or tm or ts) else None

@@ -935,9 +935,10 @@ function McRecordPageInner() {
 
     const qtyN     = parseInt(quantity)||0;
     const setupQtyN = parseInt(setupQty)||0;
-    const totalQty  = qtyN + setupQtyN;
     // 加工時間/1P の分母: ワーク数 - 段取良品数 (同じ場合はワーク数)
-    const machQtyBase = qtyN > 0 && qtyN !== setupQtyN ? Math.max(1, qtyN - setupQtyN) : Math.max(1, totalQty);
+    // [バグ修正] 同じ場合の分母が「ワーク数+段取良品数」になっていたため、加工時間/1P が旧の半分になっていた
+    //   (旧データの加工時間/1Pは 全良品数=段取良品数 のとき 全良品数 で割った値)
+    const machQtyBase = qtyN > 0 && qtyN !== setupQtyN ? Math.max(1, qtyN - setupQtyN) : Math.max(1, qtyN);
 
     // 過去記録を開いた直後(時間に関わる入力が未変更)は保存値をそのまま使う
     if (storedTimes && storedTimes.key === timeInputKey(timeMode, startedAt, checkedAt, finishedAt,
