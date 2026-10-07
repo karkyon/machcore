@@ -1099,10 +1099,36 @@ def convert(env, cfg, rep, args):
         rc, out2 = run([py, "scripts/verify_work_records.py", "--target", "all"], cwd=repo, env=cenv, capture=False,
                        label=f"{env}: 作業記録の新旧全件・全項目検証", check=False, timeout=3 * 3600)
         rep.add("OK" if rc == 0 else "WARN", "作業記録の全件検証", "scripts/verify_reports/verify_work_records_*.md")
+        check_file_links(cfg, rep)
     finally:
         pm2_restart(cfg, rep)
     health(env, cfg, rep)
     summarize_conversion(env, cfg, rep, out)
+
+
+def check_file_links(cfg, rep):
+    """コンバート後の図・写真・プログラムの登録が、このインスタンスの格納先を指し、実ファイルがあるか"""
+    import random
+    base = str(cfg["storage"]).rstrip("/") + "/"
+    pg = connect(dsn_of(cfg))
+    c = pg.cursor()
+    for t, label in (("mc_files", "MC 図・写真・プログラム"), ("nc_files", "NC プログラム")):
+        c.execute(f"SELECT file_type::text, COUNT(*), COUNT(*) FILTER (WHERE file_path NOT LIKE %s) FROM {t} GROUP BY 1 ORDER BY 1",
+                  (base + "%",))
+        rows = c.fetchall()
+        total = sum(r[1] for r in rows)
+        outside = sum(r[2] for r in rows)
+        c.execute(f"SELECT file_path FROM {t}")
+        paths = [r[0] for r in c.fetchall()]
+        sample = random.sample(paths, min(300, len(paths)))
+        missing = [x for x in sample if not os.path.exists(x)]
+        detail = " / ".join(f"{r[0]}={r[1]}" for r in rows) or "0件"
+        bad = total == 0 or outside or missing
+        rep.add("NG" if bad else "OK", f"{label}の登録", detail + (
+            f"  格納先外を指す行={outside}" if outside else "") + (
+            f"  実ファイルが無い={len(missing)}/{len(sample)}件(抜き取り) 例: {missing[0]}" if missing else "") + (
+            "  登録が0件" if total == 0 else ""))
+    pg.close()
 
 
 def summarize_conversion(env, cfg, rep, out):

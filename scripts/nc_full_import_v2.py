@@ -1142,6 +1142,10 @@ def main():
     log(f"開始: {start.strftime('%Y-%m-%d %H:%M:%S')} phase={args.phase} dry_run={dry}")
 
     _resolve_admin_id_nc()
+    # NCプログラムファイルの格納先を company_settings.upload_base_path から決める
+    # (2026-09-13 に関数を追加したが呼び出しが無く、常に /mnt/mc_files/NC/files に書いていた。
+    #  .14 では internal/group が共有SMBに書き込む独立性違反、または書き込めずPHASE5で失敗していた)
+    _resolve_upload_base_nc()
 
     pg = pg_connect()
     try:
