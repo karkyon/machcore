@@ -948,14 +948,20 @@ def copy_masters(src_dsn, dst_dsn, rep, inactive, label):
     d = connect(dst_dsn)
     sc, dc = s.cursor(), d.cursor()
     try:
-        dc.execute("SELECT machine_code FROM machines")
-        dcodes = {r[0] for r in dc.fetchall()}
-        dkeys = {normalize_machine(x) for x in dcodes}
+        dc.execute("SELECT machine_code, system_type::text, is_active FROM machines")
+        drows = dc.fetchall()
+        dcodes = {r[0] for r in drows}
+        dkeys = {normalize_machine(r[0]): r for r in drows}
+        skip_m = []
         sc.execute("""SELECT machine_code, machine_name, machine_type, maker, sort_order, is_active, system_type::text,
                              mc_specs::text, pg_is_folder FROM machines ORDER BY id""")
         add_m = []
         for r in sc.fetchall():
             if r[0] in dcodes or normalize_machine(r[0]) in dkeys:
+                ex = dkeys.get(normalize_machine(r[0]))
+                # 同じ機械名が既にあっても、種別(MC/NC)が合わなければコンバートで照合されない
+                if ex and not (ex[1] == r[6] or ex[1] == "BOTH" or r[6] == "BOTH" and ex[1] in ("MC", "NC")):
+                    skip_m.append(f"{r[0]}({r[6]}) ← このDBの {ex[0]} は {ex[1]}{'' if ex[2] else '・無効'}")
                 continue
             dc.execute("""INSERT INTO machines (machine_code, machine_name, machine_type, maker, sort_order, is_active,
                                                 system_type, mc_specs, pg_is_folder, created_at, updated_at)
@@ -998,6 +1004,12 @@ def copy_masters(src_dsn, dst_dsn, rep, inactive, label):
             + (": " + ", ".join(add_u[:30]) + (" ほか" if len(add_u) > 30 else "") if add_u else ""))
     if skip_u:
         rep.add("WARN", f"担当者マスタ補完({label}) 同じ氏名の別コードのため追加しなかった人", ", ".join(skip_u[:30]))
+    if skip_m:
+        rep.add("WARN", f"機械マスタ補完({label}) 同じ機械名があり種別が違うため追加しなかった機械",
+                ", ".join(skip_m) + " — この機械名の記録は機械が空欄になります")
+    # 点検時の「補完します」注意は補完が済んだので外す
+    rep.items = [i for i in rep.items if not (i[0] == "WARN" and (
+        i[1].startswith("旧の通称") or i[1] == "機械マスタ(machines)"))]
 
 
 def copy_pdf_templates_if_empty(src_dsn, dst_dsn, rep):
@@ -1023,6 +1035,7 @@ def copy_pdf_templates_if_empty(src_dsn, dst_dsn, rep):
                 dc.execute(f"INSERT INTO {t} ({','.join(cols)}) VALUES ({','.join(['%s'] * len(cols))})", r)
             dc.execute(f"SELECT setval(pg_get_serial_sequence('{t}','id'), COALESCE((SELECT MAX(id) FROM {t}),1))")
             rep.add("OK", f"{t} を internal から投入(空だったため)", f"{len(rows)}件")
+        rep.items = [i for i in rep.items if not (i[0] == "WARN" and i[1] in ("帳票テンプレート", "帳票の印字位置"))]
         d.commit()
     except Exception:
         d.rollback()
