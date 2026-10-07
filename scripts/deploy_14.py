@@ -181,6 +181,37 @@ def sh_out(cmd):
         return ""
 
 
+def _expand(x):
+    return os.path.expandvars(os.path.expanduser(x.replace("$HOME", str(HOME))))
+
+
+def sync_cron_entries():
+    """crontab の部品同期行 → [(行, 対象リポジトリ, スクリプトの実パス or None, python)]"""
+    res = []
+    for l in sh_out(["crontab", "-l"]).splitlines():
+        if "sync_parts" not in l or l.lstrip().startswith("#"):
+            continue
+        cd = re.search(r"\bcd\s+(\S+)", l)
+        base = _expand(cd.group(1)) if cd else None
+        sp = re.search(r"(\S*sync_parts\.py)", l)
+        script = None
+        if sp:
+            t = _expand(sp.group(1))
+            script = t if os.path.isabs(t) else (os.path.join(base, t) if base else None)
+        repo = str(Path(script).resolve().parent.parent) if script else base
+        m = re.search(r"(\S*python3?(?:\.\d+)?)\s", l)
+        res.append((l, repo, script if script and os.path.exists(script) else None, _expand(m.group(1)) if m else None))
+    return res
+
+
+def sudo(cmd, label):
+    """sudo で実行(パスワードを聞かれたら端末で入力)"""
+    log(f"$ sudo {' '.join(cmd)}   ({label})")
+    r = subprocess.run(["sudo"] + cmd)
+    log(f"  → rc={r.returncode}")
+    return r.returncode == 0
+
+
 def which(cmd):
     return shutil.which(cmd, path=ENV0["PATH"])
 
@@ -518,7 +549,6 @@ def check(env, cfg, rep, other_cfg=None):
         ("SELECT COUNT(*) FROM nc_programs", "NC 加工データ"),
         ("SELECT COUNT(*) FROM nc_programs WHERE legacy_nc_id IS NULL", "  うち新システムで登録"),
         ("SELECT COUNT(*) FROM work_records", "作業記録"),
-        ("SELECT COUNT(*) FROM work_records WHERE created_at > (SELECT MIN(created_at) + interval '1 hour' FROM work_records)", "  うちコンバート後の入力(目安)"),
         ("SELECT COUNT(*) FROM mc_setup_sheet_logs", "MC 段取シート印刷履歴"),
         ("SELECT COUNT(*) FROM setup_sheet_logs", "NC 段取シート印刷履歴"),
         ("SELECT COUNT(*) FROM operation_logs", "操作ログ"),
@@ -528,6 +558,13 @@ def check(env, cfg, rep, other_cfg=None):
         except Exception:
             pg.rollback()
     rep.add("INFO", "コンバートで作り直すデータ(今の件数)", " / ".join(lost))
+    try:
+        c.execute("""SELECT (created_at + interval '9 hour')::date, COUNT(*) FROM work_records
+                     GROUP BY 1 ORDER BY 1 DESC LIMIT 8""")
+        rep.add("INFO", "作業記録の登録日別件数(新しい順。コンバート日以外は画面からの入力)",
+                " / ".join(f"{d}={n}" for d, n in c.fetchall()))
+    except Exception:
+        pg.rollback()
     pg.close()
 
     # ── 旧DB / 旧ファイル ──
@@ -553,24 +590,18 @@ def check(env, cfg, rep, other_cfg=None):
         except Exception as e:
             rep.add("NG", f"旧ファイル {r}", f"読めません({e})。コンバートで図・写真・プログラムの登録が空になります")
 
-    # ── 部品マスタ同期 cron ──
-    cron = sh_out(["crontab", "-l"])
-    mine = [l for l in cron.splitlines() if "sync_parts" in l and str(repo) + "/" in l and not l.lstrip().startswith("#")]
+    # ── 部品マスタ同期 cron(このリポジトリの行だけを見る) ──
+    mine = [e for e in sync_cron_entries() if e[1] and os.path.realpath(e[1]) == os.path.realpath(repo)]
     if not mine:
         rep.add("WARN", "部品マスタ同期 cron", "このリポジトリの sync_parts.py の行がありません(deploy で追加します)")
-    for l in mine:
-        m = re.search(r"(\S*python3?(?:\.\d+)?)\s", l)
-        py = os.path.expandvars(m.group(1)) if m else None
+    for l, _, script, py in mine:
         okpy = bool(py) and _py_has_modules(py)
-        rep.add("OK" if okpy else "WARN", "部品マスタ同期 cron", l.strip() + ("" if okpy else "  ← この Python では pymssql/psycopg2 が使えません"))
-    dead = [l for l in cron.splitlines() if "sync_parts" in l and not l.lstrip().startswith("#")
-            and not any(os.path.exists(x) for x in re.findall(r"(/\S+sync_parts\.py)", l))]
-    for l in dead:
-        rep.add("WARN", "存在しないスクリプトを呼ぶ cron", l.strip())
+        rep.add("OK" if script and okpy else "WARN", "部品マスタ同期 cron", l.strip() + (
+            "" if script else "  ← スクリプトがありません") + ("" if okpy else "  ← この Python では pymssql/psycopg2 が使えません"))
 
     # ── pm2 ──
     try:
-        jl = json.loads(run(["pm2", "jlist"], check=False)[1] or "[]")
+        jl = json.loads(sh_out(["pm2", "jlist"]) or "[]")
     except Exception:
         jl = []
     for name in cfg["pm2"]:
@@ -684,35 +715,29 @@ def health(env, cfg, rep):
 
 
 def ensure_cron(env, cfg, rep):
+    """このリポジトリの部品同期行が動く状態ならそのまま(間隔も変えない)。無い・動かない場合だけ直す。
+       もう片方のインスタンスの行には触らない"""
     repo = cfg["repo"]
     if not which("crontab"):
         rep.add("WARN", "部品マスタ同期 cron", "crontab コマンドがありません")
         return
-    cron = sh_out(["crontab", "-l"])
-    tag = f"# machcore-sync-parts:{env}"
-    keep = []
-    removed = []
-    for l in cron.splitlines():
-        if l.strip() == tag:
-            continue
-        mine = "sync_parts" in l and str(repo) + "/" in l
-        dead = ("sync_parts" in l and not l.lstrip().startswith("#")
-                and not any(os.path.exists(x) for x in re.findall(r"(/\S+sync_parts\.py)", l)))
-        if mine or dead:
-            removed.append(l)
-            continue
-        keep.append(l)
+    mine = [e for e in sync_cron_entries() if e[1] and os.path.realpath(e[1]) == os.path.realpath(repo)]
+    good = [e for e in mine if e[2] and e[3] and _py_has_modules(e[3])]
     (repo / "logs").mkdir(exist_ok=True)
-    line = f"*/10 * * * * cd {repo} && {sys.executable} scripts/sync_parts.py >> {repo}/logs/sync_parts.log 2>&1"
-    new = "\n".join(keep + [tag, line]) + "\n"
-    if new.strip() != cron.strip():
-        r = subprocess.run(["crontab", "-"], input=new, text=True, capture_output=True)
+    if good:
+        rep.add("OK", "部品マスタ同期 cron(変更なし)", good[0][0].strip())
+    else:
+        bad = {e[0] for e in mine}
+        cron = sh_out(["crontab", "-l"])
+        keep = [l for l in cron.splitlines() if l not in bad]
+        line = f"* * * * * cd {repo} && {sys.executable} scripts/sync_parts.py >> {repo}/logs/sync_parts.log 2>&1"
+        r = subprocess.run(["crontab", "-"], input="\n".join(keep + [line]) + "\n", text=True, capture_output=True)
         if r.returncode != 0:
             rep.add("WARN", "部品マスタ同期 cron", f"書き込めませんでした: {r.stderr}")
             return
-        for l in removed:
+        for l in bad:
             log(f"  [cron] 置き換え前: {l}")
-    rep.add("OK", "部品マスタ同期 cron(10分ごと)", line)
+        rep.add("OK", "部品マスタ同期 cron を設定(1分ごと)", line)
     run([sys.executable, "scripts/sync_parts.py"], cwd=repo, label=f"{env}: 部品マスタ同期を1回実行", check=False,
         env=dict(ENV0), timeout=1800)
 
@@ -731,11 +756,10 @@ def ensure_instance_settings(env, cfg, rep, other_cfg):
     if env == "group" and not ev.get("UPLOAD_AGENT_DIR"):
         d = Path(cfg["ua_dir"])
         try:
-            if not d.exists():
-                r = subprocess.run(["sudo", "-n", "install", "-d", "-o", os.environ.get("USER", "karkyon"),
-                                    "-g", os.environ.get("USER", "karkyon"), str(d)], capture_output=True, text=True)
-                if r.returncode != 0:
-                    raise PermissionError(r.stderr.strip() or "sudo 不可")
+            user = os.environ.get("USER", "karkyon")
+            if not d.exists() or not os.access(d, os.W_OK):
+                sudo(["install", "-d", "-o", user, "-g", user, str(d)], "UploadAgent 配布先(group)を作成")
+                sudo(["chown", f"{user}:{user}", str(d)], "UploadAgent 配布先(group)を書き込み可に")
             if not os.access(d, os.W_OK):
                 raise PermissionError("書き込み不可")
             src = Path("/var/www/machcore-cert/UploadAgent_Setup_latest.exe")
@@ -755,6 +779,69 @@ def ensure_instance_settings(env, cfg, rep, other_cfg):
         rep.add("OK", "Web→API 転送先を設定", f"apps/web/.env.production API_PORT={cfg['api_port']}")
 
 
+LEGACY_SHARE = "//192.168.1.9/d1"
+LEGACY_MOUNT = "/mnt/mcfiles"
+LEGACY_CRED = "/etc/cifs-credentials-mcfiles-d1"
+_mount_done = False
+
+
+def ensure_legacy_mount(rep):
+    """旧システムのファイル共有(図・写真・プログラムのコピー元)を .11 と同じ /mnt/mcfiles にマウントする。
+       コンバートは読むだけなので読み取り専用(ro)。internal/group の格納先(~/machcore-storage/*)とは別物"""
+    global _mount_done
+
+    def ok():
+        try:
+            return bool(os.listdir(f"{LEGACY_MOUNT}/MC")) and bool(os.listdir(f"{LEGACY_MOUNT}/NC"))
+        except Exception:
+            return False
+
+    def clear_ng():
+        rep.items = [i for i in rep.items if not (i[0] == "NG" and i[1].startswith(f"旧ファイル {LEGACY_MOUNT}"))]
+    if ok():
+        clear_ng()
+        rep.add("OK", "旧ファイル共有", f"{LEGACY_MOUNT}(MC / NC を読めます)")
+        return
+    if _mount_done:
+        rep.add("NG", "旧ファイル共有をマウントできません", f"{LEGACY_SHARE} → {LEGACY_MOUNT}")
+        return
+    _mount_done = True
+    fstab = Path("/etc/fstab").read_text(encoding="utf-8", errors="replace")
+    line = (f"{LEGACY_SHARE} {LEGACY_MOUNT} cifs credentials={LEGACY_CRED},vers=2.0,ro,uid=karkyon,gid=karkyon,"
+            f"file_mode=0444,dir_mode=0555,_netdev,soft,serverino,x-systemd.automount 0 0")
+    steps = []
+    if not os.path.exists(LEGACY_CRED):
+        steps.append((["sh", "-c", f"umask 077 && printf 'username=machcore\\npassword=RTW65b\\n' > {LEGACY_CRED}"], "認証ファイル作成(root のみ読める)"))
+    if not re.search(rf"^\s*{re.escape(LEGACY_SHARE)}\s+{re.escape(LEGACY_MOUNT)}\s", fstab, re.M):
+        steps.append((["sh", "-c", f"cp -p /etc/fstab /etc/fstab.bak_{TS} && echo '{line}' >> /etc/fstab"], "fstab に追記(元は /etc/fstab.bak_日時)"))
+    steps += [(["mkdir", "-p", LEGACY_MOUNT], "マウント先作成"),
+              (["systemctl", "daemon-reload"], "fstab の読み直し"),
+              (["mount", LEGACY_MOUNT], "マウント")]
+    log("\n----- 旧ファイル共有のマウント(sudo のパスワードを聞かれたら入力)")
+    for cmd, label in steps:
+        sudo(cmd, label)
+    if ok():
+        clear_ng()
+        rep.add("OK", "旧ファイル共有をマウント", f"{LEGACY_SHARE} → {LEGACY_MOUNT}(読み取り専用)")
+    else:
+        rep.add("NG", "旧ファイル共有をマウントできません",
+                f"{LEGACY_SHARE} → {LEGACY_MOUNT}。mount の表示を確認してください(cifs-utils が無ければ sudo apt install cifs-utils)")
+
+
+def cleanup_leftovers(cfg, rep):
+    """ルート直下に残った実行済みの一度きりパッチ(Git 管理外)を消す"""
+    repo = cfg["repo"]
+    gone = []
+    for pat in ("apply_*.py", "fix_*.py", "patch_*.py", "investigate_*.py", "check_*.py", "diag_*.py"):
+        for f in repo.glob(pat):
+            if subprocess.run(["git", "ls-files", "--error-unmatch", f.name], cwd=repo, capture_output=True).returncode != 0:
+                f.unlink()
+                gone.append(f.name)
+    if gone:
+        rep.add("OK", "実行済みパッチの残りを削除", ", ".join(sorted(gone)))
+        rep.items = [i for i in rep.items if i[1] != "ルート直下の実行済みパッチの残り"]
+
+
 def deploy(env, cfg, rep, args, other_cfg):
     repo = cfg["repo"]
     api = repo / "apps" / "api"
@@ -768,6 +855,8 @@ def deploy(env, cfg, rep, args, other_cfg):
     run(["git", "reset", "--hard", "origin/main"], cwd=repo)
     head = run(["git", "log", "--oneline", "-1"], cwd=repo)[1].strip()
     rep.add("OK", "コードを origin/main に揃えた", head)
+    cleanup_leftovers(cfg, rep)
+    ensure_legacy_mount(rep)
 
     ensure_instance_settings(env, cfg, rep, other_cfg)
 
