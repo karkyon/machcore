@@ -339,7 +339,10 @@ def db_info(cfg, dsn=None):
         sch.setdefault(t, []).append(f"{col}:{dt}:{nul}:{re.sub(r'nextval.*', 'serial', str(de))}")
     d["schema"] = {t: sha(v) for t, v in sch.items()}
     d["schema_columns"] = sch
-    d["indexes"] = sha(q("SELECT tablename, indexdef FROM pg_indexes WHERE schemaname='public' ORDER BY 1, 2"))
+    _ix = q("SELECT tablename, indexdef FROM pg_indexes WHERE schemaname='public' ORDER BY 1, 2")
+    d["indexes"] = sha(_ix)
+    _ixre = re.compile(r"^CREATE (UNIQUE )?INDEX \S+ ON \S+ ")
+    d["indexes_list"] = [a + ": " + _ixre.sub(lambda m: "UNIQUE " if m.group(1) else "", b) for a, b in _ix]
     d["fks"] = sha(q("""SELECT conrelid::regclass::text, pg_get_constraintdef(oid) FROM pg_constraint
                         WHERE contype='f' AND connamespace='public'::regnamespace ORDER BY 1, 2"""))
     counts = {}

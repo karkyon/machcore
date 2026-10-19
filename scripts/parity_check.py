@@ -254,14 +254,34 @@ def compare_db(R, T, t):
         same = a == b if k != "version" else ver_major(a) == ver_major(b)
         row("OK" if same else lv, t, "DB", k, a, b, "" if same else {"timezone": "NOW() で入る日時(コンバートの作成日時など)がずれる",
                                                                        "collate": "並び順(五十音・英数字)が変わる"}.get(k, ""))
-    rs, ts = rd.get("schema") or {}, td.get("schema") or {}
-    diff = sorted(k for k in set(rs) | set(ts) if rs.get(k) != ts.get(k))
-    det = []
-    for tb in diff[:20]:
-        a, b = set(g(rd, "schema_columns", tb, default=[])), set(g(td, "schema_columns", tb, default=[]))
-        det.append(f"{tb}: .11のみ{sorted(a - b)[:4]} .14のみ{sorted(b - a)[:4]}")
-    row("OK" if not diff else "NG", t, "DB", "スキーマ(列の定義)", f"{len(rs)}表", f"{len(ts)}表", " / ".join(det)[:900])
-    for k in ("indexes", "fks"):
+    # 列の定義: 列名・型・NULL 可否が違えば NG。既定値の書き方だけの違い(CURRENT_TIMESTAMP と now() 等)は同じとみなす。
+    # _prisma_migrations(prisma migrate の履歴表。アプリは使わない)は比べない
+    def norm_cols(cols):
+        out = set()
+        for c in cols or []:
+            p = c.split(":", 3)
+            de = (p[3] if len(p) > 3 else "").replace("now()", "CURRENT_TIMESTAMP")
+            de = re.sub(r"::[a-z ]+", "", de)
+            out.add((p[0], p[1], p[2], de))
+        return out
+    rc_, tc_ = g(rd, "schema_columns", default={}), g(td, "schema_columns", default={})
+    tabs = sorted((set(rc_) | set(tc_)) - {"_prisma_migrations"})
+    hard, soft = [], []
+    for tb in tabs:
+        a, b = norm_cols(rc_.get(tb)), norm_cols(tc_.get(tb))
+        a3, b3 = {x[:3] for x in a}, {x[:3] for x in b}
+        if a3 != b3:
+            hard.append(f"{tb}: .11のみ{sorted(':'.join(x) for x in a3 - b3)} .14のみ{sorted(':'.join(x) for x in b3 - a3)}")
+        elif a != b:
+            soft.append(f"{tb}: " + ", ".join(f"{x[0]} {x[3] or '-'}→{y[3] or '-'}" for x in sorted(a - b) for y in b if y[:3] == x[:3]))
+    row("OK" if not hard else "NG", t, "DB", "スキーマ(列名・型・NULL可否)", f"{len(rc_)}表", f"{len(tc_)}表", " / ".join(hard)[:1500])
+    if soft:
+        row("INFO", t, "DB", "列の既定値の違い(動作に影響なし)", None, None, " / ".join(soft)[:900])
+    ri, ti = set(rd.get("indexes_list") or []), set(td.get("indexes_list") or [])
+    if ri or ti:
+        row("OK" if ri == ti else "WARN", t, "DB", "索引", f"{len(ri)}件", f"{len(ti)}件",
+            (f".11のみ: {sorted(ri - ti)[:10]} / .14のみ: {sorted(ti - ri)[:10]}" if ri != ti else ""))
+    for k in ("fks",):
         row("OK" if rd.get(k) == td.get(k) else "WARN", t, "DB", k, rd.get(k), td.get(k))
     row("OK" if rd.get("extensions") == td.get("extensions") else "WARN", t, "DB", "拡張", rd.get("extensions"), td.get("extensions"))
 
@@ -269,7 +289,11 @@ def compare_db(R, T, t):
 MASTER_KEYS = {"users": ("employee_code",), "machines": ("machine_code",), "pdf_templates": ("name",),
                "pdf_field_definitions": ("name", "field_key", "page_number", "sort_order"),
                "business_calendars": ("work_date",), "special_sheets": ("sheet_name", "keyword"),
-               "system_settings": ("key",)}
+               "system_settings": ("key",),
+               "clamp_vise": ("name", "model"), "clamp_chuck": ("name", "size", "maker"), "clamp_tsume": ("name",),
+               "clamp_shiki": ("name",), "clamp_index": ("name", "machine", "model"),
+               "nc_tool_shave1_master": ("name",), "nc_tool_shave2_master": ("name",),
+               "nc_tool_chip_master": ("name",), "nc_tool_holder_master": ("name",)}
 MASTER_LABEL = {"users": "利用者", "machines": "機械", "pdf_templates": "帳票テンプレート", "pdf_field_definitions": "帳票の印字位置",
                 "business_calendars": "営業日カレンダー", "special_sheets": "特殊シート", "system_settings": "システム設定(言語の辞書等)",
                 "clamp_vise": "クランプ候補(バイス)", "clamp_chuck": "クランプ候補(チャック)", "clamp_tsume": "クランプ候補(爪)",
