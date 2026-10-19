@@ -62,6 +62,14 @@ from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 HOME = Path.home()
+# .14 の OS の時刻帯は UTC。.11(JST)とログ・レポートの時刻をそろえるため、このスクリプトと
+# 子プロセス(コンバート・検証)は JST で動かす(DB へ入れる日時はスクリプト側で UTC/JST を明示しており影響しない)
+os.environ["TZ"] = "Asia/Tokyo"
+try:
+    import time as _time
+    _time.tzset()
+except Exception:
+    pass
 TS = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 ENVS = {
@@ -807,6 +815,32 @@ def ensure_instance_settings(env, cfg, rep, other_cfg):
         rep.add("OK", "Web→API 転送先を設定", f"apps/web/.env.production API_PORT={cfg['api_port']}")
 
 
+def fix_storage_settings(env, cfg, rep):
+    """会社設定の保存先(mc_storage_path / nc_storage_path)が .11 の値(/mnt/mc_files/... /mnt/nc_files)のまま
+       残っていると、段取シート原本PDF等が共有先へ保存される。このインスタンスの格納先配下に直す"""
+    st = str(cfg["storage"])
+    want = {"mc_storage_path": f"{st}/MC/files", "nc_storage_path": f"{st}/NC/files"}
+    pg = connect(dsn_of(cfg))
+    c = pg.cursor()
+    c.execute("SELECT id, mc_storage_path, nc_storage_path FROM company_settings ORDER BY id LIMIT 1")
+    r = c.fetchone()
+    if not r:
+        pg.close()
+        return
+    changed = []
+    for k, cur in (("mc_storage_path", r[1]), ("nc_storage_path", r[2])):
+        if cur and os.path.realpath(cur).startswith(os.path.realpath(st)):
+            continue
+        Path(want[k]).mkdir(parents=True, exist_ok=True)
+        c.execute(f"UPDATE company_settings SET {k}=%s, updated_at=NOW() WHERE id=%s", (want[k], r[0]))
+        changed.append(f"{k}: {cur or '未設定'} → {want[k]}")
+    pg.commit()
+    pg.close()
+    if changed:
+        rep.items = [i for i in rep.items if not (i[0] == "NG" and i[1].startswith("保存先の設定"))]
+        rep.add("OK", "保存先の設定をこのインスタンスの格納先に変更", " / ".join(changed))
+
+
 LEGACY_SHARE = "//192.168.1.9/d1"
 LEGACY_MOUNT = "/mnt/mcfiles"
 LEGACY_CRED = "/etc/cifs-credentials-mcfiles-d1"
@@ -900,6 +934,7 @@ def deploy(env, cfg, rep, args, other_cfg):
     ensure_legacy_mount(rep)
 
     ensure_instance_settings(env, cfg, rep, other_cfg)
+    fix_storage_settings(env, cfg, rep)
 
     run(["pnpm", "install", "--frozen-lockfile"], cwd=repo, label="依存パッケージ", timeout=1800)
     run(["git", "checkout", "--", "pnpm-workspace.yaml", "pnpm-lock.yaml"], cwd=repo, check=False)
@@ -1120,6 +1155,7 @@ def copy_pdf_templates_if_empty(src_dsn, dst_dsn, rep):
 def convert(env, cfg, rep, args):
     repo = cfg["repo"]
     log(f"\n{'=' * 70}\n[CONVERT] {cfg['label']}\n{'=' * 70}")
+    fix_storage_settings(env, cfg, rep)
     if rep.ng():
         raise Abort("NG があるためコンバートしません: " + " / ".join(t for _, t, _ in rep.ng()))
     head = run(["git", "rev-parse", "HEAD"], cwd=repo)[1].strip()

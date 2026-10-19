@@ -1,17 +1,11 @@
 "use client";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
-// SSR環境でのDOMMatrix polyfill（react-pdf用）
-if (typeof window === "undefined" && typeof (global as any).DOMMatrix === "undefined") {
-  (global as any).DOMMatrix = class DOMMatrix { constructor(..._: any[]) {} };
-}
 import React from "react";
 import dynamic from "next/dynamic";
 const ImageEditor = dynamic(() => import("@/components/nc/ImageEditor"), { ssr: false });
 import { useDropzone } from "react-dropzone";
-import { Document, Page, pdfjs } from "react-pdf";
-import "react-pdf/dist/Page/AnnotationLayer.css";
-import "react-pdf/dist/Page/TextLayer.css";
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// react-pdf はブラウザ専用(DOMMatrix 等)。サーバー側の描画で読み込むと 500 になるため ssr:false で読み込む
+const PdfDocumentViewer = dynamic(() => import("@/components/nc/PdfDocumentViewer"), { ssr: false });
 import { useParams, useRouter } from "next/navigation";
 import { toJstDateTimeString, toJstDateString } from "@/lib/dateUtils";
 import { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
@@ -984,13 +978,13 @@ export default function NcDetailPage() {
                               className="px-3 py-1 bg-slate-700 text-white text-xs rounded disabled:opacity-40"
                             >▶</button>
                           </div>
-                          <Document
+                          <PdfDocumentViewer
                             file={`/api/files/serve/${previewFile.id}`}
                             onLoadSuccess={({ numPages }) => { setPdfNumPages(numPages); setPdfPage(1); }}
                             className="max-h-[80vh] overflow-auto"
-                          >
-                            <Page pageNumber={pdfPage} width={900} />
-                          </Document>
+                            pageNumber={pdfPage}
+                            width={900}
+                          />
                         </div>
                       ) : (
                         <div className="w-full h-full overflow-auto flex items-center justify-center">
