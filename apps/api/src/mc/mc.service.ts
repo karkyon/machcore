@@ -111,8 +111,8 @@ export class McService {
     await this.reloadCronTimecards();
     // [No.37] cronは同一プロセス内のタイマーのため、生成時刻(既定5:00)以降にサーバーが
     // 再起動されるとその日のタイムカードが作られず「営業日なのに休日表示」になっていた。
-    // 起動時に直近の営業日で未作成の日を補完する(起動処理は止めない)。
-    void this.backfillTimecards(14).catch(e =>
+    // 起動時に直近31日の営業日で未作成の日を補完する(起動処理は止めない)。
+    void this.backfillTimecards(31).catch(e =>
       this.logger.error('TIMECARD', '起動時のタイムカード補完に失敗', { error: e?.message ?? String(e) }));
   }
 
@@ -151,7 +151,7 @@ export class McService {
       try {
         // [No.37] 当日分に加え、取りこぼした直近の営業日も補完する。
         // 登録者は固定ID(1)ではなく実在する管理者(ADMIN001等)にする(DBによってはID=1が存在せず失敗していた)。
-        const result = await this.backfillTimecards(14);
+        const result = await this.backfillTimecards(31);
         this.logger.info('CRON', `機械タイムカード自動生成 完了: ${workDate}`, { created: result.created });
       } catch (e: any) {
         this.logger.error('CRON', `機械タイムカード自動生成 失敗: ${workDate}`, { error: e?.message ?? String(e) });
@@ -178,7 +178,7 @@ export class McService {
   }
 
   /**
-   * [No.37] 直近 days 日(今日を含む)のうち、営業日なのにタイムカードが1件も無い日を補完する。
+   * [No.37] 直近 days 日(今日を含む、既定は1か月分の31日)のうち、営業日なのにタイムカードが1件も無い日を補完する。
    * 1件でもある日は利用者が個別に削除・調整した可能性があるため触らない(cronの取りこぼし日だけ埋める)。
    */
   async backfillTimecards(days = 14): Promise<{ created: number }> {

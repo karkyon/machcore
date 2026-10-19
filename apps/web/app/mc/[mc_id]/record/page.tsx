@@ -590,7 +590,7 @@ function TimecardModal({
         </div>
         <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 shrink-0">
           <p className="text-[10px] text-slate-400">{tr("mcRecordPage.tcFooterNote", "※ 稼働時間 = タイムカードと作業範囲（段取開始〜加工終了）の重なり。12:00-13:00は自動控除。未登録の営業日は既定時間で計算")}</p>
-          <button onClick={onClose} className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg transition-colors">{tr("mcRecordPage.close", "閉じる")}</button>
+          <button onClick={onClose} className="ml-3 shrink-0 whitespace-nowrap px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg transition-colors">{tr("mcRecordPage.close", "閉じる")}</button>
         </div>
         {tcToast && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-4 py-2 rounded-full shadow-lg whitespace-nowrap">{tcToast}</div>
