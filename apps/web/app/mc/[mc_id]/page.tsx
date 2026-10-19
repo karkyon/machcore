@@ -84,6 +84,25 @@ export default function McDetailPage() {
 
   // 認証
   const { operator, isAuthenticated, logout, token, isSessionForMc } = useAuth();
+
+  // 📋 Ridoc図面: 同一図面番号で複数登録されている図面（文書名一致）を切替表示
+  const [drawingDocs,  setDrawingDocs]  = useState<{ index: number; name: string }[]>([]);
+  const [drawingIndex, setDrawingIndex] = useState(0);
+  const loadDrawingAt = async (idx: number, tk?: string) => {
+    const authTk = tk ?? token ?? (typeof window !== "undefined" ? (localStorage.getItem("work_token") ?? "") : "");
+    setDrawingIndex(idx);
+    setDrawingLoading(true);
+    setDrawingZoom("fit"); setDrawingPan({ x: 0, y: 0 });
+    try {
+      const res = await fetch(`/api/mc/${mcId}/drawing-image?imgType=ORG&index=${idx}`, {
+        headers: authTk ? { Authorization: `Bearer ${authTk}` } : {},
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      setDrawingBlobUrl(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob); });
+    } catch { setDrawingBlobUrl(null); }
+    finally { setDrawingLoading(false); }
+  };
   const [authOpen, setAuthOpen]       = useState(false);
   const [authType, setAuthType]       = useState("edit");
   const [pendingUsb, setPendingUsb]   = useState(false);
@@ -327,6 +346,18 @@ export default function McDetailPage() {
     });
   };
   const onMouseUp = () => { setDragging(false); dragStart.current = null; };
+
+  // 図面カード表示用: 文書名一致の登録図面一覧
+  useEffect(() => {
+    const no = detail?.part?.drawingNo;
+    if (!no) { setDrawingDocs([]); return; }
+    let alive = true;
+    fetch(`/api/mc/${mcId}/drawing-images`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (alive) setDrawingDocs(Array.isArray(j?.candidates) ? j.candidates.map((c: any) => ({ index: Number(c.index), name: String(c.name ?? "") })) : []); })
+      .catch(() => { if (alive) setDrawingDocs([]); });
+    return () => { alive = false; };
+  }, [mcId, detail?.part?.drawingNo]);
 
   if (loadError) return (
     <div className="h-screen flex items-center justify-center text-red-500">
@@ -1327,24 +1358,17 @@ export default function McDetailPage() {
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-xs font-bold text-white bg-indigo-600 px-2.5 py-0.5 rounded-full">{tr("mcDetailPage.drawingBadge", "📋 図面")}</span>
                   <span className="text-xs text-slate-400">{d.part.drawingNo}</span>
+                  {drawingDocs.length > 1 && <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">{drawingDocs.length}件登録</span>}
                 </div>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-white rounded-xl border-2 border-indigo-300 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                  {(drawingDocs.length > 0 ? drawingDocs : [{ index: 0, name: d.part.drawingNo }]).map(doc => (
+                  <div key={`drawing-${doc.index}`} className="bg-white rounded-xl border-2 border-indigo-300 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                     onClick={async () => {
                       setDrawingModal(true);
-                      setDrawingLoading(true);
-                      try {
-                        const res = await fetch(`/api/mc/${mcId}/drawing-image?imgType=ORG`, {
-                          headers: token ? { Authorization: `Bearer ${token}` } : {},
-                        });
-                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                        const blob = await res.blob();
-                        setDrawingBlobUrl(prev => { if(prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob); });
-                      } catch { setDrawingBlobUrl(null); }
-                      finally { setDrawingLoading(false); }
+                      await loadDrawingAt(doc.index);
                     }}>
                     <div className="aspect-square bg-indigo-50 flex items-center justify-center overflow-hidden">
-                      <img src={`/api/mc/${mcId}/drawing-image?imgType=TN`} alt={tr("mcDetailPage.drawingAlt", "図面 {no}").replace("{no}", d.part.drawingNo)}
+                      <img src={`/api/mc/${mcId}/drawing-image?imgType=TN&index=${doc.index}`} alt={tr("mcDetailPage.drawingAlt", "図面 {no}").replace("{no}", d.part.drawingNo)}
                         className="w-full h-full object-contain" loading="lazy"
                         onError={e => {
                           const el=e.target as HTMLImageElement; el.style.display="none";
@@ -1356,10 +1380,11 @@ export default function McDetailPage() {
                         }} />
                     </div>
                     <div className="px-2 py-1.5 bg-indigo-50 border-t border-indigo-200">
-                      <p className="text-[11px] text-indigo-800 font-bold truncate">{d.part.drawingNo}</p>
+                      <p className="text-[11px] text-indigo-800 font-bold truncate">{doc.name || d.part.drawingNo}</p>
                       <p className="text-[10px] text-slate-400">{tr("mcDetailPage.clickToEnlarge", "クリックで拡大表示")}</p>
                     </div>
                   </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -1566,17 +1591,7 @@ export default function McDetailPage() {
           onSuccess={async () => {
             setDrawingAuthOpen(false);
             setDrawingModal(true);
-            setDrawingLoading(true);
-            try {
-              const t = localStorage.getItem("work_token") ?? "";
-              const res = await fetch(`/api/mc/${mcId}/drawing-image?imgType=ORG`, {
-                headers: t ? { Authorization: `Bearer ${t}` } : {},
-              });
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              const blob = await res.blob();
-              setDrawingBlobUrl(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob); });
-            } catch { setDrawingBlobUrl(null); }
-            finally { setDrawingLoading(false); }
+            await loadDrawingAt(drawingIndex, localStorage.getItem("work_token") ?? "");
           }}
           onCancel={() => setDrawingAuthOpen(false)} />
       )}
@@ -1588,6 +1603,16 @@ export default function McDetailPage() {
           <div className="bg-white flex flex-col w-screen h-screen" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-slate-50 shrink-0 gap-2">
               <p className="text-sm font-bold text-slate-700">{tr("mcDetailPage.drawingModalTitle", "📋 図面 — {no}").replace("{no}", d.part.drawingNo)}</p>
+              {drawingDocs.length > 1 && (
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <button onClick={() => loadDrawingAt(drawingIndex - 1)} disabled={drawingLoading || drawingIndex <= 0}
+                    className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50 disabled:opacity-30">◀</button>
+                  <span className="text-xs font-mono text-slate-600 whitespace-nowrap">{drawingIndex + 1} / {drawingDocs.length}</span>
+                  <button onClick={() => loadDrawingAt(drawingIndex + 1)} disabled={drawingLoading || drawingIndex >= drawingDocs.length - 1}
+                    className="px-2 py-1 text-xs font-bold rounded border bg-white text-slate-600 border-slate-300 hover:bg-slate-50 disabled:opacity-30">▶</button>
+                  <span className="text-xs text-slate-500 truncate">{drawingDocs.find(x => x.index === drawingIndex)?.name ?? ""}</span>
+                </div>
+              )}
               <div className="flex items-center gap-1.5 shrink-0">
                 {/* ズームコントロール */}
                 <button onClick={() => { setDrawingZoom("fit"); setDrawingPan({x:0,y:0}); }}

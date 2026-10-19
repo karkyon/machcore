@@ -204,6 +204,7 @@ export class NcController {
     @Param("nc_id", ParseIntPipe) ncId: number,
     @Query("imgType") imgType: string = "TN",
     @Res() reply: FastifyReply,
+    @Query("index") indexStr?: string,
   ) {
     if (imgType !== "TN" && imgType !== "ORG") {
       reply.status(400).send({ error: "imgType は TN または ORG を指定してください" });
@@ -214,7 +215,15 @@ export class NcController {
     if (!prog.drawingNo) { reply.status(404).send({ error: "図面番号が登録されていません" }); return; }
     const ridocUrl = process.env.RIDOC_API_URL;
     if (!ridocUrl) { reply.status(503).send({ error: "RIDOC_API_URL が設定されていません" }); return; }
-    const url = `${ridocUrl}/v1/DrawingImage?docId=${encodeURIComponent(prog.drawingNo)}&imgType=${imgType}`;
+    // index 指定: 文書名一致の複数登録図面のうち index 番目（RidocImageAPI /v1/DrawingImages）
+    const index = indexStr !== undefined && indexStr !== "" ? Number(indexStr) : null;
+    if (index !== null && (!Number.isInteger(index) || index < 0)) {
+      reply.status(400).send({ error: "index は 0 以上の整数を指定してください" });
+      return;
+    }
+    const url = index === null
+      ? `${ridocUrl}/v1/DrawingImage?docId=${encodeURIComponent(prog.drawingNo)}&imgType=${imgType}`
+      : `${ridocUrl}/v1/DrawingImages?docId=${encodeURIComponent(prog.drawingNo)}&imgType=${imgType}&index=${index}`;
     try {
       const upstream = await fetch(url, { signal: AbortSignal.timeout(30_000) });
       if (!upstream.ok) { reply.status(upstream.status).send(await upstream.text()); return; }
@@ -230,6 +239,40 @@ export class NcController {
       reply.header("Content-Type", contentType);
       reply.header("Cache-Control", "public, max-age=3600");
       return reply.send(buf);
+    } catch (e) {
+      reply.status(502).send({ error: "RidocImageAPI への接続に失敗しました" });
+    }
+  }
+
+  // ── Ridoc図面 候補一覧（文書名が図面番号と一致する登録図面すべて）──
+  @Get(":nc_id/drawing-images")
+  async drawingImages(
+    @Param("nc_id", ParseIntPipe) ncId: number,
+    @Res() reply: FastifyReply,
+  ) {
+    const prog = await this.nc.findPartDrawingNo(ncId);
+    if (!prog) { reply.status(404).send({ error: "NC レコードが見つかりません" }); return; }
+    if (!prog.drawingNo) { reply.status(404).send({ error: "図面番号が登録されていません" }); return; }
+    const ridocUrl = process.env.RIDOC_API_URL;
+    if (!ridocUrl) { reply.status(503).send({ error: "RIDOC_API_URL が設定されていません" }); return; }
+    const url = `${ridocUrl}/v1/DrawingImages/search?docId=${encodeURIComponent(prog.drawingNo)}`;
+    try {
+      const upstream = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+      if (!upstream.ok) { reply.status(upstream.status).send(await upstream.text()); return; }
+      const body: any = await upstream.json();
+      const candidates = Array.isArray(body?.candidates) ? body.candidates : [];
+      reply.header("Cache-Control", "no-store");
+      return reply.send({
+        drawingNo: prog.drawingNo,
+        totalCount: candidates.length,
+        keywordHitCount: typeof body?.keywordHitCount === "number" ? body.keywordHitCount : null,
+        candidates: candidates.map((c: any) => ({
+          index: Number(c?.index ?? 0),
+          name: String(c?.name ?? ""),
+          extension: String(c?.extension ?? ""),
+          size: Number(c?.size ?? 0),
+        })),
+      });
     } catch (e) {
       reply.status(502).send({ error: "RidocImageAPI への接続に失敗しました" });
     }

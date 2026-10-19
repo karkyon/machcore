@@ -40,9 +40,21 @@ export default function McSearchPage() {
   const [selected, setSelected] = useState<number | null>(null);
   const [clientNames, setClientNames] = useState<string[]>([]);
   // 右ペインの図面表示(認証なし・FIT表示)
-  const [drawing, setDrawing] = useState<{ mcId: number; drawingNo: string } | null>(null);
+  const [drawing, setDrawing] = useState<{ mcId: number; drawingNo: string; index: number } | null>(null);
   const [drawingState, setDrawingState] = useState<"loading" | "ok" | "error">("loading");
-  const openDrawing = (mcId: number, drawingNo: string) => { setDrawingState("loading"); setDrawing({ mcId, drawingNo }); };
+  // 同一図面番号で複数登録されている図面（文書名一致）
+  const [drawingDocs, setDrawingDocs] = useState<{ index: number; name: string }[]>([]);
+  const openDrawing = (mcId: number, drawingNo: string) => {
+    setDrawingState("loading"); setDrawing({ mcId, drawingNo, index: 0 }); setDrawingDocs([]);
+    fetch(`/api/mc/${mcId}/drawing-images`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => setDrawingDocs(Array.isArray(j?.candidates) ? j.candidates.map((c: any) => ({ index: Number(c.index), name: String(c.name ?? "") })) : []))
+      .catch(() => setDrawingDocs([]));
+  };
+  const moveDrawing = (index: number) => {
+    if (!drawing || index < 0 || index >= drawingDocs.length || index === drawing.index) return;
+    setDrawingState("loading"); setDrawing({ ...drawing, index });
+  };
 
   useEffect(() => {
     mcApi.recent().then(r => setRecent(r.data ?? [])).catch(() => {});
@@ -199,6 +211,16 @@ export default function McSearchPage() {
             <style>{"@media print{body{display:none !important}}"}</style>
             <div className="px-4 py-2 bg-slate-800 text-white text-sm font-bold flex items-center gap-2 shrink-0">
               <span>📋 図面 —</span><span className="font-mono">{drawing.drawingNo}</span>
+              {drawingDocs.length > 1 && (
+                <span className="flex items-center gap-1.5 min-w-0 ml-2">
+                  <button onClick={() => moveDrawing(drawing.index - 1)} disabled={drawing.index <= 0}
+                    className="px-2 py-0.5 text-xs rounded border border-slate-500 hover:bg-slate-700 disabled:opacity-30">◀</button>
+                  <span className="text-xs font-mono whitespace-nowrap">{drawing.index + 1} / {drawingDocs.length}</span>
+                  <button onClick={() => moveDrawing(drawing.index + 1)} disabled={drawing.index >= drawingDocs.length - 1}
+                    className="px-2 py-0.5 text-xs rounded border border-slate-500 hover:bg-slate-700 disabled:opacity-30">▶</button>
+                  <span className="text-xs font-normal text-slate-300 truncate">{drawingDocs.find(x => x.index === drawing.index)?.name ?? ""}</span>
+                </span>
+              )}
               <button onClick={() => setDrawing(null)} className="ml-auto text-slate-300 hover:text-white text-lg px-1.5">✕</button>
             </div>
             <div className="flex-1 min-h-0 flex items-center justify-center p-2">
@@ -211,7 +233,7 @@ export default function McSearchPage() {
               {drawingState === "error" && (
                 <p className="text-slate-400 text-sm text-center px-8">図面を取得できませんでした<br /><span className="text-xs text-slate-500">（Ridocに図面が無い、またはRidocサーバー未応答）</span></p>
               )}
-              <img key={`${drawing.mcId}-${drawing.drawingNo}`} src={`/api/mc/${drawing.mcId}/drawing-image?imgType=ORG`}
+              <img key={`${drawing.mcId}-${drawing.drawingNo}-${drawing.index}`} src={`/api/mc/${drawing.mcId}/drawing-image?imgType=ORG&index=${drawing.index}`}
                 alt={drawing.drawingNo} draggable={false}
                 onLoad={() => setDrawingState("ok")} onError={() => setDrawingState("error")}
                 className={`max-w-full max-h-full object-contain select-none ${drawingState === "ok" ? "" : "hidden"}`} />
