@@ -24,7 +24,10 @@ deploy_14.py — 192.168.1.14 の internal / group 両インスタンスへ、�
            → 型チェック(エラー0件のときだけ) → ビルド → pm2 再起動 → 動作確認 → 部品同期cron
   convert  DBバックアップ → (group)マスタ補完 → [--with-test]コンバート試験 → pm2停止
            → MC/NC フルコンバート+.WPD統一+新旧検証 → 作業記録の全件検証 → pm2 再開 → 動作確認
+  test     読むだけ(本番DBは変更しない)。check → コンバート試験(試験用DBに複製して全件コンバート・新旧検証)
+           → 動作確認(画面・API・プレビューPDF・図面・画像・https。書き込みなし)
   all      check → deploy → convert
+  ※ deploy / convert の最後にも動作確認(env_fingerprint.py の動作確認)を行い、NG を結果に載せる
 
 実行例(どちらのリポジトリから実行してもよい。先にそのリポジトリを最新にしてから):
   cd ~/projects/machcore-internal && git fetch origin && git reset --hard origin/main \\
@@ -424,6 +427,18 @@ def check(env, cfg, rep, other_cfg=None):
             rep.add("OK", "JWT_SECRET", "インスタンスごとに別の値")
     ua = ev.get("UPLOAD_AGENT_DIR") or "/var/www/machcore-cert(既定)"
     rep.add("INFO", "UploadAgent 配布先", ua)
+    # Ridoc 図面 API(pm2 設定の env → .env の順)
+    ridoc = None
+    ecof = repo / cfg["eco"]
+    if ecof.exists():
+        m = re.search(r"RIDOC_API_URL\s*:\s*['\"]([^'\"]+)['\"]", re.sub(r"^\s*//[^\n]*", "", ecof.read_text(encoding="utf-8"), flags=re.M))
+        ridoc = m.group(1) if m else None
+    ridoc = ridoc or ev.get("RIDOC_API_URL")
+    if not ridoc:
+        rep.add("NG", "図面(RidocImageAPI)", "RIDOC_API_URL が pm2 設定にも .env にもありません(図面が表示されません)")
+    else:
+        st, body = http_get(ridoc.rstrip("/") + "/healthz", timeout=10)
+        rep.add("OK" if st == 200 else "WARN", "図面(RidocImageAPI)", f"{ridoc} healthz → HTTP {st} {str(body)[:80]}")
 
     # ── Web の API 転送先(ビルド時に焼き込まれる) ──
     wenv = read_env_file(repo / "apps" / "web" / ".env.production")
@@ -489,6 +504,14 @@ def check(env, cfg, rep, other_cfg=None):
             rep.add("OK" if w else "NG", "ファイル格納先(upload_base_path)", f"{ub}" + ("" if w else " — 無いか書き込めません"))
         if other_cfg and ub and os.path.realpath(ub) == os.path.realpath(str(other_cfg["storage"])):
             rep.add("NG", "ファイル格納先の分離", "もう片方のインスタンスと同じ場所です")
+        # 段取シート原本PDF等は mc_storage_path が設定されていればそちらへ保存される(mc.service)。
+        # .11 の設定(/mnt/mc_files/...)が残っていると共有先・他インスタンスへ書き込むため止める
+        c.execute("SELECT mc_storage_path, nc_storage_path FROM company_settings ORDER BY id LIMIT 1")
+        for k, v in zip(("mc_storage_path", "nc_storage_path"), c.fetchone() or (None, None)):
+            if v and not (ub and os.path.realpath(v).startswith(os.path.realpath(ub))):
+                rep.add("NG", f"保存先の設定 {k}", f"{v}(このインスタンスの格納先 {exp} の外)。管理画面の保存先設定で空にするか {exp} 配下にしてください")
+            else:
+                rep.add("OK", f"保存先の設定 {k}", v or "未設定(upload_base_path を使う)")
         for i, label in ((2, "MCプリンタ"), (3, "NCプリンタ")):
             if cs[i]:
                 ok = run(["lpstat", "-p", cs[i]], check=False)[0] == 0 if which("lpstat") else False
@@ -926,6 +949,52 @@ def deploy(env, cfg, rep, args, other_cfg):
     pm2_restart(cfg, rep)
     health(env, cfg, rep)
     ensure_cron(env, cfg, rep)
+    smoke_check(env, cfg, rep)
+
+
+def smoke_check(env, cfg, rep, label="動作確認"):
+    """env_fingerprint.py の動作確認(書き込みなし): 画面・API・プレビューPDF・図面・画像・https と、
+       実行部品(sharp / Chromium で日本語PDF / 帳票フォント)。NG は結果に載せる"""
+    repo = cfg["repo"]
+    d = repo / "scripts" / "verify_reports"
+    d.mkdir(parents=True, exist_ok=True)
+    fpf = d / f"fingerprint_{env}_{TS}_{label}.json"
+    rc, out = run([sys.executable, str(SCRIPTS_DIR / "env_fingerprint.py"), "--repo", str(repo), "--out", str(fpf)],
+                  cwd=repo, check=False, label=f"{env}: {label}(画面・API・PDF・図面。書き込みなし)", timeout=1800)
+    try:
+        fp = json.loads(fpf.read_text(encoding="utf-8"))
+    except Exception:
+        rep.add("NG", label, f"結果を読めません(rc={rc})")
+        return
+    rt = fp.get("runtime") or {}
+    for k, title in (("sharp", "画像処理(sharp)"), ("ipag_bytes", "MC 段取シートのフォント(ipag.ttf)"),
+                     ("puppeteer_pdf_bytes", "NC 段取シート(Chromium で日本語PDF)")):
+        rep.add("OK" if rt.get(k) else "NG", f"実行部品 {title}",
+                "OK" if rt.get(k) else (rt.get("puppeteer_err") or rt.get("ipag_err") or rt.get("sharp_err") or "NG")[:300])
+    sm = fp.get("smoke") or {}
+    res = sm.get("results") or []
+    bad = [r for r in res if not r["ok"]]
+    rep.add("OK" if res and not bad else "NG", label, f"{len(res) - len(bad)}/{len(res)} OK"
+            + (f"  例: " + " / ".join(f"{r['method']} {r['path']}→{r['status']}" for r in bad[:8]) if bad else ""))
+    for r in bad[:40]:
+        log(f"    [NG] {r['group']} {r['method']} {r['path']} → {r['status']} {r['kind']} {r.get('msg', '')[:200]}")
+
+
+def test_only(env, cfg, rep):
+    """本番DBは変更しない: コンバート試験(試験用DB)+ 動作確認"""
+    repo = cfg["repo"]
+    log(f"\n{'=' * 70}\n[TEST] {cfg['label']}(本番DBは変更しません)\n{'=' * 70}")
+    if rep.deploy_block:
+        raise Abort("点検で設定の取り違えがあるため試験しません: " + " / ".join(rep.deploy_block))
+    rc, out = run([sys.executable, "scripts/run_conversion_test.py"], cwd=repo, env=dict(ENV0), capture=False,
+                  label=f"{env}: コンバート試験(試験用DBに複製して全件・本番DBは変更しない)", check=False, timeout=4 * 3600)
+    m = re.search(r"まとめ:.*?NG (\d+)件", out)
+    rep.add("OK" if rc == 0 and m and int(m.group(1)) == 0 else "NG", "コンバート試験",
+            (f"NG {m.group(1)}件" if m else f"rc={rc}") + "(scripts/verify_reports/conversion_test_*.md)")
+    for l in out.splitlines():
+        if l.strip().startswith("NG "):
+            rep.add("NG", "コンバート試験の NG", l.strip()[:300])
+    smoke_check(env, cfg, rep)
 
 
 def pm2_restart(cfg, rep):
@@ -1116,6 +1185,7 @@ def convert(env, cfg, rep, args):
     finally:
         pm2_restart(cfg, rep)
     health(env, cfg, rep)
+    smoke_check(env, cfg, rep, label="コンバート後の動作確認")
     summarize_conversion(env, cfg, rep, out)
 
 
@@ -1170,7 +1240,7 @@ def summarize_conversion(env, cfg, rep, out):
 def main():
     ap = argparse.ArgumentParser(description=".14 internal / group への展開とデータコンバート")
     ap.add_argument("--env", choices=["internal", "group", "both"], default="both")
-    ap.add_argument("--mode", choices=["check", "deploy", "convert", "all"], default="check")
+    ap.add_argument("--mode", choices=["check", "deploy", "convert", "test", "all"], default="check")
     ap.add_argument("--with-test", action="store_true")
     ap.add_argument("--no-copy-masters", action="store_true")
     ap.add_argument("--internal-masters-from", default=None)
@@ -1198,6 +1268,8 @@ def main():
             check(env, cfg, rep, other)
             if args.mode in ("deploy", "all"):
                 deploy(env, cfg, rep, args, other)
+            if args.mode == "test":
+                test_only(env, cfg, rep)
             if args.mode in ("convert", "all"):
                 if env == "group" and not args.no_copy_masters and not (ENVS["internal"]["repo"] / ".git").is_dir():
                     raise Abort("group のマスタ補完元の internal が見つかりません(--no-copy-masters で補完なし)")
