@@ -837,6 +837,12 @@ export class McController {
     return this.mc.getTimecardsByDate(workDate);
   }
 
+  // [No.37] 期間内の休日一覧(タイムカード未作成日が休日か、単なる未作成かを画面で区別するため)
+  @Get('timecards/holidays')
+  getTimecardHolidays(@Query('from') from: string, @Query('to') to: string) {
+    return this.mc.getTimecardHolidays(from, to);
+  }
+
   @Get('timecards')
   getTimecards(
     @Query('machine_id', ParseIntPipe) machineId: number,

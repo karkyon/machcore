@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import AuthModal from "@/components/auth/AuthModal";
 import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
-import { toJstMonthDayTimeString, toJstYearMonthDayTimeString, toJstTimeString } from "@/lib/dateUtils";
+import { toJstYearMonthDayTimeString, toJstTimeString } from "@/lib/dateUtils";
 
 const API_URL = "/api";  // Next.js rewrite経由 → サーバー側でlocalhost:3011にproxy
 
@@ -87,7 +87,7 @@ export default function NcDashboard() {
   const [sbRepeatNcId,     setSbRepeatNcId]     = useState<number>(0);
   const [newRegModalOpen,  setNewRegModalOpen]  = useState(false);
   const [lostModalSheet,   setLostModalSheet]   = useState<any | null>(null);
-  const [lostReason,       setLostReason]       = useState("紛失");
+  const [lostReason,       setLostReason]       = useState("参考として回収");
   const [lostDetail,       setLostDetail]       = useState("");
   const [lostSubmitting,   setLostSubmitting]   = useState(false);
 
@@ -120,7 +120,7 @@ export default function NcDashboard() {
       });
       setLostModalSheet(null);
       setLostDetail("");
-      setLostReason("紛失");
+      setLostReason("参考として回収");
       setSbModalOpen(false);
       load();
     } catch { /* ignore */ }
@@ -164,6 +164,7 @@ export default function NcDashboard() {
         <select value={lostReason} onChange={e => setLostReason(e.target.value)}
           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3">
           {[
+            { v: "参考として回収", label: t("dashboard.reasonReference", "参考として回収（参考用・誤って出力したシート）") },
             { v: "紛失", label: t("dashboard.reasonLost", "紛失") },
             { v: "作業者未回収のまま長期経過", label: t("dashboard.reasonLongUncollected", "作業者未回収のまま長期経過") },
             { v: "その他", label: t("dashboard.reasonOther", "その他") },
@@ -265,7 +266,7 @@ export default function NcDashboard() {
                             {sheet.version && <span className="font-mono text-xs text-sky-600">v{sheet.version}</span>}
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-3">
-                            <span>{t("dashboard.printedAt", "発行日時: {time}").replace("{time}", toJstMonthDayTimeString(sheet.printed_at) ?? "")}</span>
+                            <span>{t("dashboard.printedAt", "発行日時: {time}").replace("{time}", toJstYearMonthDayTimeString(sheet.printed_at) ?? "")}</span>
                             {sheet.operator_name && <span>{t("dashboard.printedBy", "発行者: {name}").replace("{name}", sheet.operator_name)}</span>}
                           </div>
                         </div>
@@ -286,7 +287,7 @@ export default function NcDashboard() {
                         <button
                           onClick={e => { e.stopPropagation(); setLostModalSheet(sheet); }}
                           className="shrink-0 px-2 py-1 text-[10px] font-bold rounded border bg-red-50 hover:bg-red-100 text-red-600 border-red-200 transition-colors"
-                          title={t("dashboard.markAsLost", "行方不明にする")}
+                          title={t("dashboard.markAsLost", "作業記録なしで回収済みにする（参考として回収・紛失など）")}
                         >
                           🗑️
                         </button>

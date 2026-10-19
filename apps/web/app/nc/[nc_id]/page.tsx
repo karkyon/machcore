@@ -20,6 +20,7 @@ import {
   NcFile, filesApi, downloadApi, OperationLog, operationLogsApi,
 } from "@/lib/api";
 import { StatusBadge } from "@/components/nc/StatusBadge";
+import LinkifiedText from "@/components/shared/LinkifiedText";
 import { ProcessBadge } from "@/components/nc/ProcessBadge";
 import { NcPartHeader } from "@/components/nc/NcPartHeader";
 import { useAuth } from "@/contexts/AuthContext";
@@ -528,7 +529,7 @@ export default function NcDetailPage() {
                 <div className="p-3 border-b border-slate-100">
                   <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.clampNoteLabel2", "クランプ / 備考")}</div>
                   <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">
-                    {d.clampNote || "—"}
+                    {d.clampNote ? <LinkifiedText text={d.clampNote} /> : "—"}
                   </pre>
                 </div>
 

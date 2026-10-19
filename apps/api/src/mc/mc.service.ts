@@ -109,6 +109,11 @@ export class McService {
   async onModuleInit() {
     // DB設定でCronを動的登録
     await this.reloadCronTimecards();
+    // [No.37] cronは同一プロセス内のタイマーのため、生成時刻(既定5:00)以降にサーバーが
+    // 再起動されるとその日のタイムカードが作られず「営業日なのに休日表示」になっていた。
+    // 起動時に直近の営業日で未作成の日を補完する(起動処理は止めない)。
+    void this.backfillTimecards(14).catch(e =>
+      this.logger.error('TIMECARD', '起動時のタイムカード補完に失敗', { error: e?.message ?? String(e) }));
   }
 
   async reloadCronTimecards() {
@@ -141,11 +146,12 @@ export class McService {
     const ms = next.getTime() - now.getTime();
 
     this.cronTimer = setTimeout(async () => {
-      const today = new Date();
-      const workDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      const workDate = this.jstDateString(0);
       this.logger.info('CRON', `機械タイムカード自動生成 開始: ${workDate}`);
       try {
-        const result = await this.initTimecards(workDate, 1);
+        // [No.37] 当日分に加え、取りこぼした直近の営業日も補完する。
+        // 登録者は固定ID(1)ではなく実在する管理者(ADMIN001等)にする(DBによってはID=1が存在せず失敗していた)。
+        const result = await this.backfillTimecards(14);
         this.logger.info('CRON', `機械タイムカード自動生成 完了: ${workDate}`, { created: result.created });
       } catch (e: any) {
         this.logger.error('CRON', `機械タイムカード自動生成 失敗: ${workDate}`, { error: e?.message ?? String(e) });
@@ -153,6 +159,56 @@ export class McService {
       // 翌日の同時刻に再スケジュール
       this.scheduleCronTimecards(hour, minute);
     }, ms);
+  }
+
+  /** JSTでの YYYY-MM-DD（offsetDays日ずらし） */
+  private jstDateString(offsetDays = 0): string {
+    const d = new Date(Date.now() + 9 * 60 * 60 * 1000 + offsetDays * 24 * 60 * 60 * 1000);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  }
+
+  /** タイムカード自動生成の登録者: ADMIN001 → 有効なADMIN → 先頭ユーザー */
+  private async resolveTimecardOperatorId(): Promise<number | null> {
+    const a = await this.prisma.user.findFirst({ where: { employeeCode: 'ADMIN001' }, select: { id: true } });
+    if (a) return a.id;
+    const b = await this.prisma.user.findFirst({ where: { role: 'ADMIN', isActive: true }, orderBy: { id: 'asc' }, select: { id: true } });
+    if (b) return b.id;
+    const c = await this.prisma.user.findFirst({ orderBy: { id: 'asc' }, select: { id: true } });
+    return c?.id ?? null;
+  }
+
+  /**
+   * [No.37] 直近 days 日(今日を含む)のうち、営業日なのにタイムカードが1件も無い日を補完する。
+   * 1件でもある日は利用者が個別に削除・調整した可能性があるため触らない(cronの取りこぼし日だけ埋める)。
+   */
+  async backfillTimecards(days = 14): Promise<{ created: number }> {
+    const opId = await this.resolveTimecardOperatorId();
+    if (!opId) {
+      this.logger.warn('TIMECARD', 'タイムカード補完: 登録者にできるユーザーが無いためスキップ');
+      return { created: 0 };
+    }
+    let created = 0;
+    const filled: string[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const wd = this.jstDateString(-i);
+      const cnt = await this.prisma.machineTimecard.count({ where: { workDate: new Date(wd + 'T12:00:00Z') } });
+      if (cnt > 0) continue;
+      const r = await this.initTimecards(wd, opId);
+      if (r.created > 0) { created += r.created; filled.push(wd); }
+    }
+    if (created > 0) this.logger.info('TIMECARD', `未作成だったタイムカードを補完: ${created}件`, { dates: filled });
+    return { created };
+  }
+
+  /** [No.37] 期間内の休日(営業カレンダーで休日登録された日)を YYYY-MM-DD の配列で返す */
+  async getTimecardHolidays(from: string, to: string): Promise<string[]> {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from ?? '') || !/^\d{4}-\d{2}-\d{2}$/.test(to ?? '')) return [];
+    const rows = await this.prisma.businessCalendar.findMany({
+      where: { isHoliday: true, workDate: { gte: new Date(from + 'T12:00:00Z'), lte: new Date(to + 'T12:00:00Z') } },
+      select: { workDate: true },
+      orderBy: { workDate: 'asc' },
+    });
+    return rows.map(r => r.workDate.toISOString().slice(0, 10));
   }
 
   async getSystemSettings(): Promise<Record<string, string>> {

@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import { calcKadouMinutes, fmtKadouMinutes } from "@/lib/kadouTime";
-import { toJstDateString, toJstMonthDayString, toJstYearMonthDayTimeString } from "@/lib/dateUtils";
+import { toJstDateString, toJstDateTimeString, toJstYearMonthDayTimeString } from "@/lib/dateUtils";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 // ── 共通コンポーネント ──────────────────────────────────────────
@@ -319,7 +319,14 @@ function DateTimeInput({ value, onChange, hasError, onAfterMi, label="日時" }:
 
 function fmtDate(s: string | null) {
   if (!s) return "—";
-  return toJstMonthDayString(s) ?? s;
+  // [No.43] 段取シート一覧は年・時刻まで表示(過去記録と同じ YY/MM/DD HH:mm)
+  return toJstYearMonthDayTimeString(s) ?? s;
+}
+
+// [No.39] 時間表記を 0h0m0s(小文字)に統一。辞書が旧形式 "{h}H {m}M" のままでも新形式で表示する。
+function fillKadou(tpl: string, mins: number): string {
+  return tpl.replace("{h}H {m}M", "{t}").replace("{t}", fmtKadouMinutes(mins))
+    .replace("{h}", String(Math.floor(mins / 60))).replace("{m}", String(mins % 60));
 }
 // 時間表記は 0h0m0s(小文字・常に時分秒)に統一
 function fmtSec(sec: number | null) {
@@ -360,6 +367,18 @@ interface TcRow {
   endTime: string;
   dirty: boolean;
   saving: boolean;
+  /** [No.37] 営業日なのにタイムカード未作成(既定時間で稼働扱い・登録ボタン表示) */
+  missing?: boolean;
+}
+
+/** [No.37] 期間内の休日一覧(取得失敗時は空=全日営業日扱い) */
+async function fetchHolidaySet(dates: string[]): Promise<Set<string>> {
+  if (dates.length === 0) return new Set();
+  try {
+    const res = await mcApi.timecardHolidays(dates[0], dates[dates.length - 1]);
+    const arr: string[] = Array.isArray((res as any).data) ? (res as any).data : [];
+    return new Set(arr);
+  } catch { return new Set(); }
 }
 interface TimecardModalProps {
   open: boolean;
@@ -406,6 +425,7 @@ function TimecardModal({
     setLoading(true);
     try {
       const newRows: TcRow[] = [];
+      const holidays = await fetchHolidaySet(dateRange);
       for (const dt of dateRange) {
         const res = await mcApi.timecardsByDate(dt);
         const all: any[] = (res as any).data ?? [];
@@ -416,8 +436,11 @@ function TimecardModal({
             startTime: fmtT(card.start_time ?? ""),
             endTime:   fmtT(card.end_time   ?? ""),
             dirty: false, saving: false });
-        } else {
+        } else if (holidays.has(dt)) {
           newRows.push({ id: null, date: dt, startTime: "08:00", endTime: "17:00", dirty: false, saving: false });
+        } else {
+          // [No.37] 営業日なのに未作成 → 休日扱いにせず既定時間で稼働に含め、登録できるようにする
+          newRows.push({ id: null, date: dt, startTime: "08:00", endTime: "17:00", dirty: true, saving: false, missing: true });
         }
       }
       setRows(newRows);
@@ -454,7 +477,7 @@ function TimecardModal({
         const res = await mcApi.createTimecard({ machine_id: machineId, work_date: row.date,
           start_time: row.startTime + ":00", end_time: row.endTime + ":00" }, token);
         const newId: number = (res as any).data?.id ?? (res as any).id ?? -1;
-        setRows(prev => prev.map((r, i) => i === idx ? { ...r, id: newId, dirty: false, saving: false } : r));
+        setRows(prev => prev.map((r, i) => i === idx ? { ...r, id: newId, dirty: false, saving: false, missing: false } : r));
         showTcToast(tr("mcRecordPage.tcCreatedMsg","登録しました: {date}").replace("{date}", row.date));
       }
     } catch {
@@ -473,8 +496,14 @@ function TimecardModal({
   const dayK = (row: TcRow): string => {
     if (row.id === null && !row.dirty) return "—";
     const w = startedAt  ? new Date(startedAt)  : new Date(row.date + "T00:00:00");
-    const e = finishedAt ? new Date(finishedAt) : new Date(row.date + "T23:59:59");
+    const e = finishedAt ? new Date(finishedAt) : (checkedAt ? new Date(checkedAt) : new Date(row.date + "T23:59:59"));
     const m = calcKadou(w, e, [row]);
+    return m > 0 ? fmtK(m) : "—";
+  };
+  // [No.37] その日のタイムカード全体(出勤〜退勤、昼休み控除)の稼働。作業範囲で切れている日は併記して誤解を防ぐ
+  const dayFullK = (row: TcRow): string => {
+    if (row.id === null && !row.dirty) return "—";
+    const m = calcKadou(new Date(row.date + "T00:00:00"), new Date(row.date + "T23:59:59"), [row]);
     return m > 0 ? fmtK(m) : "—";
   };
 
@@ -513,7 +542,7 @@ function TimecardModal({
                   <th className="pb-2 text-left font-bold text-slate-500 w-24">{tr("mcRecordPage.colDate", "日付")}</th>
                   <th className="pb-2 text-left font-bold text-slate-500 w-20">{tr("mcRecordPage.colStart", "開始")}</th>
                   <th className="pb-2 text-left font-bold text-slate-500 w-20">{tr("mcRecordPage.colEnd", "終了")}</th>
-                  <th className="pb-2 text-center font-bold text-slate-500 w-20">{tr("mcRecordPage.colKadouTime", "稼働時間")}</th>
+                  <th className="pb-2 text-center font-bold text-slate-500 w-28">{tr("mcRecordPage.colKadouTime", "稼働時間（作業範囲内）")}</th>
                   <th className="pb-2 text-center font-bold text-slate-500 w-14">{tr("mcRecordPage.colOperation", "操作")}</th>
                 </tr>
               </thead>
@@ -521,9 +550,13 @@ function TimecardModal({
                 {rows.map((row, idx) => {
                   const isHoliday = row.id === null && !row.dirty;
                   const kStr = dayK(row);
+                  const fullStr = dayFullK(row);
                   return (
-                    <tr key={row.date} className={"border-b border-slate-100 " + (isHoliday ? "bg-slate-50/60" : "")}>
-                      <td className="py-2 font-mono text-slate-700">{row.date.slice(5)}</td>
+                    <tr key={row.date} className={"border-b border-slate-100 " + (isHoliday ? "bg-slate-50/60" : row.missing ? "bg-amber-50/60" : "")}>
+                      <td className="py-2 font-mono text-slate-700">
+                        {row.date.slice(5)}
+                        {row.missing && <span className="block text-[10px] text-amber-700 font-sans font-bold">{tr("mcRecordPage.tcMissingLabel", "未登録（既定時間で計算）")}</span>}
+                      </td>
                       <td className="py-2">
                         {isHoliday
                           ? <span className="text-slate-400 text-[11px]">{tr("mcRecordPage.holidayLabel", "― 休日 ―")}</span>
@@ -536,6 +569,9 @@ function TimecardModal({
                       </td>
                       <td className="py-2 text-center">
                         <span className={"font-bold " + (kStr !== "—" ? "text-teal-700" : "text-slate-400")}>{kStr}</span>
+                        {fullStr !== "—" && fullStr !== kStr && (
+                          <span className="block text-[10px] text-slate-400">{tr("mcRecordPage.tcFullDayLabel", "終日 {t}").replace("{t}", fullStr)}</span>
+                        )}
                       </td>
                       <td className="py-2 text-center">
                         {row.dirty && (
@@ -553,7 +589,7 @@ function TimecardModal({
           )}
         </div>
         <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 shrink-0">
-          <p className="text-[10px] text-slate-400">{tr("mcRecordPage.tcFooterNote", "※ 稼働時間 = overlap（12:00-13:00は自動控除）")}</p>
+          <p className="text-[10px] text-slate-400">{tr("mcRecordPage.tcFooterNote", "※ 稼働時間 = タイムカードと作業範囲（段取開始〜加工終了）の重なり。12:00-13:00は自動控除。未登録の営業日は既定時間で計算")}</p>
           <button onClick={onClose} className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg transition-colors">{tr("mcRecordPage.close", "閉じる")}</button>
         </div>
         {tcToast && (
@@ -769,14 +805,17 @@ function McRecordPageInner() {
     if (!mCode) return;
 
     try {
-      const rows: Array<{id:number|null,date:string,startTime:string,endTime:string}> = [];
+      const rows: Array<{id:number|null,date:string,startTime:string,endTime:string,dirty?:boolean}> = [];
+      const holidays = await fetchHolidaySet(dates);
       for (const dt of dates) {
         const res = await mcApi.timecardsByDate(dt);
         const all: any[] = (res as any).data ?? [];
         const card = all.find((c: any) => c.machine?.machineCode === mCode);
         const fmtT = (s: string) => s && s.length >= 8 ? s.slice(0, 5) : "08:00";
         if (card) rows.push({ id: card.id, date: dt, startTime: fmtT(card.start_time ?? ""), endTime: fmtT(card.end_time ?? "") });
-        else rows.push({ id: null, date: dt, startTime: "08:00", endTime: "17:00" });
+        else if (holidays.has(dt)) rows.push({ id: null, date: dt, startTime: "08:00", endTime: "17:00" });
+        // [No.37] 営業日なのに未作成の日は休日扱い(稼働0)にせず既定時間で計算する(モーダルと同じ判定)
+        else rows.push({ id: null, date: dt, startTime: "08:00", endTime: "17:00", dirty: true });
       }
 
       // [v083] 稼働時間計算ロジックを共通化（apps/web/lib/kadouTime.ts に一本化）
@@ -1074,6 +1113,15 @@ function McRecordPageInner() {
       if (vErr) { setTimeValidErr(vErr); return; }
     }
     setTimeValidErr(null);
+    // [No.38] 作業内容が何も入っていない記録は登録しない(参考として回収する場合はダッシュボードから)
+    const hasWork =
+      (timeMode === "datetime" ? !!(startedAt || checkedAt || finishedAt) : (setupH * 60 + setupMm + machH * 60 + machMm) > 0) ||
+      (!!quantity && parseInt(quantity) > 0) || (!!setupQty && parseInt(setupQty) > 0) ||
+      setupOps.length > 0 || prodOps.length > 0;
+    if (!editRecordId && !hasWork) {
+      setSaveError(tr("mcRecordPage.emptyRecordError", "作業記録が未入力です。段取・量産の日時や良品数などを入力してください。作業なしで段取シートを回収する場合は、ダッシュボードの未回収シート一覧の🗑️から「参考として回収」を選んでください。"));
+      return;
+    }
     if (submitLockRef.current) return;
     submitLockRef.current = true;
     setSaving(true); setSaveError(null);
@@ -1259,7 +1307,7 @@ function McRecordPageInner() {
                   className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${editRecordId===r.id ? "bg-amber-50 border-l-2 border-amber-400" : ""}`}>
                   <div className="font-bold text-slate-700">{(r as any).setup_sheet_printed_at
                     ? toJstYearMonthDayTimeString((r as any).setup_sheet_printed_at)
-                    : <span className="font-normal text-slate-400">印刷記録なし（作業日 {toJstMonthDayString(r.work_date)}）</span>}</div>
+                    : <span className="font-normal text-slate-400">印刷記録なし（作業日 {toJstDateString(r.work_date)}）</span>}</div>
                   <div className="text-slate-400">{r.operator_name ?? "—"} / {r.machine_code ?? "—"}</div>
                   <div className="text-slate-400">{fmtMin(r.setup_time_min)} / {fmtMin(r.machining_time_min)}</div>
                 </button>
@@ -1310,7 +1358,7 @@ function McRecordPageInner() {
                   </div>
                   <div>
                     <span className="text-slate-400 block mb-0.5">{tr("mcRecordPage.verSheetLabel", "登録・出力（段取シート）")}</span>
-                    <span className="font-bold text-slate-700">{selectedSheet ? toJstDateString(selectedSheet.printed_at) : "—"}</span>
+                    <span className="font-bold text-slate-700">{selectedSheet ? toJstDateTimeString(selectedSheet.printed_at) : "—"}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block mb-0.5">{tr("mcRecordPage.collectedAtLabel", "回収日時")}</span>
@@ -1488,7 +1536,7 @@ function McRecordPageInner() {
                         return <p className="text-xs text-slate-400">{tr("mcRecordPage.setupTimeAggregating", "→ 段取時間: タイムカード集計中…")}</p>;
                       }
                       const mins = Math.max(0, setupKadouMin - dStopMin);
-                      return mins > 0 ? <p className="text-xs text-blue-600 font-bold">{tr("mcRecordPage.setupTimeResult", "→ 段取時間: {h}H {m}M（実稼働ベース）").replace("{h}", String(Math.floor(mins/60))).replace("{m}", String(mins%60))}</p> : null;
+                      return mins > 0 ? <p className="text-xs text-blue-600 font-bold">{fillKadou(tr("mcRecordPage.setupTimeResult", "→ 段取時間: {t}（実稼働ベース）"), mins)}</p> : null;
                     })()}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -1567,7 +1615,7 @@ function McRecordPageInner() {
                         return <p className="text-xs text-slate-400">{tr("mcRecordPage.machTimeAggregating", "→ 加工時間: タイムカード集計中…")}</p>;
                       }
                       const mins = Math.max(0, machKadouMin - yStopMin);
-                      return mins > 0 ? <p className="text-xs text-green-600 font-bold">{tr("mcRecordPage.machTimeResult", "→ 加工時間: {h}H {m}M（実稼働ベース）").replace("{h}", String(Math.floor(mins/60))).replace("{m}", String(mins%60))}</p> : null;
+                      return mins > 0 ? <p className="text-xs text-green-600 font-bold">{fillKadou(tr("mcRecordPage.machTimeResult", "→ 加工時間: {t}（実稼働ベース）"), mins)}</p> : null;
                     })()}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -1607,12 +1655,24 @@ function McRecordPageInner() {
                 <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0 flex items-center gap-4 flex-wrap">
                     <span className="text-xs font-bold text-slate-600">{tr("mcRecordPage.tcRefBarTitle", "📅 機械タイムカード")}</span>
-                    {setupKadouMin !== null && (
-                      <span className="text-xs text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded">{tr("mcRecordPage.setupKadouResult", "段取稼働: {h}H {m}M").replace("{h}", String(Math.floor(setupKadouMin/60))).replace("{m}", String(setupKadouMin%60))}</span>
-                    )}
-                    {machKadouMin !== null && (
-                      <span className="text-xs text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded">{tr("mcRecordPage.prodKadouResult", "量産稼働: {h}H {m}M").replace("{h}", String(Math.floor(machKadouMin/60))).replace("{m}", String(machKadouMin%60))}</span>
-                    )}
+                    {setupKadouMin !== null && (() => {
+                      const stop = timeMode === "datetime" ? dStopH * 60 + dStopM : 0;
+                      return (
+                        <span className="text-xs text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded">
+                          {fillKadou(tr("mcRecordPage.setupKadouResult", "段取稼働: {t}"), setupKadouMin)}
+                          {stop > 0 && <span className="font-normal">{tr("mcRecordPage.kadouAfterStop", " − 中断 {s} = {r}").replace("{s}", fmtKadouMinutes(stop)).replace("{r}", fmtKadouMinutes(Math.max(0, setupKadouMin - stop)))}</span>}
+                        </span>
+                      );
+                    })()}
+                    {machKadouMin !== null && (() => {
+                      const stop = timeMode === "datetime" ? yStopH * 60 + yStopM : 0;
+                      return (
+                        <span className="text-xs text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded">
+                          {fillKadou(tr("mcRecordPage.prodKadouResult", "量産稼働: {t}"), machKadouMin)}
+                          {stop > 0 && <span className="font-normal">{tr("mcRecordPage.kadouAfterStop", " − 中断 {s} = {r}").replace("{s}", fmtKadouMinutes(stop)).replace("{r}", fmtKadouMinutes(Math.max(0, machKadouMin - stop)))}</span>}
+                        </span>
+                      );
+                    })()}
                     {setupKadouMin === null && machKadouMin === null && (
                       <span className="text-xs text-slate-400">{tr("mcRecordPage.tcRefHint", "機械のタイムカードを確認・編集して稼働時間を参照できます")}</span>
                     )}

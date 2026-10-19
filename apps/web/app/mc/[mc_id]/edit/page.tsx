@@ -1179,10 +1179,10 @@ export default function McEditPage() {
           <div className="flex items-center gap-3 text-[13px] text-slate-500 font-mono font-medium">
             {(detail as any)?.mcProcessNo != null && <span className="font-bold text-teal-700 text-sm">{tr("mcEditUi.processNo","工程No: {n}").replace("{n}", String((detail as any).mcProcessNo))}</span>}
             <span className="text-slate-400">|</span>
-            <span>{tr("mcEditUi.mcIdLabel", "MCID:")} <span className="text-slate-700">{d.legacyMcid ?? "—"}</span></span>
+            <span>{tr("mcEditUi.mcIdLabel", "MCID:").replace("{id}", "").trim()} <span className="text-slate-700">{d.legacyMcid ?? "—"}</span></span>
             <span className="text-slate-400">|</span>
-            <span>{tr("mcEditUi.machiningIdLabel", "加工ID:")} <span className="text-slate-700">{d.machiningId}</span></span>
-            {d.part.partId && <><span className="text-slate-400">|</span><span>{tr("mcEditUi.partIdLabel", "部品ID:")} <span className="text-slate-700">{d.part.partId}</span></span></>}
+            <span>{tr("mcEditUi.machiningIdLabel", "加工ID:").replace("{id}", "").trim()} <span className="text-slate-700">{d.machiningId}</span></span>
+            {d.part.partId && <><span className="text-slate-400">|</span><span>{tr("mcEditUi.partIdLabel", "部品ID:").replace("{id}", "").trim()} <span className="text-slate-700">{d.part.partId}</span></span></>}
           </div>
         </div>
       )}

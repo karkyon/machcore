@@ -989,6 +989,8 @@ export const mcApi = {
     api.get<any[]>('/mc/timecards', { params: { machine_id: machineId, work_date: workDate } }),
   timecardsByDate: (workDate: string) =>
     api.get<any[]>('/mc/timecards/all', { params: { work_date: workDate } }),
+  timecardHolidays: (from: string, to: string) =>
+    api.get<string[]>('/mc/timecards/holidays', { params: { from, to } }),
   createTimecard:  (body: any, token: string) =>
     api.post('/mc/timecards', body, { headers: { Authorization: `Bearer ${token}` } }),
   deleteTimecard:  (id: number, token: string) =>

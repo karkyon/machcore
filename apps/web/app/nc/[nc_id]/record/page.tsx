@@ -391,6 +391,14 @@ function RecordPageInner() {
 
   const handleSave = async () => {
     if (saving || saveLockRef.current) return;
+    // [No.38] 作業内容が何も入っていない記録は登録しない(参考として回収する場合はダッシュボードから)
+    const hasWork =
+      (timeMode === "datetime" ? !!(setupStart || setupEnd || prodStart || prodEnd) : (setupH * 60 + setupM + machH * 60 + machM) > 0) ||
+      (quantity !== "" && Number(quantity) > 0) || setupOps.length > 0 || prodOps.length > 0;
+    if (!editRecordId && !hasWork) {
+      showToast(tr("ncRecordPage.emptyRecordError", "⚠ 作業記録が未入力です。作業なしで段取シートを回収する場合は、ダッシュボードの未回収シート一覧の🗑️から「参考として回収」を選んでください。"));
+      return;
+    }
     saveLockRef.current = true;
     setSaving(true);
     try {
@@ -564,9 +572,7 @@ function RecordPageInner() {
               >
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-mono font-bold text-slate-600">
-                    {toJstMonthDayString(s.printed_at)}
-                    {" "}
-                    {toJstTimeString(s.printed_at)}
+                    {toJstYearMonthDayTimeString(s.printed_at)}
                   </span>
                   {s.version && (
                     <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-mono">
@@ -597,7 +603,7 @@ function RecordPageInner() {
                   className={`w-full text-left px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${editRecordId===r.id ? "bg-amber-50 border-l-2 border-amber-400" : ""}`}>
                   <div className="font-bold text-slate-700">{(r as any).setup_sheet_printed_at
                     ? toJstYearMonthDayTimeString((r as any).setup_sheet_printed_at)
-                    : <span className="font-normal text-slate-400">印刷記録なし（作業日 {toJstMonthDayString(r.work_date)}）</span>}</div>
+                    : <span className="font-normal text-slate-400">印刷記録なし（作業日 {toJstDateString(r.work_date)}）</span>}</div>
                   <div className="text-slate-400">{r.operator_name ?? "—"} / {r.machine_code ?? "—"}</div>
                   <div className="text-slate-400">{fmtMin(r.setup_time)} / {fmtMin(r.machining_time)}</div>
                 </button>

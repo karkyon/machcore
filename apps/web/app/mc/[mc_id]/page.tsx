@@ -12,6 +12,7 @@ import AuthModal from "@/components/auth/AuthModal";
 import ApprovalModal from "@/components/shared/ApprovalModal";
 import { isAgentOnline, agentPgToUsb, translateAgentError } from "@/lib/upload-agent";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import LinkifiedText from "@/components/shared/LinkifiedText";
 
 const STATUS_LABEL: Record<string, string> = {
   NEW: "新規", PENDING_APPROVAL: "未承認", APPROVED: "承認済", CHANGING: "変更中",
@@ -692,7 +693,7 @@ export default function McDetailPage() {
                 {d.note && (
                   <div className="px-4 py-3 bg-amber-50">
                     <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">{tr("mcDetailPage.noteLabel2", "備考")}</div>
-                    <div className="whitespace-pre-wrap text-slate-700 text-sm">{d.note}</div>
+                    <div className="whitespace-pre-wrap text-slate-700 text-sm"><LinkifiedText text={d.note} /></div>
                   </div>
                 )}
               </div>
