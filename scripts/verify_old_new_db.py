@@ -640,12 +640,18 @@ def verify_history(ss_mc, pg, limit=None):
     pgc = pg.cursor()
 
     mcc.execute("""
-        SELECT MCID, 内容区分ID, 総時間
+        SELECT MCID, 内容区分ID, 総時間, 入力日
         FROM ACC_変更履歴
         ORDER BY MCID
     """)
     old_rows = mcc.fetchall()
     log(f"  旧DB取得: {len(old_rows)}件")
+    # コンバートが旧を読んだ後に旧で入力された行は新に無いのが正しいため比較対象外(legacy_snapshot.py)
+    from legacy_snapshot import conversion_read_jst, after
+    mc_cut = conversion_read_jst(pg.cursor(), "MC")
+    _n0 = len(old_rows)
+    old_rows = [r[:3] for r in old_rows if not after(r[3], mc_cut)]
+    log(f"  コンバート後({mc_cut})に旧で入力された行 {_n0 - len(old_rows)}件は比較対象外")
     if limit:
         old_rows = old_rows[:limit]
 

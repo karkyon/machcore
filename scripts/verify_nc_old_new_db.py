@@ -442,6 +442,10 @@ def verify_history_nc(ss, pg, limit=None):
     log(f"  旧DB取得: {len(old_rows)}件")
     if limit:
         old_rows = old_rows[:limit]
+    # コンバートが旧を読んだ後に旧で印刷・戻り入力された行は、コンバート時点の状態で数える(legacy_snapshot.py)
+    from legacy_snapshot import conversion_read_jst, after
+    nc_cut = conversion_read_jst(pgc, "NC")
+    _late_out = _late_in = 0
 
     # K_id → [nc_programs.id, ...] (共通部品で複数あり得る。nc_full_import_v2.py PHASE3と同じ構築方法)
     pgc.execute("SELECT id, machining_id FROM nc_programs")
@@ -461,6 +465,14 @@ def verify_history_nc(ss, pg, limit=None):
 
         if k_id is None:
             continue
+        if after(out_date, nc_cut):
+            _late_out += 1
+            continue
+        if after(in_date, nc_cut):
+            # 戻りの入力がコンバートより後: コンバート時点では未回収・作業記録なし
+            _late_in += 1
+            in_cont = in_date = dan_op = None
+            dan_h = dan_m = la_h = la_m = p = 0
 
         out_cont_s = str(out_cont or "").strip()
         in_cont_s = str(in_cont or "").strip()
@@ -488,6 +500,7 @@ def verify_history_nc(ss, pg, limit=None):
         if is_nc_change and in_date:
             expected[k_id]["change_history"] += 1
 
+    log(f"  コンバート後({nc_cut})に旧で印刷 {_late_out}件 / 戻り入力 {_late_in}件 はコンバート時点の状態で比較")
     # 新側の実際の件数を nc_program_id 単位で集計
     pgc.execute("SELECT nc_program_id, COUNT(*) FROM setup_sheet_logs WHERE NOT work_collected GROUP BY nc_program_id")
     actual_unc = dict(pgc.fetchall())

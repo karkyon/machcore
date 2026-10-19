@@ -42,6 +42,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from verify_old_new_db import pg_connect, ss_connect, SS_MC_DB, log  # 接続先は既存の検証と同じ
 from name_match import PersonResolver, person_key, staff_id_map_from_rows
+from legacy_snapshot import conversion_read_jst, after  # コンバート後に旧で入力された行は比較対象外
 
 OUT_DIR = os.path.join(HERE, "verify_reports")
 NC_CHANGE_KW = ("新規登録", "仮登録", "変更", "承認")
@@ -157,12 +158,17 @@ def name_inventory(mcc, mc_res, nc_res, staff_rows, staff_map, uinfo):
 
 # ───────────────────────── ② MC加工データ ─────────────────────────
 
-def verify_mc_programs(mcc, pgc, res, rep, cutoff, mcids_detail, detail):
+def verify_mc_programs(mcc, pgc, res, rep, cutoff, mcids_detail, detail, mc_cut=None):
     mcc.execute("""
-        SELECT mc.MCID, mc.加工ID, m.ｵﾍﾟﾚｰﾀｰ, m.氏名, m.作成, m.prg
+        SELECT mc.MCID, mc.加工ID, m.ｵﾍﾟﾚｰﾀｰ, m.氏名, m.作成, m.prg, m.IN_DATE, m.入力日
         FROM ACC_MC mc INNER JOIN ACC_マシニングraw m ON mc.加工ID = m.加工ID
     """)
-    old = {r[0]: r for r in mcc.fetchall()}
+    old = {r[0]: r[:6] for r in mcc.fetchall()}
+    mcc.execute("""
+        SELECT mc.MCID, m.IN_DATE, m.入力日
+        FROM ACC_MC mc INNER JOIN ACC_マシニングraw m ON mc.加工ID = m.加工ID
+    """)
+    old_after = {r[0] for r in mcc.fetchall() if after(r[1], mc_cut) or after(r[2], mc_cut)}
     # 作成者: 旧の作成が空・照合できない時は、変更履歴の最初の作成(照合できる行)で補う(PHASE6F と同じ)
     mcc.execute("""
         SELECT MCID, 加工ID, 作成, 作成日 FROM ACC_変更履歴
@@ -192,7 +198,8 @@ def verify_mc_programs(mcc, pgc, res, rep, cutoff, mcids_detail, detail):
             missing += 1
             continue
         _, kakoid, op, shimei, sakusei, prg = o
-        edited = pid in edited_ops or (reg_at and reg_at > cutoff) or (appr_at and appr_at > cutoff)
+        edited = (pid in edited_ops or (reg_at and reg_at > cutoff) or (appr_at and appr_at > cutoff)
+                  or mcid in old_after)  # 新システムで編集 / コンバート後に旧で入力し直し
         key = f"MCID={mcid}"
         st = {}
         st["オペレーター"] = rep.add("MC加工", "オペレーター", key, op, res.resolve_first(op), reg, edited)
@@ -226,14 +233,14 @@ def staff_uid(staff_map, raw):
     return uid
 
 
-def verify_nc_programs(mcc, pgc, staff_map, rep, cutoff):
+def verify_nc_programs(mcc, pgc, staff_map, rep, cutoff, nc_cut=None):
     mcc.execute("SELECT K_id, Reco_P FROM ACC_Lathe")
     reco = {int(r[0]): r[1] for r in mcc.fetchall() if r[0] is not None}
     mcc.execute("""SELECT K_id, In_Cont, In_Date, In_Op FROM ACC_History
                    WHERE In_Cont IS NOT NULL ORDER BY K_id, In_Date DESC""")
     latest_appr = {}
     for kid, ic, idt, iop in mcc.fetchall():
-        if kid is None or idt is None or "承認" not in s(ic):
+        if kid is None or idt is None or "承認" not in s(ic) or after(idt, nc_cut):
             continue
         latest_appr.setdefault(int(kid), iop)
     pgc.execute("""SELECT id, legacy_nc_id, machining_id, registered_by, approved_by, status::text,
@@ -273,8 +280,12 @@ def compare_counts(area, field, exp, act, rep, out):
     rep.fields.add((area, field + "(担当者別件数)"), st)
 
 
-def verify_history_mc(mcc, pgc, res, rep, cutoff_utc, out):
-    """MC: mc_full_import.py PHASE6 と同じ規則で、担当者ごとの件数を作る"""
+def verify_history_mc(mcc, pgc, res, rep, mc_cut, out):
+    """MC: mc_full_import.py PHASE6 と同じ規則で、担当者ごとの件数を作る。
+    mc_cut(JST)より後に旧で入力された行はコンバート時点に無かったので数えない。
+    新の側も、それより後に新システムで入力された行(UAT)は数えない"""
+    cutoff_utc = (mc_cut - timedelta(hours=9)) if mc_cut else datetime.now()
+    skipped = 0
     pgc.execute("SELECT id, legacy_mcid FROM mc_programs WHERE legacy_mcid IS NOT NULL")
     mcid_map = defaultdict(list)
     for pid, lm in pgc.fetchall():
@@ -285,6 +296,9 @@ def verify_history_mc(mcc, pgc, res, rep, cutoff_utc, out):
     for mcid, nk, op, sakusei, shonin, total, in_dt, appr_dt in mcc.fetchall():
         n = len(mcid_map.get(mcid, []))
         if not n:
+            continue
+        if after(in_dt, mc_cut):
+            skipped += 1
             continue
         nk = nk_int(nk)
         op_id = res.resolve_first(op)
@@ -305,10 +319,16 @@ def verify_history_mc(mcc, pgc, res, rep, cutoff_utc, out):
     compare_counts("MC履歴", "変更履歴の操作者", e_ch, Counter(dict(pgc.fetchall())), rep, out)
     pgc.execute("SELECT operator_id, COUNT(*) FROM work_records WHERE mc_program_id IS NOT NULL AND work_date <= %s GROUP BY 1", (cutoff_utc.date(),))
     compare_counts("MC履歴", "作業記録の操作者(ｵﾍﾟﾚｰﾀｰ)", e_wr, Counter(dict(pgc.fetchall())), rep, out)
+    log(f"  MC: コンバート後({mc_cut})に旧で入力された履歴 {skipped}行は比較対象外")
+    for h in out[-3:]:
+        h["コンバート後に旧で入力(対象外)"] = skipped
 
 
-def verify_history_nc(mcc, pgc, res, staff_map, rep, cutoff_utc, out):
-    """NC: nc_full_import_v2.py PHASE3 と同じ規則"""
+def verify_history_nc(mcc, pgc, res, staff_map, rep, nc_cut, out):
+    """NC: nc_full_import_v2.py PHASE3 と同じ規則。
+    nc_cut(JST)より後の印刷(Out_Date)・戻り入力(In_Date)はコンバート時点に無かったので、その時点の状態で数える"""
+    cutoff_utc = (nc_cut - timedelta(hours=9)) if nc_cut else datetime.now()
+    skipped_out = skipped_in = 0
     pgc.execute("SELECT id, machining_id FROM nc_programs")
     kid_map = defaultdict(list)
     for pid, kid in pgc.fetchall():
@@ -322,6 +342,14 @@ def verify_history_nc(mcc, pgc, res, staff_map, rep, cutoff_utc, out):
         if not n:
             continue
         ocs, ics = s(oc), s(ic)
+        if after(odt, nc_cut):
+            skipped_out += 1
+            continue
+        in_after = after(idt, nc_cut)
+        if in_after:
+            # 戻り(作業記録・変更)の入力がコンバートより後: コンバート時点では未回収・作業記録なし
+            skipped_in += 1
+            ics, dop, dh, dm, lh, lm, p, idt = "", None, 0, 0, 0, 0, 0, None
         if ("印刷" in ocs or ocs == "仮登録") and odt is not None:
             e_sl[staff_uid(staff_map, oop)] += n
         has_work = bool(s(dop)) or nk_int(dh) > 0 or nk_int(dm) > 0 or nk_int(lh) > 0 or nk_int(lm) > 0 or nk_int(p) > 0
@@ -335,6 +363,9 @@ def verify_history_nc(mcc, pgc, res, staff_map, rep, cutoff_utc, out):
     compare_counts("NC履歴", "印刷履歴の操作者", e_sl, Counter(dict(pgc.fetchall())), rep, out)
     pgc.execute("SELECT operator_id, COUNT(*) FROM work_records WHERE nc_program_id IS NOT NULL AND work_date <= %s GROUP BY 1", (cutoff_utc.date(),))
     compare_counts("NC履歴", "作業記録の操作者", e_wr, Counter(dict(pgc.fetchall())), rep, out)
+    log(f"  NC: コンバート後({nc_cut})に旧で印刷 {skipped_out}行 / 戻り入力 {skipped_in}行 は比較対象外(コンバート時点の状態で比較)")
+    for h in out[-2:]:
+        h["コンバート後に旧で入力(対象外)"] = skipped_out + skipped_in
     # NC変更履歴は legacy_hist_id で1件ずつ
     pgc.execute("SELECT legacy_hist_id, operator_id FROM change_history WHERE legacy_hist_id IS NOT NULL")
     for hid, opid in pgc.fetchall():
@@ -349,6 +380,8 @@ def write_md(path, meta, rep, inventory, staff, hist_counts, detail):
     L = [f"# 担当者欄 新旧全件比較 ({meta['実行']})", ""]
     L.append(f"- 新DB: {meta['新DB']} / 旧DB: SQL Server {SS_MC_DB}")
     L.append(f"- 管理者(ADMIN001) = users.id {meta['管理者id']} / 基準日時(これより後の入力・編集は新システム分として比較対象外): {meta['基準日時']}")
+    L.append(f"- コンバートが旧を読んだ時刻(JST。これより後に旧システムで入力・回収された行は新に無いのが正しいため比較対象外): "
+             f"{meta['コンバートが旧を読んだ時刻(JST)']}")
     L.append(f"- 照合規則: name_match.py(全角/半角・空白のゆれ、通称 チューン=MC140、ティン=STAFF030、複数名は先頭)。users に無い名前は空欄が正")
     L.append(f"- **NG 合計: {meta['NG合計']}件**  (内訳は下表)")
     L.append("")
@@ -370,11 +403,12 @@ def write_md(path, meta, rep, inventory, staff, hist_counts, detail):
             L.append("")
     L.append("## 履歴の操作者(担当者別件数)")
     L.append("")
-    L.append("| 区分 | 項目 | 期待件数 | 新の件数 | 空欄 期待/新 | 管理者 期待/新 | 件数が違う担当者 | 差の合計 | 差の例 |")
-    L.append("|---|---|---:|---:|---|---|---:|---:|---|")
+    L.append("| 区分 | 項目 | 期待件数 | 新の件数 | 空欄 期待/新 | 管理者 期待/新 | 件数が違う担当者 | 差の合計 | コンバート後に旧で入力(対象外) | 差の例 |")
+    L.append("|---|---|---:|---:|---|---|---:|---:|---:|---|")
     for h in hist_counts:
         L.append(f"| {h['区分']} | {h['項目']} | {h['旧から期待する件数']} | {h['新の件数']} | {h['空欄(期待)']}/{h['空欄(新)']} | "
-                 f"{h['管理者(期待)']}/{h['管理者(新)']} | {h['件数が違う担当者']} | {h['差の合計']} | {h['差の例']} |")
+                 f"{h['管理者(期待)']}/{h['管理者(新)']} | {h['件数が違う担当者']} | {h['差の合計']} | "
+                 f"{h.get('コンバート後に旧で入力(対象外)', 0)} | {h['差の例']} |")
     L.append("")
     L.append("## NG の例(項目・判定ごとに最大15件。全件は _ng.csv)")
     L.append("")
@@ -438,30 +472,29 @@ def main():
     # これより後の registered_at / approved_at / pg_updated_at は新システムでの入力・編集
     pgc.execute("SELECT MIN(created_at) FROM mc_programs WHERE legacy_mcid IS NOT NULL")
     cutoff = pgc.fetchone()[0] or datetime.now()
-    # 履歴は旧の最終入力日時(JST→UTC)までを旧データとして比べる
-    mcc.execute("SELECT MAX(入力日) FROM ACC_変更履歴")
-    m1 = mcc.fetchone()[0]
-    mcc.execute("SELECT MAX(COALESCE(In_Date, Out_Date)) FROM ACC_History")
-    m2 = mcc.fetchone()[0]
-    legacy_max = max([d for d in (m1, m2) if d is not None], default=cutoff + timedelta(hours=9))
-    cutoff_hist = legacy_max - timedelta(hours=9) + timedelta(seconds=1)
+    # 旧の履歴は「コンバートが旧を読んだ時刻(JST)」までを旧データとして比べる(legacy_snapshot.py)
+    #   旧システムは UAT 中も並行稼働しているため、それより後に旧で入力された行は新に無いのが正しい
+    mc_cut = conversion_read_jst(pgc, "MC")
+    nc_cut = conversion_read_jst(pgc, "NC")
+    log(f"コンバートが旧を読んだ時刻(JST): MC={mc_cut} / NC={nc_cut}")
 
     rep = Report(uname, admin_id)
     log("① 旧担当者名の照合一覧...")
     inventory, staff = name_inventory(mcc, mc_res, nc_res, staff_rows, staff_map, uinfo)
     log("② MC加工データ...")
     detail = []
-    mc_stat = verify_mc_programs(mcc, pgc, mc_res, rep, cutoff, set(a.mcid or []), detail)
+    mc_stat = verify_mc_programs(mcc, pgc, mc_res, rep, cutoff, set(a.mcid or []), detail, mc_cut)
     log("③ NC加工データ...")
-    nc_stat = verify_nc_programs(mcc, pgc, staff_map, rep, cutoff)
+    nc_stat = verify_nc_programs(mcc, pgc, staff_map, rep, cutoff, nc_cut)
     log("④ 履歴の操作者...")
     hist_counts = []
-    verify_history_mc(mcc, pgc, mc_res, rep, cutoff_hist, hist_counts)
-    verify_history_nc(mcc, pgc, nc_res, staff_map, rep, cutoff_hist, hist_counts)
+    verify_history_mc(mcc, pgc, mc_res, rep, mc_cut, hist_counts)
+    verify_history_nc(mcc, pgc, nc_res, staff_map, rep, nc_cut, hist_counts)
 
     ng_total = sum(v for (_, _), c in rep.fields.items() for k, v in c.items() if k.startswith("NG"))
     meta = {"実行": datetime.now().strftime("%Y-%m-%d %H:%M"), "新DB": dbname, "管理者id": admin_id,
-            "基準日時": str(cutoff), "旧履歴の最終日時(UTC)": str(cutoff_hist), "NG合計": ng_total,
+            "基準日時": str(cutoff), "コンバートが旧を読んだ時刻(JST)": {"MC": str(mc_cut), "NC": str(nc_cut)},
+            "NG合計": ng_total,
             "MC": mc_stat, "NC": nc_stat,
             "照合できない旧担当者名": sum(1 for r in inventory if r["新の担当者"] == "(空欄)"),
             "同姓同名で決まらない": {"MC": mc_res.ambiguous, "NC": nc_res.ambiguous}}

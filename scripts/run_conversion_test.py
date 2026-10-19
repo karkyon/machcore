@@ -224,16 +224,26 @@ def run_checks(test_dsn):
     check("NC-W2", "NC作業記録の担当者(段取/量産)", None, f"作業記録 {tot}件のうち担当者が両方空 {noop}件(旧の名前がusersに無いもの。詳細はNCコンバートログの[WARN])")
 
     # ── NC: 印刷履歴(回収済み/未回収・仮登録・sheet_type) ──
-    sc.execute("SELECT K_id, Out_Cont, Out_Date, In_Cont FROM ACC_History")
+    # コンバートが旧を読んだ後に旧で印刷・戻り入力された行は、コンバート時点の状態で数える(legacy_snapshot.py)
+    from legacy_snapshot import conversion_read_jst, after
+    nc_cut = conversion_read_jst(c, "NC")
+    sc.execute("SELECT K_id, Out_Cont, Out_Date, In_Cont, In_Date FROM ACC_History")
     exp_sl = exp_unc = exp_new = 0
+    late_out = late_in = 0
     kid_n = defaultdict(int)
     c.execute("SELECT machining_id, COUNT(*) FROM nc_programs GROUP BY 1")
     for k, n in c.fetchall():
         kid_n[k] = n
-    for kid, oc, od, ic in sc.fetchall():
+    for kid, oc, od, ic, idt in sc.fetchall():
         oc = str(oc or "").strip()
         if kid is None or not od or not ("印刷" in oc or oc == "仮登録"):
             continue
+        if after(od, nc_cut):
+            late_out += 1
+            continue
+        if after(idt, nc_cut):
+            late_in += 1
+            ic = None  # コンバート時点では未回収
         n = kid_n.get(int(kid), 0)
         exp_sl += n
         if oc == "仮登録":
@@ -245,7 +255,8 @@ def run_checks(test_dsn):
     act_new = q1(c, "SELECT COUNT(*) FROM setup_sheet_logs WHERE sheet_type='NEW'")
     nul = q1(c, "SELECT COUNT(*) FROM setup_sheet_logs WHERE sheet_type IS NULL")
     check("NC-S1", "NC印刷履歴の件数(印刷+仮登録)", act_sl == exp_sl, f"旧 {exp_sl}件 / 新 {act_sl}件")
-    check("NC-S2", "NC未回収の件数(旧判定: 印刷*/仮登録 かつ In_Cont空)", act_unc == exp_unc, f"旧 {exp_unc}件 / 新 {act_unc}件")
+    check("NC-S2", "NC未回収の件数(旧判定: 印刷*/仮登録 かつ In_Cont空)", act_unc == exp_unc,
+          f"旧 {exp_unc}件 / 新 {act_unc}件(コンバート後に旧で印刷 {late_out}件・回収 {late_in}件はコンバート時点の状態で比較。基準 {nc_cut})")
     check("NC-S3", "NC仮登録(新規段取シート)の印刷履歴", act_new == exp_new, f"旧 {exp_new}件 / 新 {act_new}件")
     check("NC-S4", "NC印刷履歴の新規/リピート区分", nul == 0, f"区分なし {nul}件")
     c.execute("""SELECT s.printed_at + interval '9 hour', s.work_collected, s.sheet_type FROM setup_sheet_logs s
@@ -266,12 +277,14 @@ def run_checks(test_dsn):
           f"旧の「承認」行がある加工ID {len(leg_appr)}件 / 新で承認者あり {appr_by}件(承認済 {appr}件)")
 
     # ── NC: 作業記録と段取シートの結び付け ──
-    sc.execute("SELECT K_id, Out_Cont, Out_Date, Dan_Op, Dan_H, Dan_M, La_H, La_M, P FROM ACC_History")
+    sc.execute("SELECT K_id, Out_Cont, Out_Date, Dan_Op, Dan_H, Dan_M, La_H, La_M, P, In_Date FROM ACC_History")
     exp_link = 0
-    for kid, oc, od, dop, dh, dm, lh, lm, p in sc.fetchall():
+    for kid, oc, od, dop, dh, dm, lh, lm, p, idt in sc.fetchall():
         oc = str(oc or "").strip()
         if kid is None or not od or not ("印刷" in oc or oc == "仮登録"):
             continue
+        if after(od, nc_cut) or after(idt, nc_cut):
+            continue  # コンバート時点では作業記録が無かった
         if str(dop or "").strip() or int(dh or 0) or int(dm or 0) or int(lh or 0) or int(lm or 0) or int(p or 0):
             exp_link += kid_n.get(int(kid), 0)
     act_link = q1(c, "SELECT COUNT(*) FROM work_records WHERE nc_program_id IS NOT NULL AND nc_setup_sheet_log_id IS NOT NULL")

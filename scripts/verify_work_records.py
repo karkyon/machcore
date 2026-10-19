@@ -37,6 +37,7 @@ from verify_old_new_db import pg_connect, ss_connect, SS_MC_DB, log  # 接続先
 from machine_name_match import MachineResolver
 from name_match import PersonResolver
 import legacy_work_time as lwt  # 取込と同じ時間・サイクルの変換規則
+from legacy_snapshot import conversion_read_jst, after  # コンバート後に旧で入力された行は比較対象外
 
 OUT_DIR = os.path.join(HERE, "verify_reports")
 
@@ -229,8 +230,11 @@ def verify_mc(ss, pg, tally):
         tt = r.get("総時間")
         return nk == 17 or (tt is not None and str(tt).strip() != "")
 
-    old_work = [r for r in old_all if is_work(r)]
-    log(f"  旧の作業記録行: {len(old_work)}行")
+    mc_cut = conversion_read_jst(pgc, "MC")
+    old_work_all = [r for r in old_all if is_work(r)]
+    old_work = [r for r in old_work_all if not after(r.get("入力日"), mc_cut)]
+    mc_late = len(old_work_all) - len(old_work)
+    log(f"  旧の作業記録行: {len(old_work)}行(コンバート後({mc_cut})に旧で入力された {mc_late}行は比較対象外)")
 
     pgc.execute("SELECT id, legacy_mcid FROM mc_programs WHERE legacy_mcid IS NOT NULL")
     mcid_map = defaultdict(list)
@@ -285,7 +289,7 @@ def verify_mc(ss, pg, tally):
         return (n["work_date"], (n["started_at"], n["finished_at"], n["setup_time_min"] or None,
                                  n["machining_time_min"] or None, n["quantity"] or None))
 
-    stat = {"old": len(old_work), "paired": 0, "missing_in_new": 0, "new_only": 0, "no_program": 0}
+    stat = {"old": len(old_work), "paired": 0, "missing_in_new": 0, "new_only": 0, "no_program": 0, "after_conversion": mc_late}
     missing_list, new_only_list = [], []
     paired_prog = set()
 
@@ -462,8 +466,12 @@ def verify_nc(ss, pg, tally):
         return bool(s_norm(r["Dan_Op"])) or i_or0(r["Dan_H"]) > 0 or i_or0(r["Dan_M"]) > 0 \
             or i_or0(r["La_H"]) > 0 or i_or0(r["La_M"]) > 0 or i_or0(r["P"]) > 0
 
-    old_work = [r for r in rows if is_work(r)]
-    log(f"  旧の作業記録行: {len(old_work)}行")
+    nc_cut = conversion_read_jst(pgc, "NC")
+    old_work_all = [r for r in rows if is_work(r)]
+    # 戻り(作業記録)の入力がコンバートより後 = コンバート時点には無かった
+    old_work = [r for r in old_work_all if not after(r["In_Date"], nc_cut) and not after(r["Out_Date"], nc_cut)]
+    nc_late = len(old_work_all) - len(old_work)
+    log(f"  旧の作業記録行: {len(old_work)}行(コンバート後({nc_cut})に旧で入力された {nc_late}行は比較対象外)")
 
     ssc.execute("SELECT m_id, Model FROM ACC_Machine")
     acc_machine = dict(ssc.fetchall())
@@ -511,7 +519,7 @@ def verify_nc(ss, pg, tally):
         return (n["work_date"], (n["setup_time_min"] or None, n["machining_time_min"] or None,
                                  n["quantity"] or None, s_norm(n["note"])))
 
-    stat = {"old": len(old_work), "paired": 0, "missing_in_new": 0, "new_only": 0, "no_program": 0}
+    stat = {"old": len(old_work), "paired": 0, "missing_in_new": 0, "new_only": 0, "no_program": 0, "after_conversion": nc_late}
     missing_list, new_only_list = [], []
     seen_prog = set()
     for kid, orows in old_by_kid.items():
@@ -574,7 +582,8 @@ def write_report(path_md, stats, tally_mc, tally_nc, extra):
         L.append(f"## {sysname}\n")
         L.append(f"- 旧の作業記録: {st['old']}件 / 対応付けできた: {st['paired']}件 / "
                  f"新に無し: {st['missing_in_new']}件 / 新のみ: {st['new_only']}件 / "
-                 f"プログラム無し(孤立): {st['no_program']}件\n")
+                 f"プログラム無し(孤立): {st['no_program']}件 / "
+                 f"コンバート後に旧で入力(比較対象外): {st.get('after_conversion', 0)}件\n")
         L.append("| 区分 | 項目 | 比較件数 | 不一致 |\n|---|---|---:|---:|")
         for it in ta.items.values():
             L.append(f"| {it['group']} | {it['label']} | {it['checked']} | {it['ng']} |")
@@ -650,7 +659,7 @@ def main():
             continue
         st = stats[sysname.lower()]
         print(f"=== {sysname}: 旧 {st['old']} / 対応 {st['paired']} / 新に無し {st['missing_in_new']} / "
-              f"新のみ {st['new_only']} / 孤立 {st['no_program']}")
+              f"新のみ {st['new_only']} / 孤立 {st['no_program']} / コンバート後に旧で入力(対象外) {st.get('after_conversion', 0)}")
         for it in ta.items.values():
             mark = "NG" if it["ng"] else "OK"
             print(f"  [{mark}] {it['group']:<14} {it['label']:<28} 比較 {it['checked']:>6}  不一致 {it['ng']:>6}")
