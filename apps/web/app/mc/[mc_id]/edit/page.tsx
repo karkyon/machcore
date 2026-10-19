@@ -365,6 +365,8 @@ export default function McEditPage() {
   const [pgDarkMode,      setPgDarkMode]      = useState(false);
   const [pgEditorReplace, setPgEditorReplace] = useState("");
   const [pgCreatedBy,     setPgCreatedBy]     = useState<string>("");
+  // [No.41] 「PG作成者」を画面で選び直したときだけ保存する(PGファイル登録で入った作成者を古い表示値で上書きしない)
+  const pgCreatedByDirtyRef = React.useRef(false);
   const [pgUpdatedAtDisp, setPgUpdatedAtDisp] = useState<string>("");
   const [pgUploading, setPgUploading] = useState(false);
   const [pgFileInfo, setPgFileInfo] = useState<{ originalName: string; fileCount: number; content: string } | null>(null);
@@ -971,11 +973,15 @@ export default function McEditPage() {
         note:           note || undefined,
         creator_id:     (creatorId && !isNaN(parseInt(creatorId))) ? parseInt(creatorId) : null,
         sheet_created_at: sheetCreatedAt || null,
+        ...(pgCreatedByDirtyRef.current
+          ? { pg_created_by: (pgCreatedBy && !isNaN(parseInt(pgCreatedBy))) ? parseInt(pgCreatedBy) : null }
+          : {}),
         nt1: nt1 || undefined,
         nt2: nt2 || undefined,
         nt3: nt3 || undefined,
         nt4: nt4 || undefined,
       } as any, token);
+      pgCreatedByDirtyRef.current = false;
       // ツーリング保存（DBのcamelCase → DTOのsnake_caseに変換）
       await mcApi.saveTooling(mcId, toolingRows.map((t: any, i: number) => ({
         sort_order:       i,
@@ -1459,7 +1465,7 @@ export default function McEditPage() {
                   <div className="px-4 py-3 grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.pgCreatorLabel", "PG作成者")}</label>
-                      <select value={pgCreatedBy} onChange={e => setPgCreatedBy(e.target.value)}
+                      <select value={pgCreatedBy} onChange={e => { pgCreatedByDirtyRef.current = true; setPgCreatedBy(e.target.value); }}
                         className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
                         <option value="">{tr("mcEditUi.selectOption", "— 選択 —")}</option>
                         {displayPgUsers

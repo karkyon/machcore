@@ -568,7 +568,7 @@ function DataPreview({
         <InfoBox title={tr("ncPrintPage.fileInfoTitle","ファイル情報")}>
           <InfoRow label={tr("ncPrintPage.folderLabel2","フォルダ")} value={nc.folderName} />
           <InfoRow label={tr("ncPrintPage.fileLabel2","ファイル")} value={nc.fileName} />
-          <InfoRow label={tr("ncPrintPage.registrarLabel","登録者")}   value={nc.registrar.name} />
+          <InfoRow label={tr("ncPrintPage.registrarLabel","登録者")}   value={nc.registrar?.name ?? "—"} />
           <InfoRow label={tr("ncPrintPage.approverLabel4","承認者")}   value={nc.approver?.name ?? tr("ncPrintPage.notApprovedShort3","未承認")} />
         </InfoBox>
       </div>

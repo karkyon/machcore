@@ -366,7 +366,7 @@ def compare_mc_pair(o, n, mcid, pid, tally, person, mres, uname, mcode, admin_id
         if unres:
             chk(G3, f"{lab}(usersに無く空欄)", False, ", ".join(unres), None)
 
-    exp_op = person.resolve(o.get("ｵﾍﾟﾚｰﾀｰ")) or admin_id
+    exp_op = person.resolve_first(o.get("ｵﾍﾟﾚｰﾀｰ"))  # users に無い名前は空欄(管理者で代替しない: No.41)
     chk(G1, "オペレーター", exp_op == n["operator_id"], s_norm(o.get("ｵﾍﾟﾚｰﾀｰ")), uname.get(n["operator_id"]))
 
     chk(G1, "プログラム担当", s_norm(o.get("Prg")) == s_norm(n["prg_man"]), s_norm(o.get("Prg")), n["prg_man"])

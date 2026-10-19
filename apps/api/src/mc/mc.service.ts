@@ -666,6 +666,7 @@ export class McService {
           cycleTimeSec:   dto.cycle_time_sec  !== undefined ? dto.cycle_time_sec  : mach.cycleTimeSec,
           commonPartCode: dto.common_part_code !== undefined ? dto.common_part_code : mach.commonPartCode,
           creatorId:      dto.creator_id      !== undefined ? dto.creator_id      : mach.creatorId,
+          pgCreatedBy:    dto.pg_created_by   !== undefined ? dto.pg_created_by   : mach.pgCreatedBy,
           sheetCreatedAt: dto.sheet_created_at !== undefined
             ? (dto.sheet_created_at ? new Date(dto.sheet_created_at) : null)
             : mach.sheetCreatedAt,

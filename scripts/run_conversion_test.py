@@ -8,6 +8,7 @@ run_conversion_test.py — 本番DB(machcore_dev)を一切変更せずにデー�
      (--skip-file-copy: 図・写真・プログラムの実ファイルには一切触れない)
   3. 新旧DB検証(verify_old_new_db.py / verify_nc_old_new_db.py)を試験用DBで実行し、HTMLレポートを作る
   4. 作業記録の新旧全件・全項目検証(verify_work_records.py)を試験用DBで実行する
+     担当者欄(PG作成者・作成者・オペレーター・承認者・履歴の操作者)の新旧全件比較(verify_user_fields_old_new.py)も行う
   5. これまでに直した不具合が解消しているかを項目ごとに確認する(OK/NG)
      ・候補マスタ(クランプ / NC加工リスト)は試験用DBで空にしてからコンバートし、投入されることを確かめる
   5. 試験用DBを削除する(--keep で残す)
@@ -171,6 +172,28 @@ def check_work_records(path):
                 check(f"WR-{sysname.upper()}", f"{sysname.upper()}作業記録 {g} {lab}", None, f"{ng}/{it['checked']}件")
 
 
+def check_user_fields(path):
+    """担当者欄の新旧全件比較(verify_user_fields_old_new.py)の結果。NG 0件で OK"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception as e:
+        check("CM-U3", "担当者欄の新旧全件比較", False, f"結果を読めません: {e}")
+        return
+    for s in d.get("summary", []):
+        ng = {k: v for k, v in s.items() if k.startswith("NG")}
+        okn = s.get("OK", 0)
+        check("CM-U3", f"担当者欄 {s['区分']} {s['項目']}", sum(ng.values()) == 0,
+              f"OK {okn}件" + (" / " + ", ".join(f"{k} {v}件" for k, v in ng.items()) if ng else "")
+              + (f" / 新で変更 {s['新で変更']}件" if s.get("新で変更") else ""))
+    for x in d.get("detail", []):
+        check("CM-U4", f"MCID={x.get('MCID')} PG作成者(No.41)", x.get("判定 PG作成者") == "OK",
+              f"旧prg='{x.get('旧 prg')}'({x.get('照合(prg)')}) → 新 {x.get('新 PG作成者')}")
+    m = d.get("meta", {})
+    check("CM-U5", "usersに無い旧担当者名(新では空欄)", None,
+          f"{m.get('照合できない旧担当者名')}件(一覧は {path[:-5]}.md)")
+
+
 def run_checks(test_dsn):
     import psycopg2
     from legacy_sheet_link import to_date
@@ -268,7 +291,13 @@ def run_checks(test_dsn):
     c.execute(r"SELECT version, COUNT(*) FROM mc_machining_details WHERE version !~ '^[0-9]+\.[0-9]{4}$' GROUP BY 1 ORDER BY 2 DESC LIMIT 8")
     check("MC-V1", "MCバージョンの形式", bad == 0, f"X.YYZZ形式外 {bad}件 {c.fetchall()}")
     adm = q1(c, "SELECT COUNT(*) FROM mc_programs p JOIN users u ON u.id=p.registered_by WHERE u.employee_code='ADMIN001'")
-    check("MC-O1", "MCオペレーターが管理者で代替された件数(No.3)", None, f"{adm}件(旧のオペレーター名がusersに無いもの)")
+    nul = q1(c, "SELECT COUNT(*) FROM mc_programs WHERE registered_by IS NULL")
+    check("MC-O1", "MCオペレーター 管理者/空欄の件数(No.3/No.41)", None,
+          f"管理者 {adm}件 / 空欄 {nul}件(旧が空欄・usersに無い名前は空欄が正。正否は担当者欄の新旧全件比較 CM-U*)")
+    adm = q1(c, "SELECT COUNT(*) FROM mc_machining_details d JOIN users u ON u.id=d.pg_created_by WHERE u.employee_code='ADMIN001'")
+    nul = q1(c, "SELECT COUNT(*) FROM mc_machining_details WHERE pg_created_by IS NULL")
+    tot = q1(c, "SELECT COUNT(*) FROM mc_machining_details")
+    check("MC-P1", "MC PG作成者 管理者/空欄の件数(No.41)", None, f"管理者 {adm}件 / 空欄 {nul}件 / 全 {tot}件")
 
     # MC: 結び付かない作業記録の内訳(旧データで判定)
     sc.execute("""SELECT MCID, 内容, 内容区分ID, 入力日, R_IN_DATE, 総時間 FROM ACC_変更履歴 ORDER BY MCID, 入力日""")
@@ -334,7 +363,8 @@ def run_checks(test_dsn):
         check("CM-U2", f"旧の「{alias}」→ {code}", uid > 0 and n > 0, f"users.id={uid} 作業記録で担当者 {n}件")
     adm_wr = q1(c, """SELECT COUNT(*) FROM work_records w JOIN users u ON u.id=w.operator_id
                        WHERE w.mc_program_id IS NOT NULL AND u.employee_code='ADMIN001'""")
-    check("MC-O2", "MC作業記録の操作者が管理者で代替された件数", None, f"{adm_wr}件(旧のオペレーター名がusersに無いもの)")
+    nul_wr = q1(c, "SELECT COUNT(*) FROM work_records WHERE mc_program_id IS NOT NULL AND operator_id IS NULL")
+    check("MC-O2", "MC作業記録の操作者 管理者/空欄の件数", None, f"管理者 {adm_wr}件 / 空欄 {nul_wr}件(usersに無い名前は空欄が正)")
     pg.close(); ss.close()
 
 
@@ -395,9 +425,12 @@ def main():
         sh([py, "generate_verify_report_nc.py", "--in", nj, "--out", nj.replace(".json", ".html")], env=env, label="NC検証レポート")
         wb = os.path.join(OUT_DIR, f"convtest_work_records_{ts}")
         sh([py, "verify_work_records.py", "--target", "all", "--out", wb], env=env, label="作業記録 新旧全件検証")
+        uj = os.path.join(OUT_DIR, f"convtest_user_fields_{ts}.json")
+        sh([py, "verify_user_fields_old_new.py", "--out", uj], env=env, label="担当者欄 新旧全件比較")
         summarize_verify(mj, "MC"); summarize_verify(nj, "NC")
         run_checks(test_dsn)
         check_work_records(wb + ".json")
+        check_user_fields(uj)
     except Exception as e:
         ok = False
         out(f"\n!!! 試験を中断: {e}")

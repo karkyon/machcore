@@ -262,6 +262,9 @@ def phase1(pg, dry_run=False):
     # [IP 有･無], [WD 有･無], 写真枚数, RC, 図枚数, ｵﾍﾟﾚｰﾀｰ,
     # IN_DATE, 作成, S_DATE, prg
     # ※ カンマ・スペース含むカラムは角括弧でエスケープ必須
+    # 担当者欄(1人欄)はすべて name_match.PersonResolver.resolve_first で照合する
+    #   (全角/半角・空白のゆれ、通称、同姓同名、複数名併記は先頭)。users に無い名前は空欄(管理者で代替しない)
+    #   作成者=作成 / オペレーター=ｵﾍﾟﾚｰﾀｰ / 承認者=氏名 / PG作成者=prg
     mcc.execute("""
         SELECT
             mc.部品ID, mc.MCID, mc.加工ID,
@@ -272,7 +275,8 @@ def phase1(pg, dry_run=False):
             m.写真枚数, m.RC, m.図枚数,
             m.ｵﾍﾟﾚｰﾀｰ, m.IN_DATE,
             m.作成, m.S_DATE,
-            m.氏名, m.入力日
+            m.氏名, m.入力日,
+            m.prg
         FROM ACC_MC mc
         INNER JOIN ACC_マシニングraw m ON mc.加工ID = m.加工ID
         ORDER BY mc.MCID
@@ -282,7 +286,16 @@ def phase1(pg, dry_run=False):
 
     ok = skip = err = 0
     from datetime import timedelta as _p1td
-    _p1_unresolved_op = {}
+    _p1_unresolved = {}  # 欄 → {旧の名前: 件数}(users に無く空欄にしたもの)
+
+    def _p1_one(raw, label):
+        uid = _p1_person.resolve_first(raw)
+        if uid is None and raw is not None and str(raw).strip():
+            _d = _p1_unresolved.setdefault(label, {})
+            _k = str(raw).strip()
+            _d[_k] = _d.get(_k, 0) + 1
+        return uid
+
     for row in rows:
         try:
             # 列順(28列):
@@ -294,7 +307,7 @@ def phase1(pg, dry_run=False):
             # 写真枚数, RC, 図枚数,
             # ｵﾍﾟﾚｰﾀｰ(名前), IN_DATE,
             # 作成(シート作成者名), S_DATE(シート作成日),
-            # 氏名(承認者名), 入力日(承認日)
+            # 氏名(承認者名), 入力日(承認日), prg(PG作成者名)
             (buhin_id, mcid, kakoid,
              version, process_no, path1, path2, file_name,
              main_pg_no, machine_name, time_h, time_m, time_s,
@@ -303,7 +316,8 @@ def phase1(pg, dry_run=False):
              photo_cnt, rc, draw_cnt,
              operater_name, in_date,
              creator_name, sheet_created_at,
-             approver_name, approved_date) = row
+             approver_name, approved_date,
+             pg_creator_name) = row
 
             part_db_id = parts_map.get(str(buhin_id))
             if not part_db_id: skip += 1; continue
@@ -319,16 +333,16 @@ def phase1(pg, dry_run=False):
             has_wd = str(wd_umu or "").strip() not in ("ﾅｼ", "なし", "0", "")
 
             # ① 作成者(シート): 作成列名前→ID (直接解決)
-            cr_id           = _p1_resolve(creator_name)
+            cr_id           = _p1_one(creator_name, "作成者(作成)")
             # ⑤ オペレーター(=このマシニングデータを画面入力した人): ｵﾍﾟﾚｰﾀｰ列が唯一の正。
             #    変更履歴(段取シート印刷者・作成者等)による上書き・補完は一切行わない。
-            reg_id          = _p1_resolve(operater_name)
-            if reg_id is None:
-                _k = str(operater_name or "").strip() or "(空欄)"
-                _p1_unresolved_op[_k] = _p1_unresolved_op.get(_k, 0) + 1
-                reg_id = ADMIN_ID
+            #    users に無い名前・空欄は空欄のまま(管理者で代替しない: No.41)
+            reg_id          = _p1_one(operater_name, "オペレーター(ｵﾍﾟﾚｰﾀｰ)")
             # ③ 承認者: 氏名列が唯一の正(変更履歴による上書き・補完は行わない)
-            approver_id     = _p1_resolve(approver_name)
+            approver_id     = _p1_one(approver_name, "承認者(氏名)")
+            # ⑦ PG作成者: prg 列が唯一の正(段取シート作成者[作成]ではない)。
+            #    プログラム実ファイルの有無・コピーの有無に関係なくここで設定する(No.41)
+            pg_creator_id   = _p1_one(pg_creator_name, "PG作成者(prg)")
             # ④ 承認日: 入力日列(マシニング)。無ければ未設定(IN_DATEを流用しない)。
             #    旧DBはJSTのnaive datetime → UTCで格納(PHASE6と同じ -9h 規則。画面はJST表示)
             approved_at_v   = (approved_date - _p1td(hours=9)) if approved_date else None
@@ -345,9 +359,9 @@ def phase1(pg, dry_run=False):
                     clamp_note, cycle_time_sec, mc_process_no,
                     folder1, folder2, file_name,
                     has_index_program, has_work_offset, rc,
-                    creator_id, sheet_created_at,
+                    creator_id, sheet_created_at, pg_created_by,
                     legacy_kakoid, created_at, updated_at
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())
                 ON CONFLICT (machining_id) DO UPDATE SET
                     version=EXCLUDED.version, machine_id=EXCLUDED.machine_id,
                     o_number=EXCLUDED.o_number, clamp_note=EXCLUDED.clamp_note,
@@ -356,6 +370,7 @@ def phase1(pg, dry_run=False):
                     has_index_program=EXCLUDED.has_index_program, has_work_offset=EXCLUDED.has_work_offset,
                     rc=EXCLUDED.rc, creator_id=EXCLUDED.creator_id,
                     sheet_created_at=EXCLUDED.sheet_created_at,
+                    pg_created_by=EXCLUDED.pg_created_by,
                     legacy_kakoid=EXCLUDED.legacy_kakoid, updated_at=NOW()
             """, (kakoid, ver_str, machine_db_id, main_pg_no,
                   clamp, ct_sec, process_no,
@@ -363,7 +378,7 @@ def phase1(pg, dry_run=False):
                   str(path2) if path2 is not None else None,
                   str(file_name) if file_name else None,
                   has_ip, has_wd, int(rc or 0),
-                  cr_id, sheet_created_at, kakoid))
+                  cr_id, sheet_created_at, pg_creator_id, kakoid))
 
             pgc.execute("""
                 INSERT INTO mc_programs (
@@ -386,12 +401,15 @@ def phase1(pg, dry_run=False):
     if not dry_run: pg.commit()
     pgc.execute("SELECT COUNT(*) FROM mc_programs")
     log(f"PHASE1完了: ok={ok} skip={skip} err={err} DB総数={pgc.fetchone()[0]}")
-    if _p1_unresolved_op:
-        log(f"  [WARN] オペレーター名がusersに無く管理者で代替: "
-            f"{sum(_p1_unresolved_op.values())}件 / 名前一覧: "
-            + ", ".join(f"{k}({v})" for k, v in sorted(_p1_unresolved_op.items(), key=lambda x: -x[1])), "WARN")
-    else:
-        log("  オペレーター名は全件usersで解決")
+    for _lab in ("オペレーター(ｵﾍﾟﾚｰﾀｰ)", "承認者(氏名)", "作成者(作成)", "PG作成者(prg)"):
+        _d = _p1_unresolved.get(_lab)
+        if _d:
+            log(f"  [WARN] {_lab}: 旧の名前がusersに無く空欄: {sum(_d.values())}件 / 名前一覧: "
+                + ", ".join(f"{k}({v})" for k, v in sorted(_d.items(), key=lambda x: -x[1])), "WARN")
+        else:
+            log(f"  {_lab}: 旧の名前は全件usersで解決")
+    if _p1_person.ambiguous:
+        log(f"  [WARN] 同姓同名で担当者が決まらず空欄にした名前: {_p1_person.ambiguous}", "WARN")
     if machine_resolver.unresolved:
         log(f"  [WARN] 機械名がmachinesマスタに無く機械が空欄: "
             f"{sum(machine_resolver.unresolved.values())}件 / 名前一覧: "
@@ -695,7 +713,9 @@ def phase6(pg, dry_run=False):
     # 担当者名 → users.id (全角/半角・空白の表記ゆれを正規化、複数名併記は分割して照合: name_match.py)
     _person = PersonResolver.from_db(pgc, system="MC")
     _resolve = _person.resolve
+    _resolve1 = _person.resolve_first  # 1人欄(操作者・作成者・承認者)。users に無い名前は空欄(No.41)
     _unresolved_work_names = {}
+    _unresolved_hist_op = {}  # 履歴のｵﾍﾟﾚｰﾀｰ(印刷/変更/作業記録の操作者)が users に無く空欄にした名前
 
     def _resolve_multi(raw_val):
         ids, unres = _person.resolve_multi(raw_val)
@@ -798,9 +818,12 @@ def phase6(pg, dry_run=False):
             approver_name=str(rd["承認"]    or "").strip()
             machine_name= str(rd["機械"]    or "").strip()
 
-            op_id       = _resolve(op_name) or ADMIN_ID
-            creator_id  = _resolve(creator_name) or ADMIN_ID
-            approver_id = _resolve(approver_name) if approver_name else None
+            # users に無い名前・空欄は空欄(None)のまま。管理者で代替しない(No.41)
+            op_id       = _resolve1(op_name)
+            creator_id  = _resolve1(creator_name)
+            approver_id = _resolve1(approver_name) if approver_name else None
+            if op_name and op_id is None:
+                _unresolved_hist_op[op_name] = _unresolved_hist_op.get(op_name, 0) + 1
             machine_id  = _machine_resolver.resolve(machine_name)
 
             # ━━ work_collected 判定 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -866,7 +889,7 @@ def phase6(pg, dry_run=False):
                 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 if nk in (2,4,5,6,8,9,10,11,13,14,15,16,99) and not dry_run:
                     # 変更履歴の操作者 = その行を入力した人(ｵﾍﾟﾚｰﾀｰ列)。空欄時のみ作成者。
-                    _ch_inputter = _resolve(op_name)
+                    _ch_inputter = op_id
                     if nk in (2, 8):
                         change_type = "NEW_REGISTRATION"
                         ch_op_id = _ch_inputter or creator_id
@@ -878,7 +901,7 @@ def phase6(pg, dry_run=False):
                     else:
                         change_type = "CHANGE"
                         ch_op_id = _ch_inputter or creator_id
-                    if ch_op_id is None: ch_op_id = ADMIN_ID
+                    # 入力者・作成者とも users に無ければ空欄(管理者で代替しない: No.41)
 
                     changed_at_val = (input_dt_ch if nk == 4 else input_dt) or _utcnow()
 
@@ -929,7 +952,7 @@ def phase6(pg, dry_run=False):
                     # 担当者
                     setup_ids = _resolve_multi(rd["段取"])
                     prod_ids  = _resolve_multi(rd["作業者"])
-                    work_op_id = _resolve(rd["ｵﾍﾟﾚｰﾀｰ"]) or ADMIN_ID
+                    work_op_id = op_id  # ｵﾍﾟﾚｰﾀｰ。users に無ければ空欄(No.41)
 
                     # 時刻 (SQL Serverから来るJSTのnaive datetime/varchar)
                     def _parse_dt(v):
@@ -1008,6 +1031,10 @@ def phase6(pg, dry_run=False):
     log(f"  作業記録のうち段取シートに結び付けた件数: {wr_linked}/{wr_ok}")
     log(f"PHASE6完了: 入力={row_count} skip={sl_skip} SL_err={sl_err} CH_err={ch_err} WR_err={wr_err}")
     log(f"  [印刷履歴={sl_ok} / 変更履歴={ch_ok} / 作業実績={wr_ok}]")
+    if _unresolved_hist_op:
+        log(f"  [WARN] 履歴のｵﾍﾟﾚｰﾀｰ(印刷/変更/作業記録の操作者)がusersに無く空欄: "
+            f"{sum(_unresolved_hist_op.values())}件 / 名前一覧: "
+            + ", ".join(f"{k}({v}件)" for k, v in sorted(_unresolved_hist_op.items(), key=lambda x: -x[1])), "WARN")
     if _unresolved_work_names:
         log(f"  [WARN] 段取/作業者/チェック担当の名前がusersに無く担当者欄に入らなかった名前: "
             + ", ".join(f"{k}({v}件)" for k, v in sorted(_unresolved_work_names.items(), key=lambda x: -x[1])), "WARN")
@@ -1023,8 +1050,10 @@ def phase6(pg, dry_run=False):
         # 「オペレーター(=入力者)」「承認者」と別人になっていた(例: MCID=9215)。
         # 正は ACC_マシニングraw の ｵﾍﾟﾚｰﾀｰ/IN_DATE/氏名/入力日 であり、PHASE1で設定済み。
         log("PHASE6B: オペレーター/入力日/承認者/承認日はPHASE1(ACC_マシニングraw)の値を正とし、変更履歴での上書きは行いません")
+        pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE registered_by IS NULL")
+        log(f"  オペレーター空欄(旧が空欄・usersに無い名前): {pgc.fetchone()[0]}件")
         pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE registered_by = %s", (ADMIN_ID,))
-        log(f"  オペレーター未解決(管理者代替): {pgc.fetchone()[0]}件")
+        log(f"  オペレーター=管理者: {pgc.fetchone()[0]}件(旧の名前が管理者のもののみのはず)")
         pgc.execute("SELECT COUNT(*) FROM mc_programs WHERE approved_by IS NOT NULL")
         log(f"  承認者あり: {pgc.fetchone()[0]}件")
         mc6c = ss_connect(SS_MC_DB)
@@ -1047,7 +1076,7 @@ def phase6(pg, dry_run=False):
         _mach_sheet_map = {}
         for _mcid, _kakoid, _sakusha, _sakusha_date in mc6c_c.fetchall():
             if _kakoid and _kakoid not in _mach_sheet_map:
-                _creator_id = _resolve(_sakusha)
+                _creator_id = _resolve1(_sakusha)
                 if _creator_id and _sakusha_date:
                     _mach_sheet_map[_kakoid] = (_sakusha_date, _creator_id)
         _sheet_ok = 0
@@ -1215,7 +1244,7 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
             pgc.execute("""
                 UPDATE mc_machining_details
                 SET pg_is_folder = false, pg_folder_name = NULL,
-                    pg_created_by = NULL, pg_updated_at = NULL
+                    pg_updated_at = NULL
             """)
         else:
             pgc.execute("DELETE FROM mc_files")
@@ -1259,42 +1288,15 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
         machining_map.setdefault(mach_id, []).append(mc_id)
     log(f"machining_id種類: {len(machining_map)}件")
 
-    # ── プログラムファイル取得元: 作成者(作成)/作成日(S_DATE)をACC_マシニングrawから取得 ──
-    # PHASE1ではこの2列を mc_machining_details.creator_id / sheet_created_at（段取シート用）に
-    # 流用しているため、PHASE7では別途SQL Serverへ直接問い合わせて
-    # mc_files.uploaded_by / uploaded_at に正確な値を反映する。
-    from datetime import timedelta as _td7
-    log("プログラムファイル作成者・作成日（ACC_マシニングraw）取得中...")
-    _mc_prg = ss_connect(SS_MC_DB)
-    _mc_prg_c = _mc_prg.cursor()
-    # ★訂正: PG作成者は [作成](段取シート作成者)ではなく [prg] 列が正しい。
-    #   PG更新日時も固定列値ではなく実ファイルのファイルシステム更新日時(mtime)を使う
-    #   仕様のため、ここでは prg(作成者名) のみ取得する。日付はコピー時にmtimeから取得する。
-    _mc_prg_c.execute("""
-        SELECT 加工ID, ﾌｫﾙﾀﾞ1, ﾌｫﾙﾀﾞ2, ﾌｧｲﾙ名, prg
-        FROM ACC_マシニングraw
-        WHERE ﾌｧｲﾙ名 IS NOT NULL AND ﾌｫﾙﾀﾞ1 IS NOT NULL AND ﾌｧｲﾙ名 != ''
-    """)
-    _prg_creator_rows = _mc_prg_c.fetchall()
-    _mc_prg.close()
-    log(f"  取得: {len(_prg_creator_rows)}件")
-
-    # users.name → id 解決マップ（PHASE6と同じ正規化ロジック）
-    pgc.execute("SELECT id, name FROM users")
-    _u7_rows = pgc.fetchall()
-    _u7_exact = {r[1]: r[0] for r in _u7_rows}
-    _u7_norm  = {re.sub(r"[\s\u3000]+", " ", r[1]).strip(): r[0] for r in _u7_rows}
-    def _resolve_pg_creator(raw_val):
-        if not raw_val: return None
-        val = str(raw_val).strip()
-        if val in _u7_exact: return _u7_exact[val]
-        normed = re.sub(r"[\s\u3000]+", " ", val).strip()
-        return _u7_norm.get(normed)
-
-    # 加工ID → PG作成者名 のマップ（日付はファイルmtimeから別途取得するためここでは持たない）
-    pg_creator_map: dict[int, str] = {}
-    for _kakoid7, _f1, _f2, _fname, _creator_raw in _prg_creator_rows:
-        pg_creator_map[_kakoid7] = _creator_raw
+    # ── PG作成者: PHASE1 で ACC_マシニングraw.prg → mc_machining_details.pg_created_by を設定済み ──
+    #   (旧: ここで prg を独自の照合(空白のゆれだけ。全角/半角・半角カナ・通称・複数名は見ない)で
+    #    引き直し、引けない/空欄だと管理者を入れていたため、編集画面のPG作成者が「管理者」に
+    #    なっていた: フィードバックNo.41)
+    #   PG更新日時は実ファイルのファイルシステム更新日時(mtime)をコピー時に取得する(従来どおり)。
+    #   mc_files.uploaded_by は必須列のため、PG作成者が空欄のときだけ管理者を入れる
+    #   (取込の記録用。画面の「PG作成者」は pg_created_by を表示し、ここは使わない)。
+    pgc.execute("SELECT machining_id, pg_created_by FROM mc_machining_details")
+    pg_creator_map = dict(pgc.fetchall())
 
     # ── (folder1, folder2) → 実ディレクトリパスを直接構築 ──
     # 旧VBA仕様: SSPrg & folder1 & "\" & folder1 & folder2
@@ -1446,8 +1448,7 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
             notfound += 1
             continue
 
-        _creator_raw = pg_creator_map.get(mach_id)
-        _uploaded_by = _resolve_pg_creator(_creator_raw) or ADMIN_ID
+        _uploaded_by = pg_creator_map.get(mach_id) or ADMIN_ID  # mc_files.uploaded_by(必須列)用
 
         # 仕様:
         #   src_itemがディレクトリ → Programs/{mach_id}/{元フォルダ名}/{files}
@@ -1513,9 +1514,9 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
                         pass
                 if err <= 10: log(f"  ERR {mach_id}/{src_file.name}: {e}", "WARN")
         if copied_any:
-            # ★編集モードの「PG作成者」「PG更新日時」欄が空欄になる問題を解消:
-            #   mc_machining_details.pg_created_by / pg_updated_at に同期する。
-            #   (mc_files.uploaded_by/uploaded_at とは別カラムで、編集モードが参照するのはこちら)
+            # ★編集モードの「PG更新日時」欄が空欄になる問題を解消:
+            #   mc_machining_details.pg_updated_at に同期する。
+            #   (PG作成者 pg_created_by は PHASE1 で prg から設定済み。ここでは変えない: No.41)
             # ★根本対応: src_itemがディレクトリだった時点でフォルダ単位アップロード相当と確実に
             #   判別できているにも関わらず、従来はpg_is_folder/pg_folder_nameを一切更新しておらず、
             #   PG->USB機能がインポート済みデータをすべて「単体ファイル」と誤判定していた。
@@ -1525,10 +1526,10 @@ def phase7(pg, dry_run=False, force_copy=False, prg_only=False):
                 try:
                     pgc.execute("""
                         UPDATE mc_machining_details
-                        SET pg_created_by = %s, pg_updated_at = %s,
+                        SET pg_updated_at = %s,
                             pg_is_folder = %s, pg_folder_name = %s
                         WHERE machining_id = %s
-                    """, (_uploaded_by, _uploaded_at, _is_folder_import, _folder_name_import, mach_id))
+                    """, (_uploaded_at, _is_folder_import, _folder_name_import, mach_id))
                 except Exception as e:
                     err += 1
                     try:

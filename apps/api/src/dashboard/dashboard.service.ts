@@ -46,7 +46,7 @@ export class DashboardService {
       machine_sort:  s.ncProgram.machining?.machine?.sortOrder ?? 999,
       version:       s.version ?? null,
       printed_at:    s.printedAt,
-      operator_name: s.operator.name,
+      operator_name: s.operator?.name ?? null,
     }));
     return { total: items.length, items };
   }
@@ -88,7 +88,7 @@ export class DashboardService {
       machine_sort:   s.machine?.sortOrder ?? 999,
       version:        s.version ?? null,
       printed_at:     s.printedAt,
-      operator_name:  s.operator.name,
+      operator_name:  s.operator?.name ?? null,
       is_reference:   (s as any).isReference ?? false,
       sheet_type:     (s as any).sheetType ?? null,
     }));

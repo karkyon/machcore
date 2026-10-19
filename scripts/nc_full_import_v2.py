@@ -66,7 +66,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from machine_name_match import MachineResolver  # ACC_Machine.Model(全角/半角・大小文字・ハイフンのゆれ) → machines.id
-from name_match import PersonResolver  # 旧担当者名(全角/半角・空白のゆれ、複数名併記) → users.id
+from name_match import PersonResolver, staff_id_map_from_rows, staff_uid  # 旧担当者名/旧担当者ID → users.id
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 設定
@@ -180,24 +180,10 @@ def build_staff_id_map(pgc, ssc):
     """旧 ACC_Staff.St_id → users.id。
     ① 社員コード STAFF{St_id:03d}(旧システムから移した利用者の規則)
     ② ①が無い(社員コードを振り直した等)ときは氏名で照合(name_match.py、同姓同名は通称の表/系統NCで決める)
-    返り値: (staff_id_map, 未対応の (St_id, 氏名) 一覧)"""
-    pgc.execute("SELECT id, employee_code FROM users")
-    code_to_userid = {r[1]: r[0] for r in pgc.fetchall()}
-    person = PersonResolver.from_db(pgc, system="NC")
+    返り値: (staff_id_map, 未対応の (St_id, 氏名) 一覧)
+    照合は name_match.staff_id_map_from_rows(検証 verify_user_fields_old_new.py と共通)"""
     ssc.execute("SELECT St_id, S_name FROM ACC_Staff")
-    staff_id_map, unmatched = {}, []
-    for st_id, s_name in ssc.fetchall():
-        try:
-            code = f"STAFF{int(st_id):03d}"
-        except (TypeError, ValueError):
-            continue
-        uid = code_to_userid.get(code) or person.resolve(s_name)
-        if uid is not None:
-            staff_id_map[st_id] = uid
-            staff_id_map[int(st_id)] = uid   # 参照側(Out_Op/In_Op等)の型の違いに備えて整数でも引けるように
-        else:
-            unmatched.append((st_id, s_name))
-    return staff_id_map, unmatched
+    return staff_id_map_from_rows(pgc, ssc.fetchall(), system="NC")
 
 def _resolve_admin_id_nc():
     """users.employee_code='ADMIN001' のidを実行時に取得し、NC側の2つのADMIN定数に反映する。"""
@@ -286,7 +272,7 @@ def phase1(pg, dry_run=False):
     staff_unmatched = len(_staff_unmatched)
     log(f"ACC_Staff: users対応 {len({int(k) for k in staff_id_map})}件, 未対応: {staff_unmatched}件")
     if staff_unmatched > 0:
-        log(f"  [WARN] 未対応St_id(管理者で代替): " + ", ".join(f"{a}:{b}" for a, b in _staff_unmatched), "WARN")
+        log(f"  [WARN] 未対応St_id(担当者欄は空欄): " + ", ".join(f"{a}:{b}" for a, b in _staff_unmatched), "WARN")
 
     # ── ① ACC_Lathe単位(K_id単位)でnc_machining_detailsを構築 ──
     ssc.execute("""
@@ -413,7 +399,7 @@ def phase1(pg, dry_run=False):
 
             rp, rd_ = lathe_reco.get(kid_i, (None, None))
 
-            registered_by = staff_id_map.get(rp, ADMIN_FALLBACK_ID)
+            registered_by = staff_uid(staff_id_map, rp)  # users に無ければ空欄(管理者で代替しない: No.41)
             registered_at = to_jst_utc(rd_) if rd_ else datetime(2005, 1, 1)
 
             if dry_run:
@@ -665,7 +651,7 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
             if ("印刷" in out_cont_s or is_new_sheet) and out_date_utc:
                 sheet_collected = not (in_cont is None and (out_cont_s.startswith("印刷") or is_new_sheet))
                 sheet_type = "NEW" if is_new_sheet else "REPEAT"
-                op_id = staff_id_map.get(out_op, ADMIN_FALLBACK_ID)
+                op_id = staff_uid(staff_id_map, out_op)  # users に無ければ空欄(No.41)
                 out_ver_str = legacy_nc_ver_to_version(out_ver)
                 for idx, prog_id in enumerate(program_ids):
                     try:
@@ -711,7 +697,7 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
                 for _nm in setup_unres + prod_unres:
                     unresolved_op_names[_nm] = unresolved_op_names.get(_nm, 0) + 1
                 work_op_id = ((setup_ids[0] if setup_ids else None) or (prod_ids[0] if prod_ids else None)
-                              or staff_id_map.get(in_op, ADMIN_FALLBACK_ID))
+                              or staff_uid(staff_id_map, in_op))  # 誰もいなければ空欄(No.41)
                 setup_operator_ids_json = _json.dumps(setup_ids)
                 production_operator_ids_json = _json.dumps(prod_ids)
                 work_machine_id = machine_id_map.get(mc_raw) if mc_raw is not None else None
@@ -749,7 +735,7 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
             # ── C: change_history（In_Cont が新規登録/仮登録/変更/承認）→ 対応する全NcProgramに複製 ──
             is_nc_change = any(kw in in_cont_s for kw in ("新規登録", "仮登録", "変更", "承認"))
             if is_nc_change and in_date_utc:
-                op_id = staff_id_map.get(in_op, ADMIN_FALLBACK_ID)
+                op_id = staff_uid(staff_id_map, in_op)  # users に無ければ空欄(No.41)
                 ver_before = legacy_nc_ver_to_version(out_ver)
                 ver_after = legacy_nc_ver_to_version(in_ver)
                 field_changes = None
@@ -857,10 +843,7 @@ def phase4(pg, dry_run=False):
     # 承認者(旧In_Op = ACC_Staff.St_id → users.id。PHASE1/3と同じ build_staff_id_map)
     _staff_map4, _ = build_staff_id_map(pgc, ssc)
     def _approver_uid(st_id):
-        try:
-            return _staff_map4.get(st_id) or _staff_map4.get(int(st_id))
-        except (TypeError, ValueError):
-            return None
+        return staff_uid(_staff_map4, st_id)
     stat_approver = 0
     log(f"nc_programs取得: {len(program_rows)}件")
 

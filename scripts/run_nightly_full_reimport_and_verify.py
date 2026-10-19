@@ -11,6 +11,7 @@ UAT再実施に向けた、MC・NC両系統の「全データ再投入 → 検�
   2. nc_full_import_v2.py --phase 0  (NC: 全フェーズ本番実行)
   3. run_verify_all.py               (MC: DB比較 + HTMLレポート生成)
   4. run_verify_nc_all.py            (NC: DB比較 + HTMLレポート生成)
+  5. verify_user_fields_old_new.py   (MC/NC: 担当者欄の新旧全件比較)
 
 各ステップは前段が異常終了(returncode!=0)した場合、後続をスキップして停止する
 (中途半端な状態のままインポート・検証が進行することを防ぐため)。
@@ -158,6 +159,12 @@ def main():
             steps.append(("NCレポート生成", rc2, el2, st2))
             if rc2 == 0:
                 nc_html = html_path
+
+    # 担当者欄(PG作成者・作成者・オペレーター・承認者・履歴の操作者)の新旧全件比較(No.41)
+    uj = os.path.join(OUT_DIR, f"user_fields_{ts}.json")
+    rc, el, st = run([py, os.path.join(HERE, "verify_user_fields_old_new.py"), "--out", uj],
+                     "担当者欄 新旧全件比較 (verify_user_fields_old_new.py)")
+    steps.append(("担当者欄 新旧全件比較", rc, el, st))
 
     write_summary(ts, steps, aborted=False, mc_html=mc_html, nc_html=nc_html)
 

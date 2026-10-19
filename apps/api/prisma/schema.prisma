@@ -226,7 +226,8 @@ model NcProgram {
   partId        Int                                          @map("part_id")
   machiningId   Int                                          @map("machining_id")
   status        NcProgramStatus @default(NEW)
-  registeredBy  Int                                          @map("registered_by")
+  // [No.41] 旧担当者が users に無い場合は空欄(管理者で代替しない)
+  registeredBy  Int?                                         @map("registered_by")
   approvedBy    Int?                                         @map("approved_by")
   registeredAt  DateTime        @default(now())              @map("registered_at")
   approvedAt    DateTime?                                    @map("approved_at")
@@ -238,7 +239,7 @@ model NcProgram {
 
   part           Part               @relation(fields: [partId],       references: [id])
   machining      NcMachiningDetail  @relation(fields: [machiningId],  references: [kId])
-  registrar      User               @relation("RegisteredBy", fields: [registeredBy], references: [id])
+  registrar      User?              @relation("RegisteredBy", fields: [registeredBy], references: [id], onDelete: Restrict)
   approver       User?              @relation("ApprovedBy",  fields: [approvedBy],   references: [id])
   files          NcFile[]
   changeHistory  ChangeHistory[]
@@ -316,7 +317,7 @@ model ChangeHistory {
   id            Int        @id @default(autoincrement())
   ncProgramId   Int                        @map("nc_program_id")
   changeType    ChangeType                 @map("change_type")
-  operatorId    Int                        @map("operator_id")
+  operatorId    Int?                       @map("operator_id")
   versionBefore String?    @db.VarChar(10) @map("version_before")
   versionAfter  String?    @db.VarChar(10) @map("version_after")
   content       String?    @db.Text
@@ -324,7 +325,7 @@ model ChangeHistory {
   changedAt     DateTime   @default(now()) @map("changed_at")
   legacyHistId  Int?                       @map("legacy_hist_id")
   ncProgram     NcProgram  @relation(fields: [ncProgramId], references: [id])
-  operator      User       @relation(fields: [operatorId],  references: [id])
+  operator      User?      @relation(fields: [operatorId],  references: [id], onDelete: Restrict)
   @@index([ncProgramId, changedAt])
   @@index([legacyHistId])
   @@map("change_history")
@@ -334,7 +335,7 @@ model WorkRecord {
   id               Int      @id @default(autoincrement())
   ncProgramId      Int?                      @map("nc_program_id")
   mcProgramId      Int?                      @map("mc_program_id")
-  operatorId       Int                       @map("operator_id")
+  operatorId       Int?                      @map("operator_id")
   machineId        Int?                      @map("machine_id")
   workDate         DateTime @db.Date         @map("work_date")
   setupTimeMin     Int?                      @map("setup_time_min")
@@ -369,7 +370,7 @@ model WorkRecord {
   createdAt        DateTime @default(now())  @map("created_at")
   ncProgram        NcProgram? @relation(fields: [ncProgramId], references: [id])
   mcProgram        McProgram? @relation(fields: [mcProgramId], references: [id])
-  operator         User       @relation(fields: [operatorId],  references: [id])
+  operator         User?      @relation(fields: [operatorId],  references: [id], onDelete: Restrict)
   machine          Machine?   @relation(fields: [machineId],   references: [id])
   ncSetupSheetLog   SetupSheetLog?   @relation(fields: [ncSetupSheetLogId], references: [id])
   mcSetupSheetLog   McSetupSheetLog? @relation(fields: [mcSetupSheetLogId], references: [id])
@@ -382,7 +383,7 @@ model WorkRecord {
 model SetupSheetLog {
   id          Int      @id @default(autoincrement())
   ncProgramId Int                        @map("nc_program_id")
-  operatorId  Int                        @map("operator_id")
+  operatorId  Int?                       @map("operator_id")
   printedAt   DateTime @default(now())   @map("printed_at")
   version     String?  @db.VarChar(10)
   pdfPath        String?  @db.VarChar(500)  @map("pdf_path")
@@ -400,7 +401,7 @@ model SetupSheetLog {
   machineIdLog   Int?                       @map("machine_id_log")
   purpose        String?  @db.VarChar(20)  @map("purpose")
   ncProgram   NcProgram @relation(fields: [ncProgramId], references: [id])
-  operator    User      @relation(fields: [operatorId],  references: [id])
+  operator    User?     @relation(fields: [operatorId],  references: [id], onDelete: Restrict)
   workRecords WorkRecord[]
   @@index([ncProgramId, printedAt])
   @@map("setup_sheet_logs")
@@ -527,7 +528,8 @@ model McProgram {
   note          String?         @db.Text
   status        McProgramStatus @default(NEW)
   preChangingStatus McProgramStatus?                         @map("pre_changing_status")
-  registeredBy  Int                                          @map("registered_by")
+  // [No.41] 旧オペレーターが users に無い場合は空欄(管理者で代替しない)
+  registeredBy  Int?                                         @map("registered_by")
   approvedBy    Int?                                         @map("approved_by")
   registeredAt  DateTime        @default(now())              @map("registered_at")
   approvedAt    DateTime?                                    @map("approved_at")
@@ -537,7 +539,7 @@ model McProgram {
 
   part          Part               @relation(fields: [partId],       references: [id])
   machining     McMachiningDetail  @relation(fields: [machiningId],   references: [machiningId])
-  registrar     User               @relation("McRegisteredBy", fields: [registeredBy], references: [id])
+  registrar     User?              @relation("McRegisteredBy", fields: [registeredBy], references: [id], onDelete: Restrict)
   approver      User?              @relation("McApprovedBy",   fields: [approvedBy],   references: [id])
   files         McFile[]
   changeHistory McChangeHistory[]
@@ -668,7 +670,7 @@ model McChangeHistory {
   id            Int        @id @default(autoincrement())
   mcProgramId   Int                          @map("mc_program_id")
   changeType    ChangeType                   @map("change_type")
-  operatorId    Int                          @map("operator_id")
+  operatorId    Int?                         @map("operator_id")
   versionBefore String?    @db.VarChar(10)   @map("version_before")
   versionAfter  String?    @db.VarChar(10)   @map("version_after")
   content       String?    @db.Text
@@ -677,7 +679,7 @@ model McChangeHistory {
   legacyHistId  Int?                         @map("legacy_hist_id")
 
   mcProgram McProgram @relation(fields: [mcProgramId], references: [id])
-  operator  User      @relation(fields: [operatorId],  references: [id])
+  operator  User?     @relation(fields: [operatorId],  references: [id], onDelete: Restrict)
 
   @@index([mcProgramId, changedAt])
   @@index([legacyHistId])
@@ -687,7 +689,7 @@ model McChangeHistory {
 model McSetupSheetLog {
   id          Int      @id @default(autoincrement())
   mcProgramId Int                          @map("mc_program_id")
-  operatorId  Int                          @map("operator_id")
+  operatorId  Int?                         @map("operator_id")
   printedAt   DateTime @default(now())     @map("printed_at")
   version     String?  @db.VarChar(10)
   pdfPath     String?  @db.VarChar(500)    @map("pdf_path")
@@ -705,7 +707,7 @@ model McSetupSheetLog {
   lostBy        Int?                        @map("lost_by")
 
   mcProgram McProgram @relation(fields: [mcProgramId], references: [id])
-  operator  User      @relation(fields: [operatorId],  references: [id])
+  operator  User?     @relation(fields: [operatorId],  references: [id], onDelete: Restrict)
   machine   Machine?  @relation("SetupSheetLogMachine", fields: [machineIdLog], references: [id])
   workRecords WorkRecord[]
 

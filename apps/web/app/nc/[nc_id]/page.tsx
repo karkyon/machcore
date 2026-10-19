@@ -578,7 +578,7 @@ export default function NcDetailPage() {
                 <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100">
                   <div className="p-3">
                     <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.operatorLabel4", "オペレーター")}</div>
-                    <div className="text-sm text-slate-700">{d.registrar.name}</div>
+                    <div className="text-sm text-slate-700">{d.registrar?.name ?? "—"}</div>
                   </div>
                   <div className="p-3">
                     <div className="text-[10px] text-slate-400 mb-1">{tr("ncDetailPage.inputDateLabel3", "入力日")}</div>

@@ -16,7 +16,10 @@ users.name との完全一致だけでは担当者欄が空になるため、次
   決まらなければ誤った人に結び付けないよう照合しない。
   旧の通称(LEGACY_ALIASES)は社員コードで結び付ける。
 
-利用元: mc_full_import.py PHASE1/PHASE6、nc_full_import_v2.py PHASE3
+利用元: mc_full_import.py PHASE1/PHASE6、nc_full_import_v2.py PHASE1/PHASE3/PHASE4、
+        verify_work_records.py、verify_user_fields_old_new.py
+1人だけ入れる欄(オペレーター・承認者・作成者・PG作成者): resolve_first(複数名なら先頭に照合できた人)
+users に無い旧担当者名は空欄のまま(管理者で代替しない: 2026-10-07 ユーザー指定)
 """
 import re
 import unicodedata
@@ -165,3 +168,72 @@ class PersonResolver:
                     unresolved.append(tokens[i])
                     i += 1
         return ids, unresolved
+
+    def resolve_first(self, raw):
+        """1人だけを入れる欄(オペレーター・承認者・作成者・PG作成者 等)の照合。
+        1名として照合できればその人。「井本　アイン」のように複数名が書かれていれば先頭に照合できた人。
+        誰にも照合できなければ None(users に無い旧担当者名は空欄のまま。管理者で代替しない)"""
+        uid = self.resolve(raw)
+        if uid is not None:
+            return uid
+        ids, _ = self.resolve_multi(raw)
+        return ids[0] if ids else None
+
+    def explain(self, raw):
+        """resolve_first と同じ結果と、その理由。(users.id または None, 理由)"""
+        if raw is None or not str(raw).strip():
+            return None, "空欄"
+        s = str(raw).strip()
+        k = person_key(s)
+        if k and k in self.alias:
+            return self.alias[k], "通称"
+        if s in self.exact:
+            if self.exact[s] is not None:
+                return self.exact[s], "完全一致"
+            return None, "同姓同名で決まらない"
+        if k and self.key.get(k) is not None:
+            return self.key[k], "表記ゆれ(全角/半角・空白)"
+        if k and self.surname.get(k) is not None:
+            return self.surname[k], "姓のみ"
+        ids, unres = self.resolve_multi(s)
+        if ids:
+            return ids[0], ("複数名(先頭)" if len(ids) > 1 else "複数名(一部のみusersに有り)" if unres else "複数名(先頭)")
+        if s in self.ambiguous or (k and k in self.ambiguous):
+            return None, "同姓同名で決まらない"
+        return None, "usersに無い(空欄)"
+
+
+def staff_id_map_from_rows(pgc, staff_rows, system="NC"):
+    """旧NC担当者マスタ ACC_Staff の行 [(St_id, S_name), ...] → {St_id: users.id}
+    ① 社員コード STAFF{St_id:03d}(旧システムから移した利用者の規則)
+    ② ①が無いときは氏名で照合(同姓同名は通称の表/系統で決める)
+    返り値: (staff_id_map, 未対応の (St_id, 氏名) 一覧)。参照側の型の違いに備えて整数キーでも引ける"""
+    pgc.execute("SELECT id, employee_code FROM users")
+    code_to_userid = {r[1]: r[0] for r in pgc.fetchall()}
+    person = PersonResolver.from_db(pgc, system=system)
+    staff_id_map, unmatched = {}, []
+    for st_id, s_name in staff_rows:
+        try:
+            code = f"STAFF{int(st_id):03d}"
+        except (TypeError, ValueError):
+            continue
+        uid = code_to_userid.get(code) or person.resolve(s_name)
+        if uid is not None:
+            staff_id_map[st_id] = uid
+            staff_id_map[int(st_id)] = uid
+        else:
+            unmatched.append((st_id, s_name))
+    return staff_id_map, unmatched
+
+
+def staff_uid(staff_id_map, raw):
+    """旧の担当者ID(St_id。数値/文字列どちらでも) → users.id。無ければ None(管理者で代替しない)"""
+    if raw is None:
+        return None
+    uid = staff_id_map.get(raw)
+    if uid is None:
+        try:
+            uid = staff_id_map.get(int(str(raw).strip()))
+        except (TypeError, ValueError):
+            uid = None
+    return uid

@@ -118,7 +118,7 @@ export type NcDetail = {
   approvedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  registrar: { id: number; name: string };
+  registrar: { id: number; name: string } | null;
   approver: { id: number; name: string } | null;
   // [v096] MC側McDetailとの機能パリティのため追加。
   creatorId: number | null;
@@ -490,7 +490,7 @@ export type PrintData = {
     clientName: string | null;
   };
   machine: { machineCode: string; machineName: string } | null;
-  registrar: { name: string };
+  registrar: { name: string } | null;
   approver:  { name: string } | null;
   tools:     NcTool[];
 };
@@ -769,7 +769,7 @@ export type McDetail = {
   folder2:        string | null;
   part:    { drawingNo: string; name: string; clientName: string | null; partId: string | null; mainModel: string | null };
   machine: { machineCode: string; machineName: string } | null;
-  registrar: { name: string };
+  registrar: { name: string } | null;
   approver:  { name: string } | null;
   pgCreator: { name: string } | null;
   creatorId:      number | null;

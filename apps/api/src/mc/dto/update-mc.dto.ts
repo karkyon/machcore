@@ -32,6 +32,10 @@ export class UpdateMcDto {
   @IsOptional() @IsString()
   sheet_created_at?: string | null;
 
+  // [No.41] 編集画面の「PG作成者」(mc_machining_details.pg_created_by)。null で空欄
+  @IsOptional() @IsInt()
+  pg_created_by?: number | null;
+
   @IsOptional() @IsString() @MaxLength(50)
   nt1?: string;
 
