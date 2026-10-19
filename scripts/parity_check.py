@@ -21,6 +21,8 @@ UAT を .11 から .14 に移すにあたり「環境が変わったことによ
   cd ~/projects/machcore-internal && git fetch origin && git reset --hard origin/main \\
     && python3 scripts/parity_check.py --ref-ssh karkyon@192.168.1.11
   .11 の指紋を先に取ってある場合: --ref ~/fp_11.json
+  ssh が使えない場合: --ref-db(.11 の DB 192.168.1.11:5440 を直接読む。DB・マスタ・格納先設定だけを比べる。
+                     ホスト・実行部品・動作確認は .14 側の単独の点検(deploy_14 の動作確認)で確かめる)
   対象を絞る: --targets internal   (既定 internal,group)
 
 出力: scripts/verify_reports/parity_<日時>.md / .json(指紋も保存)。要対応(NG)があれば終了コード 1
@@ -37,6 +39,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 HOME = Path.home()
 TS = datetime.now().strftime("%Y%m%d_%H%M%S")
+REF_DB_DEFAULT = "postgresql://machcore:machcore_pass_change_me@192.168.1.11:5440/machcore_dev"
 REPOS = {"internal": HOME / "projects" / "machcore-internal", "group": HOME / "projects" / "machcore-group",
          "11": HOME / "projects" / "machcore"}
 
@@ -393,13 +396,29 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ref", help=".11 の指紋 JSON(env_fingerprint.py --out で作ったもの)")
     ap.add_argument("--ref-ssh", help="ssh 先(例 karkyon@192.168.1.11 または karkyon@192.168.1.11:~/projects/machcore)")
+    ap.add_argument("--ref-db", nargs="?", const=REF_DB_DEFAULT, default=None,
+                    help=f".11 の DB を直接読む(既定 {REF_DB_DEFAULT.split('@')[-1]})")
     ap.add_argument("--targets", default="internal,group")
     a = ap.parse_args()
-    if not (a.ref or a.ref_ssh):
-        raise SystemExit("--ref か --ref-ssh を指定してください")
+    if not (a.ref or a.ref_ssh or a.ref_db):
+        raise SystemExit("--ref か --ref-ssh か --ref-db を指定してください")
     out_dir = HERE / "verify_reports"
     out_dir.mkdir(parents=True, exist_ok=True)
-    R = json.loads(Path(a.ref).expanduser().read_text(encoding="utf-8")) if a.ref else take_ssh(a.ref_ssh)
+    partial = False
+    if a.ref:
+        R = json.loads(Path(a.ref).expanduser().read_text(encoding="utf-8"))
+    elif a.ref_ssh:
+        R = take_ssh(a.ref_ssh)
+    else:
+        sys.path.insert(0, str(HERE))
+        import env_fingerprint as EF
+        print(f"[.11] DB を直接読みます: {a.ref_db.split('@')[-1]}", flush=True)
+        try:
+            R = {"db": EF.db_info(None, dsn=a.ref_db)}
+        except Exception as e:
+            raise SystemExit(f"[FAIL] .11 の DB に接続できません: {e}")
+        R["storage"] = EF.storage_info(R["db"])
+        partial = True
     (out_dir / f"fingerprint_ref_{TS}.json").write_text(json.dumps(R, ensure_ascii=False, indent=1), encoding="utf-8")
     targets = [x.strip() for x in a.targets.split(",") if x.strip()]
     fps = {}
@@ -412,7 +431,16 @@ def main():
         T = take_local(repo)
         fps[t] = T
         (out_dir / f"fingerprint_{t}_{TS}.json").write_text(json.dumps(T, ensure_ascii=False, indent=1), encoding="utf-8")
-        for fn in (compare_host, compare_instance, compare_runtime, compare_db, compare_masters, compare_smoke):
+        fns = (compare_db, compare_masters) if partial else (compare_host, compare_instance, compare_runtime, compare_db,
+                                                              compare_masters, compare_smoke)
+        if partial:
+            sm = T.get("smoke") or {}
+            row("OK" if sm.get("ng") == 0 else "NG", t, "動作確認(.14 単独)", "API・画面・PDF・図面", "(DB 比較のため対象外)",
+                f"{sm.get('total', 0) - sm.get('ng', 0)}/{sm.get('total', 0)} OK")
+            rt = T.get("runtime") or {}
+            row("OK" if rt.get("puppeteer_pdf_bytes") and rt.get("ipag_bytes") and rt.get("sharp") else "NG", t,
+                "実行部品(.14 単独)", "sharp・帳票フォント・Chromium で日本語PDF", None, "OK" if rt.get("puppeteer_pdf_bytes") else rt.get("puppeteer_err"))
+        for fn in fns:
             try:
                 fn(R, T, t)
             except Exception as e:

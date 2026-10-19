@@ -312,11 +312,13 @@ MASTERS = {
 }
 
 
-def db_info(cfg):
+def db_info(cfg, dsn=None):
+    """cfg のリポジトリの .env の DB(dsn を渡せばその DB。parity_check.py が .11 の DB を直接読むときに使う)"""
     import psycopg2
-    ev = read_env(Path(cfg["repo"]) / "apps" / "api" / ".env")
-    dsn = (ev.get("DATABASE_URL") or "").split("?", 1)[0]
-    pg = psycopg2.connect(dsn)
+    if not dsn:
+        ev = read_env(Path(cfg["repo"]) / "apps" / "api" / ".env")
+        dsn = (ev.get("DATABASE_URL") or "").split("?", 1)[0]
+    pg = psycopg2.connect(dsn, connect_timeout=15)
     pg.set_session(readonly=True, autocommit=True)
     c = pg.cursor()
 
