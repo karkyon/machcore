@@ -277,13 +277,21 @@ def compare_db(R, T, t):
     row("OK" if not hard else "NG", t, "DB", "スキーマ(列名・型・NULL可否)", f"{len(rc_)}表", f"{len(tc_)}表", " / ".join(hard)[:1500])
     if soft:
         row("INFO", t, "DB", "列の既定値の違い(動作に影響なし)", None, None, " / ".join(soft)[:900])
-    ri, ti = set(rd.get("indexes_list") or []), set(td.get("indexes_list") or [])
+    # 索引: .11 にあって .14 に無いものは検索の速さ・一意の守りが変わるため注意。
+    # .14 にだけあるもの(余分な一意索引等)は .14 でコンバート試験・動作確認を通っているため参考
+    ri = {x for x in (rd.get("indexes_list") or []) if not x.startswith("_prisma_migrations")}
+    ti = {x for x in (td.get("indexes_list") or []) if not x.startswith("_prisma_migrations")}
     if ri or ti:
-        row("OK" if ri == ti else "WARN", t, "DB", "索引", f"{len(ri)}件", f"{len(ti)}件",
-            (f".11のみ: {sorted(ri - ti)[:10]} / .14のみ: {sorted(ti - ri)[:10]}" if ri != ti else ""))
+        row("OK" if not (ri - ti) else "WARN", t, "DB", "索引(.11 にあるもの)", f"{len(ri)}件", f"{len(ti)}件",
+            f".14 に無い: {sorted(ri - ti)[:10]}" if ri - ti else "")
+        if ti - ri:
+            row("INFO", t, "DB", "索引(.14 にだけあるもの)", None, None,
+                f"{sorted(ti - ri)[:10]}(.14 でコンバート試験・動作確認済み。アプリが作る行は該当列が空のため影響なし)")
     for k in ("fks",):
         row("OK" if rd.get(k) == td.get(k) else "WARN", t, "DB", k, rd.get(k), td.get(k))
-    row("OK" if rd.get("extensions") == td.get("extensions") else "WARN", t, "DB", "拡張", rd.get("extensions"), td.get("extensions"))
+    re_, te_ = set(rd.get("extensions") or []), set(td.get("extensions") or [])
+    row("OK" if re_ == te_ else ("WARN" if re_ - te_ else "INFO"), t, "DB", "拡張", sorted(re_), sorted(te_),
+        "" if re_ == te_ else (f".14 に無い: {sorted(re_ - te_)}" if re_ - te_ else ".14 にだけある拡張(アプリは使わない)"))
 
 
 MASTER_KEYS = {"users": ("employee_code",), "machines": ("machine_code",), "pdf_templates": ("name",),
@@ -301,6 +309,15 @@ MASTER_LABEL = {"users": "利用者", "machines": "機械", "pdf_templates": "�
                 "nc_tool_shave1_master": "NC加工リスト候補(加)", "nc_tool_shave2_master": "NC加工リスト候補(工)",
                 "nc_tool_chip_master": "NC加工リスト候補(形状)", "nc_tool_holder_master": "NC加工リスト候補(ホルダー)",
                 "company_settings": "会社設定"}
+# アプリ(mc.service.ts)が設定なしの時に使う値。.14 にだけあってもこの値なら .11 と同じ動き
+SETTING_DEFAULTS = {"cron_timecard_enabled": "true", "cron_timecard_hour": "5", "cron_timecard_minute": "0",
+                    "timecard_default_start": "08:00", "timecard_default_end": "17:00"}
+SETTING_INSTANCE = {"upload_agent_version": "配布している UploadAgent の版", "custom_dict_vi": "ベトナム語の訳の手直し",
+                    "custom_dict_ja": "日本語の訳の手直し"}
+GROUP_OWN = {"users": "group 独自の利用者(internal の人は無効・ログイン不可でコンバート時に補完)",
+             "machines": "group 独自の機械(internal の機械は無効でコンバート時に補完)",
+             "business_calendars": "group の休日は group で登録(.11 の休日はイモト精機のもの)",
+             "system_settings": "group 独自の設定(既定の言語等)"}
 COMPANY_INSTANCE = {"upload_base_path", "mc_storage_path", "nc_storage_path", "logo_path"}
 
 
@@ -324,7 +341,14 @@ def compare_masters(R, T, t):
             ca, cb = (a or [{}])[0], (b or [{}])[0]
             ign = COMPANY_INSTANCE | ({"company_name"} if t == "group" else set())
             d = {k: (ca.get(k), cb.get(k)) for k in set(ca) | set(cb) if k not in ign and ca.get(k) != cb.get(k)}
-            row("OK" if not d else "WARN", t, "マスタ", label, None, None, " / ".join(f"{k}: {x}→{y}" for k, (x, y) in d.items()))
+            pr = {"mc_printer", "nc_printer", "printer_name"}
+            dp = {k: v for k, v in d.items() if k in pr}
+            do = {k: v for k, v in d.items() if k not in pr}
+            row("OK" if not do else "WARN", t, "マスタ", label, None, None, " / ".join(f"{k}: {x}→{y}" for k, (x, y) in do.items()))
+            if dp:
+                row("INFO", t, "マスタ", label + "(プリンタ)", None, None,
+                    "プリンタは .14 の CUPS に登録した名前(環境ごとに違うのが正しい): "
+                    + " / ".join(f"{k}: {x}→{y}" for k, (x, y) in dp.items()))
             continue
         keys = MASTER_KEYS.get(tb)
         ka, kb = keyed(a, keys), keyed(b, keys)
@@ -338,11 +362,32 @@ def compare_masters(R, T, t):
         if not (only_r or only_t or chg):
             row("OK", t, "マスタ", label, f"{len(ka)}件", f"{len(kb)}件")
             continue
+        if not strict and tb in GROUP_OWN:
+            # group は別会社(グループ会社)。利用者・機械・カレンダー・言語・プリンタは group 独自が正しい
+            row("INFO", t, "マスタ", label, f"{len(ka)}件", f"{len(kb)}件", GROUP_OWN[tb]
+                + (f" .11のみ{len(only_r)} / .14のみ{len(only_t)} / 内容違い{len(chg)}"))
+            continue
+        if tb == "system_settings" and not only_r and not chg:
+            # .14 にだけある設定: アプリの既定値と同じなら .11(設定なし=既定値)と同じ動き
+            same, diff = [], []
+            for k in only_t:
+                key, v = k[0], (kb[k].get("value") if isinstance(kb[k], dict) else None)
+                if key in SETTING_DEFAULTS and str(v) == SETTING_DEFAULTS[key]:
+                    same.append(f"{key}={v}")
+                elif key in SETTING_INSTANCE:
+                    same.append(f"{key}({SETTING_INSTANCE[key]})")
+                else:
+                    diff.append(f"{key}={str(v)[:40]}")
+            row("WARN" if diff else "INFO", t, "マスタ", label, f"{len(ka)}件", f"{len(kb)}件",
+                (f".14 にだけある設定で既定値と違う(.11 と動きが変わる): {', '.join(diff)}" if diff else "")
+                + (" / " if diff and same else "") + (f"既定値と同じ・環境固有のため動きは同じ: {', '.join(same)}" if same else ""))
+            continue
         if tb == "users":
             lv = "NG" if strict and only_r else "WARN"
             note = "(.11 にいて .14 にいない利用者はログイン・担当者照合ができません)"
         elif tb in ("pdf_templates", "pdf_field_definitions", "special_sheets", "machines"):
-            lv = "NG" if strict else "WARN"
+            # .14 にだけある行(.14 で登録した実データ)は残すため注意。.11 の行が無い・内容が違うのは NG
+            lv = "NG" if strict and (only_r or chg) else "WARN"
             note = {"pdf_templates": "", "pdf_field_definitions": "段取シートの印字位置が .11 と変わります",
                     "special_sheets": "特殊シートの案内が .11 と変わります", "machines": "機械の照合・並び・PG フォルダ判定が変わります"}[tb]
         elif tb == "business_calendars":

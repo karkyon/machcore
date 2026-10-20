@@ -19,7 +19,8 @@ UAT を .11 から .14 へ移すとき、.11 で UAT 中に管理画面から直
   │ 候補マスタ           │ ○        │ .11 と同じ内容に置き換える(クランプ5表・NC加工リスト4表。コンバートは候補が │
   │                      │           │ 空の時だけ投入するため、置き換えないと .11 と候補が違うまま)。消した .14 の行は結果に出す │
   └──────────────────────┴───────────┴──────────────────────────────────────────────────┘
-  ・group は別会社のため、利用者・機械・カレンダー・設定・候補はそろえない(帳票の印字位置だけ)
+  ・group は別会社のため、利用者・機械・カレンダー・設定はそろえない(帳票の印字位置だけ。候補は既に .11 と同じ)
+  ・特殊シートの PDF が格納先に無いものは、以前の格納先から探して複写する(internal / group とも)
   ・会社設定(プリンタ・格納先)は環境ごとに違うのが正しいためそろえない
 
 実行(.14 で):
@@ -156,6 +157,57 @@ def replace_table(sc, tc, plan, table, apply):
         tc.execute(f"SELECT setval(pg_get_serial_sequence('{table}','id'), GREATEST(COALESCE((SELECT MAX(id) FROM {table}),1),1))")
 
 
+def fix_special_sheet_pdfs(tc, plan, apply):
+    """特殊シートの PDF がこのインスタンスの格納先に無いものを、以前の格納先(共有フォルダ・旧既定の uploads 等)から探して複写する。
+       管理画面のアップロードは「その時の upload_base_path/special_sheets/」に保存するため、格納先を移したときに取り残されることがある"""
+    import shutil
+    import subprocess
+    tc.execute("SELECT upload_base_path FROM company_settings ORDER BY id LIMIT 1")
+    r = tc.fetchone()
+    base = (r[0] if r else "") or ""
+    base = base.rstrip("/")
+    tc.execute("SELECT id, sheet_name, pdf_path FROM special_sheets WHERE pdf_path IS NOT NULL AND pdf_path <> '' ORDER BY id")
+    sheets = tc.fetchall()
+    if not base or not sheets:
+        return
+    roots = ["/mnt/mc_files", "/mnt/mcfiles", str(HOME / "projects" / "machcore" / "uploads")]
+    roots += [str(p) for p in sorted((HOME / "machcore-storage").glob("*"))]
+    roots += [str(p / "uploads") for p in sorted((HOME / "projects").glob("*"))]
+    roots += [str(p / "apps" / "api" / "uploads") for p in sorted((HOME / "projects").glob("*"))]
+    for sid, name, rel in sheets:
+        dst = os.path.join(base, rel)
+        if os.path.isfile(dst):
+            continue
+        fn = os.path.basename(rel)
+        found = None
+        for root in roots:
+            if os.path.realpath(root) == os.path.realpath(base):
+                continue
+            for cand in (os.path.join(root, rel), os.path.join(root, "special_sheets", fn)):
+                if os.path.isfile(cand):
+                    found = cand
+                    break
+            if found:
+                break
+        if not found:
+            # ホーム以下を名前で探す(node_modules・.git は見ない)
+            try:
+                out = subprocess.run(["find", str(HOME), "(", "-name", "node_modules", "-o", "-name", ".git", ")", "-prune",
+                                      "-o", "-type", "f", "-name", fn, "-print"], capture_output=True, text=True, timeout=300).stdout
+                hits = [x for x in out.splitlines() if x and os.path.realpath(x) != os.path.realpath(dst)]
+                found = hits[0] if hits else None
+            except Exception:
+                found = None
+        if found:
+            plan.add("special_sheets", "PDF を複写", f"{name}", f"{found} → {dst}")
+            if apply:
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(found, dst)
+        else:
+            plan.add("special_sheets", "PDF が見つからない(要対応)", f"{name}",
+                     f"{rel} がどこにもありません。管理画面の特殊シートで PDF をアップロードし直してください")
+
+
 def backup(tc, tables, target, inserted):
     d = HOME / "machcore-backups" / target
     d.mkdir(parents=True, exist_ok=True)
@@ -261,6 +313,7 @@ def main():
                   insert_extra=lambda s: {"updated_at": datetime.now()})
             for t in CANDIDATES:
                 replace_table(sc, tc, plan, t, a.apply)
+        fix_special_sheet_pdfs(tc, plan, a.apply)
         if a.apply:
             # バックアップに「追加した行」を書き足す(戻すときに使う)
             data = json.loads(bk.read_text(encoding="utf-8"))
@@ -273,7 +326,9 @@ def main():
         tg.rollback()
         raise
     # 表示
-    for t in tables:
+    for t in tables + ["special_sheets"]:
+        if t == "special_sheets" and not any(o[0] == t for o in plan.ops):
+            continue
         ops = [o for o in plan.ops if o[0] == t]
         if not ops:
             print(f"■ {t}: .11 と同じ")
