@@ -164,7 +164,7 @@ import psycopg2  # noqa: E402
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
-from name_match import person_key, LEGACY_ALIASES  # noqa: E402
+from name_match import person_key, LEGACY_ALIASES, PersonResolver  # noqa: E402
 from machine_name_match import normalize_machine  # noqa: E402
 
 
@@ -549,6 +549,15 @@ def check(env, cfg, rep, other_cfg=None):
                 rep.add("WARN", f"旧の通称「{alias}」", f"社員コード {code} が users に無い" + (
                     "(group はコンバート時に internal から補完します)" if env == "group"
                     else "ため、この名前の記録は担当者が空欄になります"))
+        # 同じ氏名の利用者が複数いて系統でも決まらない名前は、コンバートで担当者が空欄になる
+        c.execute("SELECT id, name, employee_code, system_type::text, is_active FROM users ORDER BY id")
+        urows = c.fetchall()
+        amb = {}
+        for sysn in ("MC", "NC"):
+            amb.update(PersonResolver(urows, system=sysn).ambiguous)
+        rep.add("OK" if not amb else "WARN", "同じ氏名の利用者(一人に決まらない名前)",
+                "なし" if not amb else " / ".join(f"{n}: {v}" for n, v in sorted(amb.items()))
+                + " — この名前の旧記録は担当者が空欄になります(scripts/sync_masters_from_11.py で重複を消す)")
     if table_exists(c, "machines"):
         c.execute("SELECT system_type::text, is_active, COUNT(*) FROM machines GROUP BY 1,2 ORDER BY 1,2")
         rows = c.fetchall()

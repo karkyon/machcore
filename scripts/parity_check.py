@@ -318,6 +318,7 @@ GROUP_OWN = {"users": "group 独自の利用者(internal の人は無効・ロ�
              "machines": "group 独自の機械(internal の機械は無効でコンバート時に補完)",
              "business_calendars": "group の休日は group で登録(.11 の休日はイモト精機のもの)",
              "system_settings": "group 独自の設定(既定の言語等)"}
+SETTING_GROUP_OWN = {"default_language"}
 COMPANY_INSTANCE = {"upload_base_path", "mc_storage_path", "nc_storage_path", "logo_path"}
 
 
@@ -331,7 +332,7 @@ def keyed(rows, keys):
 
 def compare_masters(R, T, t):
     rm, tm = g(R, "db", "masters", default={}), g(T, "db", "masters", default={})
-    strict = t == "internal"     # internal は .11 と同じ会社(イモト精機)。group は別会社なので違って当然のものは注意
+    strict = True   # internal / group とも .11 と同じマスタにする(2026-10-20)。group は既定の言語・プリンタ等の設定だけ独自
     for tb in MASTER_LABEL:
         a, b = rm.get(tb), tm.get(tb)
         if a is None and b is None:
@@ -350,6 +351,13 @@ def compare_masters(R, T, t):
                     "プリンタは .14 の CUPS に登録した名前(環境ごとに違うのが正しい): "
                     + " / ".join(f"{k}: {x}→{y}" for k, (x, y) in dp.items()))
             continue
+        if tb == "system_settings" and t == "group":
+            own = [x for x in (b or []) if x.get("key") in SETTING_GROUP_OWN]
+            if own:
+                row("INFO", t, "マスタ", label + "(group 独自)", None, None,
+                    "group の画面の既定の言語等(.11 にそろえない): " + ", ".join(f"{x['key']}={x.get('value')}" for x in own))
+            a = [x for x in (a or []) if x.get("key") not in SETTING_GROUP_OWN]
+            b = [x for x in (b or []) if x.get("key") not in SETTING_GROUP_OWN]
         keys = MASTER_KEYS.get(tb)
         ka, kb = keyed(a, keys), keyed(b, keys)
         only_r = sorted(set(ka) - set(kb))
@@ -362,7 +370,7 @@ def compare_masters(R, T, t):
         if not (only_r or only_t or chg):
             row("OK", t, "マスタ", label, f"{len(ka)}件", f"{len(kb)}件")
             continue
-        if not strict and tb in GROUP_OWN:
+        if not strict and tb in GROUP_OWN and tb not in ("users", "machines", "business_calendars"):
             # group は別会社(グループ会社)。利用者・機械・カレンダー・言語・プリンタは group 独自が正しい
             row("INFO", t, "マスタ", label, f"{len(ka)}件", f"{len(kb)}件", GROUP_OWN[tb]
                 + (f" .11のみ{len(only_r)} / .14のみ{len(only_t)} / 内容違い{len(chg)}"))
@@ -406,6 +414,27 @@ def compare_masters(R, T, t):
         row(lv, t, "マスタ", label, f"{len(ka)}件", f"{len(kb)}件",
             note + (f" .11のみ{len(only_r)}: {fmt(only_r)}" if only_r else "") + (f" / .14のみ{len(only_t)}: {fmt(only_t)}" if only_t else "")
             + (f" / 内容違い{len(chg)}: {', '.join(chg[:15])}" if chg else ""))
+
+
+def ambiguous_names(users):
+    """コンバートと同じ照合(name_match.PersonResolver)で、一人に決まらない氏名(=その名前の記録は担当者が空欄)"""
+    sys.path.insert(0, str(HERE))
+    from name_match import PersonResolver
+    rows = [(u.get("employee_code"), u.get("name"), u.get("employee_code"), u.get("system_type"), u.get("is_active"))
+            for u in users or []]
+    out = set()
+    for sysn in ("MC", "NC"):
+        out |= set(PersonResolver(rows, system=sysn).ambiguous)
+    return out
+
+
+def compare_users_ambiguity(R, T, t):
+    ra = ambiguous_names(g(R, "db", "masters", "users"))
+    ta = ambiguous_names(g(T, "db", "masters", "users"))
+    extra = sorted(ta - ra)
+    row("OK" if not extra else "NG", t, "マスタ", "同じ氏名の利用者(一人に決まらない名前)", sorted(ra) or "なし", sorted(ta) or "なし",
+        f".14 だけで一人に決まらない名前: {extra}。コンバートでこの名前の記録は担当者が空欄になります"
+        "(sync_masters_from_11.py で重複を消してから再コンバート)" if extra else "")
 
 
 def compare_storage(R, T, t, repo):
@@ -501,8 +530,8 @@ def main():
         T = take_local(repo)
         fps[t] = T
         (out_dir / f"fingerprint_{t}_{TS}.json").write_text(json.dumps(T, ensure_ascii=False, indent=1), encoding="utf-8")
-        fns = (compare_db, compare_masters) if partial else (compare_host, compare_instance, compare_runtime, compare_db,
-                                                              compare_masters, compare_smoke)
+        fns = (compare_db, compare_masters, compare_users_ambiguity) if partial else (
+            compare_host, compare_instance, compare_runtime, compare_db, compare_masters, compare_users_ambiguity, compare_smoke)
         if partial:
             sm = T.get("smoke") or {}
             row("OK" if sm.get("ng") == 0 else "NG", t, "動作確認(.14 単独)", "API・画面・PDF・図面", "(DB 比較のため対象外)",

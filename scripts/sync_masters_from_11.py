@@ -13,13 +13,14 @@ UAT を .11 から .14 へ移すとき、.11 で UAT 中に管理画面から直
   ├──────────────────────┼───────────┼──────────────────────────────────────────────────┤
   │ 利用者 users         │ ○        │ .11 にいて .14 にいない人を追加、違う項目は .11 に。.14 だけの人は残す │
   │ 機械 machines        │ ○        │ 同上(機械コードで照合)                            │
-  │ 帳票の印字位置       │ ○ / group │ 同上(テンプレート名・項目・ページ・順で照合)。group も同じ帳票なので対象 │
+  │ 帳票の印字位置       │ ○        │ 同上(テンプレート名・項目・ページ・順で照合)。group も同じ帳票なので対象 │
   │ 営業日カレンダー     │ ○        │ 同上(日付で照合)。.14 だけの日は残す              │
   │ システム設定         │ ○        │ .11 にだけある設定を追加、違う値は .11 に(配布物の版など .14 固有のものは除く) │
   │ 候補マスタ           │ ○        │ .11 と同じ内容に置き換える(クランプ5表・NC加工リスト4表。コンバートは候補が │
   │                      │           │ 空の時だけ投入するため、置き換えないと .11 と候補が違うまま)。消した .14 の行は結果に出す │
   └──────────────────────┴───────────┴──────────────────────────────────────────────────┘
-  ・group は別会社のため、利用者・機械・カレンダー・設定はそろえない(帳票の印字位置だけ。候補は既に .11 と同じ)
+  ・group も internal と同じく全マスタを .11 にそろえる(2026-10-20 方針)。group の既定の言語だけは group のまま
+  ・.14 にだけいる利用者で .11 の利用者と同じ氏名のものは消す(同じ氏名が2人いるとコンバートで担当者が空欄になるため)
   ・特殊シートの PDF が格納先に無いものは、以前の格納先から探して複写する(internal / group とも)
   ・会社設定(プリンタ・格納先)は環境ごとに違うのが正しいためそろえない
 
@@ -47,6 +48,7 @@ REPOS = {"internal": HOME / "projects" / "machcore-internal", "group": HOME / "p
 CANDIDATES = ["clamp_vise", "clamp_chuck", "clamp_tsume", "clamp_shiki", "clamp_index",
               "nc_tool_shave1_master", "nc_tool_shave2_master", "nc_tool_chip_master", "nc_tool_holder_master"]
 SETTINGS_KEEP = {"upload_agent_version"}   # .14 固有(配布している UploadAgent の版)
+SETTINGS_KEEP_GROUP = {"default_language"}   # group(ベトナムのグループ会社)の画面の既定の言語
 
 
 def dsn_of(repo):
@@ -157,6 +159,37 @@ def replace_table(sc, tc, plan, table, apply):
         tc.execute(f"SELECT setval(pg_get_serial_sequence('{table}','id'), GREATEST(COALESCE((SELECT MAX(id) FROM {table}),1),1))")
 
 
+def dedupe_users(sc, tc, plan, apply):
+    """.14 にだけいる利用者で、.11 の利用者と同じ氏名(表記ゆれを正規化)のものを消す。
+       同じ氏名の利用者が2人いると、コンバートは誤った人に結び付けないよう担当者を空欄にする
+       (例: .11 の NC001 タイ と .14 で登録した STAFF… タイ → 旧データの「タイ」が全件空欄)。
+       他の記録から参照されていて消せないときは、無効にして氏名の末尾に「(重複)」を付け、照合から外す"""
+    sys.path.insert(0, str(HERE))
+    from name_match import person_key
+    sc.execute("SELECT employee_code, name FROM users")
+    src = sc.fetchall()
+    scodes = {r[0].upper() for r in src}
+    skeys = {person_key(r[1]): r[0] for r in src if r[1]}
+    tc.execute("SELECT id, employee_code, name FROM users ORDER BY id")
+    for uid, code, name in tc.fetchall():
+        if code.upper() in scodes or not name or person_key(name) not in skeys or name.endswith("(重複)"):
+            continue
+        dup = skeys[person_key(name)]
+        if not apply:
+            plan.add("users", "同じ氏名の重複を消す", f"{code} {name}", f".11 の {dup} と同じ氏名(残すとこの名前の記録が担当者空欄)")
+            continue
+        try:
+            tc.execute("SAVEPOINT d")
+            tc.execute("DELETE FROM users WHERE id=%s", (uid,))
+            tc.execute("RELEASE SAVEPOINT d")
+            plan.add("users", "同じ氏名の重複を消す", f"{code} {name}", f".11 の {dup} と同じ氏名")
+        except Exception as e:
+            tc.execute("ROLLBACK TO SAVEPOINT d")
+            tc.execute("UPDATE users SET is_active=false, name=left(name, 45) || '(重複)', updated_at=NOW() WHERE id=%s", (uid,))
+            plan.add("users", "同じ氏名の重複を無効化", f"{code} {name}",
+                     f".11 の {dup} と同じ氏名。他の記録から参照されているため消さずに無効・氏名に(重複)を付けて照合から外す({e.__class__.__name__})")
+
+
 def fix_special_sheet_pdfs(tc, plan, apply):
     """特殊シートの PDF がこのインスタンスの格納先に無いものを、以前の格納先(共有フォルダ・旧既定の uploads 等)から探して複写する。
        管理画面のアップロードは「その時の upload_base_path/special_sheets/」に保存するため、格納先を移したときに取り残されることがある"""
@@ -234,8 +267,11 @@ def restore(tc, path):
             key = "employee_code" if t == "users" else "machine_code"
             for r in rs:
                 cols = [c for c in r if c not in ("id",)]
-                tc.execute(f"UPDATE {t} SET {', '.join(f'{c}=%s' for c in cols)} WHERE id=%s",
-                           [json.dumps(r[c]) if isinstance(r[c], (dict, list)) else r[c] for c in cols] + [r["id"]])
+                vals = [json.dumps(r[c]) if isinstance(r[c], (dict, list)) else r[c] for c in cols]
+                tc.execute(f"UPDATE {t} SET {', '.join(f'{c}=%s' for c in cols)} WHERE id=%s", vals + [r["id"]])
+                if tc.rowcount == 0:   # 重複として消した利用者を入れ直す
+                    tc.execute(f"INSERT INTO {t} (id, {','.join(cols)}) VALUES (%s, {','.join(['%s'] * len(cols))})",
+                               [r["id"]] + vals)
             for k in data.get("inserted", {}).get(t, []):
                 try:
                     tc.execute("SAVEPOINT s")
@@ -269,9 +305,9 @@ def main():
     sc = sg.cursor()
     plan = Plan()
     inserted = {}
-    full = a.target == "internal"
-    tables = (["users", "machines", "pdf_field_definitions", "business_calendars", "system_settings"] + CANDIDATES) if full \
-        else ["pdf_field_definitions"]
+    full = True   # internal / group とも .11 と同じマスタにする(group も同じデータを登録する方針 2026-10-20)
+    keep = SETTINGS_KEEP | (SETTINGS_KEEP_GROUP if a.target == "group" else set())
+    tables = ["users", "machines", "pdf_field_definitions", "business_calendars", "system_settings"] + CANDIDATES
     bk = None
     if a.apply:
         bk = backup(tc, tables, a.target, {})
@@ -281,6 +317,7 @@ def main():
                                       ["employee_code", "name", "name_kana", "password_hash", "role", "is_active",
                                        "can_approve", "system_type"], a.apply,
                                       insert_extra=lambda s: {"created_at": datetime.now(), "updated_at": datetime.now()})
+            dedupe_users(sc, tc, plan, a.apply)
             inserted["machines"] = merge(sc, tc, plan, "machines", ("machine_code",),
                                          ["machine_code", "machine_name", "machine_type", "maker", "sort_order", "is_active",
                                           "system_type", "mc_specs", "pg_is_folder"], a.apply,
@@ -308,7 +345,7 @@ def main():
                   insert_extra=lambda s: {"created_at": datetime.now()})
 
             def keep_settings(s):
-                return None if s["key"] in SETTINGS_KEEP else s
+                return None if s["key"] in keep else s
             merge(sc, tc, plan, "system_settings", ("key",), ["key", "value", "description"], a.apply, xform=keep_settings,
                   insert_extra=lambda s: {"updated_at": datetime.now()})
             for t in CANDIDATES:
