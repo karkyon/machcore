@@ -372,7 +372,8 @@ def compare_masters(R, T, t):
             same, diff = [], []
             for k in only_t:
                 key, v = k[0], (kb[k].get("value") if isinstance(kb[k], dict) else None)
-                if key in SETTING_DEFAULTS and str(v) == SETTING_DEFAULTS[key]:
+                dv = SETTING_DEFAULTS.get(key)
+                if dv is not None and (str(v) == dv or (dv.isdigit() and str(v).strip().isdigit() and int(v) == int(dv))):   # アプリは parseInt で読む("05"=5)
                     same.append(f"{key}={v}")
                 elif key in SETTING_INSTANCE:
                     same.append(f"{key}({SETTING_INSTANCE[key]})")
