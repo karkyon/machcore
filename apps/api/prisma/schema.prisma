@@ -600,8 +600,13 @@ model McWorkOffset {
   createdAt   DateTime @default(now())     @map("created_at")
   updatedAt   DateTime @updatedAt          @map("updated_at")
 
+  // [No.46] 並び順。旧システムは ﾜｰｸｵﾌｾｯﾄﾃﾞｰﾀID(=ACC_ワークオフセット.WOD_ID)の昇順で表示・印刷していた。
+  //   コンバートで加工IDごとの WOD_ID 順(0,1,2…)を入れ、画面で保存するときは画面の並び順を入れる。
+  sortOrder   Int      @default(0)           @map("sort_order")
+
   machining McMachiningDetail @relation(fields: [machiningId], references: [machiningId], onDelete: Cascade)
 
+  @@index([machiningId, sortOrder])
   @@map("mc_work_offsets")
 }
 

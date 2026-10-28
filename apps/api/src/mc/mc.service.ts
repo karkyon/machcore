@@ -417,7 +417,7 @@ export class McService {
           pgCreator:    { select: { id: true, name: true } },
           creator:      { select: { id: true, name: true } },
           tooling:      { orderBy: { sortOrder: 'asc' } },
-          workOffsets:  { orderBy: { gCode: 'asc' } },
+          workOffsets:  { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
           indexPrograms: { orderBy: { sortOrder: 'asc' } },
         } },
         registrar: { select: { id: true, name: true } },
@@ -480,7 +480,7 @@ export class McService {
       pgCreator:      mach.pgCreator      ?? null,
       creator:        mach.creator        ?? null,
       tooling:        (r as any).machining?.tooling       ?? [],
-      workOffsets:    this.sortWorkOffsetsExtFirst((r as any).machining?.workOffsets ?? []),
+      workOffsets:    (r as any).machining?.workOffsets ?? [],
       indexPrograms:  (r as any).machining?.indexPrograms ?? [],
       files: r.files.map((f: any) => ({
         ...f,
@@ -1329,22 +1329,17 @@ export class McService {
   // ══════════════════════════════════════════
   // ワークオフセット
   // ══════════════════════════════════════════
-  // [BUGFIX 2026-09] WO(ワークオフセット)一覧はEXTレコードが常に先頭に表示される
-  // 旧システム仕様だが、gCode='asc'の単純ソートではEXTが末尾に来てしまっていた。
-  // findOne()/getPrintData()/getWorkOffsets()の全取得経路で共通適用する。
-  private sortWorkOffsetsExtFirst<T extends { gCode: string }>(rows: T[]): T[] {
-    const rank = (r: T) => (String(r.gCode).toUpperCase() === 'EXT' ? -1 : 0);
-    return [...rows].sort((a, b) => rank(a) - rank(b));
-  }
-
+  // [No.46] 並び順は旧システムと同じ。旧は ﾜｰｸｵﾌｾｯﾄﾃﾞｰﾀID(WOD_ID)の昇順で表示・印刷していた
+  //   (旧フォーム ﾜｰｸｵﾌｾｯﾄﾃﾞｰﾀ の OrderBy=ﾜｰｸｵﾌｾｯﾄﾃﾞｰﾀID、段取シートの wod_V も同じ順に作成)。
+  //   G の文字列順＋EXT先頭の並べ替えは「EXT(MC10)」等が先頭にならず、MC10 が MC8 より前に来るため廃止し、
+  //   sort_order(コンバート=WOD_ID順、画面保存=画面の並び順)→ id の順で返す。findOne()/getPrintData()/getWorkOffsets() 共通。
   async getWorkOffsets(mcId: number) {
     const mc = await this.prisma.mcProgram.findUnique({ where: { id: mcId }, select: { machiningId: true } });
     if (!mc) return [];
-    const rows = await this.prisma.mcWorkOffset.findMany({
+    return this.prisma.mcWorkOffset.findMany({
       where:   { machiningId: mc.machiningId },
-      orderBy: { gCode: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     });
-    return this.sortWorkOffsetsExtFirst(rows);
   }
 
   async saveWorkOffsets(mcId: number, dto: SaveWorkOffsetsDto, operatorId: number) {
@@ -1355,10 +1350,12 @@ export class McService {
       await tx.mcWorkOffset.deleteMany({ where: { machiningId: mc.machiningId } });
       if (dto.items.length > 0) {
         await tx.mcWorkOffset.createMany({
-          data: dto.items.map(item => {
+          data: dto.items.map((item, idx) => {
             const n = (v: any) => (v === '' || v === null || v === undefined) ? null : Number(v);
             return {
             machiningId: mc.machiningId,
+            // [No.46] 画面の並び順(↑↓で並べ替えた順)をそのまま保存する
+            sortOrder:   idx,
             gCode:       item.g_code ?? '',
             xOffset:     n(item.x_offset),
             yOffset:     n(item.y_offset),
@@ -1742,7 +1739,7 @@ export class McService {
       where: { id: mcId },
       include: {
         part:      true,
-        machining: { include: { machine: true, creator: { select: { name: true } }, tooling: { orderBy: { sortOrder: 'asc' } }, workOffsets: { orderBy: { gCode: 'asc' } }, indexPrograms: { orderBy: { sortOrder: 'asc' } } } },
+        machining: { include: { machine: true, creator: { select: { name: true } }, tooling: { orderBy: { sortOrder: 'asc' } }, workOffsets: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }, indexPrograms: { orderBy: { sortOrder: 'asc' } } } },
         registrar: { select: { name: true } },
         approver:  { select: { name: true } },
         files: { where: { fileType: 'DRAWING' }, orderBy: { uploadedAt: 'desc' } },
@@ -1768,7 +1765,7 @@ export class McService {
       machiningQty:     r.machiningQty                ?? 1,
       commonPartCode:   r.machining?.commonPartCode   ?? null,
       tooling:          r.machining?.tooling          ?? [],
-      workOffsets:      this.sortWorkOffsetsExtFirst(r.machining?.workOffsets ?? []),
+      workOffsets:      r.machining?.workOffsets ?? [],
       indexPrograms:    r.machining?.indexPrograms    ?? [],
       version:          r.machining?.version          ?? '1.0001',
       // ★根本対応: 段取シートPDFの「フォルダ名」「ファイル名」欄が常に空欄になる不具合の修正。
@@ -3039,7 +3036,12 @@ export class McService {
         const refText = '参考資料';
         const refSize = 14;
         const refW = finalFont.widthOfTextAtSize(refText, refSize);
-        const refX = 126;
+        // [No.63] 従来はタイトル右の固定位置(x=126)に描いており、同じ位置に印字するバージョン番号と重なっていた。
+        //   ヘッダーのバージョン番号の項目(data_source='version')の右端を測り、その右に描く。
+        const verF = fieldsByTpl('repeat_header').find((f:any) => f.data_source === 'version' && !String(f.field_key).startsWith('__'));
+        const verTxt = verF ? resolveVal('version') : '';
+        const verEnd = verF && verTxt ? Number(verF.x) + finalFont.widthOfTextAtSize(verTxt, Number(verF.font_size) || 7) : 0;
+        const refX = Math.max(126, verEnd + 12);
         const refY = curPageH - 53;
         curPage.drawRectangle({ x: refX - 5, y: refY - 5, width: refW + 10, height: refSize + 9,
                                 borderColor: rgb(0,0,0), borderWidth: 1.2 });

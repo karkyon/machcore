@@ -983,13 +983,19 @@ export default function McEditPage() {
       } as any, token);
       pgCreatedByDirtyRef.current = false;
       // ツーリング保存（DBのcamelCase → DTOのsnake_caseに変換）
+      // [No.63] サーバーはツーリングを全件削除して作り直すため、項目を1つでも送らないとその値が消える。
+      //   従来は T番号(t_no)・D値(d_value_content)・SUB(sub_pg_no) を送っておらず、変更・登録を完了するたびに消えていた。
+      //   「ツーリングを保存」ボタンと同じく全項目を送り、並び順も画面の値(旧の順番値)をそのまま送る。
       await mcApi.saveTooling(mcId, toolingRows.map((t: any, i: number) => ({
-        sort_order:       i,
+        sort_order:       t.sort_order ?? t.sortOrder ?? i,
         tool_no:          t.tool_no   ?? t.toolNo   ?? "",
+        t_no:             t.t_no      ?? t.tNo      ?? undefined,
         tool_name:        t.tool_name ?? t.toolName ?? undefined,
         diameter:         t.diameter  ?? undefined,
         length_offset_no: t.length_offset_no ?? t.lengthOffsetNo ?? undefined,
         dia_offset_no:    t.dia_offset_no    ?? t.diaOffsetNo    ?? undefined,
+        d_value_content:  t.d_value_content  ?? t.dValueContent  ?? undefined,
+        sub_pg_no:        t.sub_pg_no        ?? t.subPgNo        ?? undefined,
         tool_type:        t.tool_type        ?? t.toolType       ?? undefined,
         note:             t.note             ?? undefined,
         raw_program_line: t.raw_program_line ?? t.rawProgramLine ?? undefined,
@@ -1901,18 +1907,15 @@ export default function McEditPage() {
                     <table className="text-xs w-full border-collapse" onKeyDown={handleEnterMoveNext}>
                       <colgroup>
                         <col style={{width:"72px"}}/>
-                        <col style={{width:"90px"}}/>
-                        <col style={{width:"240px"}}/>
-                        <col style={{width:"240px"}}/>
-                        <col style={{width:"200px"}}/>
-                        <col style={{width:"120px"}}/>
-                        <col style={{width:"54px"}}/>
+                        <col style={{width:"110px"}}/>
+                        <col style={{width:"320px"}}/>
+                        <col style={{width:"320px"}}/>
+                        <col style={{width:"70px"}}/>
                       </colgroup>
                       <thead className="bg-teal-50 sticky top-0 z-10">
                         <tr>
                           <th className="px-1 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("mcEditUi.colStepN", "STEP/N")}</th>
-                          <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("mcEditUi.colAxis0", "第0軸")}</th>
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("mcEditUi.colAxis1", "第1軸")}</th>
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("mcEditUi.colAxis2", "第2軸")}</th>
                           <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
@@ -1944,8 +1947,7 @@ export default function McEditPage() {
                                 }} className="text-[10px] px-1 py-0.5 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded">+</button>
                               </div>
                             </td>
-                            <td className="px-1 py-1"><input value={p.axis_0 ?? ""} onChange={e => setIndexRows(r => r.map((x,j) => j===i ? {...x, axis_0: e.target.value} : x))}
-                              className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
+                            {/* [No.48] 旧システムと同じ STEP/N・第1軸・第2軸。STEP/N = 旧 STEP/N(axis_0) */}
                             <td className="px-1 py-1"><input value={p.axis_0 ?? ""} onChange={e => setIndexRows(r => r.map((x,j) => j===i ? {...x, axis_0: e.target.value} : x))}
                               className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs" /></td>
                             <td className="px-1 py-1"><input value={p.axis_1 ?? ""} onChange={e => setIndexRows(r => r.map((x,j) => j===i ? {...x, axis_1: e.target.value} : x))}

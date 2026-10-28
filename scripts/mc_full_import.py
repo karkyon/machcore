@@ -590,19 +590,24 @@ def phase4(pg, dry_run=False):
     log(f"ACC_ワークオフセット取得: {len(rows)}件")
 
     ok = skip = err = 0
+    # [No.46] 旧システムの並び順 = ﾜｰｸｵﾌｾｯﾄﾃﾞｰﾀID(WOD_ID)の昇順。加工IDごとに 0,1,2… を sort_order に入れる
+    #   (rows は 加工ID, WOD_ID の順に取得済み)
+    wo_seq: dict = {}
     for row in rows:
         try:
             row_dict = dict(zip(cols, row))
             kakoid   = row_dict.get("加工ID")
             if kakoid not in valid_machining_ids: skip += 1; continue
+            sort_no = wo_seq.get(kakoid, 0)
+            wo_seq[kakoid] = sort_no + 1
             if not dry_run:
                 pgc.execute("""
                     INSERT INTO mc_work_offsets
-                      (machining_id, g_code, x_offset, y_offset, z_offset, a_offset, r_offset, note,
+                      (machining_id, sort_order, g_code, x_offset, y_offset, z_offset, a_offset, r_offset, note,
                        created_at, updated_at)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())
                     ON CONFLICT DO NOTHING
-                """, (kakoid,
+                """, (kakoid, sort_no,
                       str(row_dict.get("G") or ""),
                       row_dict.get("X"), row_dict.get("Y"),
                       row_dict.get("Z"), row_dict.get("A"),

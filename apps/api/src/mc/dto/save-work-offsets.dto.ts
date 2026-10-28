@@ -5,7 +5,8 @@ const toNumOrNull = ({ value }: { value: any }) =>
   (value === '' || value === null || value === undefined) ? null : Number(value);
 
 export class WorkOffsetItemDto {
-  @IsString() @MaxLength(10)
+  // DBは VARCHAR(50)。「EXT(MC10)」「54.1P14」等の機械名・補足付きの値を保存できるよう DB と同じ長さにする
+  @IsString() @MaxLength(50)
   g_code: string;
 
   @IsOptional()

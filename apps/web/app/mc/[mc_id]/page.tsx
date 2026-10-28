@@ -839,20 +839,17 @@ export default function McDetailPage() {
                   <thead className="bg-teal-50 text-teal-700 sticky top-0 z-10">
                     <tr>
                       <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">STEP/N</th>
-                      <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">{tr("mcDetailPage.colAxis0Short", "第0軸")}</th>
                       <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">{tr("mcDetailPage.colAxis1Short", "第1軸")}</th>
                       <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">{tr("mcDetailPage.colAxis2Short", "第2軸")}</th>
-                      <th className="px-3 py-2 text-left font-bold border-b border-teal-100 whitespace-nowrap">{tr("mcDetailPage.noteLabel2", "備考")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {d.indexPrograms.map((p, i) => (
                       <tr key={p.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                        {/* [No.48] 旧システムと同じ STEP/N・第1軸・第2軸 の3列(第0軸はSTEP/Nの重複のため削除) */}
                         <td className="px-3 py-2 font-mono font-bold text-teal-700">{p.axis0 ?? "—"}</td>
-                        <td className="px-3 py-2 font-mono">{p.axis0 ?? "—"}</td>
                         <td className="px-3 py-2 font-mono">{p.axis1 ?? "—"}</td>
                         <td className="px-3 py-2 font-mono">{p.axis2 ?? "—"}</td>
-                        <td className="px-3 py-2 text-slate-400">{p.note ?? ""}</td>
                       </tr>
                     ))}
                   </tbody>
