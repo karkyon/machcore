@@ -656,10 +656,29 @@ export class McService {
     const newVer2 = Math.round((newVerFloat - newVer1) * 10000);
     const newVersion = `${newVer1}.${String(newVer2).padStart(4, '0')}`;
 
+    // [No.59] 単体ファイル/フォルダ単位は登録時の機械マスタで決めたままで、機械を変えても計算し直していなかった。
+    //   機械を変えたときプログラムがまだ登録されていなければ(PG更新日時なし・プログラムファイルなし)、
+    //   新しい機械のマスタ設定で形式とフォルダ名を決め直す(単体ファイル名は登録済みの値を残す)。
+    let namingPatch: { pgIsFolder?: boolean; pgFolderName?: string | null; fileName?: string | null } = {};
+    if (dto.machine_id !== undefined && dto.machine_id !== null && dto.machine_id !== mach.machineId && !mach.pgUpdatedAt) {
+      const pgFiles = await this.prisma.mcFile.count({
+        where: { mcProgram: { machiningId: mc.machiningId }, fileType: 'PROGRAM', isDeleted: false },
+      });
+      if (pgFiles === 0) {
+        const naming = await this.resolveProgramNaming(dto.machine_id, mc.machiningId);
+        if (naming.pgIsFolder !== !!mach.pgIsFolder) {
+          namingPatch = naming.pgIsFolder
+            ? { pgIsFolder: true,  pgFolderName: naming.pgFolderName }
+            : { pgIsFolder: false, pgFolderName: null, fileName: mach.fileName ?? naming.fileName };
+        }
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
       await tx.mcMachiningDetail.update({
         where: { machiningId: mc.machiningId },
         data: {
+          ...namingPatch,
           machineId:      dto.machine_id      !== undefined ? dto.machine_id      : mach.machineId,
           oNumber:        dto.o_number        !== undefined ? dto.o_number        : mach.oNumber,
           clampNote:      dto.clamp_note      !== undefined ? dto.clamp_note      : mach.clampNote,
@@ -1348,9 +1367,12 @@ export class McService {
 
     return this.prisma.$transaction(async (tx) => {
       await tx.mcWorkOffset.deleteMany({ where: { machiningId: mc.machiningId } });
-      if (dto.items.length > 0) {
+      // [No.47] G・X・Y・Z・A・R がすべて空の行(「＋追加」して未入力のまま等)は保存しない
+      const has = (v: any) => v !== null && v !== undefined && String(v).trim() !== '';
+      const items = dto.items.filter(it => has(it.g_code) || has(it.x_offset) || has(it.y_offset) || has(it.z_offset) || has(it.a_offset) || has(it.r_offset));
+      if (items.length > 0) {
         await tx.mcWorkOffset.createMany({
-          data: dto.items.map((item, idx) => {
+          data: items.map((item, idx) => {
             const n = (v: any) => (v === '' || v === null || v === undefined) ? null : Number(v);
             return {
             machiningId: mc.machiningId,
@@ -1692,6 +1714,8 @@ export class McService {
         is_reference:   (s as any).isReference ?? false,
         sheet_type:     (s as any).sheetType ?? null,
         has_pdf:        !!(s.pdfPath && require('fs').existsSync(s.pdfPath)),
+        // [No.57] 印刷時に機械を選んでいない段取シート
+        machine_unselected: (s as any).machineIdLog == null,
         is_lost:        (s as any).isLost ?? false,
         lost_reason:    (s as any).lostReason ?? null,
         lost_detail:    (s as any).lostDetail ?? null,
@@ -2182,6 +2206,8 @@ export class McService {
       include_drawings?:       boolean;
       include_work_offsets?:   boolean;
       include_index_programs?: boolean;
+      /** [No.57] 印刷時に選んだ機械(仮登録で選んだ機械)。未選択なら印刷履歴の機械は空=「機械未選択」 */
+      machine_id?:             number | null;
     },
   ): Promise<Buffer> {
     const data = await this.getPrintData(mcId) as any;
@@ -2566,6 +2592,8 @@ export class McService {
         data: { mcProgramId: mcId, operatorId, version: data.version ?? null,
                 pdfPath: savedPdfPath,
                 sheetType: 'NEW',
+                // [No.57] 仮登録で選んだ機械を印刷時の機械として記録(ダッシュボードの機械別表示に使う)
+                machineIdLog: (options as any).machine_id ?? null,
                 ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}) },
       }).catch((e: any) => console.warn('McSetupSheetLog insert failed:', e?.message));
     }
@@ -2728,6 +2756,8 @@ export class McService {
       include_tooling: false,
       include_clamp:   false,
       include_drawings: dto.include_drawings ?? false,
+      // [No.57] 仮登録の画面で選んだ機械 = この段取シートを使う機械
+      machine_id:      dto.machine_id ?? null,
     });
 
     // プリンタへ送信
@@ -2806,35 +2836,80 @@ export class McService {
     }
 
     // ── 作業統計集計（repeat_p2 統計フィールド用）──
-    const fmtHM = (min: number | null): string => {
-      if (min == null || isNaN(min)) return '';
-      const h = Math.floor(min / 60);
-      const m = min % 60;
-      return String(h).padStart(2,'0') + 'H' + String(m).padStart(2,'0') + 'M';
+    // [No.45] 旧システム(フォーム 加工シュミレーション／加工シュミレーションサブ、クエリ 加工シュミレーション、
+    //   レポート ﾏｼﾆﾝｸﾞﾌﾟﾘﾝﾄ、関数 OnOffTime / Dw4Up5)と同じ計算にする。
+    //   対象: 同じ加工ID(共通登録で結ばれた全MCID)の作業記録のうち、段取時間・加工時間・総時間・
+    //         サイクルタイム/1P・段取ワーク数・ワーク数がすべて入っている記録。過去のデータ件数 = その件数(Count(*))
+    //   段取: danHM(分)。平均段取 = Int(Avg(danHM)*10)/10、最短段取 = Min(danHM)
+    //   脱着(記録ごと): RosTimeM = kakoHM − Int(1個の時間(分)×(ﾜｰｸ数−段取_ﾜｰｸ数))
+    //         OnOffTime = ﾜｰｸ数=段取_ﾜｰｸ数 なら RosTimeM÷ﾜｰｸ数、それ以外は RosTimeM÷(ﾜｰｸ数−段取_ﾜｰｸ数)
+    //         脱着 = Dw4Up5(OnOffTime, 1)(小数1桁で四捨五入)。平均脱着 = Int(Avg*10)/10、最短脱着 = Min
+    //   今の1個の時間 Stime = Int((加工時間H×60＋M＋S÷60)÷加工個数×10)/10 (マシニングの値)
+    //   過去の平均値 総時間 = 平均段取 ＋ (Stime ＋ 平均脱着)×今回のワーク数
+    //   過去ベスト   総時間 = 最短段取 ＋ (Stime ＋ 最短脱着)×今回のワーク数
+    //   表示 = Int(分÷60) 時間、Int(分 − 時間×60) 分(旧と同じ切捨て)。表記は時間表記の統一(No.5/No.39)に合わせ 0h0m0s
+    const vbInt = (x: number) => Math.floor(x);                       // VBA の Int(負は小さい方へ)
+    const dw4up5 = (x: number, keta: number) => {                      // 旧 MC_func.Dw4Up5
+      const p = Math.pow(10, keta);
+      const n1 = vbInt(x * p * 10) - vbInt(x * p) * 10;
+      return (n1 >= 5 ? vbInt(x * p) + 1 : vbInt(x * p)) / p;
     };
-    let stats: { setupAvgHM:string; setupBestHM:string; totalAvgHM:string; totalBestHM:string; workCount:number; recordCount:number } | null = null;
+    const fmtStatMin = (min: number | null): string => {
+      if (min == null || !Number.isFinite(min)) return '';
+      const h = vbInt(min / 60);
+      const m = vbInt(min - h * 60);
+      const s = vbInt((min - h * 60 - m) * 60 + 1e-9);
+      return `${h}h${m}m${s}s`;
+    };
+    const thisQty: number | null = (options as any).quantity != null && !isNaN(Number((options as any).quantity))
+      ? Number((options as any).quantity) : null;
+    let stats: { setupAvgHM:string; setupBestHM:string; totalAvgHM:string; totalBestHM:string; workCount:number | null; recordCount:number } | null = null;
     try {
       const wrs = await this.prisma.workRecord.findMany({
-        where: { mcProgramId: mcId },
-        select: { setupTimeMin: true, machiningTimeMin: true, totalTimeMin: true, quantity: true },
+        where: {
+          mcProgram:        { is: { machiningId: d.machiningId } },
+          setupTimeMin:     { not: null },
+          machiningTimeMin: { not: null },
+          totalTimeMin:     { not: null },
+          cycleTimeSec:     { not: null },
+          setupWorkCount:   { not: null },
+          quantity:         { not: null },
+        },
+        select: { setupTimeMin: true, machiningTimeMin: true, cycleTimeSec: true, cyclePcs: true, setupWorkCount: true, quantity: true },
       });
-      const recCount = wrs.length;
-      const wrsWithData = wrs.filter((r: any) => r.setupTimeMin != null || r.machiningTimeMin != null || r.totalTimeMin != null);
-      const setupMins  = wrsWithData.map((r:any) => r.setupTimeMin  ?? 0).filter((v:number)=>v>0);
-      const machMins   = wrsWithData.map((r:any) => r.machiningTimeMin ?? 0).filter((v:number)=>v>0);
-      const totalMins  = wrsWithData.map((r:any) => r.totalTimeMin ?? ((r.setupTimeMin??0) + (r.machiningTimeMin??0))).filter((v:number)=>v>0);
-      const qtyTotal   = wrs.reduce((s:number, r:any) => s + (r.quantity ?? 0), 0);
-      const setupAvg   = setupMins.length  ? Math.round(setupMins.reduce((a:number,b:number)=>a+b,0)  / setupMins.length)  : null;
-      const setupBest  = setupMins.length  ? Math.min(...setupMins)  : null;
-      const totalAvg   = totalMins.length  ? Math.round(totalMins.reduce((a:number,b:number)=>a+b,0) / totalMins.length)  : null;
-      const totalBest  = totalMins.length  ? Math.min(...totalMins)  : null;
+      const dan: number[] = [];
+      const dt:  number[] = [];
+      for (const r of wrs as any[]) {
+        dan.push(Number(r.setupTimeMin));
+        const W  = Number(r.quantity);
+        const Dw = Number(r.setupWorkCount);
+        // 旧 ｻｲｸﾙﾀｲﾑ/1P = 1サイクルの時間 ÷ 個/1サイクル(秒は整数で記録されていた)
+        const per1Sec = Math.round(Number(r.cycleTimeSec) / (Number(r.cyclePcs) > 0 ? Number(r.cyclePcs) : 1));
+        const stMin = per1Sec / 60;
+        const ros = Number(r.machiningTimeMin) - vbInt(stMin * (W - Dw));
+        const div = W === Dw ? W : (W - Dw);
+        if (div === 0) continue;   // 旧では 0 除算のエラーになる記録(脱着の集計から外す)
+        dt.push(dw4up5(ros / div, 1));
+      }
+      const avg = (a: number[]) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+      const avgDan  = avg(dan);
+      const avgDanR = avgDan  != null ? vbInt(avgDan * 10) / 10 : null;
+      const minDan  = dan.length ? Math.min(...dan) : null;
+      const avgDt   = avg(dt);
+      const avgDtR  = avgDt != null ? vbInt(avgDt * 10) / 10 : null;
+      const minDt   = dt.length ? Math.min(...dt) : null;
+      const cyc = d.cycleTimeSec != null ? Number(d.cycleTimeSec) : null;
+      const kosu = Number(d.machiningQty) > 0 ? Number(d.machiningQty) : null;
+      const sTime = cyc != null && kosu != null ? vbInt((cyc / 60) / kosu * 10) / 10 : null;
+      const totalAvg  = (avgDanR != null && sTime != null && avgDtR != null && thisQty != null) ? avgDanR + (sTime + avgDtR) * thisQty : null;
+      const totalBest = (minDan  != null && sTime != null && minDt  != null && thisQty != null) ? minDan  + (sTime + minDt)  * thisQty : null;
       stats = {
-        setupAvgHM:  fmtHM(setupAvg),
-        setupBestHM: fmtHM(setupBest),
-        totalAvgHM:  fmtHM(totalAvg),
-        totalBestHM: fmtHM(totalBest),
-        workCount:   qtyTotal,
-        recordCount: recCount,
+        setupAvgHM:  fmtStatMin(avgDanR),
+        setupBestHM: fmtStatMin(minDan),
+        totalAvgHM:  fmtStatMin(totalAvg),
+        totalBestHM: fmtStatMin(totalBest),
+        workCount:   thisQty,          // 今回のワーク数(旧 加工シュミレーション.ワーク数)
+        recordCount: wrs.length,       // 過去のデータ件数(旧 Count(*))
       };
     } catch(_statErr: any) {
       console.warn('[repeat_p2 stats] 統計集計失敗:', _statErr?.message);
@@ -3338,7 +3413,11 @@ export class McService {
     //   列幅(3列): x=201.3
     //   → 1列値のX=103, ラベル幅≒28, 行高≒(744-674)/5=14, 全体高≒(744-674+14)=84
     // ══════════════════════════════════════════════════════════
-    const workOffsets: any[] = (options.include_work_offsets !== false) ? (d.workOffsets ?? []) : [];
+    // [No.47] G・X・Y・Z・A/C・R/B がすべて空のワークオフセットは印字しない(空の枠が出ていた)
+    const woFilled = (v: any) => v != null && String(v).trim() !== '';
+    const workOffsets: any[] = (options.include_work_offsets !== false)
+      ? (d.workOffsets ?? []).filter((w: any) => ['gCode','xOffset','yOffset','zOffset','aOffset','rOffset'].some(k => woFilled(w?.[k])))
+      : [];
     if (workOffsets.length > 0) {
       const woTplDoc  = await loadTpl('repeat_wo.pdf');
       const woFields  = fieldsByTpl('repeat_wo');
@@ -3421,7 +3500,10 @@ export class McService {
                 // 純粋な数値のみ小数3桁(0→0.000)。「54.1P14」「55(MC10)」等の文字を含む値は加工せずそのまま印字
                 // (従来はparseFloatで数値部分だけを残し「54.100」「55.000」と印字して情報が欠落していた)
                 const val = typeof raw === 'number' ? raw.toFixed(3) : (/^[-+]?(\d+\.?\d*|\.\d+)$/.test(rs) ? parseFloat(rs).toFixed(3) : rs);
-                drawTxt(val, valX + 2, txtY, kit.fitFs(val, woFs, valW - 4, 4));
+                const vfs = kit.fitFs(val, woFs, valW - 4, 4);
+                // [No.47] G 以外(X・Y・Z・A/C・R/B)の数値は枠の右端に揃える
+                const vx = ri === 0 ? valX + 2 : valX + valW - 3 - finalFont.widthOfTextAtSize(val, vfs);
+                drawTxt(val, vx, txtY, vfs);
               }
             }
           }
@@ -3535,10 +3617,25 @@ export class McService {
       finalDoc.addPage(p2pg);
       totalPages++;
       const p2FinalPage = finalDoc.getPage(finalDoc.getPageCount() - 1);
-      for (const f of fieldsByTpl('repeat_p2').filter((f:any) => !f.field_key.startsWith('__'))) {
+      // [No.52] 発行前の確認で選んだ「今回使用機械」と入力した「今回のワーク数」(__option_*)は、項目定義の field_key が
+      //   「__」で始まっていても印字する。項目定義が無い環境でも、テンプレート(template_repeat_p2.pdf)の
+      //   「【今回使用機械】」「今回のワーク数」の欄に必ず印字する(座標はテンプレートの文字位置から求めた値)。
+      const p2Fields = fieldsByTpl('repeat_p2');
+      const isOptSrc = (ds: any) => String(ds ?? '').startsWith('__option_');
+      for (const f of p2Fields.filter((f:any) => !f.field_key.startsWith('__') || isOptSrc(f.data_source))) {
         const text = resolveVal(f.data_source);
         if (!text) continue;
         try { p2FinalPage.drawText(text, { x: Number(f.x), y: Number(f.y), size: Number(f.font_size)||7, font: finalFont, color: rgb(0,0,0) }); } catch(_) {}
+      }
+      const P2_OPTION_DEFAULTS: { src: string; x: number; y: number; size: number }[] = [
+        { src: '__option_machine__',  x: 130, y: 612, size: 10 },   // 【今回使用機械】(ラベル右端 x≈125、上から 220〜232pt)
+        { src: '__option_quantity__', x: 506, y: 161, size: 10 },   // 今回のワーク数 (ラベル右端 x≈499、上から 673〜683pt)
+      ];
+      for (const def of P2_OPTION_DEFAULTS) {
+        if (p2Fields.some((f:any) => f.data_source === def.src)) continue;
+        const text = resolveVal(def.src);
+        if (!text) continue;
+        try { p2FinalPage.drawText(text, { x: def.x, y: def.y, size: def.size, font: finalFont, color: rgb(0,0,0) }); } catch(_) {}
       }
     }
 

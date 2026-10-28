@@ -69,12 +69,7 @@ def pick_mc_sheet(cands, work_input_raw):
 
 
 def parse_hms_min(s):
-    """旧MCの '3H 30M' 形式 → 分(mc_full_import.py PHASE6 と同じ規則)"""
-    if not s:
-        return None
-    s = str(s).strip()
-    mh = re.search(r"(\d+)H", s); mm = re.search(r"H\s*(\d+)M", s)
-    if mh:
-        h = int(mh.group(1)); m = int(mm.group(1)) if mm else 0
-        return h * 60 + m if (h > 0 or m > 0) else None
-    return None
+    """旧MCの '3H 30M' 形式 → 分。取込(mc_full_import.py PHASE6)と完全に同じ規則(legacy_work_time.parse_hms_min)を使い、
+    work_records に入っている値と突き合わせられるようにする"""
+    from legacy_work_time import parse_hms_min as _p
+    return _p(s)

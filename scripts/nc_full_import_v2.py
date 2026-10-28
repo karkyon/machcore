@@ -574,6 +574,9 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
     for prog_id, machining_id in pgc.fetchall():
         kid_to_program_ids.setdefault(machining_id, []).append(prog_id)
     log(f"kid_to_program_ids構築: {len(kid_to_program_ids)}件のK_idに対応するNcProgram群")
+    # [No.54] 旧 NC_id → nc_programs.id。段取シート(印刷)は1枚ごとに旧 ACC_History.NC_id のNC情報のもの
+    pgc.execute("SELECT id, legacy_nc_id FROM nc_programs WHERE legacy_nc_id IS NOT NULL")
+    ncid_to_program_id = {int(lid): pid for pid, lid in pgc.fetchall()}
 
     if staff_id_map is None:
         staff_id_map, _ = build_staff_id_map(pgc, ssc)
@@ -653,7 +656,12 @@ def phase3(pg, dry_run=False, nc_id_map=None, staff_id_map=None, machine_id_map=
                 sheet_type = "NEW" if is_new_sheet else "REPEAT"
                 op_id = staff_uid(staff_id_map, out_op)  # users に無ければ空欄(No.41)
                 out_ver_str = legacy_nc_ver_to_version(out_ver)
-                for idx, prog_id in enumerate(program_ids):
+                # [No.54] 段取シート(印刷)は旧 NC_id のNC情報だけに作る。従来は同じK_id(共通部品)の全NC情報に複製しており、
+                #   別のNC_idで印刷した未回収シートが他のNC情報にも未回収として出て、未回収件数も水増しされていた。
+                #   NC_id が無い・新DBに無いときだけ、従来どおり同じK_idの全NC情報に作る。
+                _sl_prog = ncid_to_program_id.get(int(nc_id_old)) if nc_id_old is not None else None
+                sl_targets = [_sl_prog] if (_sl_prog is not None and _sl_prog in program_ids) else program_ids
+                for idx, prog_id in enumerate(sl_targets):
                     try:
                         if not dry_run:
                             pgc.execute("""

@@ -1118,6 +1118,14 @@ function McRecordPageInner() {
       (timeMode === "datetime" ? !!(startedAt || checkedAt || finishedAt) : (setupH * 60 + setupMm + machH * 60 + machMm) > 0) ||
       (!!quantity && parseInt(quantity) > 0) || (!!setupQty && parseInt(setupQty) > 0) ||
       setupOps.length > 0 || prodOps.length > 0;
+    // [No.49] 段取をしたのに段取良品数が未入力だと、加工時間/1P は「加工時間÷全良品数」で計算される(段取良品数を引かない)。
+    //   入力漏れに気付けるよう、登録の前に確認する(段取良品数が本当に0なら「0」を入力)。
+    const didSetup = timeMode === "datetime" ? !!(startedAt || checkedAt) : (setupH * 60 + setupMm) > 0;
+    if (didSetup && setupQty.trim() === "" && !!quantity && parseInt(quantity) > 0) {
+      const ok = window.confirm(tr("mcRecordPage.setupQtyEmptyConfirm",
+        "段取良品数が未入力です。\n加工時間/1P は「加工時間 ÷ 全良品数」で計算されます(段取良品数を引きません)。\n段取良品数が0のときは「0」を入力してください。\n\nこのまま登録しますか？"));
+      if (!ok) return;
+    }
     if (!editRecordId && !hasWork) {
       setSaveError(tr("mcRecordPage.emptyRecordError", "作業記録が未入力です。段取・量産の日時や良品数などを入力してください。作業なしで段取シートを回収する場合は、ダッシュボードの未回収シート一覧の🗑️から「参考として回収」を選んでください。"));
       return;
@@ -1748,6 +1756,12 @@ function McRecordPageInner() {
                       <div className="bg-white rounded-lg p-2 border border-slate-100">
                         <div className="text-slate-400 mb-0.5">{tr("mcRecordPage.machTimePerP", "加工時間/1P")}</div>
                         <div className="font-bold text-teal-600 text-sm">{fmtSec(times.machPerPSec)}</div>
+                        {/* [No.49] 計算式(分母)を表示: 加工時間 ÷ (全良品数 − 段取良品数)。同数のときは全良品数で割る */}
+                        {(() => {
+                          const q = parseInt(quantity) || 0, sq = parseInt(setupQty) || 0;
+                          const base = q > 0 && q !== sq ? Math.max(1, q - sq) : Math.max(1, q);
+                          return <div className="text-[10px] text-slate-400 mt-0.5">{tr("mcRecordPage.machPerPFormula", "÷ {n}個（全良品数{q} − 段取良品数{s}）").replace("{n}", String(base)).replace("{q}", String(q)).replace("{s}", setupQty.trim() === "" ? "未入力" : String(sq))}</div>;
+                        })()}
                       </div>
                     )}
                     {times.totalPerPSec != null && (

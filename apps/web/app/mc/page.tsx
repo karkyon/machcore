@@ -7,6 +7,7 @@ import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { useRouter } from "next/navigation";
 import { toJstYearMonthDayTimeString, toJstTimeString } from "@/lib/dateUtils";
+import { DASHBOARD_PRINT_CSS } from "@/lib/dashboardPrintCss";
 
 const API_URL = "/api";  // Next.js rewrite経由 → サーバー側でlocalhost:3011にproxy
 
@@ -19,6 +20,8 @@ type McSheet = {
   machine_code: string | null; machine_name: string | null; machine_sort: number;
   version: string | null; printed_at: string; operator_name: string;
   sheet_type?: string | null; is_reference?: boolean;
+  /** [No.57] 段取シート印刷時に機械を選んでいない(登録機械でまとめて表示) */
+  machine_unselected?: boolean;
 };
 type Summary = {
   nc_total: number; mc_total: number;
@@ -275,6 +278,9 @@ export default function McDashboard() {
                               </span>
                             )}
                             {sheet.version && <span className="font-mono text-xs text-teal-600">v{sheet.version}</span>}
+                            {sheet.machine_unselected && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">{t("dashboard.machineUnselected", "機械未選択")}</span>
+                            )}
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-3">
                             <span>{t("dashboard.printedAt", "発行日時: {time}").replace("{time}", toJstYearMonthDayTimeString(sheet.printed_at) ?? "")}</span>
@@ -460,7 +466,8 @@ export default function McDashboard() {
         </div>
       )}
 
-      <div className="h-screen flex flex-col bg-slate-50">
+      <div className="dash-root h-screen flex flex-col bg-slate-50">
+        <style>{DASHBOARD_PRINT_CSS}</style>
         <header className="bg-slate-800 text-white px-5 py-3 flex items-center gap-3 shrink-0">
           <span className="font-mono text-teal-400 font-bold text-base">MachCore</span>
         <CompanyBrandTag />
@@ -475,8 +482,8 @@ export default function McDashboard() {
           </div>
         </header>
 
-        <div className="flex flex-1 min-h-0">
-          <aside className="w-[200px] shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
+        <div className="dash-body flex flex-1 min-h-0">
+          <aside className="dash-aside w-[200px] shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
             <div className="py-2 border-b border-slate-100">
               <div className="px-4 pb-1.5 pt-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t("dashboard.mcSection", "MC マシニング")}</div>
               <button onClick={() => router.push("/mc/search")}
@@ -542,7 +549,7 @@ export default function McDashboard() {
             </div>
           </aside>
 
-          <main className="flex-1 overflow-y-auto p-5 space-y-5">
+          <main className="dash-main flex-1 overflow-y-auto p-5 space-y-5">
             <section>
               <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">{t("dashboard.mcSystemStatus", "MC システム状況")}</h2>
               <div className="grid grid-cols-3 gap-3">
@@ -592,21 +599,21 @@ export default function McDashboard() {
               ) : (
                 <div className="space-y-3">
                   {Array.from(grouped.entries()).map(([mc, items]) => (
-                    <div key={mc} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div key={mc} className="dash-card bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                       <div className="px-4 py-2 bg-slate-100 border-b border-slate-200 flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-amber-400"/>
                         <span className="font-mono font-bold text-sm text-slate-800">{mc}</span>
                         <span className="text-slate-500 text-xs">{items[0]?.machine_name ?? ""}</span>
                         <span className="ml-auto text-xs text-amber-700 font-bold bg-amber-100 px-2 py-0.5 rounded-full">{t("dashboard.sheetCountShort", "{n}枚").replace("{n}", String(items.length))}</span>
                       </div>
-                      <div className="grid grid-cols-[56px_70px_70px_70px_100px_1fr_120px_100px_80px_16px] gap-x-2 px-4 py-1.5 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
+                      <div className="dash-grid grid grid-cols-[56px_70px_70px_70px_100px_1fr_120px_100px_80px_16px] gap-x-2 px-4 py-1.5 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
                         <span>{t("dashboard.colType","種別")}</span><span>{t("dashboard.colMcId","MCID")}</span><span>{t("dashboard.colProcessId","加工ID")}</span><span>{t("dashboard.colPartId","部品ID")}</span><span>{t("dashboard.colProcess","工程")}</span><span>{t("dashboard.colDrawingInfo","図番 / 部品名 / 納入先")}</span><span>{t("dashboard.colPrintedAt","印刷日時")}</span><span>{t("dashboard.colPrinter","印刷者")}</span><span>{t("dashboard.colElapsed","経過")}</span><span/>
                       </div>
                       <div className="divide-y divide-slate-100">
                         {items.map(item => (
                           <button key={item.id}
                             onClick={() => handleSheetRowClick(item)}
-                            className={"w-full grid grid-cols-[56px_70px_70px_70px_100px_1fr_120px_100px_80px_16px] gap-x-2 px-4 py-2.5 items-center text-left transition-colors " + rowCls(item.printed_at)}>
+                            className={"w-full dash-grid grid grid-cols-[56px_70px_70px_70px_100px_1fr_120px_100px_80px_16px] gap-x-2 px-4 py-2.5 items-center text-left transition-colors " + rowCls(item.printed_at)}>
                             <span>
                               {item.is_reference
                                 ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-200 text-gray-600">{t("dashboard.typeRef", "参考")}</span>
@@ -625,6 +632,12 @@ export default function McDashboard() {
                               {item.version && <span className="ml-1 text-slate-400 text-[10px]">v{item.version}</span>}
                             </span>
                             <span className="min-w-0">
+                            {item.machine_unselected && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200 mr-2"
+                                title={t("dashboard.machineUnselectedTitle", "段取シート印刷時に機械が選ばれていません(マシニング情報の登録機械で表示しています)")}>
+                                {t("dashboard.machineUnselected", "機械未選択")}
+                              </span>
+                            )}
                             <span className="font-mono text-sm text-teal-600 font-bold">{item.drawing_no}</span>
                               <span className="text-slate-800 text-xs ml-2">{item.part_name}</span>
                               {item.client_name && <span className="text-slate-400 text-[10px] ml-2">/ {item.client_name}</span>}

@@ -423,11 +423,18 @@ def verify_work_offsets(ss_mc, pg, limit=None):
     from collections import defaultdict
     old_by_kakoid = defaultdict(list)
     orphan_old_count = 0
+    empty_old_count = 0
     for row in old_rows:
         if row[0] is None:
             orphan_old_count += 1
             continue
+        # [No.47] G・X・Y・Z・A・R がすべて空の行はコンバートで取り込まない(段取シートに空の枠が出るため)
+        if all(v is None or str(v).strip() == "" for v in row[1:7]):
+            empty_old_count += 1
+            continue
         old_by_kakoid[row[0]].append(row)
+    if empty_old_count:
+        log(f"  旧DB側で値がすべて空の行: {empty_old_count}件（取り込まない仕様のため比較対象外）")
     if orphan_old_count:
         log(f"  [WARN] 旧DB側で加工IDがNULLの孤立行: {orphan_old_count}件（比較対象外として除外）")
 

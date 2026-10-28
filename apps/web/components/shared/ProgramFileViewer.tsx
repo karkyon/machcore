@@ -244,8 +244,12 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
   };
 
   // ── USBへ書き出し(UAチケット経由) ──
+  // [No.51] 未認証で押したときは認証画面を開き、認証が終わったら書き出しを自動で続ける(もう一度押さなくてよい)。
+  //   認証をやめた後に別の目的で認証したとき勝手に書き出さないよう、待つのは2分まで。
+  const pendingUsbAtRef = useRef<number | null>(null);
   const handleUsbExport = async () => {
-    if (!token) { onAuthRequired?.(); return; }
+    if (!token) { pendingUsbAtRef.current = Date.now(); onAuthRequired?.(); return; }
+    pendingUsbAtRef.current = null;
     setUsbBusy(true);
     try {
       const online = await isAgentOnline();
@@ -275,6 +279,14 @@ export default function ProgramFileViewer(props: ProgramFileViewerProps) {
       setUsbBusy(false);
     }
   };
+
+  useEffect(() => {
+    const at = pendingUsbAtRef.current;
+    if (!token || at == null) return;
+    pendingUsbAtRef.current = null;
+    if (Date.now() - at <= 120000) handleUsbExport();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   // ── ディレクトリ別グルーピング(簡易ツリー) ──
   const groups: Record<string, PgFile[]> = {};

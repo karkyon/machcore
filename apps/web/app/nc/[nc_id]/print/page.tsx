@@ -60,6 +60,9 @@ export default function PrintPage() {
   // 経過タイマー
   const [elapsed,  setElapsed]  = useState(0);
   const timerRef               = useRef<NodeJS.Timeout | null>(null);
+  // [No.53] 認証前に下までスクロールして認証すると、その位置のまま「発行前の確認」が画面外になっていた。認証後は先頭へ戻す
+  const scrollBoxRef           = useRef<HTMLDivElement | null>(null);
+  useEffect(() => { if (isAuthenticated) scrollBoxRef.current?.scrollTo({ top: 0 }); }, [isAuthenticated]);
 
   // ── 初期データ取得 ──
   useEffect(() => {
@@ -328,7 +331,7 @@ export default function PrintPage() {
       </nav>
 
       {/* ── メインコンテンツ ── */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollBoxRef} className="flex-1 overflow-y-auto">
         <div className="p-5 max-w-5xl mx-auto">
 
           {/* ── エラー表示 ── */}

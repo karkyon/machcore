@@ -598,6 +598,9 @@ def phase4(pg, dry_run=False):
             row_dict = dict(zip(cols, row))
             kakoid   = row_dict.get("加工ID")
             if kakoid not in valid_machining_ids: skip += 1; continue
+            # [No.47] G・X・Y・Z・A・R がすべて空の行は取り込まない(段取シートに空の枠が印字されていた)
+            if all(row_dict.get(k) is None or str(row_dict.get(k)).strip() == "" for k in ("G", "X", "Y", "Z", "A", "R")):
+                skip += 1; continue
             sort_no = wo_seq.get(kakoid, 0)
             wo_seq[kakoid] = sort_no + 1
             if not dry_run:
@@ -949,10 +952,18 @@ def phase6(pg, dry_run=False):
                         _nm = str(rd["ﾁｪｯｸMan"]).strip()
                         _unresolved_work_names[_nm] = _unresolved_work_names.get(_nm, 0) + 1
 
+                    # [No.45] 0 と空を区別する(旧の過去データ集計は 段取_ﾜｰｸ数=0 の記録も数える)
+                    def _cnt(v):
+                        if v is None or str(v).strip() == "":
+                            return None
+                        try:
+                            return int(float(str(v)))
+                        except (TypeError, ValueError):
+                            return None
                     qty_val = rd["ﾜｰｸ数"]
-                    work_qty = int(float(str(qty_val))) if qty_val else None
+                    work_qty = _cnt(qty_val)
                     setup_qty_val = rd["段取_ﾜｰｸ数"]
-                    setup_qty = int(float(str(setup_qty_val))) if setup_qty_val else None
+                    setup_qty = _cnt(setup_qty_val)
 
                     # 担当者
                     setup_ids = _resolve_multi(rd["段取"])

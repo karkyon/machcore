@@ -36,11 +36,13 @@ def parse_hms_sec(v):
 
 
 def parse_hms_min(v):
-    """旧の時間文字列 → 分(秒は切捨て)。空・負・0・解釈不可は None"""
+    """旧の時間文字列 → 分(秒は切捨て)。空・負・解釈不可は None。'0H 0M' のような 0 は 0
+    [No.45] 旧の段取シートの過去データ(平均・ベスト・件数)は「値が入っている(Is Not Null)記録」を数え、
+    '0H 0M' も 0分として平均・最短に含めていたため、0 と空を区別して取り込む"""
     sec = parse_hms_sec(v)
-    if not sec:
+    if sec is None:
         return None
-    return sec // 60 or None
+    return sec // 60
 
 
 def _int0(v):

@@ -1398,20 +1398,20 @@ export default function McEditPage() {
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-2">{tr("mcEditUi.cycleTimeLabel", "サイクルタイム/1P")}</label>
                     <div className="flex items-center gap-2">
-                      <input type="number" min={0} data-fi="true" value={cycleH} onChange={e => setCycleH(Number(e.target.value))}
+                      <input type="number" min={0} data-fi="true" value={cycleH} onChange={e => setCycleH(Number(e.target.value))} onFocus={e => e.currentTarget.select()}
                         className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
                       <span className="text-xs text-slate-400">h</span>
-                      <input type="number" min={0} max={59} data-fi="true" value={cycleM} onChange={e => setCycleM(Number(e.target.value))}
+                      <input type="number" min={0} max={59} data-fi="true" value={cycleM} onChange={e => setCycleM(Number(e.target.value))} onFocus={e => e.currentTarget.select()}
                         className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
                       <span className="text-xs text-slate-400">m</span>
-                      <input type="number" min={0} max={59} data-fi="true" value={cycleS} onChange={e => setCycleS(Number(e.target.value))}
+                      <input type="number" min={0} max={59} data-fi="true" value={cycleS} onChange={e => setCycleS(Number(e.target.value))} onFocus={e => e.currentTarget.select()}
                         className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400" />
                       <span className="text-xs text-slate-400">s</span>
                     </div>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.machiningQtyLabel2", "加工個数/1サイクル")}</label>
-                    <input type="number" min={1} data-fi="true" value={machiningQty} onChange={e => setMachiningQty(Number(e.target.value))}
+                    <input type="number" min={1} data-fi="true" value={machiningQty} onChange={e => setMachiningQty(Number(e.target.value))} onFocus={e => e.currentTarget.select()}
                       className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm text-center focus:ring-2 focus:ring-teal-400 focus:outline-none" />
                   </div>
                 </div>
@@ -1494,11 +1494,26 @@ export default function McEditPage() {
                 <div className="grid grid-cols-2 gap-4 pt-1">
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.operatorLabel", "オペレーター")}</label>
-                    <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700">{detail?.registrar?.name ?? "—"}</div>
+                    {/* [No.58] オペレーター=この画面で入力する認証者。保存時にこの人・この日時で記録されるため、編集中は今回の値を表示し前回の値を併記 */}
+                    <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                      {isAuthenticated && operator?.name
+                        ? <>{operator.name}<span className="ml-2 text-[10px] text-teal-600 font-bold">{tr("mcEditUi.recordedOnSave", "（保存時に記録）")}</span></>
+                        : (detail?.registrar?.name ?? "—")}
+                    </div>
+                    {isAuthenticated && operator?.name && (
+                      <p className="text-[10px] text-slate-400 mt-0.5">{tr("mcEditUi.previousValue", "前回: {v}").replace("{v}", detail?.registrar?.name ?? "—")}</p>
+                    )}
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.inputDateLabel", "入力日")}</label>
-                    <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-mono">{toJstDateString(detail?.registeredAt) ?? "—"}</div>
+                    <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-mono">
+                      {isAuthenticated && operator?.name
+                        ? <>{toJstDateString(new Date()) ?? "—"}<span className="ml-2 text-[10px] text-teal-600 font-bold font-sans">{tr("mcEditUi.recordedOnSave", "（保存時に記録）")}</span></>
+                        : (toJstDateString(detail?.registeredAt) ?? "—")}
+                    </div>
+                    {isAuthenticated && operator?.name && (
+                      <p className="text-[10px] text-slate-400 mt-0.5">{tr("mcEditUi.previousValue", "前回: {v}").replace("{v}", toJstDateString(detail?.registeredAt) ?? "—")}</p>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">

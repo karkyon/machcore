@@ -1328,7 +1328,7 @@ export default function McDetailPage() {
                         //   常時見えるテキストとして表示する(理由バッジ＋詳細コメント)。
                         <span className="ml-auto flex items-center gap-1.5 flex-wrap justify-end">
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-white border border-slate-800">
-                            {tr("mcDetailPage.lostLabel", "紛失:")} {p.lost_reason ?? tr("mcDetailPage.lostReasonUnrecorded", "理由未記載")}
+                            {tr("mcDetailPage.lostLabel", "作業記録なしで回収:")} {p.lost_reason ?? tr("mcDetailPage.lostReasonUnrecorded", "理由未記載")}
                           </span>
                           {p.lost_detail && (
                             <span className="text-[10px] text-slate-500 max-w-[280px] truncate" title={p.lost_detail}>

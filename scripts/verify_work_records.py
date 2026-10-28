@@ -286,8 +286,9 @@ def verify_mc(ss, pg, tally):
                  i_or_none(o.get("ﾜｰｸ数"))))
 
     def nkey(n):
-        return (n["work_date"], (n["started_at"], n["finished_at"], n["setup_time_min"] or None,
-                                 n["machining_time_min"] or None, n["quantity"] or None))
+        # [No.45] 取込は '0H 0M' を 0、空を None で区別して入れる(legacy_work_time.parse_hms_min)ため、時間はそのまま比べる
+        return (n["work_date"], (n["started_at"], n["finished_at"], n["setup_time_min"],
+                                 n["machining_time_min"], n["quantity"] or None))
 
     stat = {"old": len(old_work), "paired": 0, "missing_in_new": 0, "new_only": 0, "no_program": 0, "after_conversion": mc_late}
     missing_list, new_only_list = [], []
@@ -346,9 +347,9 @@ def compare_mc_pair(o, n, mcid, pid, tally, person, mres, uname, mcode, admin_id
     o_mach = parse_hms_sec(o.get("加工時間"))
     o_total = parse_hms_sec(o.get("総時間"))
     e_setup, e_mach, e_total = lwt.parse_hms_min(o.get("段取時間")), lwt.parse_hms_min(o.get("加工時間")), lwt.parse_hms_min(o.get("総時間"))
-    chk(G1, "段取時間(列)", e_setup == (n["setup_time_min"] or None), o.get("段取時間"), fmt_min(n["setup_time_min"]))
-    chk(G1, "加工時間(列)", e_mach == (n["machining_time_min"] or None), o.get("加工時間"), fmt_min(n["machining_time_min"]))
-    chk(G1, "総時間(列)", e_total == (n["total_time_min"] or None), o.get("総時間"), fmt_min(n["total_time_min"]))
+    chk(G1, "段取時間(列)", e_setup == n["setup_time_min"], o.get("段取時間"), fmt_min(n["setup_time_min"]))
+    chk(G1, "加工時間(列)", e_mach == n["machining_time_min"], o.get("加工時間"), fmt_min(n["machining_time_min"]))
+    chk(G1, "総時間(列)", e_total == n["total_time_min"], o.get("総時間"), fmt_min(n["total_time_min"]))
 
     e_cyc, e_pcs = lwt.cycle_sec(o), lwt.cycle_pcs(o)
     chk(G1, "サイクルタイム(列)", e_cyc == (n["cycle_time_sec"] or None),

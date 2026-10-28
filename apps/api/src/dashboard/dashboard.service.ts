@@ -66,7 +66,8 @@ export class DashboardService {
         mcProgram: {
           include: {
             part:     { select: { partId: true, drawingNo: true, name: true, clientName: true, mainModel: true } },
-            machining: { select: { mcProcessNo: true, version: true } },
+            machining: { select: { mcProcessNo: true, version: true,
+                                   machine: { select: { machineCode: true, machineName: true, sortOrder: true } } } },
           },
         },
       },
@@ -82,10 +83,12 @@ export class DashboardService {
       client_name:    s.mcProgram.part.clientName ?? null,
       main_model:     s.mcProgram.part.mainModel ?? null,
       mc_process_no:  s.mcProgram?.machining?.mcProcessNo ?? null,
-      // machine_id_log（変更履歴の印刷時機械）を使用 = 旧DBのNow段取シートクエリと同一
-      machine_code:   s.machine?.machineCode ?? null,
-      machine_name:   s.machine?.machineName ?? null,
-      machine_sort:   s.machine?.sortOrder ?? 999,
+      // [No.57] ①段取シート印刷時に機械を選んだ → その機械(machine_id_log。旧DBのNow段取シートクエリと同一)
+      //         ②選んでいない → マシニング情報に登録した機械で表示し、「機械未選択」バッジを出す
+      machine_code:   s.machine?.machineCode ?? (s.mcProgram?.machining as any)?.machine?.machineCode ?? null,
+      machine_name:   s.machine?.machineName ?? (s.mcProgram?.machining as any)?.machine?.machineName ?? null,
+      machine_sort:   s.machine?.sortOrder   ?? (s.mcProgram?.machining as any)?.machine?.sortOrder   ?? 999,
+      machine_unselected: s.machineIdLog == null,
       version:        s.version ?? null,
       printed_at:     s.printedAt,
       operator_name:  s.operator?.name ?? null,
@@ -117,7 +120,12 @@ export class DashboardService {
       where: { id },
       data: { isLost: true, lostReason: reason, lostDetail: detail, lostAt: new Date(), lostBy: userId },
     });
-    return { message: '行方不明として処理しました' };
+    return { message: this.lostMessage(reason) };
+  }
+
+  /** [No.60] 作業記録なしで回収済みにしたときのメッセージ(回収理由に合わせる。従来は常に「行方不明」) */
+  private lostMessage(reason: string | null | undefined) {
+    return reason ? `作業記録なしで回収済みにしました(${reason})` : '作業記録なしで回収済みにしました';
   }
 
   /** ⑦段取シート行方不明処理(論理削除・理由記録) — NC */
@@ -126,6 +134,6 @@ export class DashboardService {
       where: { id },
       data: { isLost: true, lostReason: reason, lostDetail: detail, lostAt: new Date(), lostBy: userId },
     });
-    return { message: '行方不明として処理しました' };
+    return { message: this.lostMessage(reason) };
   }
 }
