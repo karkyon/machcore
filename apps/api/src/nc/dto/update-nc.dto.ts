@@ -19,7 +19,9 @@ export class UpdateNcDto {
   // [MC統一] バージョンは手入力しない(終了確認=finalize()の作業種別でサーバー側が更新する)。
   // MCのUpdateMcDtoと同じく version は受け付けない。
 
-  @IsOptional() @IsString() @MaxLength(2000)
+  // 旧システム(Access メモ型・最大65,535文字)から移行した長いクランプ/備考も保存できるよう DB(TEXT)に合わせる。
+  // 2000文字を超えるコンバートデータは「作業完了(登録)」が 400 エラーになり変更・登録できなかった
+  @IsOptional() @IsString() @MaxLength(65535)
   clamp_note?: string;
 
   // [v101] 掴代(専用フィールド)

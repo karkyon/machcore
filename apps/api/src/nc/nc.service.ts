@@ -1202,39 +1202,47 @@ export class NcService {
     const machineId = dto.machine_id ?? ncWithMachiningForWR?.machining?.machineId ?? null;
 
     // [二重登録防止] 同一操作者・同一内容の作業記録が直近60秒以内に作成済みなら新規作成せず既存を返す
-    const dup = await this.prisma.workRecord.findFirst({
-      where: {
-        ncProgramId,
-        operatorId,
-        createdAt:        { gte: new Date(Date.now() - 60 * 1000) },
-        setupTimeMin:     dto.setup_time_min     ?? null,
-        machiningTimeMin: dto.machining_time_min ?? null,
-        cycleTimeSec:     dto.cycle_time_sec     ?? null,
-        quantity:         dto.quantity           ?? null,
-        note:             dto.note               ?? null,
-      },
-      orderBy: { id: 'desc' },
-    });
-    if (dup) return { id: dup.id, message: '作業記録を登録しました' };
+    // [No.4] 確認と登録の間に同時に届いた要求が両方とも登録されていたため、NCごとの排他ロック
+    //   (トランザクション終了で自動解放)で「重複確認→登録」を直列化する。
+    const saved = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(${71002}::int, ${ncProgramId}::int)) AS l`;
+      const dup = await tx.workRecord.findFirst({
+        where: {
+          ncProgramId,
+          operatorId,
+          createdAt:        { gte: new Date(Date.now() - 60 * 1000) },
+          setupTimeMin:     dto.setup_time_min     ?? null,
+          machiningTimeMin: dto.machining_time_min ?? null,
+          cycleTimeSec:     dto.cycle_time_sec     ?? null,
+          quantity:         dto.quantity           ?? null,
+          note:             dto.note               ?? null,
+        },
+        orderBy: { id: 'desc' },
+      });
+      if (dup) return { dup };
  
-    const record = await this.prisma.workRecord.create({
-      data: {
-        ncProgramId,
-        operatorId,
-        machineId,
-        workDate:            (() => { const n = new Date(); const jst = new Date(n.getTime() + 9*60*60*1000); return new Date(`${jst.getUTCFullYear()}-${String(jst.getUTCMonth()+1).padStart(2,'0')}-${String(jst.getUTCDate()).padStart(2,'0')}T00:00:00Z`); })(),
-        setupTimeMin:        dto.setup_time_min        ?? null,
-        machiningTimeMin:    dto.machining_time_min    ?? null,
-        cycleTimeSec:        dto.cycle_time_sec        ?? null,
-        quantity:            dto.quantity              ?? null,
-        interruptionTimeMin: dto.interruption_time_min ?? null,
-        workType:            dto.work_type             ?? null,
-        note:                dto.note                  ?? null,
-        setupOperatorIds:      dto.setup_operator_ids      ?? [],
-        productionOperatorIds: dto.production_operator_ids ?? [],
-        ncSetupSheetLogId:     dto.setup_sheet_log_id ?? null,
-      },
+      const record = await tx.workRecord.create({
+        data: {
+          ncProgramId,
+          operatorId,
+          machineId,
+          workDate:            (() => { const n = new Date(); const jst = new Date(n.getTime() + 9*60*60*1000); return new Date(`${jst.getUTCFullYear()}-${String(jst.getUTCMonth()+1).padStart(2,'0')}-${String(jst.getUTCDate()).padStart(2,'0')}T00:00:00Z`); })(),
+          setupTimeMin:        dto.setup_time_min        ?? null,
+          machiningTimeMin:    dto.machining_time_min    ?? null,
+          cycleTimeSec:        dto.cycle_time_sec        ?? null,
+          quantity:            dto.quantity              ?? null,
+          interruptionTimeMin: dto.interruption_time_min ?? null,
+          workType:            dto.work_type             ?? null,
+          note:                dto.note                  ?? null,
+          setupOperatorIds:      dto.setup_operator_ids      ?? [],
+          productionOperatorIds: dto.production_operator_ids ?? [],
+          ncSetupSheetLogId:     dto.setup_sheet_log_id ?? null,
+        },
+      });
+      return { record };
     });
+    if ('dup' in saved && saved.dup) return { id: saved.dup.id, message: '作業記録を登録しました' };
+    const record = (saved as any).record;
  
     return {
       id:      record.id,

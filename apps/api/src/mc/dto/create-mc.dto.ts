@@ -20,7 +20,9 @@ export class CreateMcDto {
   @IsOptional() @IsString() @MaxLength(50)
   o_number?: string;
 
-  @IsOptional() @IsString() @MaxLength(2000)
+  // 旧システム(Access メモ型・最大65,535文字)から移行した長いクランプ/備考も保存できるよう DB(TEXT)に合わせる。
+  // 2000文字を超えるコンバートデータは「作業完了(登録)」が 400 エラーになり変更・登録できなかった
+  @IsOptional() @IsString() @MaxLength(65535)
   clamp_note?: string;
 
   @IsOptional() @IsInt() @Min(0)
@@ -33,6 +35,8 @@ export class CreateMcDto {
   @IsOptional() @IsString() @MaxLength(20)
   common_part_code?: string;
 
-  @IsOptional() @IsString() @MaxLength(2000)
+  // 旧システム(Access メモ型・最大65,535文字)から移行した長い備考も保存できるよう DB(TEXT)に合わせる。
+  // 2000文字を超えるコンバートデータは「作業完了(登録)」が 400 エラーになり変更・登録できなかった
+  @IsOptional() @IsString() @MaxLength(65535)
   note?: string;
 }

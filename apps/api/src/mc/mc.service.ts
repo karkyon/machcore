@@ -1502,53 +1502,61 @@ export class McService {
 
     // [二重登録防止] 同一操作者・同一内容の作業記録が直近60秒以内に作成済みなら
     // 新規作成せず既存を返す(連続クリック/再送信による二重登録の防止)。
-    const dup = await this.prisma.workRecord.findFirst({
-      where: {
-        mcProgramId: mcId,
-        operatorId,
-        createdAt:        { gte: new Date(Date.now() - 60 * 1000) },
-        startedAt:        dto.started_at  ? new Date(dto.started_at)  : null,
-        checkedAt:        dto.checked_at  ? new Date(dto.checked_at)  : null,
-        finishedAt:       dto.finished_at ? new Date(dto.finished_at) : null,
-        setupTimeMin:     setupMin,
-        machiningTimeMin: machMin,
-        cycleTimeSec:     dto.cycle_time_sec ?? null,
-        quantity:         dto.quantity       ?? null,
-        note:             dto.note           ?? null,
-      },
-      orderBy: { id: 'desc' },
-    });
-    if (dup) return { id: dup.id, message: '作業記録を登録しました', duplicate: true };
+    // [No.4] 確認と登録の間に同時に届いた要求が両方とも登録されていたため、MCごとの排他ロック
+    //   (トランザクション終了で自動解放)で「重複確認→登録」を直列化する。
+    const saved = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(${71001}::int, ${mcId}::int)) AS l`;
+      const dup = await tx.workRecord.findFirst({
+        where: {
+          mcProgramId: mcId,
+          operatorId,
+          createdAt:        { gte: new Date(Date.now() - 60 * 1000) },
+          startedAt:        dto.started_at  ? new Date(dto.started_at)  : null,
+          checkedAt:        dto.checked_at  ? new Date(dto.checked_at)  : null,
+          finishedAt:       dto.finished_at ? new Date(dto.finished_at) : null,
+          setupTimeMin:     setupMin,
+          machiningTimeMin: machMin,
+          cycleTimeSec:     dto.cycle_time_sec ?? null,
+          quantity:         dto.quantity       ?? null,
+          note:             dto.note           ?? null,
+        },
+        orderBy: { id: 'desc' },
+      });
+      if (dup) return { dup };
 
-    const record = await this.prisma.workRecord.create({
-      data: {
-        mcProgramId:      mcId,
-        operatorId,
-        machineId:        dto.machine_id ?? (mc as any).machining?.machineId ?? null,
-        workDate:         (() => { const n = new Date(); const jst = new Date(n.getTime() + 9*60*60*1000); return new Date(`${jst.getUTCFullYear()}-${String(jst.getUTCMonth()+1).padStart(2,'0')}-${String(jst.getUTCDate()).padStart(2,'0')}T00:00:00Z`); })(),
-        workType:         dto.work_type  ?? null,
-        setupTimeMin:     setupMin,
-        machiningTimeMin: machMin,
-        cycleTimeSec:     dto.cycle_time_sec   ?? null,
-        quantity:         dto.quantity         ?? null,
-        setupWorkCount:   dto.setup_work_count ?? null,
-        startedAt:        dto.started_at  ? new Date(dto.started_at)  : null,
-        checkedAt:        dto.checked_at  ? new Date(dto.checked_at)  : null,
-        finishedAt:       dto.finished_at ? new Date(dto.finished_at) : null,
-        interruptSetupMin: dto.interrupt_setup_min ?? null,
-        interruptWorkMin:  dto.interrupt_work_min  ?? null,
-        note:             dto.note ?? null,
-        setupOperatorIds:      dto.setup_operator_ids      ?? [],
-        productionOperatorIds: dto.production_operator_ids ?? [],
-        prgMan:            dto.prg_man       ?? null,
-        prgTimeMin:        dto.prg_time_min  ?? null,
-        prgPlas:           dto.prg_plas      ?? null,
-        cyclePcs:          dto.cycle_pcs         ?? null,
-        checkOperatorId:   dto.check_operator_id ?? null,
-        totalTimeMin:      dto.total_time_min    ?? null,
-        mcSetupSheetLogId: dto.setup_sheet_log_id ?? null,
-      },
+      const record = await tx.workRecord.create({
+        data: {
+          mcProgramId:      mcId,
+          operatorId,
+          machineId:        dto.machine_id ?? (mc as any).machining?.machineId ?? null,
+          workDate:         (() => { const n = new Date(); const jst = new Date(n.getTime() + 9*60*60*1000); return new Date(`${jst.getUTCFullYear()}-${String(jst.getUTCMonth()+1).padStart(2,'0')}-${String(jst.getUTCDate()).padStart(2,'0')}T00:00:00Z`); })(),
+          workType:         dto.work_type  ?? null,
+          setupTimeMin:     setupMin,
+          machiningTimeMin: machMin,
+          cycleTimeSec:     dto.cycle_time_sec   ?? null,
+          quantity:         dto.quantity         ?? null,
+          setupWorkCount:   dto.setup_work_count ?? null,
+          startedAt:        dto.started_at  ? new Date(dto.started_at)  : null,
+          checkedAt:        dto.checked_at  ? new Date(dto.checked_at)  : null,
+          finishedAt:       dto.finished_at ? new Date(dto.finished_at) : null,
+          interruptSetupMin: dto.interrupt_setup_min ?? null,
+          interruptWorkMin:  dto.interrupt_work_min  ?? null,
+          note:             dto.note ?? null,
+          setupOperatorIds:      dto.setup_operator_ids      ?? [],
+          productionOperatorIds: dto.production_operator_ids ?? [],
+          prgMan:            dto.prg_man       ?? null,
+          prgTimeMin:        dto.prg_time_min  ?? null,
+          prgPlas:           dto.prg_plas      ?? null,
+          cyclePcs:          dto.cycle_pcs         ?? null,
+          checkOperatorId:   dto.check_operator_id ?? null,
+          totalTimeMin:      dto.total_time_min    ?? null,
+          mcSetupSheetLogId: dto.setup_sheet_log_id ?? null,
+        },
+      });
+      return { record };
     });
+    if ('dup' in saved && saved.dup) return { id: saved.dup.id, message: '作業記録を登録しました', duplicate: true };
+    const record = (saved as any).record;
     await this.prisma.operationLog.create({
       data: { userId: operatorId, mcProgramId: mcId, actionType: 'MC_WORK_RECORD', metadata: { recordId: record.id } },
     });
@@ -2948,8 +2956,9 @@ export class McService {
     const fmtVer = (v: string) => v ? v.replace(/^(\d+)\.(\d{4})$/,(_:any,a:any,b:any)=>a+'.'+b) : '';
     const resolveVal = (src: string): string => {
       if (!src) return '';
-      // __stat__ プレフィックスは統計値キーなので通過させる
-      if (src.startsWith('__') && !src.startsWith('__stat_')) return '';
+      // __stat__ プレフィックスは統計値キー、__option_ は発行前の確認で入力した値(今回使用機械・今回のワーク数・用途)なので通過させる
+      // [No.52] 従来は __option_ もここで空文字にしていたため、作業記録ページの今回使用機械・今回のワーク数が印字されなかった
+      if (src.startsWith('__') && !src.startsWith('__stat_') && !src.startsWith('__option_')) return '';
       if (src === 'approvedAt')   return fmtDate(d.approvedAt);
       if (src === 'registeredAt') return fmtDate(d.registeredAt);
       if (src === 'version')      return fmtVer(d.version ?? '');

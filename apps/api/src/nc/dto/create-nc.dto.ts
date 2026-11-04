@@ -29,7 +29,9 @@ export class CreateNcDto {
   @IsOptional() @IsString() @Matches(/^\d+\.\d{4}$/, { message: 'version は "1.0001" 形式の数値文字列' })
   version?: string;
 
-  @IsOptional() @IsString() @MaxLength(2000)
+  // 旧システム(Access メモ型・最大65,535文字)から移行した長いクランプ/備考も保存できるよう DB(TEXT)に合わせる。
+  // 2000文字を超えるコンバートデータは「作業完了(登録)」が 400 エラーになり変更・登録できなかった
+  @IsOptional() @IsString() @MaxLength(65535)
   clamp_note?: string;
 
   // [v101] 掴代(専用フィールド)
