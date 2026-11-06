@@ -20,12 +20,13 @@ nc_tool_shave1_master / nc_tool_shave2_master / nc_tool_chip_master / nc_tool_ho
   python3 scripts/seed_nc_tool_master.py            # 空のテーブルに投入
   python3 scripts/seed_nc_tool_master.py --dry-run  # 取得元と件数の確認のみ
   python3 scripts/seed_nc_tool_master.py --reseed holder  # [No.65] ホルダー候補を旧 t_d_Holder の ID 順で登録し直す
-                                                            (旧候補テーブルが無いときは何も変更しない)
+                                                            (旧サーバに表が無いため apps/api/migration/data/t_d_Holder.csv を使う)
 """
 import os
 import re
 import sys
 import argparse
+import csv
 import unicodedata
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -65,6 +66,16 @@ def merge_width_variants(values):
         kept.append(v)
     return kept, [(v, m) for v, m in by_key.values() if m]
 _TEXT_TYPES = ("char", "varchar", "nchar", "nvarchar", "text", "ntext")
+
+
+def _holder_from_csv():
+    """旧Accessから書き出した t_d_Holder.csv(旧サーバのSQL Serverには無い)を旧ID順で返す"""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "apps", "api", "migration", "data", "t_d_Holder.csv")
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        rows = [r for r in csv.DictReader(f) if str(r.get("ID") or "").strip()]
+    return [r["Holder"] for r in sorted(rows, key=lambda r: int(r["ID"]))]
 
 
 def _find_legacy_tables(ssc, log):
@@ -128,10 +139,12 @@ def reseed(pg, ss, table, legacy_name, log=print, dry_run=False):
     """旧候補テーブルの ID 順で候補を登録し直す。加工リストの行は名称で持つので、既存の行には影響しない"""
     cur, ssc = pg.cursor(), ss.cursor()
     src = _find_legacy_tables(ssc, log).get(legacy_name.lower())
-    if not src:
-        log(f"[加工リストマスタ] 旧サーバに {legacy_name} が見つからない → {table} は変更しない", "WARN")
-        return 0
-    name_col, values = _values_from_legacy_table(ssc, *src)
+    if src:
+        name_col, values = _values_from_legacy_table(ssc, *src)
+        src_desc = f"{src[0]}.{src[2]}.{name_col}"
+    else:
+        values = _holder_from_csv() if legacy_name == "t_d_Holder" else []
+        src_desc = "t_d_Holder.csv"
     names, seen = [], set()
     for v in values:
         s = str(v or "").strip()
@@ -139,9 +152,9 @@ def reseed(pg, ss, table, legacy_name, log=print, dry_run=False):
             seen.add(s)
             names.append(s)
     if not names:
-        log(f"[加工リストマスタ] {src[2]}.{name_col} が空 → {table} は変更しない", "WARN")
+        log(f"[加工リストマスタ] {legacy_name} の取得元が無い/空 → {table} は変更しない", "WARN")
         return 0
-    log(f"[加工リストマスタ] {table}: {src[0]}.{src[2]}.{name_col} の ID 順で {len(names)}件に置き換え: {names}")
+    log(f"[加工リストマスタ] {table}: {src_desc} の ID 順で {len(names)}件に置き換え: {names}")
     if dry_run:
         return len(names)
     cur.execute(f"DELETE FROM {table}")
@@ -171,6 +184,9 @@ def seed(pg, ss, log=print, dry_run=False):
         if src:
             name_col, values = _values_from_legacy_table(ssc, *src)
             src_desc = f"旧候補テーブル {src[0]}.{src[1]}.{src[2]}.{name_col}"
+        if not values and legacy_name == "t_d_Holder":
+            values = _holder_from_csv()
+            src_desc = "t_d_Holder.csv(旧ID順)"
         if not values:
             values = _values_from_acc_tool(ssc, acc_col)
             src_desc = f"旧ACC_Tool.{acc_col} の使用値(使用件数順)"
