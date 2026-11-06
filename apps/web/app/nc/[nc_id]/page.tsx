@@ -1,4 +1,5 @@
 "use client";
+import { machineLabel, MachineLabel } from "@/lib/machineLabel";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import React from "react";
 import dynamic from "next/dynamic";
@@ -377,7 +378,7 @@ export default function NcDetailPage() {
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${p.nc_id === ncId ? "bg-sky-500 text-white" : "bg-slate-100 text-slate-600"}`}>
                       L{p.process_l}
                     </span>
-                    <span className="font-mono text-slate-600">{p.machine_code ?? "—"}</span>
+                    <span className="font-mono text-slate-600"><MachineLabel code={p.machine_code} /></span>
                     <span className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded ${
                       p.status === "APPROVED" ? "bg-green-100 text-green-700" :
                       p.status === "CHANGING" ? "bg-orange-100 text-orange-700" :
@@ -453,7 +454,7 @@ export default function NcDetailPage() {
                   {[
                     { label: tr("ncDetailPage.colProcessL","工程 L"), value: String(d.processL), mono: true },
                     { label: tr("ncDetailPage.colVersion3","バージョン"), value: d.version ?? "—", mono: true },
-                    { label: tr("ncDetailPage.colMachine2","機械"),   value: d.machine?.machineCode ?? "—", mono: true },
+                    { label: tr("ncDetailPage.colMachine2","機械"),   value: machineLabel(d.machine), mono: true },
                     { label: tr("ncDetailPage.colMachiningTime","加工時間"), value: (d.machiningTime != null || d.setupTimeRef != null) ? (() => { const t = (d.machiningTime ?? 0) * 60 + (d.setupTimeRef ?? 0); return `${Math.floor(t/3600)}h${Math.floor((t%3600)/60)}m${t%60}s`; })() : "—", mono: true },
                     { label: tr("ncDetailPage.colFolder","フォルダ"), value: d.folderName ?? "—", mono: true },
                   ].map(f => (
@@ -634,7 +635,7 @@ export default function NcDetailPage() {
                         {d.tools.map((t: NcTool, i: number) => (
                           <tr key={t.id} className={`border-b border-slate-100 last:border-b-0 ${i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}>
                             {/* No = 旧TNo(t3_Tool.No)。並びは旧T_id昇順(sort_order) */}
-                            <td className="px-3 py-2.5 text-slate-600 text-center w-10">{t.tNumber ?? "—"}</td>
+                            <td className="px-3 py-2.5 text-slate-600 text-center w-10">{t.tNumber || i + 1}</td>
                             <td className="px-3 py-2.5 text-slate-700">{t.processType ?? "—"}</td>
                             <td className="px-3 py-2.5 text-slate-800 text-sm tracking-[0.25em] whitespace-nowrap">{t.chipModel ?? "—"}</td>
                             <td className="px-3 py-2.5 text-slate-700">{t.holderModel ?? "—"}</td>
@@ -734,7 +735,7 @@ export default function NcDetailPage() {
                           <tr key={w.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                             <td className="px-3 py-2 font-mono whitespace-nowrap text-slate-500">{fmtDate(w.work_date)}</td>
                             <td className="px-3 py-2">{w.operator_name ?? "—"}</td>
-                            <td className="px-3 py-2 font-mono">{w.machine_code ?? "—"}</td>
+                            <td className="px-3 py-2 font-mono"><MachineLabel code={w.machine_code} /></td>
                             <td className="px-3 py-2 text-right">{w.setup_time     != null ? `${Math.floor(w.setup_time/60)}h${w.setup_time%60}m0s` : "—"}</td>
                             <td className="px-3 py-2 text-right">{w.machining_time != null ? `${Math.floor(w.machining_time/60)}h${w.machining_time%60}m0s` : "—"}</td>
                             <td className="px-3 py-2 text-right">{w.quantity ?? "—"}</td>

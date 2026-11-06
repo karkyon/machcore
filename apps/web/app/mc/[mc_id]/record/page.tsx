@@ -1,4 +1,5 @@
 "use client";
+import { machineLabel, MachineLabel } from "@/lib/machineLabel";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import React, { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -662,6 +663,8 @@ function McRecordPageInner() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [editRecordId, setEditRecordId] = useState<number | null>(null);
+  // [No.82] 新規の作業記録は段取シートを選んだとき(段取シートバック含む)だけ入力できる。過去記録の参照・修正はこれまでどおり
+  const noSheetLock = !sbMode && editRecordId === null && !selectedSheet;
   // 今回使用機械を手動変更したか(自動設定で上書きしないため)/フォームリセット通知
   const machineTouchedRef = useRef(false);
   const [formResetSeq, setFormResetSeq] = useState(0);
@@ -1106,6 +1109,7 @@ function McRecordPageInner() {
     const handleSubmit = async () => {
     console.log("[RECORD] handleSubmit 全フォーム値", JSON.stringify({machineId,cycleH,cycleM,cycleS,cyclePcs,startedAt,checkedAt,finishedAt,dStopH,dStopM,yStopH,yStopM,setupOps,prodOps,checkMan,prgMan,setupQty,quantity,note,prgPlas,prgTimeH,prgTimeM,timeMode},null,2));
     console.log("[STEP2] handleSubmit sbMode=", sbMode, "token=", token ? "あり" : "なし", "isAuthenticated=", isAuthenticated);
+    if (noSheetLock) { setSaveError(tr("mcRecordPage.noSheetLockMsg", "作業記録は印刷済みの段取シートに対して入力します。先に段取シートを印刷してください")); return; }
     if (!token) { setSaveError(tr("mcRecordPage.authSessionExpired","認証セッションが切れています。再認証してください。")); setAuthOpen(true); return; }
     // 日時バリデーション
     if (timeMode === "datetime") {
@@ -1160,9 +1164,10 @@ function McRecordPageInner() {
         // 正しく紐付けて発行日時・発行者を後から正確に表示できるようにする。
         setup_sheet_log_id:  (!editRecordId && sbMode)
           ? (sbSheetLogId || parseInt(sessionStorage.getItem("sb_sheet_log_id") ?? "0") || undefined)
-          : undefined,
+          : (!editRecordId ? selectedSheet?.id : undefined),
       };
       const wasEdit = editRecordId != null;
+      let savedId: number | null = wasEdit ? (editRecordId as number) : null;
       if (wasEdit) {
         // 編集モードは更新API。空欄にした項目もクリアされるよう undefined を null にして送る。
         const upd: Record<string, unknown> = { ...body };
@@ -1170,11 +1175,22 @@ function McRecordPageInner() {
         delete upd.setup_sheet_log_id;
         await mcApi.updateWorkRecord(mcId, editRecordId as number, upd, token);
       } else {
-        await mcApi.createWorkRecord(mcId, body, token);
+        const created = await mcApi.createWorkRecord(mcId, body, token);
+        savedId = (created as any)?.data?.id ?? null;
+        // [No.82] この画面で選んだ段取シートに作業記録を入れたので回収済みにする(段取シートバックは下で処理)
+        if (!sbMode && selectedSheet) {
+          try { await mcApi.collectSetupSheet(mcId, selectedSheet.id, token); } catch (e) { console.error("collect error", e); }
+          setSetupSheets(prev => prev.filter(s => s.id !== selectedSheet.id));
+          setSelectedSheet(null);
+        }
       }
       const r = await mcApi.workRecords(mcId);
-      setRecords((r as any).data ?? []);
-      resetForm();
+      const freshRecords: McWorkRecord[] = (r as any).data ?? [];
+      setRecords(freshRecords);
+      // [No.75] 保存後にフォームを空にしていたため、プログラム担当・PrgTime・± などが消えて見えた。
+      //   段取シートバック以外は、保存した記録をそのまま再表示する
+      const savedRec = !sbMode ? freshRecords.find(x => x.id === savedId) : undefined;
+      if (savedRec) loadRecord(savedRec); else resetForm();
       showToast(wasEdit ? tr("mcRecordPage.recordUpdatedMsg","✅ 作業記録を更新しました") : tr("mcRecordPage.recordSavedMsg","✅ 作業記録を登録しました"));
       if (!wasEdit && sbMode && typeof window !== "undefined") {
         const v = sessionStorage.getItem("sb_next_record");
@@ -1246,7 +1262,7 @@ function McRecordPageInner() {
               <span className="text-slate-500 text-lg font-medium leading-none">{(detail as any).part.mainModel}</span>
             </>}
             <div className="flex items-center gap-2 ml-2">
-              {(detail as any).machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{(detail as any).machine.machineCode}</span>}
+              {(detail as any).machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{machineLabel((detail as any).machine)}</span>}
               <StatusBadge status={detail.status} />
               <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {detail.version}</span>
             </div>
@@ -1316,7 +1332,7 @@ function McRecordPageInner() {
                   <div className="font-bold text-slate-700">{(r as any).setup_sheet_printed_at
                     ? toJstYearMonthDayTimeString((r as any).setup_sheet_printed_at)
                     : <span className="font-normal text-slate-400">印刷記録なし（作業日 {toJstDateString(r.work_date)}）</span>}</div>
-                  <div className="text-slate-400">{r.operator_name ?? "—"} / {r.machine_code ?? "—"}</div>
+                  <div className="text-slate-400">{r.operator_name ?? "—"} / <MachineLabel code={r.machine_code} /></div>
                   <div className="text-slate-400">{fmtMin(r.setup_time_min)} / {fmtMin(r.machining_time_min)}</div>
                 </button>
               ))}
@@ -1333,8 +1349,9 @@ function McRecordPageInner() {
                 <div className="text-sm font-bold text-teal-800">{tr("mcRecordPage.recordBeforeStart", "作業記録 — 作業開始前")}</div>
                 <div className="text-xs text-teal-600 mt-0.5">{tr("mcRecordPage.operatorAuthRequired", "担当者認証が必要です")}</div>
               </div>
-              <button onClick={() => setAuthOpen(true)}
-                className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-sm transition-colors whitespace-nowrap">
+              <button onClick={() => setAuthOpen(true)} disabled={noSheetLock}
+                title={noSheetLock ? tr("mcRecordPage.noSheetLockMsg", "作業記録は印刷済みの段取シートに対して入力します。先に段取シートを印刷してください") : undefined}
+                className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors whitespace-nowrap">
                 {tr("mcRecordPage.startWorkButton", "この作業を開始する")}
               </button>
             </div>
@@ -1350,8 +1367,13 @@ function McRecordPageInner() {
               過去記録を参照中(editRecordId有り)だと未認証でも操作できてしまって
               いた。操作禁止(常に未認証なら適用)と見た目のフェード(空状態のみ)を
               別条件に分離する。 */}
-          <div className={`px-5 pb-5 ${!isAuthenticated && !sbMode ? "pointer-events-none select-none" : "pt-4"} ${
-            !isAuthenticated && !sbMode && editRecordId === null ? "grayscale opacity-90" : ""
+          {noSheetLock && (
+            <div className="mx-5 mt-4 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-300 text-sm font-bold text-amber-800">
+              {tr("mcRecordPage.noSheetLockMsg", "作業記録は印刷済みの段取シートに対して入力します。先に段取シートを印刷してください")}
+            </div>
+          )}
+          <div className={`px-5 pb-5 ${(!isAuthenticated && !sbMode) || noSheetLock ? "pointer-events-none select-none" : "pt-4"} ${
+            ((!isAuthenticated && !sbMode) || noSheetLock) && editRecordId === null ? "grayscale opacity-90" : ""
           }`}>
             {/* Ver・登録日・回収日時・オペレータ（表示専用）*/}
             {/* [バグ修正] 新規入力モード用のライブプレビュー(回収日時=現在時刻、
@@ -1452,7 +1474,7 @@ function McRecordPageInner() {
                           disabledで防ぐ。 */}
                       {machines.filter(m => m.isActive || String(m.id) === machineId).map(m => (
                         <option key={m.id} value={m.id} disabled={!m.isActive}>
-                          {m.machineCode}{!m.isActive ? tr("mcRecordPage.inactiveMachineSuffix", "（無効）") : ""}
+                          {machineLabel(m)}{!m.isActive ? tr("mcRecordPage.inactiveMachineSuffix", "（無効）") : ""}
                         </option>
                       ))}
                     </select>

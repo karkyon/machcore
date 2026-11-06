@@ -1,4 +1,5 @@
 "use client";
+import { MachineLabel } from "@/lib/machineLabel";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -192,7 +193,7 @@ export default function McSearchPage() {
                         マシニングの工程Noは「MC1」「MC2」…(「L」は旋盤NCの工程) */}
                     <span className="min-w-[28px] h-6 px-1 rounded bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">{r.mc_process_no != null ? `MC${r.mc_process_no}` : ri+1}</span>
                     <span className="font-mono text-xs text-slate-600 shrink-0">{t("search.mcIdColon","MCID : {id}").replace("{id}", String(r.legacy_mcid ?? r.mc_id))}</span>
-                    {r.machine_code && <span className="text-sm text-slate-700 font-medium shrink-0">{r.machine_code}</span>}
+                    {r.machine_code && <span className="text-sm text-slate-700 font-medium shrink-0"><MachineLabel code={r.machine_code} /></span>}
                     <span className="text-xs text-slate-400 shrink-0">{t("search.machiningIdColon","加工ID:{id}").replace("{id}", String(r.machining_id))}</span>
                     <span className="ml-auto flex items-center gap-2">
                       {fmtCycle(r.cycle_time_sec) && <span className="text-xs text-slate-400">⏱ {fmtCycle(r.cycle_time_sec)}</span>}

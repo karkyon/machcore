@@ -390,7 +390,8 @@
     "created": "Đã đăng ký",
     "deactivated": "Đã ngừng hoạt động",
     "activated": "Đã kích hoạt",
-    "changeFailed": "Thay đổi thất bại"
+    "changeFailed": "Thay đổi thất bại",
+    "colMachineCode": "Mã máy"
   },
   "adminUsers": {
     "roleAdmin": "Quản trị viên",
@@ -1003,7 +1004,13 @@
     "cancelButton11": "Hủy",
     "clampInputButton": "Nhập kẹp",
     "clampOverwriteConfirm": "Ô kẹp hiện tại đã có nội dung.\n\n【Hiện tại】{current}\n\n【Nội dung mới】{next}\n\nBạn có muốn ghi đè không？",
-    "emptyPlaceholder": "（trống）"
+    "emptyPlaceholder": "（trống）",
+    "processNoEditLabel": "Số công đoạn",
+    "correctionKeepVersionNote": "Đính chính: Phiên bản không thay đổi (dùng để sửa lỗi nhập; vẫn được ghi vào lịch sử thay đổi)",
+    "pgTypeSwitchConfirm": "Chuyển định dạng tệp chương trình sang \"{mode}\".\nChương trình đã đăng ký sẽ trở về trạng thái chưa đăng ký (tệp trên máy chủ không bị xóa). Sau khi chuyển, vui lòng đăng ký lại từ USB.\nTiếp tục?",
+    "pgTypeSwitched": "✅ Đã chuyển định dạng tệp chương trình",
+    "switchToSingle": "📄 Chuyển sang tệp đơn",
+    "switchToFolder": "📁 Chuyển sang theo thư mục"
   },
   "ncEdit": {
     "unsavedChangesConfirm": "Có thay đổi chưa được lưu. Nếu di chuyển bây giờ, thay đổi sẽ bị mất. Bạn có chắc chắn?",
@@ -1144,7 +1151,8 @@
     "tempSaveHint": "Không thay đổi phiên bản, chỉ lưu nội dung đã nhập",
     "tempSave": "💾 Lưu tạm",
     "skipNoWorkRecord": "Bỏ qua (Không ghi nhận công việc)",
-    "cancelDiscardChange": "Hủy (Bỏ thay đổi)"
+    "cancelDiscardChange": "Hủy (Bỏ thay đổi)",
+    "machiningTimeHmLabel": "Thời gian gia công"
   },
   "mcDetailPage": {
     "statusNew": "Mới",
@@ -1418,7 +1426,8 @@
     "loadingEllipsis2": "Đang tải…",
     "thisMachineLabel": "Máy sử dụng lần này",
     "cycleTimePerP2": "Thời gian chu kỳ / 1P",
-    "piecesPerCycle": "cái/1 chu kỳ:"
+    "piecesPerCycle": "cái/1 chu kỳ:",
+    "noSheetLockMsg": "Ghi nhận công việc được nhập theo Phiếu cài đặt đã in. Vui lòng in Phiếu cài đặt trước"
   },
   "mcPrintPage": {
     "mcDetailTabLink": "Chi tiết MC",
@@ -1723,7 +1732,8 @@
     "authenticatingLabel": "Đang xác thực...",
     "confirmAndStartButton": "Xác nhận và bắt đầu",
     "loadingEllipsis5": "Đang tải…",
-    "beforeUnloadMsg": "Công việc chưa hoàn thành. Bạn có muốn rời khỏi trang này không？"
+    "beforeUnloadMsg": "Công việc chưa hoàn thành. Bạn có muốn rời khỏi trang này không？",
+    "noSheetLockMsg": "Ghi nhận công việc được nhập theo Phiếu cài đặt đã in. Vui lòng in Phiếu cài đặt trước"
   },
   "ncPrintPage": {
     "startWorkFirstAlert": "Vui lòng bắt đầu công việc trước",

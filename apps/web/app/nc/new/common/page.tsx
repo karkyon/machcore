@@ -1,4 +1,5 @@
 "use client";
+import { MachineLabel } from "@/lib/machineLabel";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -127,7 +128,7 @@ export default function NcNewCommonPage() {
         {/* ── 左ペイン: 登録先の部品を検索 ── */}
         <aside className="w-[260px] shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden">
           <div className="p-4 border-b border-slate-100">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+            <p className="text-base font-bold text-white bg-sky-600 rounded-lg px-3 py-2 mb-2">
               {tr("ncNewCommonPage.step1SelectTargetPart2", "① 登録先の部品を検索")}
             </p>
             <select value={partSearchType} onChange={e => setPartSearchType(e.target.value as any)}
@@ -186,7 +187,8 @@ export default function NcNewCommonPage() {
           )}
 
           {/* 供用する加工を検索 */}
-          <div className="border-t border-slate-200 pt-5">
+          {/* [No.71] ①で部品を選ぶまで②は操作できない */}
+          <fieldset disabled={!selectedPart} className={`min-w-0 border-t border-slate-200 pt-5 ${!selectedPart ? "opacity-40 pointer-events-none select-none" : ""}`}>
             <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
               {tr("ncNewCommonPage.step2SelectSourceMachining2", "② 供用する加工データを検索")}
             </h2>
@@ -220,7 +222,7 @@ export default function NcNewCommonPage() {
                     <div className="font-mono text-xs font-bold text-slate-700">{row.drawing_no}</div>
                     <div className="text-xs text-slate-500 truncate">{row.part_name}</div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      {row.machine_code && <span className="text-[10px] text-slate-400">{row.machine_code}</span>}
+                      {row.machine_code && <span className="text-[10px] text-slate-400"><MachineLabel code={row.machine_code} /></span>}
                       <span className="text-[10px] font-mono text-slate-400">Ver.{row.version}</span>
                     </div>
                   </button>
@@ -252,7 +254,7 @@ export default function NcNewCommonPage() {
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 block">{tr("ncNewCommonPage.machineLabel10", "機械")}</span>
-                    <span className="text-slate-600">{selectedRow.machine_code ?? "—"}</span>
+                    <span className="text-slate-600"><MachineLabel code={selectedRow.machine_code} /></span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 block">{tr("ncNewCommonPage.versionLabel5", "バージョン")}</span>
@@ -261,7 +263,7 @@ export default function NcNewCommonPage() {
                 </div>
               </div>
             )}
-          </div>
+          </fieldset>
 
           {/* エラー */}
           {saveError && (

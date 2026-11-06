@@ -1,4 +1,5 @@
 "use client";
+import { machineLabel, MachineLabel } from "@/lib/machineLabel";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { isAgentOnline, agentPickAndUpload, agentPickFolderAndUpload, agentCheckUsbTarget, agentAutoUpload, translateAgentError } from "@/lib/upload-agent";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
@@ -224,6 +225,9 @@ export default function McEditPage() {
   // 編集フィールド
   const [machineId,    setMachineId]    = useState<string>("");
   const [oNumber,      setONumber]      = useState("");
+  const [processNo,    setProcessNo]    = useState("");   // [No.76] 工程No(登録後も修正できる)
+  const originalNoteRef = React.useRef<string | null>(null);   // [No.78] 編集前の備考(追加行の判定用)
+  const [pgTypeSwitching, setPgTypeSwitching] = useState(false);
   const [clampNote,    setClampNote]    = useState("");
   const [nt1, setNt1] = useState("");
   const [nt2, setNt2] = useState("");
@@ -308,7 +312,7 @@ export default function McEditPage() {
   //    更新することで、保存直後はdirtyでない状態に戻す。
   const initialSnapshotRef = React.useRef<string | null>(null);
   const buildEditSnapshot = () => JSON.stringify({
-    machineId, oNumber, clampNote, cycleH, cycleM, cycleS,
+    machineId, processNo, oNumber, clampNote, cycleH, cycleM, cycleS,
     machiningQty, note, creatorId, sheetCreatedAt,
     nt1, nt2, nt3, nt4,
     toolingRows, offsetRows, indexRows,
@@ -476,6 +480,8 @@ export default function McEditPage() {
       setNt3((d as any).nt3 ?? "");
       setNt4((d as any).nt4 ?? "");
       setNote(d.note ?? "");
+      setProcessNo(d.mcProcessNo != null ? String(d.mcProcessNo) : "");
+      if (originalNoteRef.current === null) originalNoteRef.current = d.note ?? "";
       // ★Prisma Decimal型はAPIレスポンスで文字列("1.0000"等)として返るため、
       //   Number()で確実に数値化してからstateへ格納する。これを怠ると、
       //   一度も編集せず保存した際に文字列のままバックエンドへ送信され、
@@ -881,6 +887,27 @@ export default function McEditPage() {
   //   ファイル名/フォルダ名はサーバー側で加工IDに基づく統一名へ自動変換(コンバート)される。
   const MAX_PG_BYTES = 10 * 1024 * 1024; // PG上限10MB
 
+  // [No.76] プログラムファイル形式の切替。登録済みのプログラムは未登録に戻るので、切替後に USB から登録し直す
+  const handlePgTypeSwitch = async () => {
+    if (!token) { showToast("❌ " + tr("mcEdit.authRequired", "認証が必要です")); return; }
+    const toFolder = !(detail as any)?.pgIsFolder;
+    const modeName = toFolder ? tr("mcEdit.folderUnit", "フォルダ") : tr("mcEdit.fileUnit", "単体ファイル");
+    const ok = window.confirm(tr("mcEditUi.pgTypeSwitchConfirm", "プログラムファイル形式を「{mode}」に切り替えます。\n登録済みのプログラムは未登録に戻ります（サーバ上のファイルは削除しません）。切替後にUSBから登録し直してください。\n続行しますか？").replace("{mode}", modeName));
+    if (!ok) return;
+    setPgTypeSwitching(true);
+    try {
+      await mcApi.switchPgType(mcId, toFolder, token);
+      const refreshed = await mcApi.findOne(mcId);
+      setDetail((refreshed as any).data ?? refreshed);
+      setPgFileInfo(null);
+      setPgContent("");
+      setToolingPgLoaded(false);
+      showToast(tr("mcEditUi.pgTypeSwitched", "✅ プログラムファイル形式を切り替えました"));
+    } catch (e: any) {
+      showToast("❌ " + (e?.response?.data?.message ?? e?.message ?? tr("mcEdit.saveFailedGeneric", "保存に失敗しました")));
+    } finally { setPgTypeSwitching(false); }
+  };
+
   const handlePgUploadFromUSB = async () => {
     if (!token) { showToast("❌ " + tr("mcEdit.authRequired", "認証が必要です")); return; }
     const isFolderMode = !!(detail as any)?.pgIsFolder;
@@ -966,6 +993,7 @@ export default function McEditPage() {
       const cycleTimeSec = cycleH * 3600 + cycleM * 60 + cycleS;
       await mcApi.update(mcId, {
         machine_id:     (machineId && !isNaN(parseInt(machineId))) ? parseInt(machineId) : undefined,
+        mc_process_no:  processNo.trim() !== "" && !isNaN(parseInt(processNo)) ? parseInt(processNo) : undefined,
         o_number:       oNumber   || undefined,
         clamp_note:     clampNote || undefined,
         cycle_time_sec: cycleTimeSec > 0 ? cycleTimeSec : undefined,
@@ -1029,6 +1057,18 @@ export default function McEditPage() {
       // 新規は変更内容を「新規登録」に固定
       if (sbMode) setKanryoType("新規登録"); // 内部値は常に日本語固定(バックエンド送信用・KANRYO_TYPE_KEYS等との比較に使用するため翻訳しない)
       setPendingBody({ savedMcId: mcId, isSbMode: sbMode });
+      // [No.78] 備考に追加した行を「内容」に自動で入れる(変更履歴に残り、何を変えたか分かる)
+      {
+        const before = (originalNoteRef.current ?? "").split(/\r?\n/);
+        const left = new Map<string, number>();
+        for (const ln of before) left.set(ln, (left.get(ln) ?? 0) + 1);
+        const added = note.split(/\r?\n/).filter(ln => {
+          const n = left.get(ln) ?? 0;
+          if (n > 0) { left.set(ln, n - 1); return false; }
+          return ln.trim() !== "";
+        });
+        setKanryoDetail(added.join("\n"));
+      }
       setShowKanryoModal(true);
     } catch (e: any) {
       const errMsg = e?.response?.data?.message ?? e?.message ?? tr("mcEdit.saveFailedGeneric", "保存に失敗しました");
@@ -1173,7 +1213,7 @@ export default function McEditPage() {
               <span className="text-slate-500 text-lg font-medium leading-none">{d.part.mainModel}</span>
             </>}
             <div className="flex items-center gap-2 ml-2">
-              {d.machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{d.machine.machineCode}</span>}
+              {d.machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{machineLabel(d.machine)}</span>}
               <StatusBadge status={d.status} />
               <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
               {/* [v097] 承認ボタンは「未承認(PENDING_APPROVAL)」の時のみ表示する。
@@ -1286,7 +1326,7 @@ export default function McEditPage() {
               <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200">
                 <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.mcProcessNoLabel", "MC工程No")}</div><div className="font-bold text-teal-700">{(detail as any).mcProcessNo ?? "—"}</div></div>
                 <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.versionLabel", "バージョン")}</div><div className="font-mono font-bold">{(detail as any).version ?? "—"}</div></div>
-                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.machineLabel", "機械")}</div><div className="font-bold">{detail.machine?.machineCode ?? "—"}</div></div>
+                <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.machineLabel", "機械")}</div><div className="font-bold">{machineLabel(detail.machine)}</div></div>
               </div>
               <div className="grid grid-cols-3 divide-x divide-slate-200">
                 <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcEditUi.mainONumberLabel", "主Oナンバ")}</div><div className="font-mono font-bold">{detail.oNumber ?? "—"}</div></div>
@@ -1342,6 +1382,11 @@ export default function McEditPage() {
             {activeSection === "basic" && (
               <div className="max-w-2xl space-y-4">
                 <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2 flex items-center gap-2">
+                    <label className="text-xs font-bold text-slate-500">{tr("mcEditUi.processNoEditLabel", "工程No")}</label>
+                    <input type="number" value={processNo} onChange={e => setProcessNo(e.target.value)} data-fi="true"
+                      className="w-24 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none" />
+                  </div>
                   <div>
                     <label className="text-xs font-bold text-slate-500 block mb-1">{tr("mcEditUi.machineLabel", "機械")}</label>
                     <select value={machineId} onChange={e => { setMachineId(e.target.value); }} data-fi="true"
@@ -1350,7 +1395,7 @@ export default function McEditPage() {
                       {displayMachines
                         .filter(m => m.isActive !== false || String(m.id) === machineId)
                         .map(m => (
-                        <option key={m.id} value={String(m.id)}>{m.machineCode}{m.isActive === false ? tr("mcEditUi.inactiveSuffix","（非稼働）") : ""}</option>
+                        <option key={m.id} value={String(m.id)}>{machineLabel(m)}{m.isActive === false ? tr("mcEditUi.inactiveSuffix","（非稼働）") : ""}</option>
                       ))}
                     </select>
                   </div>
@@ -1451,6 +1496,10 @@ export default function McEditPage() {
                     }}
                       className="px-3 py-1 text-xs font-bold bg-slate-700 hover:bg-slate-800 text-white rounded-lg transition-colors">
                       {tr("mcEditUi.openPgEditor", "📄 PGエディタを開く")}
+                    </button>
+                    <button onClick={handlePgTypeSwitch} disabled={pgTypeSwitching || pgUploading}
+                      className="px-3 py-1 text-xs font-bold border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 rounded-lg transition-colors disabled:opacity-50">
+                      {(detail as any)?.pgIsFolder ? tr("mcEditUi.switchToSingle", "📄 単体ファイルに切替") : tr("mcEditUi.switchToFolder", "📁 フォルダ単位に切替")}
                     </button>
                     <button onClick={() => {
                       if (!token) { showToast("❌ " + tr("mcEdit.authRequired", "認証が必要です")); return; }
@@ -2172,7 +2221,10 @@ export default function McEditPage() {
                   {kanryoType === "大変更" && (
                     <p className="text-xs text-red-600 mt-1.5 font-bold">{tr("mcEditUi.majorChangeWarning", "⚠️ 大変更: バージョンの整数部が+1（例: 1.0001 → 2.0001）")}</p>
                   )}
-                  {kanryoType !== "大変更" && (
+                  {kanryoType === "訂正" && (
+                    <p className="text-xs text-teal-600 mt-1.5 font-bold">{tr("mcEditUi.correctionKeepVersionNote", "訂正: バージョンは変わりません（入力ミスの訂正用。変更履歴には残ります）")}</p>
+                  )}
+                  {kanryoType !== "大変更" && kanryoType !== "訂正" && (
                     <p className="text-xs text-teal-600 mt-1.5">{tr("mcEditUi.minorChangeNote", "小変更系: 100分の1位が+0.01（例: 1.0001 → 1.0101）")}</p>
                   )}
                 </div>
@@ -2180,7 +2232,7 @@ export default function McEditPage() {
               <div>
                 <label className="text-xs font-bold text-slate-500 block mb-1.5">{tr("mcEditUi.contentOptionalLabel", "内容（任意）")}</label>
                 <textarea value={kanryoDetail} onChange={e => setKanryoDetail(e.target.value)}
-                  rows={2} placeholder={pendingBody?.isSbMode ? tr("mcEditUi.sbDetailPlaceholder", "登録内容の補足（任意）") : tr("mcEditUi.detailPlaceholder", "変更の詳細内容を入力...")}
+                  rows={4} placeholder={pendingBody?.isSbMode ? tr("mcEditUi.sbDetailPlaceholder", "登録内容の補足（任意）") : tr("mcEditUi.detailPlaceholder", "変更の詳細内容を入力...")}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none" />
               </div>
             </div>
@@ -2937,7 +2989,7 @@ export default function McEditPage() {
                       {INDEX_ROWS.map((r, i) => (
                         <div key={i} className={rowCls(clampIndex === r.name)} onClick={() => { setClampIndex(r.name); setClampItem(buildClampPreview({ index: r.name })); }}>
                           <span className="w-44 truncate shrink-0">{r.name}</span>
-                          <span className="w-24 truncate text-slate-500 shrink-0">{r.machine}</span>
+                          <span className="w-24 truncate text-slate-500 shrink-0"><MachineLabel code={r.machine} /></span>
                           <span className="truncate text-slate-400">{r.model}</span>
                         </div>
                       ))}

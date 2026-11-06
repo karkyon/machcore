@@ -1,4 +1,5 @@
 "use client";
+import { machineLabel } from "@/lib/machineLabel";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react";
@@ -724,7 +725,7 @@ export default function NcEditPage() {
                 {/* データサマリー 50%透過 */}
                 <div className="w-full max-w-md rounded-xl border border-slate-200 overflow-hidden opacity-50 pointer-events-none text-xs">
                   <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200">
-                    <div className="p-2.5"><div className="text-slate-400">{tr("ncEditUi.machineLabel", "機械")}</div><div className="font-bold">{d.machine?.machineCode ?? "—"}</div></div>
+                    <div className="p-2.5"><div className="text-slate-400">{tr("ncEditUi.machineLabel", "機械")}</div><div className="font-bold">{machineLabel(d.machine)}</div></div>
                     <div className="p-2.5"><div className="text-slate-400">{tr("ncEditUi.fileNameLabel", "ファイル名")}</div><div className="font-mono font-bold">{d.fileName ?? "—"}</div></div>
                     <div className="p-2.5"><div className="text-slate-400">{tr("ncEditUi.machiningTimeLabel", "加工時間")}</div><div className="font-mono font-bold">{(d.machiningTime != null || d.setupTimeRef != null) ? (() => { const t = (d.machiningTime ?? 0) * 60 + (d.setupTimeRef ?? 0); return `${Math.floor(t/3600)}h${Math.floor((t%3600)/60)}m${t%60}s`; })() : "—"}</div></div>
                   </div>
@@ -791,19 +792,37 @@ export default function NcEditPage() {
                         >
                           <option value="">{tr("ncEditUi.selectOption", "— 選択 —")}</option>
                           {machines.map(m => (
-                            <option key={m.id} value={m.id}>{m.machineCode}</option>
+                            <option key={m.id} value={m.id}>{machineLabel(m)}</option>
                           ))}
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-slate-500 block mb-1">{tr("ncEditUi.machiningTimeMinLabel", "加工時間（分）")}</label>
-                        <input
-                          type="number" min={0}
-                          value={machiningTime}
-                          onChange={e => { setMachiningTime(e.target.value); markDirty("machiningTime"); }}
-                          className={fieldCls("machiningTime")}
-                          placeholder="0"
-                        />
+                        <label className="text-xs text-slate-500 block mb-1">{tr("ncEditUi.machiningTimeHmLabel", "加工時間")}</label>
+                        {/* [No.64] 〇h〇m で入力(保存は従来どおり分) */}
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number" min={0}
+                            value={machiningTime === "" ? "" : Math.floor(Number(machiningTime) / 60)}
+                            onChange={e => {
+                              const m = machiningTime === "" ? 0 : Number(machiningTime) % 60;
+                              setMachiningTime(e.target.value === "" && m === 0 ? "" : String(Math.max(0, Number(e.target.value || 0)) * 60 + m));
+                              markDirty("machiningTime");
+                            }}
+                            className={fieldCls("machiningTime")}
+                            placeholder="0"
+                          /><span className="text-xs text-slate-500">h</span>
+                          <input
+                            type="number" min={0} max={59}
+                            value={machiningTime === "" ? "" : Number(machiningTime) % 60}
+                            onChange={e => {
+                              const h = machiningTime === "" ? 0 : Math.floor(Number(machiningTime) / 60);
+                              setMachiningTime(e.target.value === "" && h === 0 ? "" : String(h * 60 + Math.min(59, Math.max(0, Number(e.target.value || 0)))));
+                              markDirty("machiningTime");
+                            }}
+                            className={fieldCls("machiningTime")}
+                            placeholder="0"
+                          /><span className="text-xs text-slate-500">m</span>
+                        </div>
                       </div>
                       <div>
                         <label className="text-xs text-slate-500 block mb-1">{tr("ncEditUi.folderNameLabel", "フォルダ名")} <span className="text-red-400">*</span></label>
@@ -1023,13 +1042,14 @@ export default function NcEditPage() {
                             onClick={async () => {
                               if (!token) { setAuthOpen(true); return; }
                               try {
+                                // [No.70] No は行の順番。旧の T_id/T NO の列は無くし、t_number に No を入れる
                                 await ncApi.saveTooling(ncId, toolingRows.map((t, idx) => ({
                                   sort_order:   t.sort_order   ?? idx,
                                   process_type: t.process_type || undefined,
                                   chip_model:   t.chip_model   || undefined,
                                   holder_model: t.holder_model || undefined,
                                   nose_r:       t.nose_r       || undefined,
-                                  t_number:     t.t_number     || undefined,
+                                  t_number:     String(idx + 1),
                                   note:         t.note         || undefined,
                                 })), token);
                                 setToolingSaveMsg(tr("ncEditUi.saveProcessListSuccess", "✅ 加工リストを保存しました"));
@@ -1046,24 +1066,24 @@ export default function NcEditPage() {
                       <div className="overflow-x-auto">
                         <table className="text-xs w-full border-collapse">
                           <colgroup>
+                            <col style={{width:"36px"}}/>
                             <col style={{width:"72px"}}/>
                             <col style={{width:"230px"}}/>
                             <col style={{width:"110px"}}/>
                             <col style={{width:"100px"}}/>
                             <col style={{width:"70px"}}/>
-                            <col style={{width:"36px"}}/>
                             <col style={{width:"320px"}}/>
                             <col style={{width:"56px"}}/>
                             <col style={{width:"54px"}}/>
                           </colgroup>
                           <thead className="bg-teal-50">
                             <tr>
+                              <th className="px-1 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">No</th>
                               <th className="px-1 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
                               <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("ncEditUi.colProcess", "加工")}</th>
                               <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("ncEditUi.colChipShape", "形状（チップ）")}</th>
                               <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("ncEditUi.colHolder", "ホルダー")}</th>
                               <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("ncEditUi.colNoseR", "ノーズR")}</th>
-                              <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("ncEditUi.colTNo", "T NO")}</th>
                               <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-left text-[11px] whitespace-nowrap">{tr("ncEditUi.colNote", "備考")}</th>
                               <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap">{tr("ncEditUi.colOrder", "順番")}</th>
                               <th className="px-2 py-2 text-teal-700 font-bold border-b border-teal-100 text-center text-[11px] whitespace-nowrap"></th>
@@ -1079,6 +1099,7 @@ export default function NcEditPage() {
                             const combine = (a: string, b: string) => (a && b) ? `${a}/${b}` : (a || b || "");
                             return (
                             <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                              <td className="px-1 py-1 text-center font-mono font-bold text-slate-600">{i + 1}</td>
                               <td className="px-1 py-1 w-20">
                                 <div className="flex gap-0.5">
                                   <button onClick={() => {
@@ -1140,8 +1161,6 @@ export default function NcEditPage() {
                                 </select>
                               </td>
                               <td className="px-1 py-1"><input value={t.nose_r ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, nose_r: e.target.value} : x))}
-                                className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-center" /></td>
-                              <td className="px-1 py-1"><input value={t.t_number ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, t_number: e.target.value} : x))}
                                 className="w-full border border-slate-200 rounded px-1.5 py-1 font-mono text-xs text-center" /></td>
                               <td className="px-1 py-1"><input value={t.note ?? ""} onChange={e => setToolingRows(r => r.map((x,j) => j===i ? {...x, note: e.target.value} : x))}
                                 className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs" /></td>

@@ -1,4 +1,5 @@
 "use client";
+import { machineLabel, MachineLabel } from "@/lib/machineLabel";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -445,7 +446,7 @@ export default function McDetailPage() {
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${g.id === d.id ? "bg-teal-500 text-white" : "bg-slate-100 text-slate-600"}`}>
                       {g.legacyMcid ?? "—"}
                     </span>
-                    <span className="font-mono text-slate-600 truncate flex-1">{g.machine?.machineCode ?? "—"}</span>
+                    <span className="font-mono text-slate-600 truncate flex-1">{machineLabel(g.machine)}</span>
                     <span className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded ${
                       g.status === "APPROVED" ? "bg-green-100 text-green-700" :
                       g.status === "CHANGING" ? "bg-orange-100 text-orange-700" :
@@ -474,7 +475,7 @@ export default function McDetailPage() {
           <div className="flex items-center gap-2 ml-2">
             {d.machine && (
               <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">
-                {d.machine.machineCode}
+                {machineLabel(d.machine)}
               </span>
             )}
             <StatusBadge status={d.status} />
@@ -566,7 +567,7 @@ export default function McDetailPage() {
                   </div>
                   <div className="px-4 py-3">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">{tr("mcDetailPage.machineLabel2", "機械")}</div>
-                    <div className="font-medium text-slate-800">{d.machine?.machineName ?? d.machine?.machineCode ?? "—"}</div>
+                    <div className="font-medium text-slate-800">{machineLabel(d.machine)}</div>
                   </div>
                 </div>
                 {/* ── 行2: Oナンバ・サイクルタイム・加工個数 ── */}
@@ -1037,7 +1038,7 @@ export default function McDetailPage() {
                       <span className="font-mono text-blue-600 whitespace-nowrap">MCID:{row.legacy_mcid ?? "—"}</span>
                       <span className="font-mono font-bold text-slate-700 whitespace-nowrap">{row.drawing_no}</span>
                       <span className="text-slate-600 truncate max-w-[160px]">{row.part_name}</span>
-                      <span className="text-slate-400 shrink-0">{row.machine_code ?? "—"}</span>
+                      <span className="text-slate-400 shrink-0"><MachineLabel code={row.machine_code} /></span>
                       <span className="font-mono text-slate-500 shrink-0">{row.version}</span>
                       {isSelf && <span className="ml-auto text-[10px] text-slate-400 shrink-0">（現在の加工）</span>}
                       {isDup && <span className="ml-auto text-[10px] text-amber-600 shrink-0">（登録済み）</span>}
@@ -1157,7 +1158,7 @@ export default function McDetailPage() {
                     <span className="font-mono text-blue-600 whitespace-nowrap">MCID:{row.legacy_mcid ?? "—"}</span>
                     <span className="font-mono font-bold text-slate-700 whitespace-nowrap">{row.drawing_no}</span>
                     <span className="text-slate-600 truncate max-w-[180px]">{row.part_name}</span>
-                    <span className="text-slate-400 shrink-0">{row.machine_code ?? "—"}</span>
+                    <span className="text-slate-400 shrink-0"><MachineLabel code={row.machine_code} /></span>
                     <span className="font-mono text-slate-500 shrink-0">{row.version}</span>
                     <span className="ml-auto text-teal-600 text-[10px] font-bold shrink-0">詳細を開く →</span>
                   </div>
@@ -1232,7 +1233,7 @@ export default function McDetailPage() {
                     {/* ヘッダ行: 日付・機械・W数 */}
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                       <span className="font-mono text-slate-400 shrink-0 text-[11px]">{fmtDate(r.work_date)}</span>
-                      {r.machine_code && <span className="px-1.5 py-0.5 bg-teal-50 border border-teal-200 rounded text-teal-700 font-mono font-bold text-[10px]">{r.machine_code}</span>}
+                      {r.machine_code && <span className="px-1.5 py-0.5 bg-teal-50 border border-teal-200 rounded text-teal-700 font-mono font-bold text-[10px]"><MachineLabel code={r.machine_code} /></span>}
                       {r.quantity != null && <span className="ml-auto font-bold text-slate-700 shrink-0">W: <span className="text-teal-700">{r.quantity}</span></span>}
                       {r.setup_work_count != null && <span className="text-slate-400 text-[10px] shrink-0">{tr("mcDetailPage.setupWorkCountLabel", "段取W: {n}").replace("{n}", String(r.setup_work_count))}</span>}
                     </div>
@@ -1311,7 +1312,7 @@ export default function McDetailPage() {
                       )}
                       <span className="text-slate-400">{toJstDateTimeString(p.printed_at)}</span>
                       <span className="text-slate-600">{p.operator_name ?? "—"}</span>
-                      {(p as any).machine_code && <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 font-mono text-[10px]">{(p as any).machine_code}</span>}
+                      {(p as any).machine_code && <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 font-mono text-[10px]"><MachineLabel code={(p as any).machine_code} /></span>}
                       {p.purpose === 'reference' && (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600">{tr("mcDetailPage.referenceDocBadge", "参考資料")}</span>
                       )}

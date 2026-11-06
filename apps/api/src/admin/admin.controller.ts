@@ -186,7 +186,7 @@ export class AdminController {
 
   @Get('nc-tool-master/:category')
   async getNcToolMasterCategory(@Param('category') cat: string) {
-    return this.ncToolMasterModel(cat).findMany({ orderBy: { sortOrder: 'asc' } });
+    return this.ncToolMasterModel(cat).findMany({ orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] });
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -654,7 +654,7 @@ export class AdminController {
   @Get('machines')
   getMachines() {
     return this.prisma.machine.findMany({
-      orderBy: { sortOrder: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     });
   }
 
@@ -670,6 +670,13 @@ export class AdminController {
     pg_is_folder?: boolean;
     system_type?: 'MC' | 'NC' | 'BOTH';
   }) {
+    // [No.68] 機械コードの重複は原因が分かる形で返す(従来は500になり、画面は成功と表示していた)
+    const dup = await this.prisma.machine.findUnique({ where: { machineCode: body.machine_code } });
+    if (dup) throw new BadRequestException(`機械コード「${body.machine_code}」は登録済みです(ID ${dup.id} ${dup.machineName})`);
+    // [No.68] IDを指定して投入された行があると採番が追いつかず主キー重複で登録できないため、採番を最大IDにそろえる
+    await this.prisma.$executeRawUnsafe(
+      `SELECT setval(pg_get_serial_sequence('machines','id'), GREATEST(COALESCE((SELECT MAX(id) FROM machines),1),(SELECT last_value FROM machines_id_seq)))`,
+    );
     return this.prisma.machine.create({
       data: {
         machineCode: body.machine_code,

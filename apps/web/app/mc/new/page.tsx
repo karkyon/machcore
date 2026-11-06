@@ -1,4 +1,5 @@
 "use client";
+import { machineLabel } from "@/lib/machineLabel";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -145,7 +146,7 @@ export default function McNewPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <aside className="w-[280px] shrink-0 bg-white border-r border-slate-200 flex flex-col">
           <div className="p-3 border-b border-slate-100 space-y-2">
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide">{tr("mcNewPage.step1SelectPart", "① 部品を選択")}</h2>
+            <h2 className="text-base font-bold text-white bg-teal-600 rounded-lg px-3 py-2">{tr("mcNewPage.step1SelectPart", "① 部品を選択")}</h2>
             <div className="flex gap-1.5">
               <select value={searchType} onChange={e => setSearchType(e.target.value as any)}
                 className="border border-slate-300 rounded px-1.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400 shrink-0">
@@ -200,6 +201,8 @@ export default function McNewPage() {
             </div>
           )}
 
+          {/* [No.71] ①で部品を選ぶまで②は入力できない */}
+          <fieldset disabled={!selectedPart} className={`min-w-0 ${!selectedPart ? "opacity-40 pointer-events-none select-none" : ""}`}>
           <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">{tr("mcNewPage.step2InputMachiningInfo", "② 加工情報を入力")}</h2>
           <div className="grid grid-cols-2 gap-3 max-w-xl">
             <div>
@@ -236,7 +239,7 @@ export default function McNewPage() {
                 className={`w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-400 ${!machineId ? "border-red-300 bg-red-50" : "border-slate-300"}`}>
                 <option value="">{tr("mcNewPage.notSetOption", "-- 未設定 --")}</option>
                 {machines.map(m => (
-                  <option key={m.id} value={String(m.id)}>{m.machineName ?? m.machineCode}</option>
+                  <option key={m.id} value={String(m.id)}>{machineLabel(m)}</option>
                 ))}
               </select>
               {programNaming && (
@@ -269,6 +272,8 @@ export default function McNewPage() {
               placeholder={tr("mcNewPage.notePlaceholder3", "特記事項・注意事項")}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none" />
           </div>
+
+          </fieldset>
 
           {saveError && (
             <div className="mt-3 max-w-xl bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5 rounded-xl">

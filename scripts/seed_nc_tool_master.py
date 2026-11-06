@@ -19,6 +19,8 @@ nc_tool_shave1_master / nc_tool_shave2_master / nc_tool_chip_master / nc_tool_ho
 実行方法:
   python3 scripts/seed_nc_tool_master.py            # 空のテーブルに投入
   python3 scripts/seed_nc_tool_master.py --dry-run  # 取得元と件数の確認のみ
+  python3 scripts/seed_nc_tool_master.py --reseed holder  # [No.65] ホルダー候補を旧 t_d_Holder の ID 順で登録し直す
+                                                            (旧候補テーブルが無いときは何も変更しない)
 """
 import os
 import re
@@ -122,6 +124,34 @@ def _values_from_acc_tool(ssc, col):
     return [v for v, _ in sorted(cnt.items(), key=lambda x: (-x[1], x[0]))]
 
 
+def reseed(pg, ss, table, legacy_name, log=print, dry_run=False):
+    """旧候補テーブルの ID 順で候補を登録し直す。加工リストの行は名称で持つので、既存の行には影響しない"""
+    cur, ssc = pg.cursor(), ss.cursor()
+    src = _find_legacy_tables(ssc, log).get(legacy_name.lower())
+    if not src:
+        log(f"[加工リストマスタ] 旧サーバに {legacy_name} が見つからない → {table} は変更しない", "WARN")
+        return 0
+    name_col, values = _values_from_legacy_table(ssc, *src)
+    names, seen = [], set()
+    for v in values:
+        s = str(v or "").strip()
+        if s and len(s) <= NAME_MAX and s not in seen:
+            seen.add(s)
+            names.append(s)
+    if not names:
+        log(f"[加工リストマスタ] {src[2]}.{name_col} が空 → {table} は変更しない", "WARN")
+        return 0
+    log(f"[加工リストマスタ] {table}: {src[0]}.{src[2]}.{name_col} の ID 順で {len(names)}件に置き換え: {names}")
+    if dry_run:
+        return len(names)
+    cur.execute(f"DELETE FROM {table}")
+    for i, name in enumerate(names, start=1):
+        cur.execute(f"INSERT INTO {table} (name, sort_order, is_active, created_at, updated_at) "
+                    f"VALUES (%s, %s, TRUE, NOW(), NOW())", (name, i))
+    pg.commit()
+    return len(names)
+
+
 def seed(pg, ss, log=print, dry_run=False):
     """空の加工リストマスタ表にだけ候補を投入する。pg=新DB接続, ss=旧imotomc接続(legacy_mssql.wrap済み)"""
     cur = pg.cursor()
@@ -177,12 +207,16 @@ def seed(pg, ss, log=print, dry_run=False):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--reseed", choices=["holder"], help="旧候補テーブルの ID 順で登録し直す")
     args = ap.parse_args()
     import nc_full_import_v2 as NC
     pg = NC.pg_connect()
     ss = NC.ss_connect()
     try:
-        seed(pg, ss, log=lambda m, lv="INFO": print(m), dry_run=args.dry_run)
+        if args.reseed:
+            reseed(pg, ss, "nc_tool_holder_master", "t_d_Holder", log=lambda m, lv="INFO": print(m), dry_run=args.dry_run)
+        else:
+            seed(pg, ss, log=lambda m, lv="INFO": print(m), dry_run=args.dry_run)
     finally:
         pg.close()
         ss.close()

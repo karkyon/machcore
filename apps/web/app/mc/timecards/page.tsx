@@ -1,4 +1,5 @@
 "use client";
+import { machineLabel } from "@/lib/machineLabel";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
@@ -94,7 +95,7 @@ export default function TimecardPage() {
       const cards: any[] = Array.isArray(data) ? data : (data.data ?? []);
       setRows(cards.map((c: any) => ({
         id:          c.id,
-        machineName: c.machine?.machineName ?? c.machine?.machineCode ?? String(c.machine_id),
+        machineName: machineLabel(c.machine, String(c.machine_id)),
         systemType:  c.machine?.systemType ?? "MC",
         startTime:   fmtTime(c.start_time),
         endTime:     fmtTime(c.end_time),

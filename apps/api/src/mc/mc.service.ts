@@ -600,7 +600,9 @@ export class McService {
 
     // 規則は従来どおり(大変更/新規登録/試作登録=整数部+1・YYは00、それ以外=100分の1位+1)。
     // 浮動小数点計算でリビジョン(下2桁)が欠ける誤差があったため整数計算(common/version.util.ts)に変更。
-    const newVersion = bumpVersion((mc as any).machining?.version ?? '1.0001', changeType);
+    // [No.74] 「訂正」は入力ミスの訂正なのでバージョンを上げない(履歴には残す)
+    const curVersion = (mc as any).machining?.version ?? '1.0001';
+    const newVersion = changeType === '訂正' ? curVersion : bumpVersion(curVersion, changeType);
     const content    = `${changeType}${changeDetail ? ' ' + changeDetail : ''}`;
 
     return this.prisma.$transaction(async (tx) => {
@@ -631,6 +633,38 @@ export class McService {
         },
       });
       return { mc_id: id, version: newVersion, message: `${changeType}として登録しました(承認待ち)` };
+    });
+  }
+
+  // ══════════════════════════════════════════
+  // [No.76] プログラムファイル形式(単体ファイル/フォルダ単位)の切替
+  //   登録済みのプログラムは形式が合わなくなるため未登録に戻す(mc_files を論理削除。実ファイルは消さない)。
+  //   切替後に USB から登録し直す。切替えたことは変更履歴に残す。
+  // ══════════════════════════════════════════
+  async switchPgType(id: number, pgIsFolder: boolean, operatorId: number) {
+    const mc = await this.prisma.mcProgram.findUnique({ where: { id }, include: { machining: true } });
+    if (!mc) throw new NotFoundException(`MC_id ${id} が存在しません`);
+    const mach = (mc as any).machining ?? {};
+    if (!!mach.pgIsFolder === pgIsFolder) return { pg_is_folder: pgIsFolder, removed_files: 0 };
+    return this.prisma.$transaction(async (tx) => {
+      const removed = await tx.mcFile.updateMany({
+        where: { mcProgram: { machiningId: mc.machiningId }, fileType: 'PROGRAM', isDeleted: false },
+        data:  { isDeleted: true },
+      });
+      await tx.mcMachiningDetail.update({
+        where: { machiningId: mc.machiningId },
+        data:  pgIsFolder
+          ? { pgIsFolder: true,  pgFolderName: calcProgramFolderName(mc.machiningId), pgUpdatedAt: null }
+          : { pgIsFolder: false, pgFolderName: null, fileName: calcProgramFileName(mc.machiningId), pgUpdatedAt: null },
+      });
+      await tx.mcChangeHistory.create({
+        data: {
+          mcProgramId: id, changeType: 'CHANGE', operatorId,
+          versionBefore: mach.version ?? null, versionAfter: mach.version ?? null,
+          content: `プログラムファイル形式を${pgIsFolder ? 'フォルダ単位' : '単体ファイル'}に変更(登録済みプログラム ${removed.count}件を未登録に戻した)`,
+        },
+      });
+      return { pg_is_folder: pgIsFolder, removed_files: removed.count };
     });
   }
 
@@ -680,6 +714,7 @@ export class McService {
         data: {
           ...namingPatch,
           machineId:      dto.machine_id      !== undefined ? dto.machine_id      : mach.machineId,
+          mcProcessNo:    dto.mc_process_no   !== undefined ? dto.mc_process_no   : mach.mcProcessNo,
           oNumber:        dto.o_number        !== undefined ? dto.o_number        : mach.oNumber,
           clampNote:      dto.clamp_note      !== undefined ? dto.clamp_note      : mach.clampNote,
           cycleTimeSec:   dto.cycle_time_sec  !== undefined ? dto.cycle_time_sec  : mach.cycleTimeSec,
@@ -1031,15 +1066,15 @@ export class McService {
 
       // O行判定（':数字' 形式のサブプログラム番号もO行と同等にグループ開始として扱う）
       const oMatch = row.body.match(/^O(\d+)/i) ?? row.body.match(/^:(\d+)/);
-      const isColonGroup = !row.body.match(/^O(\d+)/i) && !!row.body.match(/^:(\d+)/);
-      if (oMatch) {
+            if (oMatch) {
         // 前のグループを確定（★ルール8判定を通す）
         if (currentGroup) pushResolvedGroup(currentGroup);
         const oNum = normalizeO(oMatch[1]);
         currentGroup = {
           oEntry: {
             type: 'O',
-            tool_no:   isColonGroup ? `:${oNum}` : `O${oNum}`,
+            // [No.79] ':1000' は O1000 と同じプログラム番号。ツーリングには O1000 で登録する
+            tool_no:   `O${oNum}`,
             tool_name: row.comment ?? null,
             t_no: null, h: null, d: null, d_value: null,
             sub_pg_no: null, note: null, raw: row.raw,
@@ -1201,10 +1236,11 @@ export class McService {
           flushN();
           finalEntries.push({
             raw_program_line: row.raw,
-            tool_no: stopM, t_no: null, tool_name: null,
+            // [No.79] 区切りの「/////」は(旧シートと同じく)コメントではなく工具欄に入れる
+            tool_no: stopM, t_no: null, tool_name: '/////////////',
             length_offset_no: null, dia_offset_no: null,
             d_value_content: null, sub_pg_no: null,
-            note: '/////////////',
+            note: null,
             sort_order: 0,
           });
           continue;
@@ -2775,7 +2811,7 @@ export class McService {
     const tmpPath = `/tmp/machcore-mc-newprint-${mcId}-${Date.now()}.pdf`;
     fs.writeFileSync(tmpPath, pdfBuffer);
     const duplexOptNew = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
-    const lpCmdNew = `lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOptNew} "${tmpPath}"`;
+    const lpCmdNew = `lp -d ${printerName} -o media=A4${duplexOptNew} "${tmpPath}"`;
     console.log(`[DUPLEX-DEBUG][MC][create-and-print] mc_id=${mcId} printer=${printerName} duplexPrint(DB)=${(setting as any)?.duplexPrint} cmd=${lpCmdNew}`);
     this.prisma.systemLog.create({ data: { level: 'DEBUG', category: 'PRINT', message: `MC create-and-print lp実行: ${lpCmdNew}`, detail: { mcId, printerName, duplexPrint: (setting as any)?.duplexPrint } } }).catch(() => {});
     try {
@@ -2838,8 +2874,9 @@ export class McService {
     // 発行時入力機械名を解決
     if ((options as any).machine_id) {
       try {
-        const m = await this.prisma.machine.findUnique({ where: { id: (options as any).machine_id }, select: { machineCode: true } });
-        if (m) (options as any)._machineName = m.machineCode;
+        const m = await this.prisma.machine.findUnique({ where: { id: (options as any).machine_id }, select: { machineCode: true, machineName: true } });
+        // [No.64] 機械コードと機種名の両方を印字
+        if (m) (options as any)._machineName = m.machineName && m.machineName !== m.machineCode ? `${m.machineCode} <${m.machineName}>` : m.machineCode;
       } catch {}
     }
 
@@ -3020,7 +3057,10 @@ export class McService {
     let totalPages = 0;
 
     // 定数
-    const PAGE_BOTTOM_MARGIN = 50; // ページ番号(Y=15)から十分な余白
+    // [No.80] 余白は左右1cm・上下2cm。本文の座標(x=30〜565、上端=上から36pt)を印刷直前に
+    //   SHEET_MARGIN_* の位置へ写す(fitSheetPage)。下端はその換算で下2cmになる位置(下から83pt)
+    const SHEET_MARGIN_LR = 28.35, SHEET_MARGIN_TB = 56.7, SHEET_BODY_TOP = 36;
+    const PAGE_BOTTOM_MARGIN = 83;
     const BLOCK_MARGIN       = 6;
     const ROW_LINE_COLOR     = rgb(0.6, 0.6, 0.6);
     const ROW_LINE_W         = 0.4;
@@ -3055,7 +3095,7 @@ export class McService {
       totalPages++;
       curPage  = finalDoc.getPage(finalDoc.getPageCount() - 1);
       curPageH = curPage.getSize().height;
-      curY     = curPageH - PAGE_BOTTOM_MARGIN;
+      curY     = curPageH - SHEET_BODY_TOP;
       return curPage;
     };
 
@@ -3115,10 +3155,12 @@ export class McService {
 
     // 用途「参考資料」: タイトル横に『参考資料』を印字し、作業記録ページ(template_repeat_p2)は出さない
     const isReferenceSheet = (options as any).purpose === 'reference' || (options as any).is_reference === true;
+    const REF_BOX_LEFT = 220, REF_BOX_RIGHT = 540;   // repeat_header.pdf の部品ID〜MCID欄の範囲
+    let refBoxStart = REF_BOX_LEFT, refBoxScale = 1;
     if (isReferenceSheet) {
       try {
         const refText = '参考資料';
-        const refSize = 14;
+        const refSize = 12;
         const refW = finalFont.widthOfTextAtSize(refText, refSize);
         // [No.63] 従来はタイトル右の固定位置(x=126)に描いており、同じ位置に印字するバージョン番号と重なっていた。
         //   ヘッダーのバージョン番号の項目(data_source='version')の右端を測り、その右に描く。
@@ -3126,7 +3168,18 @@ export class McService {
         const verTxt = verF ? resolveVal('version') : '';
         const verEnd = verF && verTxt ? Number(verF.x) + finalFont.widthOfTextAtSize(verTxt, Number(verF.font_size) || 7) : 0;
         const refX = Math.max(126, verEnd + 12);
-        const refY = curPageH - 53;
+        const refY = curPageH - 51;
+        // [No.73] 『参考資料』が部品ID欄にかかる場合は、部品ID以降(テンプレートの枠と値)を右へ移す。
+        //   右端(x=565)を越える分は欄の幅を縮める
+        const needStart = refX + refW + 5 + 6;
+        if (headerTpl && needStart > REF_BOX_LEFT) {
+          refBoxScale = Math.min(1, (565 - needStart) / (REF_BOX_RIGHT - REF_BOX_LEFT));
+          refBoxStart = needStart;
+          const bottom = curPageH - 57.5, top = curPageH - 34;
+          const band = await finalDoc.embedPage(headerTpl.getPage(0), { left: REF_BOX_LEFT - 2, bottom, right: REF_BOX_RIGHT + 2, top });
+          curPage.drawRectangle({ x: REF_BOX_LEFT - 2, y: bottom, width: 568 - (REF_BOX_LEFT - 2), height: top - bottom, color: rgb(1,1,1), borderWidth: 0 });
+          curPage.drawPage(band, { x: refBoxStart - 2 * refBoxScale, y: bottom, xScale: refBoxScale, yScale: 1 });
+        }
         curPage.drawRectangle({ x: refX - 5, y: refY - 5, width: refW + 10, height: refSize + 9,
                                 borderColor: rgb(0,0,0), borderWidth: 1.2 });
         curPage.drawText(refText, { x: refX, y: refY, size: refSize, font: finalFont, color: rgb(0,0,0) });
@@ -3148,7 +3201,10 @@ export class McService {
         if (!text) continue;
         // 値が長くてもページ右端を越えないよう縮小して全文を印字する
         const hfs = Number(f.font_size) || 7;
-        drawTxt(text, Number(f.x), Number(f.y), kit.fitFs(text, hfs, 565 - Number(f.x), 4));
+        // [No.73] 部品ID〜MCID欄を右へ移した場合は値も同じだけ移す
+        const inRefBand = refBoxStart !== REF_BOX_LEFT && Number(f.x) >= REF_BOX_LEFT && curPageH - Number(f.y) < 60;
+        const hx = inRefBand ? refBoxStart + (Number(f.x) - REF_BOX_LEFT) * refBoxScale : Number(f.x);
+        drawTxt(text, hx, Number(f.y), kit.fitFs(text, hfs, 565 - hx, 4));
       }
 
       // ヘッダ固定部の下端Y: DBの __header_end_y__ の y列（pdf-lib座標=下から）をそのまま curY に使用
@@ -3340,7 +3396,8 @@ export class McService {
 
       // カラムヘッダ描画関数
       const drawColHeader = async () => {
-        await ensureSpace(COL_HDR_H + EFFECTIVE_ROW_H * 2, toolingTplDoc);
+        // [No.72] 改ページ時にテンプレート(見出し入り)を使うと、下の drawTxt の見出しと二重に印字される。白紙ページに見出しを1回だけ描く
+        await ensureSpace(COL_HDR_H + EFFECTIVE_ROW_H * 2);
         T_COLS.forEach(col => {
           const hdrY = curY - COL_HDR_H + (COL_HDR_H - col.fs * 0.72) / 2;
           drawTxt(col.label, col.x + 2, hdrY, col.fs);
@@ -3373,7 +3430,7 @@ export class McService {
       //   毎回1行消失していた。改ページ後に見出しを描いてから同じ行を描画する。
       //   1ページに収まらない長い行は行の途中で分割し、次ページへ続けて描く。
       const LINE_STEP = Math.max(...T_COLS.map(c => c.fs)) * 1.4;
-      const fullPageRoom = () => (curPageH - PAGE_BOTTOM_MARGIN) - PAGE_BOTTOM_MARGIN - COL_HDR_H - ROW_MARGIN;
+      const fullPageRoom = () => (curPageH - SHEET_BODY_TOP) - PAGE_BOTTOM_MARGIN - COL_HDR_H - ROW_MARGIN;
       const breakToolingPage = async () => { await addNewPage(null); await drawColHeader(); };
       for (const t of tooling) {
         const colLines = T_COLS.map((col, i) => wrapTxt(getTV(t, col.dataKey), colWidths[i], col.fs));
@@ -3648,6 +3705,22 @@ export class McService {
       }
     }
 
+    // [No.80] 本文を余白(左右1cm・上下2cm)いっぱいに配置。ページ番号・発行日時は下余白に描くので、この後に描く
+    {
+      const fitSheetPage = (pg: any, left: number, right: number, top: number) => {
+        const { width, height } = pg.getSize();
+        const s = (width - SHEET_MARGIN_LR * 2) / (right - left);
+        pg.scaleContent(s, s);
+        pg.translateContent(SHEET_MARGIN_LR - left * s, (height - SHEET_MARGIN_TB) - (height - top) * s);
+      };
+      const sheetPages = finalDoc.getPages();
+      sheetPages.forEach((pg: any, i: number) => {
+        // 作業記録ページ(template_repeat_p2)は枠の範囲が x=42〜555、上端=上から32pt
+        if (!isReferenceSheet && fs.existsSync(p2Path) && i === sheetPages.length - 1) fitSheetPage(pg, 42, 555, 32);
+        else fitSheetPage(pg, 30, 565, SHEET_BODY_TOP);
+      });
+    }
+
     // ── ページ番号 + 発行日時 書き込み ──
     const pnF = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__page_no__');
     const issuedAt = new Date().toLocaleString('ja-JP', { timeZone:'Asia/Tokyo',
@@ -3782,7 +3855,7 @@ export class McService {
     const tmpPath = `/tmp/machcore-mc-print-${mcId}-${Date.now()}.pdf`;
     fs.writeFileSync(tmpPath, pdfBuffer);
     const duplexOpt = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
-    const lpCmdDirect = `lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOpt} "${tmpPath}"`;
+    const lpCmdDirect = `lp -d ${printerName} -o media=A4${duplexOpt} "${tmpPath}"`;
     console.log(`[DUPLEX-DEBUG][MC][direct-print] mc_id=${mcId} printer=${printerName} duplexPrint(DB)=${(setting as any)?.duplexPrint} cmd=${lpCmdDirect}`);
     this.prisma.systemLog.create({ data: { level: 'DEBUG', category: 'PRINT', message: `MC direct-print lp実行: ${lpCmdDirect}`, detail: { mcId, printerName, duplexPrint: (setting as any)?.duplexPrint } } }).catch(() => {});
     try {

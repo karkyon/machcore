@@ -5,6 +5,10 @@ export class UpdateMcDto {
   @IsOptional() @IsInt()
   machine_id?: number;
 
+  // [No.76] 工程No(登録後の修正用)
+  @IsOptional() @IsInt()
+  mc_process_no?: number;
+
   @IsOptional() @IsString() @MaxLength(50)
   o_number?: string;
 

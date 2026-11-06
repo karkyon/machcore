@@ -390,7 +390,8 @@
     "created": "登録しました",
     "deactivated": "無効化しました",
     "activated": "有効化しました",
-    "changeFailed": "変更失敗"
+    "changeFailed": "変更失敗",
+    "colMachineCode": "機械コード"
   },
   "adminUsers": {
     "roleAdmin": "管理者",
@@ -1003,7 +1004,13 @@
     "cancelButton11": "キャンセル",
     "clampInputButton": "クランプ　入力",
     "clampOverwriteConfirm": "現在のクランプ欄に文字が入力されています。\n\n【現在】{current}\n\n【新しい内容】{next}\n\n上書きしますか？",
-    "emptyPlaceholder": "（空）"
+    "emptyPlaceholder": "（空）",
+    "processNoEditLabel": "工程No",
+    "correctionKeepVersionNote": "訂正: バージョンは変わりません（入力ミスの訂正用。変更履歴には残ります）",
+    "pgTypeSwitchConfirm": "プログラムファイル形式を「{mode}」に切り替えます。\n登録済みのプログラムは未登録に戻ります（サーバ上のファイルは削除しません）。切替後にUSBから登録し直してください。\n続行しますか？",
+    "pgTypeSwitched": "✅ プログラムファイル形式を切り替えました",
+    "switchToSingle": "📄 単体ファイルに切替",
+    "switchToFolder": "📁 フォルダ単位に切替"
   },
   "ncEdit": {
     "unsavedChangesConfirm": "保存されていない変更があります。このまま移動すると変更内容は失われます。よろしいですか？",
@@ -1144,7 +1151,8 @@
     "tempSaveHint": "バージョンを変更せず、入力内容だけを保存します",
     "tempSave": "💾 一時保存",
     "skipNoWorkRecord": "スキップ（作業記録なし）",
-    "cancelDiscardChange": "キャンセル（変更を取り消す）"
+    "cancelDiscardChange": "キャンセル（変更を取り消す）",
+    "machiningTimeHmLabel": "加工時間"
   },
   "mcDetailPage": {
     "statusNew": "新規",
@@ -1418,7 +1426,8 @@
     "loadingEllipsis2": "読み込み中…",
     "thisMachineLabel": "今回使用機械",
     "cycleTimePerP2": "サイクルタイム / 1P",
-    "piecesPerCycle": "個/1サイクル:"
+    "piecesPerCycle": "個/1サイクル:",
+    "noSheetLockMsg": "作業記録は印刷済みの段取シートに対して入力します。先に段取シートを印刷してください"
   },
   "mcPrintPage": {
     "mcDetailTabLink": "MC詳細",
@@ -1723,7 +1732,8 @@
     "authenticatingLabel": "認証中...",
     "confirmAndStartButton": "確認して開始",
     "loadingEllipsis5": "読み込み中…",
-    "beforeUnloadMsg": "作業が完了していません。このページを離れますか？"
+    "beforeUnloadMsg": "作業が完了していません。このページを離れますか？",
+    "noSheetLockMsg": "作業記録は印刷済みの段取シートに対して入力します。先に段取シートを印刷してください"
   },
   "ncPrintPage": {
     "startWorkFirstAlert": "先に作業を開始してください",

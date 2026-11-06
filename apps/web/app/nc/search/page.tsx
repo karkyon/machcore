@@ -1,4 +1,5 @@
 "use client";
+import { MachineLabel } from "@/lib/machineLabel";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -191,7 +192,7 @@ export default function NcSearchPage() {
                     className={`px-4 py-2 flex items-center gap-3 cursor-pointer transition-colors border-b border-dashed border-slate-200 ${selected===r.id ? "bg-sky-50" : "hover:bg-slate-50"}`}>
                     <span className="min-w-[28px] h-6 px-1 rounded bg-sky-600 text-white flex items-center justify-center text-xs font-bold shrink-0">{r.process_l != null ? `L${r.process_l}` : ri+1}</span>
                     <span className="font-mono text-xs text-slate-600 shrink-0">{t("search.ncIdColon","NC ID : {id}").replace("{id}", String(r.nc_id))}</span>
-                    {r.machine_code && <span className="text-sm text-slate-700 font-medium shrink-0">{r.machine_code}</span>}
+                    {r.machine_code && <span className="text-sm text-slate-700 font-medium shrink-0"><MachineLabel code={r.machine_code} /></span>}
                     <span className="text-xs text-slate-400 shrink-0">{t("search.machiningIdColon","加工ID:{id}").replace("{id}", String(r.machining_id))}</span>
                     <span className="ml-auto flex items-center gap-2">
                       {fmtCycle(r.machining_time_sec) && <span className="text-xs text-slate-400">⏱ {fmtCycle(r.machining_time_sec)}</span>}

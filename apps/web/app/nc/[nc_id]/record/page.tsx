@@ -1,4 +1,5 @@
 "use client";
+import { machineLabel, MachineLabel } from "@/lib/machineLabel";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
@@ -150,6 +151,8 @@ function RecordPageInner() {
 
   // 編集モード
   const [editRecordId, setEditRecordId] = useState<number | null>(null);
+  // [No.82] 新規の作業記録は段取シートを選んだとき(段取シートバック含む)だけ入力できる。過去記録の参照・修正はこれまでどおり
+  const noSheetLock = !sbMode && editRecordId === null && !selectedSheet;
   // [バグ修正] 過去記録一覧が画面に存在しなかったため追加。
   const [records, setRecords] = useState<WorkRecord[]>([]);
 
@@ -390,6 +393,7 @@ function RecordPageInner() {
   };
 
   const handleSave = async () => {
+    if (noSheetLock) { showToast(tr("ncRecordPage.noSheetLockMsg", "作業記録は印刷済みの段取シートに対して入力します。先に段取シートを印刷してください")); return; }
     if (saving || saveLockRef.current) return;
     // [No.38] 作業内容が何も入っていない記録は登録しない(参考として回収する場合はダッシュボードから)
     const hasWork =
@@ -604,7 +608,7 @@ function RecordPageInner() {
                   <div className="font-bold text-slate-700">{(r as any).setup_sheet_printed_at
                     ? toJstYearMonthDayTimeString((r as any).setup_sheet_printed_at)
                     : <span className="font-normal text-slate-400">印刷記録なし（作業日 {toJstDateString(r.work_date)}）</span>}</div>
-                  <div className="text-slate-400">{r.operator_name ?? "—"} / {r.machine_code ?? "—"}</div>
+                  <div className="text-slate-400">{r.operator_name ?? "—"} / <MachineLabel code={r.machine_code} /></div>
                   <div className="text-slate-400">{fmtMin(r.setup_time)} / {fmtMin(r.machining_time)}</div>
                 </button>
               ))}
@@ -623,8 +627,9 @@ function RecordPageInner() {
                   {selectedSheet ? tr("ncRecordPage.selectedSheetLabel","段取シート（{date}）を選択中").replace("{date}", String(toJstDateString(selectedSheet.printed_at))) : tr("ncRecordPage.selectSheetFromListHint","左リストから段取シートを選択してください")}
                 </div>
               </div>
-              <button onClick={() => setShowAuth(true)}
-                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-colors whitespace-nowrap">
+              <button onClick={() => setShowAuth(true)} disabled={noSheetLock}
+                title={noSheetLock ? tr("ncRecordPage.noSheetLockMsg", "作業記録は印刷済みの段取シートに対して入力します。先に段取シートを印刷してください") : undefined}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors whitespace-nowrap">
                 {tr("ncRecordPage.startWorkButton3", "🔓 作業を開始する")}
               </button>
             </div>
@@ -635,8 +640,13 @@ function RecordPageInner() {
               過去記録を参照中(editRecordId有り)だと未認証でも操作できてしまって
               いた。操作禁止(常に未認証なら適用)と見た目のフェード(空状態のみ)を
               別条件に分離する。 */}
-          <div className={`${!isAuthenticated ? "pointer-events-none select-none" : ""} ${
-            !isAuthenticated && !editRecordId ? "grayscale opacity-90" : ""
+          {noSheetLock && (
+            <div className="mb-4 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-300 text-sm font-bold text-amber-800">
+              {tr("ncRecordPage.noSheetLockMsg", "作業記録は印刷済みの段取シートに対して入力します。先に段取シートを印刷してください")}
+            </div>
+          )}
+          <div className={`${!isAuthenticated || noSheetLock ? "pointer-events-none select-none" : ""} ${
+            (!isAuthenticated || noSheetLock) && !editRecordId ? "grayscale opacity-90" : ""
           }`}>
           {/* モードバー */}
           <div className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-bold mb-4 ${
@@ -699,7 +709,7 @@ function RecordPageInner() {
                       新規選択はdisabledで防ぐ。 */}
                   {machines.filter(m => m.isActive || m.id === machineId).map(m => (
                     <option key={m.id} value={m.id} disabled={!m.isActive}>
-                      {m.id} : {m.machineName}{!m.isActive ? tr("ncRecordPage.inactiveMachineSuffix2", "（無効）") : ""}
+                      {machineLabel(m)}{!m.isActive ? tr("ncRecordPage.inactiveMachineSuffix2", "（無効）") : ""}
                     </option>
                   ))}
                 </select>

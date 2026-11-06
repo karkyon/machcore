@@ -1,4 +1,5 @@
 "use client";
+import { machineLabel } from "@/lib/machineLabel";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -244,7 +245,7 @@ function McPrintPageInner() {
           <span className="text-slate-600">{tr("mcPrintPage.purposeLabel", "用途: ")}<span className="font-bold">{repeatPurpose === 'setup' ? tr("mcPrintPage.purposeSetup", "段取") : repeatPurpose === 'reference' ? tr("mcPrintPage.purposeReference", "参考資料") : tr("mcPrintPage.purposeContinuous", "連続使用")}</span></span>
           {repeatPurpose !== 'reference' && <span className="text-slate-600">{tr("mcPrintPage.quantityWLabel2", "W数: ")}<span className="font-bold">{repeatQty}</span></span>}
           {repeatPurpose !== 'reference' && repeatMachineId && (
-            <span className="text-slate-600">{tr("mcPrintPage.machineLabel4", "機械: ")}<span className="font-bold">{machines.find(m => m.id === repeatMachineId)?.machineCode ?? '—'}</span></span>
+            <span className="text-slate-600">{tr("mcPrintPage.machineLabel4", "機械: ")}<span className="font-bold">{machineLabel(machines.find(m => m.id === repeatMachineId))}</span></span>
           )}
         </div>
         <button onClick={() => setRepeatConfirmed(false)} className="text-xs text-slate-500 underline ml-4 shrink-0">{tr("mcPrintPage.changeButton", "変更")}</button>
@@ -286,7 +287,7 @@ function McPrintPageInner() {
               className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
               <option value="">{tr("mcPrintPage.selectPlaceholder2", "— 選択してください —")}</option>
               {machines.filter(m => m.isActive).map(m => (
-                <option key={m.id} value={m.id}>{m.machineCode} {m.machineName !== m.machineCode ? `(${m.machineName})` : ''}</option>
+                <option key={m.id} value={m.id}>{machineLabel(m)}</option>
               ))}
             </select>
           </div>
@@ -351,7 +352,7 @@ function McPrintPageInner() {
             <span className="text-slate-500 text-lg font-medium leading-none">{d.part.mainModel}</span>
           </>}
           <div className="flex items-center gap-2 ml-2">
-            {d.machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{d.machine.machineCode}</span>}
+            {d.machine && <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-700">{machineLabel(d.machine)}</span>}
             <StatusBadge status={d.status} />
             <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">Ver. {d.version}</span>
             {spSheets.length > 0 && (
@@ -416,7 +417,7 @@ function McPrintPageInner() {
                 <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200">
                   <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcPrintPage.mcProcessNoLabel3", "MC工程No")}</div><div className="font-bold text-teal-700">{(d as any).mcProcessNo ?? "—"}</div></div>
                   <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcPrintPage.versionLabel3", "バージョン")}</div><div className="font-mono font-bold">{(d as any).version ?? "—"}</div></div>
-                  <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcPrintPage.machineLabel3", "機械")}</div><div className="font-bold">{d.machine?.machineCode ?? "—"}</div></div>
+                  <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcPrintPage.machineLabel3", "機械")}</div><div className="font-bold">{machineLabel((d as any).machine)}</div></div>
                 </div>
                 <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200">
                   <div className="p-2.5 text-center"><div className="text-slate-400 text-xs mb-1">{tr("mcPrintPage.mainONumberLabel2", "主Oナンバ")}</div><div className="font-mono font-bold">{(d as any).oNumber ?? "—"}</div></div>

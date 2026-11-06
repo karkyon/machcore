@@ -925,6 +925,9 @@ export type McPrintOptions = {
 };
 
 export const mcApi = {
+  // [No.76] プログラムファイル形式(単体/フォルダ)の切替
+  switchPgType: (mcId: number, pgIsFolder: boolean, token: string) =>
+    api.patch(`/mc/${mcId}/pg-type`, { pg_is_folder: pgIsFolder }, { headers: { Authorization: `Bearer ${token}` } }),
   search: (key: string, q: string, params?: { client_name?: string; machine_id?: number; machine_code?: string }) =>
     api.get<{ total: number; rows: McSearchResult[] }>('/mc/search', {
       params: { key, q, limit: 100, ...params },

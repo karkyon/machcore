@@ -1,4 +1,5 @@
 "use client";
+import { machineLabel } from "@/lib/machineLabel";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 // apps/web/app/nc/[nc_id]/print/page.tsx
 // SCR-04: 段取シート
@@ -83,15 +84,7 @@ export default function PrintPage() {
   // 機械・ワーク数・用途を復元していたのが「前回のキャッシュが残る」不具合の原因。
   // ワーク数は常にブランク、使用機械は現在マシニング情報に登録されている機械
   // (nc.machine)を初期値とする。用途のキャッシュ復元も廃止する。
-  useEffect(() => {
-    if (!machines.length || !nc) return;
-    const mcode = (nc as any).machine?.machineCode ?? null;
-    if (mcode) {
-      const found = machines.find((m: any) => m.machineCode === mcode);
-      if (found) setRepeatMachineId(found.id);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [machines.length, nc]);
+  // [No.81] NCはワーク数・使用機械とも初期状態は空欄で、両方入力するまで「確認完了」を押せない(MCは従来どおり)。
 
   // ── 別のnc_id向け認証セッションが残っていないか検証（MC側 edit/print/page.tsx と同ロジック）──
   // 「変更・登録」等で認証した状態のまま別画面(段取シート/NC詳細等)へ遷移した場合に、
@@ -385,7 +378,7 @@ export default function PrintPage() {
                       <span className="text-slate-600">{tr("ncPrintPage.purposeLabel3", "用途: ")}<span className="font-bold">{repeatPurpose === 'setup' ? tr("ncPrintPage.purposeSetup2", "段取") : repeatPurpose === 'reference' ? tr("ncPrintPage.purposeReference2", "参考資料") : tr("ncPrintPage.purposeContinuous2", "連続使用")}</span></span>
                       {repeatPurpose !== 'reference' && <span className="text-slate-600">{tr("ncPrintPage.quantityWLabel3", "W数: ")}<span className="font-bold">{repeatQty}</span></span>}
                       {repeatPurpose !== 'reference' && repeatMachineId && (
-                        <span className="text-slate-600">{tr("ncPrintPage.machineLabel5", "機械: ")}<span className="font-bold">{machines.find(m => m.id === repeatMachineId)?.machineCode ?? '—'}</span></span>
+                        <span className="text-slate-600">{tr("ncPrintPage.machineLabel5", "機械: ")}<span className="font-bold">{machineLabel(machines.find(m => m.id === repeatMachineId))}</span></span>
                       )}
                     </div>
                     <button onClick={() => setRepeatConfirmed(false)} className="text-xs text-slate-500 underline ml-4 shrink-0">{tr("ncPrintPage.changeButton2", "変更")}</button>
@@ -421,19 +414,20 @@ export default function PrintPage() {
                         <select value={repeatMachineId ?? ""} onChange={e => setRepeatMachineId(e.target.value ? Number(e.target.value) : null)}
                           className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
                           <option value="">{tr("ncPrintPage.selectPlaceholder4", "選択してください")}</option>
-                          {machines.map(m => <option key={m.id} value={m.id}>{m.machineCode}</option>)}
+                          {machines.map(m => <option key={m.id} value={m.id}>{machineLabel(m)}</option>)}
                         </select>
                       </div>
                     )}
                     <div className="flex justify-end">
                       <button
+                        disabled={repeatPurpose !== 'reference' && (!repeatQty || repeatQty < 1 || !repeatMachineId)}
                         onClick={() => {
                           if (repeatPurpose !== 'reference' && (!repeatQty || repeatQty < 1)) { setPrintError(tr("ncPrintPage.inputWorkQtyRequired2","ワーク数を入力してください")); return; }
                           if (repeatPurpose !== 'reference' && !repeatMachineId) { setPrintError(tr("ncPrintPage.selectMachineRequired2","使用機械を選択してください")); return; }
                           setPrintError(null);
                           setRepeatConfirmed(true);
                         }}
-                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold rounded-lg transition-colors"
+                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors"
                       >{tr("ncPrintPage.confirmCompleteButton2", "確認完了")}</button>
                     </div>
                   </div>
@@ -564,7 +558,7 @@ function DataPreview({
       <div className="grid grid-cols-2 gap-3">
         <InfoBox title={tr("ncPrintPage.processingInfoTitle","加工情報")}>
           <InfoRow label={tr("ncPrintPage.processLabel2","工程")}     value={`L${nc.processL}`} />
-          <InfoRow label={tr("ncPrintPage.machineLabel6","機械")}     value={nc.machine?.machineName ?? nc.machine?.machineCode ?? "—"} />
+          <InfoRow label={tr("ncPrintPage.machineLabel6","機械")}     value={machineLabel(nc.machine)} />
           <InfoRow label={tr("ncPrintPage.machiningTimeLabel2","加工時間")} value={(nc.machiningTime != null || nc.setupTimeRef != null) ? (() => { const t = (nc.machiningTime ?? 0) * 60 + (nc.setupTimeRef ?? 0); return `${Math.floor(t/3600)}h${Math.floor((t%3600)/60)}m${t%60}s`; })() : "—"} />
           <InfoRow label={tr("ncPrintPage.oNumberLabel2","O番号")}    value={nc.oNumber ?? "—"} />
         </InfoBox>
@@ -612,7 +606,7 @@ function DataPreview({
               <tbody>
                 {nc.tools.map((t: NcTool, i: number) => (
                   <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                    <td className="px-2 py-1.5 text-slate-600">{t.tNumber ?? "—"}</td>
+                    <td className="px-2 py-1.5 text-slate-600">{t.tNumber || i + 1}</td>
                     <td className="px-2 py-1.5">{t.processType ?? "—"}</td>
                     <td className="px-2 py-1.5 text-sm tracking-[0.25em] whitespace-nowrap">{t.chipModel   ?? "—"}</td>
                     <td className="px-2 py-1.5">{t.holderModel ?? "—"}</td>

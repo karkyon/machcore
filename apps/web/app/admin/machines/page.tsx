@@ -5,11 +5,20 @@ import { useRouter, usePathname } from "next/navigation";
 import { machinesApi, Machine } from "@/lib/api";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 
-const adminFetch = (path: string, opts?: RequestInit) =>
-  fetch(`/api${path}`, { ...opts, headers: { "Content-Type": "application/json", ...(opts?.headers ?? {}) } });
+// [No.68] 登録・更新に失敗しても fetch は例外にならないため「登録しました」と表示され、一覧にも出ないままだった。
+//   失敗はサーバの理由を付けて例外にし、ダイアログに表示する
+const adminFetch = async (path: string, opts?: RequestInit) => {
+  const res = await fetch(`/api${path}`, { ...opts, headers: { "Content-Type": "application/json", ...(opts?.headers ?? {}) } });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({} as any));
+    const msg = Array.isArray(j?.message) ? j.message.join(", ") : j?.message;
+    throw new Error(msg || `HTTP ${res.status}`);
+  }
+  return res;
+};
 
 type DialogMode = "create" | "edit" | null;
-type SortKey = "id" | "machineName" | "systemType" | "maker" | "sortOrder" | "isActive";
+type SortKey = "id" | "machineCode" | "machineName" | "systemType" | "maker" | "sortOrder" | "isActive";
 type SysType = "MC" | "NC" | "BOTH";
 // 機械種別: MC=マシニング / NC=旋盤 / BOTH=複合加工機(MC・NC両方の機械リストで選択できる)
 const SYS_TYPES: SysType[] = ["MC", "NC", "BOTH"];
@@ -65,7 +74,7 @@ export default function AdminMachinesPage() {
   }, [router, fetchMachines]);
 
   const filtered = machines.filter(m => {
-    if (fltName   && !m.machineName?.includes(fltName))                  return false;
+    if (fltName   && !m.machineName?.includes(fltName) && !m.machineCode?.includes(fltName)) return false;
     // 種別は部分一致（NC旋盤, MCなど）+ NCだけ入力してもNC旋盤にヒット
     if (fltType   && sysOf(m) !== fltType)                               return false;
     if (fltMaker  && !(m as any).maker?.includes(fltMaker))              return false;
@@ -90,7 +99,9 @@ export default function AdminMachinesPage() {
     <span className="ml-1 opacity-50">{sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : "⇅"}</span>
   );
 
-  const openCreate = () => { setFCode(""); setFName(""); setFType("MC"); setFMaker(""); setFSort("0"); setFPgIsFolder(false); setFError(null); setEditTarget(null); setDialogMode("create"); };
+  const openCreate = () => { setFCode(""); setFName(""); setFType("MC"); setFMaker("");
+    // [No.68] 順序の初期値は最後尾(0 だと一覧の先頭に入り、末尾を見ても追加されていないように見えた)
+    setFSort(String(machines.reduce((mx, m) => Math.max(mx, m.sortOrder ?? 0), 0) + 1)); setFPgIsFolder(false); setFError(null); setEditTarget(null); setDialogMode("create"); };
   const openEdit   = (m: Machine) => { setFCode(m.machineCode); setFName(m.machineName ?? ""); setFType(sysOf(m)); setFMaker((m as any).maker ?? ""); setFSort(String(m.sortOrder ?? 0)); setFPgIsFolder(!!(m as any).pgIsFolder); setFError(null); setEditTarget(m); setDialogMode("edit"); };
 
   const handleSave = async () => {
@@ -112,7 +123,7 @@ export default function AdminMachinesPage() {
       }
       showToast(dialogMode === "edit" ? t("adminMachines.updated","更新しました") : t("adminMachines.created","登録しました"), true);
       setDialogMode(null); fetchMachines();
-    } catch { setFError(t("adminMachines.communicationError", "通信エラー")); }
+    } catch (e: any) { setFError(e?.message || t("adminMachines.communicationError", "通信エラー")); }
     finally { setSaving(false); }
   };
 
@@ -157,14 +168,15 @@ export default function AdminMachinesPage() {
           {loading ? <div className="text-center py-20 text-slate-400">{t("adminMachines.loading", "読み込み中…")}</div> : (
             <div className="flex-1 overflow-hidden bg-white rounded-xl border border-slate-200 flex flex-col">
               <div className="shrink-0 border-b border-slate-200">
-                <table className="w-full text-sm table-fixed">
+                <table className="w-full min-w-[1000px] text-sm table-fixed">
                   <colgroup>
-                    <col className="w-12"/><col className="w-40"/><col className="w-24"/><col className="w-28"/>
+                    <col className="w-12"/><col className="w-24"/><col className="w-36"/><col className="w-24"/><col className="w-28"/>
                     <col className="w-24"/><col className="w-16"/><col className="w-16"/><col className="w-40"/>
                   </colgroup>
                   <thead>
                     <tr className="bg-slate-50 text-slate-600 text-xs uppercase">
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("id")}>{t("adminMachines.colId","ID")}<SortIcon k="id"/></th>
+                      <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("machineCode")}>{t("adminMachines.colMachineCode","機械コード")}<SortIcon k="machineCode"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("machineName")}>{t("adminMachines.colMachineName","機械名")}<SortIcon k="machineName"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("systemType")}>{t("adminMachines.colType","種別")}<SortIcon k="systemType"/></th>
                       <th className="px-3 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort("maker")}>{t("adminMachines.colMaker","メーカー")}<SortIcon k="maker"/></th>
@@ -177,15 +189,16 @@ export default function AdminMachinesPage() {
                 </table>
               </div>
               <div className="flex-1 overflow-y-auto">
-                <table className="w-full text-sm table-fixed">
+                <table className="w-full min-w-[1000px] text-sm table-fixed">
                   <colgroup>
-                    <col className="w-12"/><col className="w-40"/><col className="w-24"/><col className="w-28"/>
+                    <col className="w-12"/><col className="w-24"/><col className="w-36"/><col className="w-24"/><col className="w-28"/>
                     <col className="w-24"/><col className="w-16"/><col className="w-16"/><col className="w-40"/>
                   </colgroup>
                   <tbody className="divide-y divide-slate-100">
                     {filtered.map((m, i) => (
                       <tr key={m.id} className={`${!m.isActive ? "opacity-40" : ""} ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
                         <td className="px-3 py-2.5 text-slate-400 text-xs">{m.id}</td>
+                        <td className="px-3 py-2.5 font-mono font-bold text-slate-800 text-xs truncate">{m.machineCode}</td>
                         <td className="px-3 py-2.5 font-bold text-slate-800 text-xs truncate">{m.machineName}</td>
                         <td className="px-3 py-2.5 text-xs">
                           <span className={`px-1.5 py-0.5 rounded font-bold whitespace-nowrap ${SYS_COLOR[sysOf(m)]}`}>{sysLabel(sysOf(m))}</span>

@@ -1,4 +1,5 @@
 "use client";
+import { machineLabel } from "@/lib/machineLabel";
 import { CompanyBrandTag } from "@/components/CompanyBrandTag";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -28,10 +29,7 @@ export default function NcNewPage() {
   const [nextIdLoading, setNextIdLoading] = useState(false);
   const [processL,      setProcessL]      = useState("");
   const [machineId,     setMachineId]     = useState("");
-  const [machiningTime, setMachiningTime] = useState("");
   const [clampNote,     setClampNote]     = useState("");
-  // [v101] 掴代(専用フィールド。旧ACC_Lathe.Clamp。「専用」「9~10」等、数値以外も入力される)
-  const [clampAllowance, setClampAllowance] = useState("");
   const [machines,      setMachines]      = useState<Machine[]>([]);
 
   const [authOpen,  setAuthOpen]  = useState(false);
@@ -75,6 +73,7 @@ export default function NcNewPage() {
   const handleAuthSuccess = () => { setAuthOpen(false); };
 
   const handleSubmit = async () => {
+    if (saving) return;
     if (!authToken || !isAuthenticated) { setAuthOpen(true); return; }
     if (!selectedPart)        { setSaveError(tr("ncNewPage.selectPartRequired2","部品を選択してください")); return; }
     if (!processL.trim())     { setSaveError(tr("ncNewPage.processLRequired","工程No(L)を入力してください（必須）")); return; }
@@ -86,16 +85,14 @@ export default function NcNewPage() {
         part_id:        selectedPart.id,
         process_l:      parseInt(processL, 10),
         machine_id:      machineId ? parseInt(machineId) : null,
-        machining_time:  machiningTime ? parseInt(machiningTime, 10) : null,
         clamp_note:      clampNote || null,
-        clamp_allowance: clampAllowance || null,
       }, authToken);
       const d = (res as any).data ?? res;
+      // 画面が切り替わるまで「登録中…」のままにする(押した結果が見えず2回押してしまうのを防ぐ)
       router.push(`/nc/${d.nc_id}/edit`);
     } catch (e: any) {
       const errMsg = e?.response?.data?.message ?? e?.message ?? tr("ncNewPage.registerFailedDefault2","登録に失敗しました");
       setSaveError(Array.isArray(errMsg) ? errMsg.join(", ") : errMsg);
-    } finally {
       setSaving(false);
     }
   };
@@ -136,7 +133,7 @@ export default function NcNewPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <aside className="w-[280px] shrink-0 bg-white border-r border-slate-200 flex flex-col">
           <div className="p-3 border-b border-slate-100 space-y-2">
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide">{tr("ncNewPage.step1SelectPart2", "① 部品を選択")}</h2>
+            <h2 className="text-base font-bold text-white bg-sky-600 rounded-lg px-3 py-2">{tr("ncNewPage.step1SelectPart2", "① 部品を選択")}</h2>
             <div className="flex gap-1.5">
               <select value={searchType} onChange={e => setSearchType(e.target.value as any)}
                 className="border border-slate-300 rounded px-1.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-sky-400 shrink-0">
@@ -191,6 +188,8 @@ export default function NcNewPage() {
             </div>
           )}
 
+          {/* [No.71] ①で部品を選ぶまで②は入力できない */}
+          <fieldset disabled={!selectedPart} className={`min-w-0 ${!selectedPart ? "opacity-40 pointer-events-none select-none" : ""}`}>
           <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">{tr("ncNewPage.step2InputMachiningInfo2", "② 加工情報を入力")}</h2>
           <div className="grid grid-cols-2 gap-3 max-w-xl">
             <div>
@@ -227,7 +226,7 @@ export default function NcNewPage() {
                 className={`w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-400 ${!machineId ? "border-red-300 bg-red-50" : "border-slate-300"}`}>
                 <option value="">{tr("ncNewPage.notSetOption2", "-- 未設定 --")}</option>
                 {machines.map(m => (
-                  <option key={m.id} value={String(m.id)}>{m.machineName ?? m.machineCode}</option>
+                  <option key={m.id} value={String(m.id)}>{machineLabel(m)}</option>
                 ))}
               </select>
               {programNaming && (
@@ -238,27 +237,18 @@ export default function NcNewPage() {
                 </div>
               )}
             </div>
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">{tr("ncNewPage.machiningTimeMinLabel", "加工時間(分)")}</label>
-              <input type="number" value={machiningTime} onChange={e => setMachiningTime(e.target.value)} min="0"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
-            </div>
           </div>
 
           <div className="mt-4 max-w-xl grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">{tr("ncNewPage.clampAllowanceLabel3", "掴代 ")}<span className="text-slate-400 font-normal">{tr("ncNewPage.clampAllowanceMmNote", "(mm)")}</span></label>
-              <input value={clampAllowance} onChange={e => setClampAllowance(e.target.value)} maxLength={50}
-                placeholder={tr("ncNewPage.clampAllowancePlaceholder", "例: 専用 / 9~10")}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
-            </div>
-            <div className="col-span-2">
+            <div className="col-span-3">
               <label className="text-xs font-bold text-slate-700 block mb-1">{tr("ncNewPage.noteLabel6", "備考")}</label>
               <textarea value={clampNote} onChange={e => setClampNote(e.target.value)} rows={2} maxLength={2000}
                 placeholder={tr("ncNewPage.notePlaceholder4", "特記事項・注意事項")}
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none" />
             </div>
           </div>
+
+          </fieldset>
 
           {saveError && (
             <div className="mt-3 max-w-xl bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5 rounded-xl">

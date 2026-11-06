@@ -1017,7 +1017,7 @@ export class NcService {
     const tmpPath = `/tmp/machcore-print-${ncProgramId}-${Date.now()}.pdf`;
     fs.writeFileSync(tmpPath, pdfBuffer);
     const duplexOptNc = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
-    const lpCmdNc = `lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOptNc} "${tmpPath}"`;
+    const lpCmdNc = `lp -d ${printerName} -o media=A4${duplexOptNc} "${tmpPath}"`;
     console.log(`[DUPLEX-DEBUG][NC][direct-print] nc_id=${ncProgramId} printer=${printerName} duplexPrint(DB)=${(setting as any)?.duplexPrint} cmd=${lpCmdNc}`);
     this.prisma.systemLog.create({ data: { level: 'DEBUG', category: 'PRINT', message: `NC direct-print lp実行: ${lpCmdNc}`, detail: { ncProgramId, printerName, duplexPrint: (setting as any)?.duplexPrint } } }).catch(() => {});
     try {
@@ -1393,7 +1393,8 @@ async generateSetupSheetPdf(
     const pdfUint8 = await page.pdf({
       format:          'A4',
       printBackground: true,
-      margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' },
+      // [No.83] 余白は左右1cm・上下2cm
+      margin: { top: '20mm', bottom: '20mm', left: '10mm', right: '10mm' },
       displayHeaderFooter: true,
       headerTemplate: '<span></span>',
       footerTemplate: `
@@ -1459,9 +1460,9 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   };
 
   // No = 旧システムのTNo(t3_Tool.No → nc_tools.t_number)。並びは sort_order(旧T_id昇順で採番済み)。
-  const toolRows = (includeTools && data.tools && data.tools.length > 0) ? data.tools.map((t: any) => `
+  const toolRows = (includeTools && data.tools && data.tools.length > 0) ? data.tools.map((t: any, i: number) => `
     <tr style="page-break-inside:avoid;">
-      <td class="c">${t.tNumber ?? ''}</td>
+      <td class="c">${t.tNumber || (i + 1)}</td>
       <td>${t.processType ?? ''}</td>
       <td class="shape">${t.chipModel ?? ''}</td>
       <td class="holder">${t.holderModel ?? ''}</td>
@@ -1498,7 +1499,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
      選ばれ、「フォントが中国語のように見える」問題も併発していた。
      MC側(pdf-lib+fontkit)と同じ、サーバにインストール済みのIPAゴシックを
      第一候補にしたローカルフォントスタックへ変更し、外部依存を排除する。 */
-  body { font-family: "IPAGothic", "IPAPGothic", "Noto Sans CJK JP", "Noto Sans JP", sans-serif; font-size: 11pt; color: #000; background: #fff; padding: 8mm; }
+  body { font-family: "IPAGothic", "IPAPGothic", "Noto Sans CJK JP", "Noto Sans JP", sans-serif; font-size: 11pt; color: #000; background: #fff; padding: 0; }
   h1.title { font-size: 16pt; font-weight: 700; margin-bottom: 4px; }
   .id-row { font-size: 10pt; color: #444; margin-bottom: 6px; }
   table.info { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
@@ -1582,13 +1583,13 @@ private buildSetupSheetHtml(data: any, opts: any): string {
     </tr>
     <tr>
       <td class="lbl">主機種型式</td>
-      <td colspan="3">${data.part?.machineType ?? data.machineType ?? ''}</td>
+      <td colspan="3">${data.part?.mainModel ?? ''}</td>
     </tr>
     <tr>
       <td class="lbl">Ｌ</td>
       <td style="width:60px;"><strong>${data.processL ?? ''}</strong></td>
       <td class="lbl">機　械</td>
-      <td>${data.machine?.machineCode ?? ''}</td>
+      <td>${data.machine ? (data.machine.machineName && data.machine.machineName !== data.machine.machineCode ? `${data.machine.machineCode} &lt;${data.machine.machineName}&gt;` : data.machine.machineCode) : ''}</td>
     </tr>
     <tr>
       <td class="lbl">タ イ ム</td>
@@ -1603,12 +1604,12 @@ private buildSetupSheetHtml(data: any, opts: any): string {
       <td><strong>${data.oNumber ?? ''}</strong></td>
     </tr>
     <tr>
-      <td class="lbl">掴　代</td>
-      <td colspan="3">${data.clampAllowance ? `${data.clampAllowance} mm` : ''}</td>
+      <td class="lbl">フォルダ名</td>
+      <td colspan="3">${data.folderName ?? ''}</td>
     </tr>
     <tr>
-      <td class="lbl">FD名 / USB</td>
-      <td colspan="3">${data.folderName ?? ''}</td>
+      <td class="lbl">掴　代</td>
+      <td colspan="3">${data.clampAllowance ? `${data.clampAllowance} mm` : ''}</td>
     </tr>
   </table>
 
@@ -1630,7 +1631,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
         <th style="width:90px;">加　工</th>
         <th style="width:96px;">形　状</th>
         <th>ホルダー</th>
-        <th class="c" style="width:50px;">ノーズR</th>
+        <th class="c" style="width:75px;white-space:nowrap;">ノーズR</th>
         <th>備　考</th>
       </tr>
     </thead>
@@ -1687,7 +1688,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
     </tr>
     <tr>
       <td class="lbl">掴　代</td>
-      <td><span style="margin-right:30px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; mm</span>FD名&nbsp;&nbsp;&nbsp;${data.folderName ?? ''}</td>
+      <td><span style="margin-right:30px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; mm</span>フォルダ名&nbsp;&nbsp;&nbsp;${data.folderName ?? ''}</td>
     </tr>
   </table>`}
 

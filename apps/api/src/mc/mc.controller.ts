@@ -188,6 +188,18 @@ export class McController {
     return this.mc.finalize(id, dto.change_type, dto.change_detail, req.user.id);
   }
 
+  // [No.76] プログラムファイル形式(単体/フォルダ)の切替
+  @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
+  @Roles('OPERATOR', 'ADMIN')
+  @Patch(':mc_id/pg-type')
+  switchPgType(
+    @Param('mc_id', ParseIntPipe) id: number,
+    @Body() body: { pg_is_folder: boolean },
+    @Req() req: any,
+  ) {
+    return this.mc.switchPgType(id, body?.pg_is_folder === true, req.user.id);
+  }
+
   // ── 変更キャンセル（CHANGING → 元のステータスに戻す）─
   @UseGuards(AuthGuard('jwt'), RolesGuard, ProgramSessionGuard)
   @Roles('OPERATOR', 'ADMIN')
@@ -774,7 +786,7 @@ export class McController {
     fs2.writeFileSync(tmpPath, pdf);
     const { execSync: execSync2 } = await import('child_process');
     const duplexOptRepeat = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
-    const lpCmdRepeat = `lp -d ${printerName} -o media=A4 -o fit-to-page${duplexOptRepeat} "${tmpPath}"`;
+    const lpCmdRepeat = `lp -d ${printerName} -o media=A4${duplexOptRepeat} "${tmpPath}"`;
     console.log(`[DUPLEX-DEBUG][MC][repeat-direct-print] mc_id=${id} printer=${printerName} duplexPrint(DB)=${(setting as any)?.duplexPrint} cmd=${lpCmdRepeat}`);
     this.mc['prisma'].systemLog.create({ data: { level: 'DEBUG', category: 'PRINT', message: `MC repeat-direct-print lp実行: ${lpCmdRepeat}`, detail: { mcId: id, printerName, duplexPrint: (setting as any)?.duplexPrint } } }).catch(() => {});
     try {
