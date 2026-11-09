@@ -1589,7 +1589,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
       <td class="lbl">Ｌ</td>
       <td style="width:60px;"><strong>${data.processL ?? ''}</strong></td>
       <td class="lbl">機　械</td>
-      <td>${data.machine ? (data.machine.machineName && data.machine.machineName !== data.machine.machineCode ? `${data.machine.machineCode} &lt;${data.machine.machineName}&gt;` : data.machine.machineCode) : ''}</td>
+      <td>${data.machine ? (data.machine.machineName && String(data.machine.machineName).replace(/[\s\u3000]+/g, '') !== String(data.machine.machineCode).replace(/[\s\u3000]+/g, '') ? `${data.machine.machineCode} &lt;${data.machine.machineName}&gt;` : data.machine.machineCode) : ''}</td>
     </tr>
     <tr>
       <td class="lbl">タ イ ム</td>

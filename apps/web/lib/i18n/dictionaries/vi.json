@@ -1867,7 +1867,8 @@
     "flowStep1": "① Hoàn tất đăng ký tạm → Hiển thị trên trang phiếu cài đặt",
     "flowStep2": "② In phiếu cài đặt và phân phát đến hiện trường",
     "flowStep3": "③ Đăng ký thông tin gia công tại chi tiết MC, cùng dụng cụ・offset gia công・tệp chương trình",
-    "flowStep4": "④ Người duyệt xác nhận → Trạng thái chuyển thành「Đã duyệt」"
+    "flowStep4": "④ Người duyệt xác nhận → Trạng thái chuyển thành「Đã duyệt」",
+    "noActiveMachine": "Chưa có máy nào đang hoạt động. Vui lòng kích hoạt (hoặc đăng ký) máy trong màn hình quản trị \"Quản lý máy\""
   },
   "ncNewPage": {
     "selectPartRequired2": "Vui lòng chọn chi tiết",
@@ -1919,7 +1920,8 @@
     "flowStep3b": "③ Tab「Phiếu cài đặt」「Ghi nhận công việc」không hoạt động cho đến khi xác nhận",
     "flowStep4b": "④ Nếu rời màn hình này trước khi xác nhận, nội dung đăng ký sẽ bị hủy và mã gia công(K_id) được giải phóng",
     "flowStep5b": "⑤ Người duyệt xác nhận → Trạng thái chuyển thành「Đã duyệt」",
-    "noSearchResults2": "Không có kết quả tìm kiếm"
+    "noSearchResults2": "Không có kết quả tìm kiếm",
+    "noActiveMachine": "Chưa có máy nào đang hoạt động. Vui lòng kích hoạt (hoặc đăng ký) máy trong màn hình quản trị \"Quản lý máy\""
   },
   "statusBadge": {
     "provisional": "Đăng ký tạm",

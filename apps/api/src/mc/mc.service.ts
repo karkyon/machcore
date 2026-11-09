@@ -2876,7 +2876,9 @@ export class McService {
       try {
         const m = await this.prisma.machine.findUnique({ where: { id: (options as any).machine_id }, select: { machineCode: true, machineName: true } });
         // [No.64] 機械コードと機種名の両方を印字
-        if (m) (options as any)._machineName = m.machineName && m.machineName !== m.machineCode ? `${m.machineCode} <${m.machineName}>` : m.machineCode;
+        // スペース(全角含む)を除いて機械コードと機種名が同じなら機械コードだけ
+        const sp = (s: string) => String(s ?? '').replace(/[\s\u3000]+/g, '');
+        if (m) (options as any)._machineName = m.machineName && sp(m.machineName) !== sp(m.machineCode) ? `${m.machineCode} <${m.machineName}>` : m.machineCode;
       } catch {}
     }
 

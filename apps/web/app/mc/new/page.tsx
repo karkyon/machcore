@@ -37,6 +37,7 @@ export default function McNewPage() {
   const [note,          setNote]          = useState("");
   const [machines,      setMachines]      = useState<Machine[]>([]);
 
+  const [machinesLoaded, setMachinesLoaded] = useState(false);   // 有効な機械が0件のとき案内を出す
   const [authOpen,  setAuthOpen]  = useState(false);
   const [saving,    setSaving]    = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -45,7 +46,7 @@ export default function McNewPage() {
     machinesApi.list("MC").then(r => {
       const d = (r as any).data ?? r;
       setMachines(Array.isArray(d) ? d.filter((m: Machine) => m.isActive) : []);
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setMachinesLoaded(true));
   }, []);
 
   // 次の加工ID候補を自動取得
@@ -242,6 +243,9 @@ export default function McNewPage() {
                   <option key={m.id} value={String(m.id)}>{machineLabel(m)}</option>
                 ))}
               </select>
+              {machinesLoaded && machines.length === 0 && (
+                <p className="mt-1 text-xs font-bold text-red-600">{tr("mcNewPage.noActiveMachine", "有効な機械が登録されていません。管理画面「機械管理」で機械を有効化（または登録）してください")}</p>
+              )}
               {programNaming && (
                 <div className={`mt-1.5 flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border ${programNaming.isFolder ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-teal-50 border-teal-200 text-teal-700"}`}>
                   <span>{programNaming.isFolder ? tr("mcNewPage.folderUnitBadge2", "📁 フォルダ単位") : tr("mcNewPage.singleFileBadge2", "📄 単体ファイル")}</span>

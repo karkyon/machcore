@@ -1,16 +1,23 @@
 "use client";
-// [No.64] 機械の表示を「機械コード <機種名>」に統一する。機械コードと機種名が同じ機械は1つだけ表示する。
+// [No.64] 機械の表示を「機械コード <機種名>」に統一する。スペース(全角含む)を除いて比べ、機械コードと機種名が同じ機械(SL-25 等)は機械コードだけ表示する。
 import { useEffect, useState } from "react";
 import { machinesApi } from "@/lib/api";
 
 type MachineLike = { machineCode?: string | null; machineName?: string | null } | null | undefined;
 
+/** スペース(半角・全角)を除いて比べ、同じ表記なら true */
+export function sameMachineText(a: string, b: string): boolean {
+  const n = (s: string) => s.replace(/[\s\u3000]+/g, "");
+  return n(a) === n(b);
+}
+
 export function machineLabel(m: MachineLike, fallback = "—"): string {
   const code = (m?.machineCode ?? "").trim();
   const name = (m?.machineName ?? "").trim();
   if (!code && !name) return fallback;
-  if (!name || name === code) return code || name;
+  if (!name) return code;
   if (!code) return name;
+  if (sameMachineText(code, name)) return code;
   return `${code} <${name}>`;
 }
 
