@@ -387,7 +387,8 @@ function RecordPageInner() {
     setInterruption(r.interruption_time_min ?? 0);
     setWorkType(r.work_type ?? "量産");
     setNote(r.note ?? "");
-    setMachineId(machines.find(m => m.machineCode === r.machine_code)?.id ?? null);
+    // 機械コードは重複しうるため記録の machine_id を使う(無い場合だけコードで照合)
+    setMachineId((r as any).machine_id ?? machines.find(m => m.machineCode === r.machine_code)?.id ?? null);
     setSetupOps((r.setup_operator_ids as any) ?? []);
     setProdOps((r.production_operator_ids as any) ?? []);
   };

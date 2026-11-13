@@ -957,7 +957,8 @@ def deploy(env, cfg, rep, args, other_cfg):
         rep.add("WARN", "DBスキーマ差分", "差分の取得に失敗(db push の判定に任せます)")
     else:
         stmts = [s.strip() for s in re.split(r";\s*(?:\n|$)", sql) if s.strip()]
-        risky = [s for s in stmts if re.search(r"\bDROP\s+(TABLE|COLUMN|TYPE|INDEX)|\bALTER\s+COLUMN\b.*\bTYPE\b|SET NOT NULL", s, re.I | re.S)]
+        # 索引の削除(DROP INDEX)はデータが消えないので止めない(例: 機械コードの一意制約を外す)
+        risky = [s for s in stmts if re.search(r"\bDROP\s+(TABLE|COLUMN|TYPE)\b|\bALTER\s+COLUMN\b.*\bTYPE\b|SET NOT NULL", s, re.I | re.S)]
         for st in stmts:
             log("  [差分] " + re.sub(r"\s+", " ", st)[:300])
         rep.add("OK" if not stmts else "INFO", "DBスキーマ差分", f"{len(stmts)}文" + (": " + " / ".join(

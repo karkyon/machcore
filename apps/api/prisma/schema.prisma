@@ -115,7 +115,8 @@ model User {
 
 model Machine {
   id          Int      @id @default(autoincrement())
-  machineCode String   @unique @db.VarChar(20) @map("machine_code")
+  // 機械コードは重複可(同じコードの別機械を登録できる)。画面・APIの結び付けは id で行う
+  machineCode String   @db.VarChar(20)         @map("machine_code")
   machineName String   @db.VarChar(100)        @map("machine_name")
   machineType String?  @db.VarChar(50)         @map("machine_type")
   maker       String?  @db.VarChar(50)
@@ -133,6 +134,7 @@ model Machine {
   mcMachiningDetails McMachiningDetail[]
   timecards   MachineTimecard[]
   mcSetupSheetLogs McSetupSheetLog[] @relation("SetupSheetLogMachine")
+  @@index([machineCode])
   @@map("machines")
 }
 

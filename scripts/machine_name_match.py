@@ -48,10 +48,16 @@ class MachineResolver:
         self.exact = {}
         self.norm = {}
         ambiguous = set()
+        self.duplicates = set()   # 同じ machine_code の機械が複数ある(コードは重複可)
         for mid, code in rows:
             if code is None:
                 continue
-            self.exact[str(code).strip()] = mid
+            c = str(code).strip()
+            if c in self.exact:
+                # 同じコードは先に来た機械(from_db は 有効→古い順)に決める。後の機械は照合に使わない
+                self.duplicates.add(c)
+                continue
+            self.exact[c] = mid
             k = normalize_machine(code)
             if k is None:
                 continue
@@ -67,9 +73,9 @@ class MachineResolver:
     def from_db(cls, pgc, system_types=("MC", "BOTH")):
         """system_types=None なら全機械(NC: ACC_Machine.Model の照合で使用)"""
         if system_types is None:
-            pgc.execute("SELECT id, machine_code FROM machines")
+            pgc.execute("SELECT id, machine_code FROM machines ORDER BY is_active DESC, id")
         else:
-            pgc.execute("SELECT id, machine_code FROM machines WHERE system_type::text = ANY(%s)",
+            pgc.execute("SELECT id, machine_code FROM machines WHERE system_type::text = ANY(%s) ORDER BY is_active DESC, id",
                         (list(system_types),))
         return cls(pgc.fetchall())
 

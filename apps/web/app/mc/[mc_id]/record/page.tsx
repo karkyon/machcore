@@ -430,7 +430,8 @@ function TimecardModal({
       for (const dt of dateRange) {
         const res = await mcApi.timecardsByDate(dt);
         const all: any[] = (res as any).data ?? [];
-        const card = all.find((c: any) => c.machine?.machineCode === machineCode);
+        // 機械コードは重複しうるため機械IDで照合
+        const card = all.find((c: any) => machineId ? c.machine_id === machineId : c.machine?.machineCode === machineCode);
         if (card) {
           const fmtT = (s: string) => s && s.length >= 8 ? s.slice(0, 5) : "08:00";
           newRows.push({ id: card.id, date: dt,
@@ -777,7 +778,11 @@ function McRecordPageInner() {
       if (!found && mcode) found = machines.find(m => m.machineCode === mcode);
     }
     if (!found && detail?.machine?.machineCode) {
-      found = machines.find(m => m.machineCode === detail.machine!.machineCode && m.isActive !== false);
+      // 機械コードは重複しうるため登録機械の id で照合(id が無い場合だけコード)
+      const dmid = (detail.machine as any).id;
+      found = dmid != null
+        ? machines.find(m => m.id === dmid && m.isActive !== false)
+        : machines.find(m => m.machineCode === detail.machine!.machineCode && m.isActive !== false);
     }
     const next = found ? String(found.id) : "";
     if (next !== machineId) {
@@ -813,7 +818,8 @@ function McRecordPageInner() {
       for (const dt of dates) {
         const res = await mcApi.timecardsByDate(dt);
         const all: any[] = (res as any).data ?? [];
-        const card = all.find((c: any) => c.machine?.machineCode === mCode);
+        // 機械コードは重複しうるため機械IDで照合
+        const card = all.find((c: any) => !isNaN(mIdNum) ? c.machine_id === mIdNum : c.machine?.machineCode === mCode);
         const fmtT = (s: string) => s && s.length >= 8 ? s.slice(0, 5) : "08:00";
         if (card) rows.push({ id: card.id, date: dt, startTime: fmtT(card.start_time ?? ""), endTime: fmtT(card.end_time ?? "") });
         else if (holidays.has(dt)) rows.push({ id: null, date: dt, startTime: "08:00", endTime: "17:00" });
@@ -891,7 +897,7 @@ function McRecordPageInner() {
     // 過去記録の編集中は記録に保存されているサイクルタイムを上書きしない
     if (editRecordId != null) return;
     const sel = machines.find(m => String(m.id) === machineId);
-    if (sel && detail.machine && sel.machineCode === detail.machine.machineCode) {
+    if (sel && detail.machine && ((detail.machine as any).id != null ? sel.id === (detail.machine as any).id : sel.machineCode === detail.machine.machineCode)) {
       const sec = detail.cycleTimeSec ?? 0;
       if (sec) {
         setCycleH(Math.floor(sec / 3600));

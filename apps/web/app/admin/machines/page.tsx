@@ -6,13 +6,19 @@ import { machinesApi, Machine } from "@/lib/api";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 // [No.68] 登録・更新に失敗しても fetch は例外にならないため「登録しました」と表示され、一覧にも出ないままだった。
-//   失敗はサーバの理由を付けて例外にし、ダイアログに表示する
+//   失敗はサーバの理由を付けて例外にし、ダイアログと toast に表示する
 const adminFetch = async (path: string, opts?: RequestInit) => {
-  const res = await fetch(`/api${path}`, { ...opts, headers: { "Content-Type": "application/json", ...(opts?.headers ?? {}) } });
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, { ...opts, headers: { "Content-Type": "application/json", ...(opts?.headers ?? {}) } });
+  } catch {
+    throw new Error("サーバーに接続できません（通信エラー）");
+  }
   if (!res.ok) {
     const j = await res.json().catch(() => ({} as any));
     const msg = Array.isArray(j?.message) ? j.message.join(", ") : j?.message;
-    throw new Error(msg || `HTTP ${res.status}`);
+    if (res.status === 401) throw new Error("ログインの有効期限が切れています。ログインし直してください（HTTP 401）");
+    throw new Error(`${msg || "エラーが発生しました"}（HTTP ${res.status}）`);
   }
   return res;
 };
@@ -55,7 +61,7 @@ export default function AdminMachinesPage() {
   const sysLabel = (s?: string | null) =>
     s === "BOTH" ? t("adminMachines.sysBoth", "複合加工機") : s === "NC" ? t("adminMachines.sysNc", "NC（旋盤）") : t("adminMachines.sysMc", "MC（マシニング）");
   const sysOf = (m: Machine): SysType => ((m.systemType as SysType) ?? "NC");
-  const showToast = (msg: string, ok: boolean) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
+  const showToast = (msg: string, ok: boolean) => { setToast({ msg, ok }); setTimeout(() => setToast(null), ok ? 3000 : 8000); };
   const handleLogout = () => { sessionStorage.removeItem("admin_token"); sessionStorage.removeItem("admin_user"); router.push("/admin/login"); };
 
   const fetchMachines = useCallback(async () => {
@@ -64,7 +70,7 @@ export default function AdminMachinesPage() {
       const res = await adminFetch("/admin/machines", { headers: { Authorization: `Bearer ${getToken()}` } });
       const d = await res.json();
       setMachines(Array.isArray(d) ? d : []);
-    } catch { showToast(t("adminMachines.fetchFailed", "機械一覧の取得に失敗しました"), false); }
+    } catch (e: any) { showToast(`${t("adminMachines.fetchFailed", "機械一覧の取得に失敗しました")}：${e?.message ?? ""}`, false); }
     finally { setLoading(false); }
   }, []);
 
@@ -105,7 +111,12 @@ export default function AdminMachinesPage() {
   const openEdit   = (m: Machine) => { setFCode(m.machineCode); setFName(m.machineName ?? ""); setFType(sysOf(m)); setFMaker((m as any).maker ?? ""); setFSort(String(m.sortOrder ?? 0)); setFPgIsFolder(!!(m as any).pgIsFolder); setFError(null); setEditTarget(m); setDialogMode("edit"); };
 
   const handleSave = async () => {
-    if (!fCode || !fName) { setFError(t("adminMachines.codeNameRequired", "機械コードと機械名は必須です")); return; }
+    if (!fCode.trim() || !fName.trim()) {
+      const m = t("adminMachines.codeNameRequired", "機械コードと機械名は必須です");
+      setFError(m);
+      showToast(`${dialogMode === "edit" ? t("adminMachines.updateFailed", "更新できませんでした") : t("adminMachines.createFailed", "登録できませんでした")}：${m}`, false);
+      return;
+    }
     setSaving(true); setFError(null);
     try {
       if (dialogMode === "create") {
@@ -121,9 +132,16 @@ export default function AdminMachinesPage() {
           body: JSON.stringify({ machine_code: fCode, machine_name: fName, machine_type: fType === "BOTH" ? "複合加工機" : fType, system_type: fType, maker: fMaker, sort_order: parseInt(fSort)||0, pg_is_folder: fPgIsFolder }),
         });
       }
-      showToast(dialogMode === "edit" ? t("adminMachines.updated","更新しました") : t("adminMachines.created","登録しました"), true);
+      // 機械コードは重複可。同じコードの機械が他にあれば併せて知らせる
+      const dupN = machines.filter(m => m.machineCode === fCode.trim() && m.id !== editTarget?.id).length;
+      showToast((dialogMode === "edit" ? t("adminMachines.updated","更新しました") : t("adminMachines.created","登録しました"))
+        + (dupN > 0 ? t("adminMachines.duplicateCodeNote", "（同じ機械コードの機械が他に{n}台あります）").replace("{n}", String(dupN)) : ""), true);
       setDialogMode(null); fetchMachines();
-    } catch (e: any) { setFError(e?.message || t("adminMachines.communicationError", "通信エラー")); }
+    } catch (e: any) {
+      const msg = e?.message || t("adminMachines.communicationError", "通信エラー");
+      setFError(msg);
+      showToast(`${dialogMode === "edit" ? t("adminMachines.updateFailed", "更新できませんでした") : t("adminMachines.createFailed", "登録できませんでした")}：${msg}`, false);
+    }
     finally { setSaving(false); }
   };
 
@@ -135,13 +153,13 @@ export default function AdminMachinesPage() {
         body: JSON.stringify({ is_active: !m.isActive }),
       });
       showToast(m.isActive ? t("adminMachines.deactivated","無効化しました") : t("adminMachines.activated","有効化しました"), true); fetchMachines();
-    } catch { showToast(t("adminMachines.changeFailed", "変更失敗"), false); }
+    } catch (e: any) { showToast(`${t("adminMachines.changeFailed", "変更失敗")}：${e?.message ?? ""}`, false); }
   };
 
   return (
     <AdminLayout pathname={pathname}>
 
-      {toast && <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-white text-sm font-bold ${toast.ok ? "bg-green-600" : "bg-red-600"}`}>{toast.msg}</div>}
+      {toast && <div className={`fixed top-4 right-4 z-[100] max-w-md whitespace-pre-wrap break-words px-4 py-2 rounded-lg shadow-lg text-white text-sm font-bold ${toast.ok ? "bg-green-600" : "bg-red-600"}`}>{toast.msg}</div>}
 
         <main className="flex-1 overflow-hidden flex flex-col p-5 gap-3">
           <div className="flex items-center justify-between shrink-0">
@@ -238,8 +256,9 @@ export default function AdminMachinesPage() {
             {fError && <div className="text-red-500 text-xs mb-3">{fError}</div>}
             <div className="space-y-3">
               <div><label className="text-xs font-bold text-slate-500 block mb-1">{t("adminMachines.codeLabel", "機械コード *")}</label>
-                <input type="text" value={fCode} onChange={e => setFCode(e.target.value)} disabled={dialogMode === "edit"}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none disabled:bg-slate-50" /></div>
+                <input type="text" value={fCode} onChange={e => setFCode(e.target.value)} maxLength={20}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+                <p className="text-[11px] text-slate-400 mt-1">{t("adminMachines.codeEditHint", "機械コードは変更できます。同じコードの機械が他にあっても登録できます。")}</p></div>
               <div><label className="text-xs font-bold text-slate-500 block mb-1">{t("adminMachines.nameLabel", "機械名 *")}</label>
                 <input type="text" value={fName} onChange={e => setFName(e.target.value)}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none" /></div>

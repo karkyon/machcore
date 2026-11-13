@@ -5,6 +5,7 @@ import type { FastifyReply } from 'fastify';
 import {
   Controller, Get, Post, Put, Delete, Body, UseGuards,
   Param, ParseIntPipe, Query, BadRequestException, Res, Req,
+  NotFoundException, InternalServerErrorException, HttpException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuthGuard } from '@nestjs/passport';
@@ -649,6 +650,40 @@ export class AdminController {
 
   // ══ 機械マスタ管理 ══
 
+  /** 機械マスタの入力チェック(DB: コード20 / 機械名100 / 種別50 / メーカー50文字)。理由をまとめて返す */
+  private validateMachineInput(
+    v: { machine_code?: string; machine_name?: string; machine_type?: string; maker?: string; sort_order?: unknown },
+    isCreate: boolean,
+  ): void {
+    const errs: string[] = [];
+    if ((isCreate || v.machine_code !== undefined) && !v.machine_code) errs.push('機械コードは必須です');
+    if ((isCreate || v.machine_name !== undefined) && !v.machine_name) errs.push('機械名は必須です');
+    const lims: [string, string | undefined, number][] = [
+      ['機械コード', v.machine_code, 20], ['機械名', v.machine_name, 100],
+      ['種別', v.machine_type, 50], ['メーカー', v.maker, 50],
+    ];
+    for (const [label, val, max] of lims) {
+      if (val != null && String(val).length > max) errs.push(`${label}は${max}文字以内で入力してください（現在${String(val).length}文字）`);
+    }
+    if (v.sort_order != null && !Number.isInteger(v.sort_order)) errs.push('順序は整数で入力してください');
+    if (errs.length) throw new BadRequestException(errs.join(' / '));
+  }
+
+  /** DBエラー → 画面に出す理由(日本語) */
+  private throwMachineDbError(e: unknown, op: string): never {
+    if (e instanceof HttpException) throw e;
+    const err: any = e;
+    const code: string | undefined = err?.code;
+    if (code === 'P2025') throw new NotFoundException(`対象の機械が見つからないため${op}できません（削除された可能性があります）`);
+    if (code === 'P2002') {
+      const t = err?.meta?.target;
+      throw new BadRequestException(`重複できない項目が既に登録されているため${op}できません（${Array.isArray(t) ? t.join(', ') : (t ?? '不明な項目')}）`);
+    }
+    if (code === 'P2000') throw new BadRequestException(`入力値が長すぎるため${op}できません（${err?.meta?.column_name ?? '不明な項目'}）`);
+    const raw = String(err?.message ?? err ?? '').split('\n').map((x: string) => x.trim()).filter(Boolean).pop() ?? '';
+    throw new InternalServerErrorException(`機械マスタの${op}に失敗しました${raw ? `：${raw}` : ''}`);
+  }
+
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
   @Get('machines')
@@ -670,26 +705,31 @@ export class AdminController {
     pg_is_folder?: boolean;
     system_type?: 'MC' | 'NC' | 'BOTH';
   }) {
-    // [No.68] 機械コードの重複は原因が分かる形で返す(従来は500になり、画面は成功と表示していた)
-    const dup = await this.prisma.machine.findUnique({ where: { machineCode: body.machine_code } });
-    if (dup) throw new BadRequestException(`機械コード「${body.machine_code}」は登録済みです(ID ${dup.id} ${dup.machineName})`);
-    // [No.68] IDを指定して投入された行があると採番が追いつかず主キー重複で登録できないため、採番を最大IDにそろえる
-    await this.prisma.$executeRawUnsafe(
-      `SELECT setval(pg_get_serial_sequence('machines','id'), GREATEST(COALESCE((SELECT MAX(id) FROM machines),1),(SELECT last_value FROM machines_id_seq)))`,
-    );
-    return this.prisma.machine.create({
-      data: {
-        machineCode: body.machine_code,
-        machineName: body.machine_name,
-        machineType: body.machine_type,
-        // 機械種別: MC=マシニング / NC=旋盤 / BOTH=複合加工機(MC・NC両方の機械リストに出る)
-        ...(body.system_type && ['MC', 'NC', 'BOTH'].includes(body.system_type) ? { systemType: body.system_type } : {}),
-        maker:       body.maker,
-        sortOrder:   body.sort_order ?? 0,
-        isActive:    true,
-        pgIsFolder:  body.pg_is_folder ?? false,
-      },
-    });
+    // 機械コードは重複を許可する(同じコードの別機械を登録できる)。入力の不備は理由が分かる形で返す
+    const code = String(body.machine_code ?? '').trim();
+    const name = String(body.machine_name ?? '').trim();
+    this.validateMachineInput({ machine_code: code, machine_name: name, machine_type: body.machine_type, maker: body.maker, sort_order: body.sort_order }, true);
+    try {
+      // [No.68] IDを指定して投入された行があると採番が追いつかず主キー重複で登録できないため、採番を最大IDにそろえる
+      await this.prisma.$executeRawUnsafe(
+        `SELECT setval(pg_get_serial_sequence('machines','id'), GREATEST(COALESCE((SELECT MAX(id) FROM machines),1),(SELECT last_value FROM machines_id_seq)))`,
+      );
+      return await this.prisma.machine.create({
+        data: {
+          machineCode: code,
+          machineName: name,
+          machineType: body.machine_type,
+          // 機械種別: MC=マシニング / NC=旋盤 / BOTH=複合加工機(MC・NC両方の機械リストに出る)
+          ...(body.system_type && ['MC', 'NC', 'BOTH'].includes(body.system_type) ? { systemType: body.system_type } : {}),
+          maker:       body.maker,
+          sortOrder:   body.sort_order ?? 0,
+          isActive:    true,
+          pgIsFolder:  body.pg_is_folder ?? false,
+        },
+      });
+    } catch (e) {
+      this.throwMachineDbError(e, '登録');
+    }
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -708,19 +748,26 @@ export class AdminController {
       system_type?: 'MC' | 'NC' | 'BOTH';
     },
   ) {
-    return this.prisma.machine.update({
-      where: { id },
-      data: {
-        ...(body.machine_code != null && { machineCode: body.machine_code }),
-        ...(body.machine_name != null && { machineName: body.machine_name }),
-        ...(body.machine_type != null && { machineType: body.machine_type }),
-        ...(body.maker        != null && { maker: body.maker }),
-        ...(body.sort_order   != null && { sortOrder: body.sort_order }),
-        ...(body.is_active    != null && { isActive: body.is_active }),
-        ...(body.pg_is_folder != null && { pgIsFolder: body.pg_is_folder }),
-        ...(body.system_type && ['MC', 'NC', 'BOTH'].includes(body.system_type) ? { systemType: body.system_type } : {}),
-      },
-    });
+    const code = body.machine_code != null ? String(body.machine_code).trim() : undefined;
+    const name = body.machine_name != null ? String(body.machine_name).trim() : undefined;
+    this.validateMachineInput({ machine_code: code, machine_name: name, machine_type: body.machine_type, maker: body.maker, sort_order: body.sort_order }, false);
+    try {
+      return await this.prisma.machine.update({
+        where: { id },
+        data: {
+          ...(code              != null && { machineCode: code }),
+          ...(name              != null && { machineName: name }),
+          ...(body.machine_type != null && { machineType: body.machine_type }),
+          ...(body.maker        != null && { maker: body.maker }),
+          ...(body.sort_order   != null && { sortOrder: body.sort_order }),
+          ...(body.is_active    != null && { isActive: body.is_active }),
+          ...(body.pg_is_folder != null && { pgIsFolder: body.pg_is_folder }),
+          ...(body.system_type && ['MC', 'NC', 'BOTH'].includes(body.system_type) ? { systemType: body.system_type } : {}),
+        },
+      });
+    } catch (e) {
+      this.throwMachineDbError(e, '更新');
+    }
   }
   /** プリンタ一覧取得（CUPS lpstat） */
   @UseGuards(AuthGuard('jwt'), RolesGuard)

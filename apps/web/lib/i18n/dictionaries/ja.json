@@ -395,7 +395,11 @@
     "deactivated": "無効化しました",
     "activated": "有効化しました",
     "changeFailed": "変更失敗",
-    "colMachineCode": "機械コード"
+    "colMachineCode": "機械コード",
+    "codeEditHint": "機械コードは変更できます。同じコードの機械が他にあっても登録できます。",
+    "duplicateCodeNote": "（同じ機械コードの機械が他に{n}台あります）",
+    "createFailed": "登録できませんでした",
+    "updateFailed": "更新できませんでした"
   },
   "adminUsers": {
     "roleAdmin": "管理者",

@@ -90,9 +90,11 @@ function McPrintPageInner() {
   // 登録されている機械(nc.machine)を初期値とする。用途のキャッシュ復元も廃止する。
   useEffect(() => {
     if (!machines.length || !nc) return;
-    const mcode = (nc as any).machine?.machineCode ?? null;
+    const dm = (nc as any).machine;
+    const mcode = dm?.machineCode ?? null;
     if (mcode) {
-      const found = machines.find((m: any) => m.machineCode === mcode);
+      // 機械コードは重複しうるため id で照合(id が無い場合だけコード)
+      const found = dm?.id != null ? machines.find((m: any) => m.id === dm.id) : machines.find((m: any) => m.machineCode === mcode);
       if (found) setRepeatMachineId(found.id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

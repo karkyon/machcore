@@ -395,7 +395,11 @@
     "deactivated": "Đã ngừng hoạt động",
     "activated": "Đã kích hoạt",
     "changeFailed": "Thay đổi thất bại",
-    "colMachineCode": "Mã máy"
+    "colMachineCode": "Mã máy",
+    "codeEditHint": "Có thể thay đổi mã máy. Vẫn đăng ký được dù đã có máy khác cùng mã.",
+    "duplicateCodeNote": "(Có {n} máy khác cùng mã máy)",
+    "createFailed": "Không thể đăng ký",
+    "updateFailed": "Không thể cập nhật"
   },
   "adminUsers": {
     "roleAdmin": "Quản trị viên",

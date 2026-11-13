@@ -109,9 +109,10 @@ async function migrateMachines(): Promise<Map<number, number>> {
     const oid = parseInt(row['m_id'] || '0'), model = row['Model'] || '';
     if (!model) continue;
     try {
-      const m = await prisma.machine.upsert({
-        where: { machineCode: model }, update: {},
-        create: { machineCode: model, machineName: model, machineType: 'NC旋盤', sortOrder: oid, isActive: true }
+      // 機械コードは一意でなくなったため upsert は使えない。既存があればそれを使い(従来の update: {} と同じ)、無ければ作る
+      const exists = await prisma.machine.findFirst({ where: { machineCode: model }, orderBy: { id: 'asc' } });
+      const m = exists ?? await prisma.machine.create({
+        data: { machineCode: model, machineName: model, machineType: 'NC旋盤', sortOrder: oid, isActive: true },
       });
       map.set(oid, m.id);
     } catch {}

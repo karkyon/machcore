@@ -202,6 +202,8 @@ export type SetupSheetLog = {
   id: number;
   printed_at: string;
   printer_name: string | null;
+  // 印刷した担当者(API は operator_name で返す)
+  operator_name?: string | null;
   version: string | null;
   // 出力方式 DIRECT=直接印刷 / MANUAL=画面表示で手動印刷 / null=記録前
   print_method?: string | null;

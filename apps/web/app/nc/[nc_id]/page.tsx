@@ -814,7 +814,7 @@ export default function NcDetailPage() {
                         {prints.map((p, i) => (
                           <tr key={p.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                             <td className="px-3 py-2 font-mono whitespace-nowrap text-slate-500">{fmtDate(p.printed_at)}</td>
-                            <td className="px-3 py-2">{p.printer_name ?? "—"}</td>
+                            <td className="px-3 py-2">{p.operator_name ?? p.printer_name ?? "—"}</td>
                             <td className="px-3 py-2 font-mono">{p.version ?? "—"}</td>
                             <td className="px-3 py-2">{p.print_method === "MANUAL" ? tr("manualPrint.historyBadge","手動印刷") : p.print_method === "DIRECT" ? tr("manualPrint.historyDirect","直接印刷") : "—"}</td>
                           </tr>

@@ -469,7 +469,8 @@ export default function McEditPage() {
       // machines がまだ空の可能性があるので machineCode を一時保存してから後で解決
       if (d.machine?.machineCode) {
         // machinesが既に取得済みなら id を解決、なければ machineCode をそのまま保持
-        setMachineId(d.machine.machineCode); // 一旦machineCodeをセット
+        // 機械コードは重複しうるため id を優先(id が無い場合だけ machineCode を一時保持して後で解決)
+        setMachineId(d.machine.id != null ? String(d.machine.id) : d.machine.machineCode);
       } else {
         setMachineId("");
       }
@@ -716,8 +717,10 @@ export default function McEditPage() {
   // detail+machines両方揃い後の再解決
   useEffect(() => {
     if (detail && machines.length > 0 && detail.machine?.machineCode) {
+      // 機械コードは重複しうるため、登録されている機械の id で照合(id が無い場合だけコード)
+      const dmid = (detail.machine as any).id;
       const code = detail.machine.machineCode;
-      const m = machines.find(m => m.machineCode === code);
+      const m = dmid != null ? machines.find(m => m.id === dmid) : machines.find(m => m.machineCode === code);
       if (m) setMachineId(String(m.id));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
