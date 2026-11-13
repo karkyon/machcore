@@ -8,6 +8,8 @@ import { StatusBadge } from "@/components/nc/StatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { ManualPrintModal } from "@/components/shared/ManualPrintModal";
+import { usePrintMode } from "@/lib/hooks/usePrintMode";
 
 const STATUS_LABEL: Record<string, string> = {
   NEW: "新規", PENDING_APPROVAL: "未承認", APPROVED: "承認済", CHANGING: "変更中",
@@ -65,6 +67,9 @@ function McPrintPageInner() {
   const [spModalOpen, setSpModalOpen] = useState(false);
   const [spSkipped,   setSpSkipped]   = useState(false);
   const [pendingPrint, setPendingPrint] = useState<"preview" | "direct" | null>(null);
+  // 手動印刷(出力方式=MANUAL)で発行した段取シートの表示
+  const [manualPdf, setManualPdf] = useState<{ base64: string; note: string | null; next: string } | null>(null);
+  const printMode = usePrintMode();
 
   const showToast = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); }, []);
 
@@ -217,6 +222,11 @@ function McPrintPageInner() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.message ?? `HTTP ${res.status}`);
       logout();
+      // 手動印刷: 発行済みの段取シートを画面に表示し、閉じたら詳細画面へ
+      if (j.print_method === "MANUAL" && j.pdf_base64) {
+        setManualPdf({ base64: j.pdf_base64, note: null, next: `/mc/${mcId}` });
+        return;
+      }
       showToast(`✅ ${j.message}`);
       setTimeout(() => router.push(`/mc/${mcId}`), 1500);
     } catch (e: any) {
@@ -476,7 +486,9 @@ function McPrintPageInner() {
                 </button>
                 <button onClick={() => checkSpAndPrint("direct")} disabled={directPrinting}
                   className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3.5 rounded-xl text-sm">
-                  {directPrinting ? tr("mcPrintPage.sending", "送信中...") : tr("mcPrintPage.directPrintButton", "🖨 プリンタに直接印刷")}
+                  {directPrinting
+                    ? (printMode === "MANUAL" ? tr("manualPrint.issuingLabel", "発行中...") : tr("mcPrintPage.sending", "送信中..."))
+                    : (printMode === "MANUAL" ? tr("manualPrint.issueButton", "🖥 画面に表示して印刷（手動印刷）") : tr("mcPrintPage.directPrintButton", "🖨 プリンタに直接印刷"))}
                 </button>
               </div>
             </div>
@@ -568,6 +580,10 @@ function McPrintPageInner() {
         </div>
       )}
 
+      {manualPdf && (
+        <ManualPrintModal pdfBase64={manualPdf.base64} note={manualPdf.note}
+          onClose={() => { const next = manualPdf.next; setManualPdf(null); router.push(next); }} />
+      )}
       {authOpen && (
         <AuthModal isOpen={true} ncProgramId={mcId} mcProgramId={mcId} sessionType="setup_print" onSuccess={() => setAuthOpen(false)} onCancel={() => setAuthOpen(false)} />
       )}

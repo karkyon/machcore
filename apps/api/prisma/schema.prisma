@@ -164,6 +164,8 @@ model CompanySetting {
   mcPrinter        String?  @db.VarChar(200)  @map("mc_printer")
   ncPrinter        String?  @db.VarChar(200)  @map("nc_printer")
   duplexPrint      Boolean  @default(false)   @map("duplex_print")
+  // 段取シートの出力方式(インスタンスごと): DIRECT=サーバから直接印刷 / MANUAL=画面に表示して手動印刷
+  printMode        String   @default("DIRECT") @db.VarChar(10) @map("print_mode")
   trademarkMark    String?  @db.VarChar(20)   @map("trademark_mark")
   showTrademark    Boolean  @default(false)   @map("show_trademark")
   updatedAt        DateTime @updatedAt         @map("updated_at")
@@ -400,6 +402,8 @@ model SetupSheetLog {
   quantity       Int?                       @map("quantity")
   machineIdLog   Int?                       @map("machine_id_log")
   purpose        String?  @db.VarChar(20)  @map("purpose")
+  // 出力方式: DIRECT=サーバから直接印刷 / MANUAL=画面表示で手動印刷 / null=記録前(移行データ等)
+  printMethod    String?  @db.VarChar(10)  @map("print_method")
   ncProgram   NcProgram @relation(fields: [ncProgramId], references: [id])
   operator    User?     @relation(fields: [operatorId],  references: [id], onDelete: Restrict)
   workRecords WorkRecord[]
@@ -705,6 +709,8 @@ model McSetupSheetLog {
   quantity      Int?                       @map("quantity")
   machineIdLog  Int?                       @map("machine_id_log")
   purpose       String? @db.VarChar(20)    @map("purpose")
+  // 出力方式: DIRECT=サーバから直接印刷 / MANUAL=画面表示で手動印刷 / null=記録前(移行データ等)
+  printMethod   String? @db.VarChar(10)    @map("print_method")
   isLost        Boolean  @default(false)    @map("is_lost")
   lostReason    String?  @db.VarChar(50)    @map("lost_reason")
   lostDetail    String?  @db.Text           @map("lost_detail")

@@ -768,7 +768,7 @@ export class AdminController {
   @Get('settings/mc-nc')
   async getMcNcSettings() {
     const s = await this.prisma.companySetting.findFirst({
-      select: { mcStoragePath: true, ncStoragePath: true, mcPrinter: true, ncPrinter: true, uploadBasePath: true, printerName: true, duplexPrint: true },
+      select: { mcStoragePath: true, ncStoragePath: true, mcPrinter: true, ncPrinter: true, uploadBasePath: true, printerName: true, duplexPrint: true, printMode: true },
     });
     return {
       mc_storage_path:   s?.mcStoragePath  ?? s?.uploadBasePath ?? "/mnt/mc_files/MC/files",
@@ -777,6 +777,7 @@ export class AdminController {
       mc_printer:        s?.mcPrinter ?? s?.printerName ?? "",
       nc_printer:        s?.ncPrinter ?? s?.printerName ?? "",
       duplex_print:      (s as any)?.duplexPrint ?? false,
+      print_mode:        s?.printMode === 'MANUAL' ? 'MANUAL' : 'DIRECT',
     };
   }
 
@@ -791,7 +792,11 @@ export class AdminController {
     mc_printer?: string;
     nc_printer?: string;
     duplex_print?: boolean;
+    print_mode?: string;
   }) {
+    if (body.print_mode !== undefined && !['DIRECT', 'MANUAL'].includes(body.print_mode)) {
+      throw new BadRequestException(`段取シートの出力方式が不正です: ${body.print_mode}（DIRECT または MANUAL）`);
+    }
     return this.prisma.companySetting.upsert({
       where: { id: 1 },
       update: {
@@ -801,12 +806,14 @@ export class AdminController {
         ...(body.mc_printer      !== undefined && { mcPrinter:       body.mc_printer }),
         ...(body.nc_printer      !== undefined && { ncPrinter:       body.nc_printer }),
         ...(body.duplex_print    !== undefined && { duplexPrint:     body.duplex_print } as any),
+        ...(body.print_mode      !== undefined && { printMode:       body.print_mode }),
       },
       create: { id: 1, companyName: '会社名未設定',
         mcStoragePath: body.mc_storage_path, ncStoragePath: body.nc_storage_path,
         uploadBasePath: body.upload_base_path,
         mcPrinter: body.mc_printer, ncPrinter: body.nc_printer,
         ...(body.duplex_print !== undefined ? { duplexPrint: body.duplex_print } as any : {}),
+        ...(body.print_mode !== undefined ? { printMode: body.print_mode } : {}),
       },
     });
   }

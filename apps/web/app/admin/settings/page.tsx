@@ -41,6 +41,8 @@ export default function AdminSettingsPage() {
   const [ncPrinter,     setNcPrinter]     = useState("");
   // 共通印刷設定
   const [duplexPrint,   setDuplexPrint]   = useState(false);
+  // 段取シートの出力方式(このインスタンスだけに効く): DIRECT=サーバから直接印刷 / MANUAL=画面に表示して手動印刷
+  const [printMode,     setPrintMode]     = useState<"DIRECT" | "MANUAL">("DIRECT");
   // Cron設定
   const [cronEnabled,  setCronEnabled]  = useState(true);
   const [cronTime,     setCronTime]     = useState("05:00");
@@ -83,6 +85,7 @@ export default function AdminSettingsPage() {
       setMcPrinter(mcnc.mc_printer ?? "");
       setNcPrinter(mcnc.nc_printer ?? "");
       setDuplexPrint(mcnc.duplex_print ?? false);
+      setPrintMode(mcnc.print_mode === "MANUAL" ? "MANUAL" : "DIRECT");
     }).catch(() => showToast(t("adminSettings.fetchFailed", "設定の取得に失敗しました"), false))
       .finally(() => setLoading(false));
   }, [router]);
@@ -148,6 +151,7 @@ export default function AdminSettingsPage() {
           mc_printer:       mcPrinter,
           nc_printer:       ncPrinter,
           duplex_print:     duplexPrint,
+          print_mode:       printMode,
         }),
       });
       showToast(t("adminSettings.settingsSaved", "設定を保存しました"), true);
@@ -338,6 +342,20 @@ export default function AdminSettingsPage() {
                     </select>
                     <p className="text-[11px] text-slate-400 mt-1">{t("adminSettings.ncPrinterHint", "NC段取シートの印刷で使用")}</p>
                   </div>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-3 space-y-2">
+                  <div className="text-xs font-bold text-slate-500">{t("adminSettings.printModeLabel", "段取シートの出力方式")}</div>
+                  {([
+                    ["DIRECT", t("adminSettings.printModeDirect", "サーバから直接印刷（プリンタへ送信）")],
+                    ["MANUAL", t("adminSettings.printModeManual", "画面に表示して手動で印刷")],
+                  ] as const).map(([v, label]) => (
+                    <label key={v} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                      <input type="radio" name="printMode" value={v} checked={printMode === v}
+                        onChange={() => setPrintMode(v)} className="w-4 h-4 text-sky-600 focus:ring-sky-400" />
+                      {label}
+                    </label>
+                  ))}
+                  <p className="text-[11px] text-slate-400">{t("adminSettings.printModeHint", "この設定はこのサーバ（インスタンス）だけに効きます。手動印刷では段取シートを画面に表示し、利用者がブラウザから印刷します。どちらの方式でも発行履歴に記録されます。")}</p>
                 </div>
                 <div className="flex items-center gap-2 pt-1">
                   <input id="duplexPrintToggle" type="checkbox" checked={duplexPrint}

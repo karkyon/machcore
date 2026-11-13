@@ -16,6 +16,7 @@ import { UpdateWorkRecordDto } from "./dto/update-work-record.dto";
 // ★新規登録フロー実装: MC側program-file-naming.utilと同一ロジックを再利用する。
 import { calcProgramFileName, calcProgramFolderName, normalizeWpdExt } from "../mc/program-file-naming.util";
 import { INITIAL_VERSION, bumpVersion, normalizeVersion } from "../common/version.util";
+import { getPrintMode, logPrintOutput, manualPrintResult, MANUAL_PRINT_MESSAGE, PrintMethod } from "../common/print-output.util";
 @Injectable()
 export class NcService {
   constructor(
@@ -927,6 +928,7 @@ export class NcService {
       quantity:       (r as any).quantity       ?? null,
       machine_id_log: (r as any).machineIdLog   ?? null,
       purpose:        (r as any).purpose        ?? null,
+      print_method:   (r as any).printMethod    ?? null,
       // [v088] MC側と同様、「行方不明にする(mark as lost)」情報を返す。
       //   NC詳細画面側の表示対応は別途(現時点ではNC印刷履歴テーブルに
       //   未回収/紛失バッジ自体がまだ実装されていないため)。
@@ -1004,14 +1006,24 @@ export class NcService {
     ncProgramId: number,
     operatorId: number,
     options: { include_tools?: boolean; include_clamp?: boolean; include_drawings?: boolean },
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string; print_method: PrintMethod; pdf_base64?: string }> {
+    const sheetType = (options as any).sheet_type ?? 'NEW';
+    // 出力方式(マスタ): MANUAL はプリンタへ送らず、発行した段取シートを画面に返す
+    const printMode = await getPrintMode(this.prisma);
+    if (printMode === 'MANUAL') {
+      const pdfManual = await this.generateSetupSheetPdf(ncProgramId, operatorId, { ...options, print_method: 'MANUAL' } as any);
+      logPrintOutput(this.prisma, 'INFO', `NC direct-print 手動印刷(画面表示)で発行: nc_id=${ncProgramId}`,
+        { ncProgramId, operatorId, printMethod: 'MANUAL', sheetType });
+      return manualPrintResult(pdfManual, MANUAL_PRINT_MESSAGE);
+    }
+
     // プリンタ名取得(NC専用プリンタ設定を優先し、未設定時は共通プリンタ設定にフォールバック。MC側directPrintと同一パターン)
     const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true, ncPrinter: true, duplexPrint: true } });
     const printerName = setting?.ncPrinter || setting?.printerName;
     if (!printerName) throw new Error('NCプリンタが設定されていません。管理画面のシステム設定でNCチーム用プリンタを設定してください。');
 
     // PDF生成
-    const pdfBuffer = await this.generateSetupSheetPdf(ncProgramId, operatorId, options);
+    const pdfBuffer = await this.generateSetupSheetPdf(ncProgramId, operatorId, { ...options, print_method: 'DIRECT' } as any);
 
     // 一時ファイルに書き出してlpで印刷
     const tmpPath = `/tmp/machcore-print-${ncProgramId}-${Date.now()}.pdf`;
@@ -1030,7 +1042,9 @@ export class NcService {
     } finally {
       try { fs.unlinkSync(tmpPath); } catch {}
     }
-    return { message: `${printerName} に送信しました` };
+    logPrintOutput(this.prisma, 'INFO', `NC direct-print 直接印刷で発行: nc_id=${ncProgramId} printer=${printerName}`,
+      { ncProgramId, operatorId, printMethod: 'DIRECT', sheetType, printerName });
+    return { message: `${printerName} に送信しました`, print_method: 'DIRECT' };
   }
 
   /** SSL-01: 段取シート回収済みマーク */
@@ -1434,6 +1448,7 @@ async generateSetupSheetPdf(
           quantity:     (options as any).quantity      ?? null,
           machineIdLog: (options as any).machine_id    ?? null,
           purpose:      (options as any).purpose       ?? null,
+          printMethod:  (options as any).print_method  ?? null,
         },
       }).catch(e => console.warn('SetupSheetLog insert failed:', e.message));
     }

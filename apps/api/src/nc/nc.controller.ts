@@ -521,7 +521,10 @@ export class NcController {
     @Body() dto: PrintNcDto,
     @Req() req: any,
   ) {
-    return this.nc.directPrint(id, req.user.id, dto);
+    const r = await this.nc.directPrint(id, req.user.id, dto);
+    this.opLog.log({ actionType: 'SETUP_PRINT', userId: req.user?.id, ncProgramId: id, sessionId: req.user?.session_id,
+      ipAddress: req.ip, metadata: { print_method: r.print_method, sheet_type: 'NEW' } });
+    return r;
   }
 
   /** NC-08: 段取シートPDF生成（ブラウザプレビュー、新規・JWT必須） */
@@ -581,7 +584,10 @@ export class NcController {
     @Body() dto: PrintNcDto,
     @Req() req: any,
   ) {
-    return this.nc.directPrint(id, req.user.id, { ...dto, sheet_type: 'REPEAT' } as any);
+    const r = await this.nc.directPrint(id, req.user.id, { ...dto, sheet_type: 'REPEAT' } as any);
+    this.opLog.log({ actionType: 'SETUP_PRINT', userId: req.user?.id, ncProgramId: id, sessionId: req.user?.session_id,
+      ipAddress: req.ip, metadata: { print_method: r.print_method, sheet_type: 'REPEAT' } });
+    return r;
   }
 
   /** NC-06: PGファイル読込（JWT必須） */

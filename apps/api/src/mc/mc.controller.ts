@@ -20,6 +20,7 @@ import { SaveToolingDto } from './dto/save-tooling.dto';
 import { SaveWorkOffsetsDto } from './dto/save-work-offsets.dto';
 import { SaveIndexProgramsDto } from './dto/save-index-programs.dto';
 import { PrintMcDto } from './dto/print-mc.dto';
+import { getPrintMode, logPrintOutput, manualPrintResult, MANUAL_PRINT_MESSAGE } from '../common/print-output.util';
 import { RegisterCommonPartDto } from './dto/register-common-part.dto';
 import { ApproveMcDto } from './dto/approve-mc.dto';
 
@@ -153,7 +154,11 @@ export class McController {
   @Post('create-and-print')
   async createAndPrint(@Body() dto: any, @Req() req: any) {
     const result = await this.mc.createAndPrint(dto, req.user.id);
-    return JSON.parse(result.toString());
+    const parsed = JSON.parse(result.toString());
+    this.opLog.log({ actionType: 'MC_SETUP_PRINT', userId: req.user?.id, mcProgramId: parsed.mc_id,
+      sessionId: req.user?.session_id, ipAddress: req.ip,
+      metadata: { action: 'create_and_print', print_method: parsed.print_method, sheet_type: 'NEW' } });
+    return parsed;
   }
 
 
@@ -777,8 +782,19 @@ export class McController {
     @Body() dto: PrintMcDto,
     @Req() req: any,
   ) {
-    const pdf = await this.mc.generateRepeatSetupSheetPdf(id, req.user.id, dto);
-    const setting = await this.mc['prisma'].companySetting.findFirst({ select: { printerName: true, mcPrinter: true, duplexPrint: true } });
+    const prisma = this.mc['prisma'];
+    // 出力方式(マスタ): MANUAL はプリンタへ送らず、発行した段取シートを画面に返す
+    const printMode = await getPrintMode(prisma);
+    if (printMode === 'MANUAL') {
+      const pdfManual = await this.mc.generateRepeatSetupSheetPdf(id, req.user.id, { ...dto, print_method: 'MANUAL' } as any);
+      logPrintOutput(prisma, 'INFO', `MC repeat-direct-print 手動印刷(画面表示)で発行: mc_id=${id}`,
+        { mcId: id, operatorId: req.user.id, printMethod: 'MANUAL', sheetType: 'REPEAT' });
+      this.opLog.log({ actionType: 'MC_SETUP_PRINT', userId: req.user?.id, mcProgramId: id, sessionId: req.user?.session_id,
+        ipAddress: req.ip, metadata: { print_method: 'MANUAL', sheet_type: 'REPEAT' } });
+      return manualPrintResult(pdfManual, MANUAL_PRINT_MESSAGE);
+    }
+    const pdf = await this.mc.generateRepeatSetupSheetPdf(id, req.user.id, { ...dto, print_method: 'DIRECT' } as any);
+    const setting = await prisma.companySetting.findFirst({ select: { printerName: true, mcPrinter: true, duplexPrint: true } });
     const printerName = (setting as any)?.mcPrinter || (setting as any)?.printerName;
     if (!printerName) throw new Error('MCプリンタが設定されていません');
     const tmpPath = `/tmp/machcore-mc-repeat-${id}-${Date.now()}.pdf`;
@@ -788,18 +804,22 @@ export class McController {
     const duplexOptRepeat = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
     const lpCmdRepeat = `lp -d ${printerName} -o media=A4${duplexOptRepeat} "${tmpPath}"`;
     console.log(`[DUPLEX-DEBUG][MC][repeat-direct-print] mc_id=${id} printer=${printerName} duplexPrint(DB)=${(setting as any)?.duplexPrint} cmd=${lpCmdRepeat}`);
-    this.mc['prisma'].systemLog.create({ data: { level: 'DEBUG', category: 'PRINT', message: `MC repeat-direct-print lp実行: ${lpCmdRepeat}`, detail: { mcId: id, printerName, duplexPrint: (setting as any)?.duplexPrint } } }).catch(() => {});
+    prisma.systemLog.create({ data: { level: 'DEBUG', category: 'PRINT', message: `MC repeat-direct-print lp実行: ${lpCmdRepeat}`, detail: { mcId: id, printerName, duplexPrint: (setting as any)?.duplexPrint } } }).catch(() => {});
     try {
       const lpOutRepeat = execSync2(lpCmdRepeat, { timeout: 15000 });
       console.log(`[DUPLEX-DEBUG][MC][repeat-direct-print] lp成功 stdout=${lpOutRepeat?.toString()?.trim()}`);
     } catch (lpErrRepeat: any) {
       console.error(`[DUPLEX-DEBUG][MC][repeat-direct-print] lp失敗 message=${lpErrRepeat?.message} stderr=${lpErrRepeat?.stderr?.toString?.()}`);
-      this.mc['prisma'].systemLog.create({ data: { level: 'ERROR', category: 'PRINT', message: `MC repeat-direct-print lp失敗: ${lpErrRepeat?.message}`, detail: { mcId: id, printerName, stderr: lpErrRepeat?.stderr?.toString?.() } } }).catch(() => {});
+      prisma.systemLog.create({ data: { level: 'ERROR', category: 'PRINT', message: `MC repeat-direct-print lp失敗: ${lpErrRepeat?.message}`, detail: { mcId: id, printerName, stderr: lpErrRepeat?.stderr?.toString?.() } } }).catch(() => {});
       throw lpErrRepeat;
     } finally {
       try { fs2.unlinkSync(tmpPath); } catch { /**/ }
     }
-    return { message: `${printerName} に送信しました` };
+    logPrintOutput(prisma, 'INFO', `MC repeat-direct-print 直接印刷で発行: mc_id=${id} printer=${printerName}`,
+      { mcId: id, operatorId: req.user.id, printMethod: 'DIRECT', sheetType: 'REPEAT', printerName });
+    this.opLog.log({ actionType: 'MC_SETUP_PRINT', userId: req.user?.id, mcProgramId: id, sessionId: req.user?.session_id,
+      ipAddress: req.ip, metadata: { print_method: 'DIRECT', sheet_type: 'REPEAT', printer: printerName } });
+    return { message: `${printerName} に送信しました`, print_method: 'DIRECT' };
   }
 
   // ── 段取シートPDF / 印刷 ───────────────────────
@@ -840,7 +860,10 @@ export class McController {
     @Body() dto: PrintMcDto,
     @Req() req: any,
   ) {
-    return this.mc.directPrint(id, req.user.id, dto);
+    const r = await this.mc.directPrint(id, req.user.id, dto);
+    this.opLog.log({ actionType: 'MC_SETUP_PRINT', userId: req.user?.id, mcProgramId: id, sessionId: req.user?.session_id,
+      ipAddress: req.ip, metadata: { print_method: r.print_method, sheet_type: 'NEW' } });
+    return r;
   }
 
   // ── 機械タイムカード ────────────────────────

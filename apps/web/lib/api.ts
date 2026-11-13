@@ -203,6 +203,8 @@ export type SetupSheetLog = {
   printed_at: string;
   printer_name: string | null;
   version: string | null;
+  // 出力方式 DIRECT=直接印刷 / MANUAL=画面表示で手動印刷 / null=記録前
+  print_method?: string | null;
   // 印刷時に入力した使用機械(段取シートバックSTEP2の初期値)
   machine_id_log?: number | null;
 };
@@ -884,6 +886,8 @@ export type McSetupSheetLog = {
   quantity:       number | null;
   machine_id_log: number | null;
   purpose:        string | null;
+  // 出力方式 DIRECT=直接印刷 / MANUAL=画面表示で手動印刷 / null=記録前
+  print_method?:  string | null;
   // [v088] 「行方不明にする(mark as lost)」情報
   is_lost:        boolean;
   lost_reason:    string | null;

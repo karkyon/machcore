@@ -310,7 +310,11 @@
     "restartsCount": "{n} lần",
     "restart": "Khởi động lại",
     "restartingMsg": "Đang khởi động lại…Trang sẽ tải lại sau 3 giây",
-    "restartFailed": "Khởi động lại thất bại"
+    "restartFailed": "Khởi động lại thất bại",
+    "printModeLabel": "Phương thức xuất phiếu cài đặt",
+    "printModeDirect": "In trực tiếp từ máy chủ (gửi tới máy in)",
+    "printModeManual": "Hiển thị trên màn hình và in thủ công",
+    "printModeHint": "Cài đặt này chỉ áp dụng cho máy chủ (phiên bản) này. Khi in thủ công, phiếu cài đặt được hiển thị trên màn hình và người dùng in từ trình duyệt. Cả hai phương thức đều được ghi vào lịch sử phát hành."
   },
   "adminCalendar": {
     "title": "Lịch làm việc",
@@ -2253,5 +2257,21 @@
     "copyFailed": "Sao chép tệp thất bại",
     "uploadPartialFailure": "Tải lên một phần hoặc toàn bộ tệp bị thất bại",
     "unexpectedError": "{detail}"
+  },
+  "manualPrint": {
+    "title": "🖥 Phiếu cài đặt (in thủ công)",
+    "recordedNote": "Đã ghi vào lịch sử phát hành. Nhấn nút「In」, chọn máy in rồi in.",
+    "printButton": "🖨 In",
+    "openTabButton": "Mở ở tab khác",
+    "closeButton": "Đóng",
+    "closeConfirm": "Bạn chưa in. Bạn có chắc muốn đóng không?",
+    "issueButton": "🖥 Hiển thị trên màn hình để in (in thủ công)",
+    "issuingLabel": "Đang phát hành...",
+    "issueButtonMcNew": "🖥 Hiển thị trên màn hình để in（xác nhận mã gia công）",
+    "mcNewNote": "⚠️ Chỉ「Hiển thị trên màn hình để in」mới xác nhận mã gia công và đăng ký dữ liệu MC.",
+    "ncNote": "• 「Hiển thị trên màn hình để in」sẽ ghi vào lịch sử phát hành và kết thúc phiên làm việc. Hãy in phiếu cài đặt được hiển thị",
+    "historyBadge": "In thủ công",
+    "historyDirect": "In trực tiếp",
+    "colMethod": "Phương thức xuất"
   }
 }

@@ -805,7 +805,7 @@ export default function NcDetailPage() {
                     <table className="w-full text-xs border-collapse bg-white rounded-xl overflow-hidden shadow-sm">
                       <thead className="bg-slate-100 text-slate-600">
                         <tr>
-                          {[tr("ncDetailPage.colPrintedAt2","印刷日時"), tr("ncDetailPage.colPrinter2","印刷者"), tr("ncDetailPage.colVersion2","バージョン")].map(h => (
+                          {[tr("ncDetailPage.colPrintedAt2","印刷日時"), tr("ncDetailPage.colPrinter2","印刷者"), tr("ncDetailPage.colVersion2","バージョン"), tr("manualPrint.colMethod","出力方法")].map(h => (
                             <th key={h} className="px-3 py-2 text-left font-bold border-b border-slate-200">{h}</th>
                           ))}
                         </tr>
@@ -816,6 +816,7 @@ export default function NcDetailPage() {
                             <td className="px-3 py-2 font-mono whitespace-nowrap text-slate-500">{fmtDate(p.printed_at)}</td>
                             <td className="px-3 py-2">{p.printer_name ?? "—"}</td>
                             <td className="px-3 py-2 font-mono">{p.version ?? "—"}</td>
+                            <td className="px-3 py-2">{p.print_method === "MANUAL" ? tr("manualPrint.historyBadge","手動印刷") : p.print_method === "DIRECT" ? tr("manualPrint.historyDirect","直接印刷") : "—"}</td>
                           </tr>
                         ))}
                       </tbody>

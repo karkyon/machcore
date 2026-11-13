@@ -1310,6 +1310,9 @@ export default function McDetailPage() {
                       {p.is_reference && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">{tr("mcDetailPage.referenceBadge", "参考")}</span>
                       )}
+                      {p.print_method === "MANUAL" && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">{tr("manualPrint.historyBadge", "手動印刷")}</span>
+                      )}
                       <span className="text-slate-400">{toJstDateTimeString(p.printed_at)}</span>
                       <span className="text-slate-600">{p.operator_name ?? "—"}</span>
                       {(p as any).machine_code && <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 font-mono text-[10px]"><MachineLabel code={(p as any).machine_code} /></span>}

@@ -14,6 +14,7 @@ import { SaveIndexProgramsDto } from './dto/save-index-programs.dto';
 import { PrintMcDto } from './dto/print-mc.dto';
 import { calcProgramFileName, calcProgramFolderName, normalizeWpdExt } from './program-file-naming.util';
 import { INITIAL_VERSION, bumpVersion } from '../common/version.util';
+import { getPrintMode, logPrintOutput, manualPrintResult, MANUAL_PRINT_MESSAGE, PrintMethod } from '../common/print-output.util';
 
 /**
  * 段取シートPDFの印字テキストキット。
@@ -1687,6 +1688,7 @@ export class McService {
         quantity:       (r as any).quantity    ?? null,
         machine_id_log: (r as any).machineIdLog ?? null,
         purpose:        (r as any).purpose     ?? null,
+        print_method:   (r as any).printMethod ?? null,
         // [v088] 「行方不明にする(mark as lost)」情報がMC詳細画面の印刷履歴に
         //   反映されておらず、削除済み扱いにした段取シートがずっと「未回収」の
         //   ままに見えてしまっていた不具合を修正。理由・詳細も返す。
@@ -2636,6 +2638,7 @@ export class McService {
         data: { mcProgramId: mcId, operatorId, version: data.version ?? null,
                 pdfPath: savedPdfPath,
                 sheetType: 'NEW',
+                printMethod: (options as any).print_method ?? null,
                 // [No.57] 仮登録で選んだ機械を印刷時の機械として記録(ダッシュボードの機械別表示に使う)
                 machineIdLog: (options as any).machine_id ?? null,
                 ...(typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {}) },
@@ -2795,6 +2798,9 @@ export class McService {
 
     if (mcId === null) throw new Error('加工IDの確定に失敗しました。再度お試しください。');
 
+    // 出力方式(マスタ): DIRECT=サーバから直接印刷 / MANUAL=画面に表示して手動印刷
+    const printMode: PrintMethod = await getPrintMode(this.prisma);
+
     // PDF生成 + 印刷ログ記録
     const pdfBuffer = await this.generateSetupSheetPdf(mcId, operatorId, {
       include_tooling: false,
@@ -2802,7 +2808,17 @@ export class McService {
       include_drawings: dto.include_drawings ?? false,
       // [No.57] 仮登録の画面で選んだ機械 = この段取シートを使う機械
       machine_id:      dto.machine_id ?? null,
-    });
+      print_method:    printMode,
+    } as any);
+
+    // 手動印刷: プリンタへは送らず、発行した段取シートを画面に返す
+    if (printMode === 'MANUAL') {
+      logPrintOutput(this.prisma, 'INFO', `MC create-and-print 手動印刷(画面表示)で発行: mc_id=${mcId}`,
+        { mcId, machiningId, operatorId, printMethod: 'MANUAL', sheetType: 'NEW' });
+      return Buffer.from(JSON.stringify(manualPrintResult(pdfBuffer,
+        retried ? `加工IDが競合したため ${machiningId} で登録しました。${MANUAL_PRINT_MESSAGE}` : MANUAL_PRINT_MESSAGE,
+        { mc_id: mcId, machining_id: machiningId, retried })));
+    }
 
     // プリンタへ送信
     const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true, mcPrinter: true, duplexPrint: true } });
@@ -2825,10 +2841,13 @@ export class McService {
       try { fs.unlinkSync(tmpPath); } catch { /**/ }
     }
 
+    logPrintOutput(this.prisma, 'INFO', `MC create-and-print 直接印刷で発行: mc_id=${mcId} printer=${printerName}`,
+      { mcId, machiningId, operatorId, printMethod: 'DIRECT', sheetType: 'NEW', printerName });
     return Buffer.from(JSON.stringify({
       mc_id:        mcId,
       machining_id: machiningId,
       retried,
+      print_method: 'DIRECT',
       message:      retried
         ? `加工IDが競合したため ${machiningId} で登録しました。${printerName} に送信しました`
         : `${printerName} に送信しました`,
@@ -3810,6 +3829,7 @@ export class McService {
                 ...(isReferenceSheet ? { isReference: true, workCollected: true }
                     : (typeof (options as any).is_reference !== 'undefined' ? { isReference: (options as any).is_reference } : {})),
                 sheetType: 'REPEAT',
+                printMethod: (options as any).print_method ?? null,
                 quantity:     (options as any).quantity    ?? null,
                 machineIdLog: (options as any).machine_id  ?? null,
                 purpose:      (options as any).purpose     ?? null,
@@ -3849,11 +3869,19 @@ export class McService {
       include_work_offsets?:   boolean;
       include_index_programs?: boolean;
     },
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string; print_method: PrintMethod; pdf_base64?: string }> {
+    // 出力方式(マスタ): MANUAL はプリンタへ送らず、発行した段取シートを画面に返す
+    const printMode = await getPrintMode(this.prisma);
+    if (printMode === 'MANUAL') {
+      const pdfManual = await this.generateSetupSheetPdf(mcId, operatorId, { ...options, print_method: 'MANUAL' } as any);
+      logPrintOutput(this.prisma, 'INFO', `MC direct-print 手動印刷(画面表示)で発行: mc_id=${mcId}`,
+        { mcId, operatorId, printMethod: 'MANUAL', sheetType: 'NEW' });
+      return manualPrintResult(pdfManual, MANUAL_PRINT_MESSAGE);
+    }
     const setting = await this.prisma.companySetting.findFirst({ select: { printerName: true, mcPrinter: true, duplexPrint: true } });
     const printerName = setting?.mcPrinter || setting?.printerName;
     if (!printerName) throw new Error('MCプリンタが設定されていません。管理画面のシステム設定でMCチーム用プリンタを設定してください。');
-    const pdfBuffer = await this.generateSetupSheetPdf(mcId, operatorId, options);
+    const pdfBuffer = await this.generateSetupSheetPdf(mcId, operatorId, { ...options, print_method: 'DIRECT' } as any);
     const tmpPath = `/tmp/machcore-mc-print-${mcId}-${Date.now()}.pdf`;
     fs.writeFileSync(tmpPath, pdfBuffer);
     const duplexOpt = (setting as any)?.duplexPrint ? ' -o sides=two-sided-long-edge' : '';
@@ -3870,7 +3898,9 @@ export class McService {
     } finally {
       try { fs.unlinkSync(tmpPath); } catch { /**/ }
     }
-    return { message: `${printerName} に送信しました` };
+    logPrintOutput(this.prisma, 'INFO', `MC direct-print 直接印刷で発行: mc_id=${mcId} printer=${printerName}`,
+      { mcId, operatorId, printMethod: 'DIRECT', sheetType: 'NEW', printerName });
+    return { message: `${printerName} に送信しました`, print_method: 'DIRECT' };
   }
 
 

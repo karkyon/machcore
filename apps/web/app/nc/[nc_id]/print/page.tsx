@@ -11,6 +11,8 @@ import { NcPartHeader } from "@/components/nc/NcPartHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { ManualPrintModal } from "@/components/shared/ManualPrintModal";
+import { usePrintMode } from "@/lib/hooks/usePrintMode";
 
 const STATUS_LABEL: Record<string, string> = {
   NEW:              "新規",
@@ -55,6 +57,9 @@ export default function PrintPage() {
   // ── 状態 ──
   const [printing,  setPrinting]  = useState(false);
   const [directPrinting, setDirectPrinting] = useState(false);
+  // 手動印刷(出力方式=MANUAL)で発行した段取シートの表示
+  const [manualPdf, setManualPdf] = useState<{ base64: string; note: string | null; next: string } | null>(null);
+  const printMode = usePrintMode();
   const [printError, setPrintError] = useState<string | null>(null);
   const [toast,     setToast]     = useState<string | null>(null);
 
@@ -222,6 +227,11 @@ export default function PrintPage() {
       }
       const result = await res.json();
       logout();
+      // 手動印刷: 発行済みの段取シートを画面に表示し、閉じたら詳細画面へ
+      if (result.print_method === "MANUAL" && result.pdf_base64) {
+        setManualPdf({ base64: result.pdf_base64, note: null, next: `/nc/${ncId}` });
+        return;
+      }
       showToast(`✅ ${result.message}`);
       setTimeout(() => router.push(`/nc/${ncId}`), 1500);
     } catch (e: any) {
@@ -490,7 +500,9 @@ export default function PrintPage() {
                 disabled={directPrinting || printing}
                 className="w-full py-3 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
               >
-                {directPrinting ? tr("ncPrintPage.printingLabel", "印刷中...") : tr("ncPrintPage.directPrintButton2", "🖨 ダイレクト印刷（プリンタへ直接送信）")}
+                {directPrinting
+                  ? (printMode === "MANUAL" ? tr("manualPrint.issuingLabel", "発行中...") : tr("ncPrintPage.printingLabel", "印刷中..."))
+                  : (printMode === "MANUAL" ? tr("manualPrint.issueButton", "🖥 画面に表示して印刷（手動印刷）") : tr("ncPrintPage.directPrintButton2", "🖨 ダイレクト印刷（プリンタへ直接送信）"))}
               </button>
                   <button
                     onClick={handleDownload}
@@ -511,7 +523,9 @@ export default function PrintPage() {
                 {/* 注意書き */}
                 <div className="text-[10px] text-slate-400 space-y-1 px-1">
                   <p>{tr("ncPrintPage.previewOpenNote", "• プレビューはPDFが新しいタブで開きます{note}").replace("{note}", isNew ? tr("ncPrintPage.previewNoteWatermark","（透かし入り・DB記録なし）") : tr("ncPrintPage.previewNoteRecorded","（発行履歴に記録されます）"))}</p>
-                  <p>{tr("ncPrintPage.directPrintNote", "• 「ダイレクト印刷」がプリンタへの実送信で、作業セッションを終了します")}</p>
+                  <p>{printMode === "MANUAL"
+                    ? tr("manualPrint.ncNote", "• 「画面に表示して印刷」で発行履歴に記録し、作業セッションを終了します。表示された段取シートを印刷してください")
+                    : tr("ncPrintPage.directPrintNote", "• 「ダイレクト印刷」がプリンタへの実送信で、作業セッションを終了します")}</p>
                 </div>
               </div>
             </div>
@@ -520,6 +534,12 @@ export default function PrintPage() {
         </div>
       </div>
     </div>
+
+    {/* ── 手動印刷(出力方式=MANUAL)の段取シート表示 ── */}
+    {manualPdf && (
+      <ManualPrintModal pdfBase64={manualPdf.base64} note={manualPdf.note}
+        onClose={() => { const next = manualPdf.next; setManualPdf(null); router.push(next); }} />
+    )}
 
     {/* ── トースト ── */}
     {toast && (

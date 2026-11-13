@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { ManualPrintModal } from "@/components/shared/ManualPrintModal";
+import { usePrintMode } from "@/lib/hooks/usePrintMode";
 
 function McNewPrintInner() {
   const { t: tr } = useLanguage();
@@ -15,6 +17,9 @@ function McNewPrintInner() {
   const [includeDrawings, setIncludeDrawings] = useState(false);
   const [printing, setDirectPrinting] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  // 手動印刷(出力方式=MANUAL)で発行した段取シートの表示
+  const [manualPdf, setManualPdf] = useState<{ base64: string; note: string | null; next: string } | null>(null);
+  const printMode = usePrintMode();
   const [printError, setPrintError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -77,6 +82,11 @@ function McNewPrintInner() {
       if (!res.ok) throw new Error(j.message ?? `HTTP ${res.status}`);
       if (typeof window !== "undefined") sessionStorage.removeItem("mc_new_pending");
       logout();
+      // 手動印刷: 登録・発行済みの段取シートを画面に表示し、閉じたら登録したMCの詳細画面へ
+      if (j.print_method === "MANUAL" && j.pdf_base64) {
+        setManualPdf({ base64: j.pdf_base64, note: j.retried ? j.message : null, next: `/mc/${j.mc_id}` });
+        return;
+      }
       if (j.retried) {
         showToast(`⚠️ ${j.message}`);
       } else {
@@ -159,7 +169,9 @@ function McNewPrintInner() {
               </label>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 text-xs text-amber-700">
-              {tr("mcNewPrintPage.directPrintOnlyNote1", "⚠️ 「プリンタに直接印刷」のみ加工IDが確定し、MCデータが登録されます。")}<br/>
+              {printMode === "MANUAL"
+                ? tr("manualPrint.mcNewNote", "⚠️ 「画面に表示して印刷」のみ加工IDが確定し、MCデータが登録されます。")
+                : tr("mcNewPrintPage.directPrintOnlyNote1", "⚠️ 「プリンタに直接印刷」のみ加工IDが確定し、MCデータが登録されます。")}<br/>
               {tr("mcNewPrintPage.directPrintOnlyNote2", "この画面を離脱した場合、MCデータは登録されません。")}
             </div>
             <button onClick={handlePreview} disabled={previewing || printing}
@@ -168,7 +180,9 @@ function McNewPrintInner() {
             </button>
             <button onClick={handleDirectPrint} disabled={printing || previewing}
               className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3.5 rounded-xl text-sm mt-3">
-              {printing ? tr("mcNewPrintPage.registeringSendingLabel", "登録・送信中...") : tr("mcNewPrintPage.directPrintConfirmButton", "🖨 プリンタに直接印刷（加工IDを確定）")}
+              {printing
+                ? tr("mcNewPrintPage.registeringSendingLabel", "登録・送信中...")
+                : (printMode === "MANUAL" ? tr("manualPrint.issueButtonMcNew", "🖥 画面に表示して印刷（加工IDを確定）") : tr("mcNewPrintPage.directPrintConfirmButton", "🖨 プリンタに直接印刷（加工IDを確定）"))}
             </button>
             <button onClick={() => { logout(); if (typeof window !== "undefined") sessionStorage.removeItem("mc_new_pending"); router.push("/mc"); }}
               disabled={printing || previewing}
@@ -179,6 +193,10 @@ function McNewPrintInner() {
         )}
       </div>
 
+      {manualPdf && (
+        <ManualPrintModal pdfBase64={manualPdf.base64} note={manualPdf.note}
+          onClose={() => { const next = manualPdf.next; setManualPdf(null); router.push(next); }} />
+      )}
       {authOpen && (
         <AuthModal isOpen={true} ncProgramId={0} mcProgramId={0} sessionType="setup_print"
           onSuccess={() => setAuthOpen(false)} onCancel={() => setAuthOpen(false)} />

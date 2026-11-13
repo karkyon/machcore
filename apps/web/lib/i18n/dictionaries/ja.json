@@ -310,7 +310,11 @@
     "restartsCount": "{n}回",
     "restart": "再起動",
     "restartingMsg": "再起動中…3秒後にページを再読み込みします",
-    "restartFailed": "再起動に失敗しました"
+    "restartFailed": "再起動に失敗しました",
+    "printModeLabel": "段取シートの出力方式",
+    "printModeDirect": "サーバから直接印刷（プリンタへ送信）",
+    "printModeManual": "画面に表示して手動で印刷",
+    "printModeHint": "この設定はこのサーバ（インスタンス）だけに効きます。手動印刷では段取シートを画面に表示し、利用者がブラウザから印刷します。どちらの方式でも発行履歴に記録されます。"
   },
   "adminCalendar": {
     "title": "営業カレンダー",
@@ -2253,5 +2257,21 @@
     "copyFailed": "ファイルのコピーに失敗しました",
     "uploadPartialFailure": "一部または全部のファイルのアップロードに失敗しました",
     "unexpectedError": "{detail}"
+  },
+  "manualPrint": {
+    "title": "🖥 段取シート（手動印刷）",
+    "recordedNote": "発行履歴に記録済みです。「印刷」ボタンからプリンタを選んで印刷してください。",
+    "printButton": "🖨 印刷",
+    "openTabButton": "別タブで開く",
+    "closeButton": "閉じる",
+    "closeConfirm": "まだ印刷していません。閉じてもよろしいですか？",
+    "issueButton": "🖥 画面に表示して印刷（手動印刷）",
+    "issuingLabel": "発行中...",
+    "issueButtonMcNew": "🖥 画面に表示して印刷（加工IDを確定）",
+    "mcNewNote": "⚠️ 「画面に表示して印刷」のみ加工IDが確定し、MCデータが登録されます。",
+    "ncNote": "• 「画面に表示して印刷」で発行履歴に記録し、作業セッションを終了します。表示された段取シートを印刷してください",
+    "historyBadge": "手動印刷",
+    "historyDirect": "直接印刷",
+    "colMethod": "出力方法"
   }
 }
