@@ -116,8 +116,9 @@ def section(title):
 
 
 def pg_connect():
-    import psycopg2
-    return psycopg2.connect(PG_DSN)
+    # users/machines(整備済みマスタ)への書き込みSQLを拒否する接続(master_guard.py)
+    import master_guard
+    return master_guard.guarded_connect(PG_DSN)
 
 def _resolve_upload_base_nc():
     """company_settings.upload_base_path を見て、NCファイル格納先を実行時に上書きする。
@@ -1139,6 +1140,9 @@ def main():
     _resolve_upload_base_nc()
 
     pg = pg_connect()
+    import master_guard
+    _guard_before = master_guard.snapshot(pg)  # 利用者・機械マスタはコンバートで変更しない
+    master_guard.log_snapshot(log, _guard_before, "実行前")
     try:
         nc_id_map = kid_to_dbid = staff_id_map = machine_id_map = None
 
@@ -1158,6 +1162,7 @@ def main():
         if args.phase == 0:
             final_report(pg)
         _final_consistency_check_nc(pg)
+        master_guard.verify_unchanged(pg, _guard_before, log)
     except Exception as e:
         log(f"エラー: {e}", "ERROR")
         log(traceback.format_exc(), "ERROR")

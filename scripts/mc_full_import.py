@@ -141,8 +141,9 @@ def ensure_dirs(*dirs):
         Path(d).mkdir(parents=True, exist_ok=True)
 
 def pg_connect():
-    import psycopg2
-    return psycopg2.connect(PG_DSN)
+    # users/machines(整備済みマスタ)への書き込みSQLを拒否する接続(master_guard.py)
+    import master_guard
+    return master_guard.guarded_connect(PG_DSN)
 
 def _resolve_upload_base():
     """company_settings.upload_base_path を見て、ファイル格納先のグローバル定数を
@@ -1977,6 +1978,9 @@ def main():
     _resolve_upload_base()
     _resolve_admin_id()
     pg = pg_connect()
+    import master_guard
+    _guard_before = master_guard.snapshot(pg)  # 利用者・機械マスタはコンバートで変更しない
+    master_guard.log_snapshot(log, _guard_before, "実行前")
     try:
         force_copy = args.force_copy
         skip_file  = args.skip_file_copy
@@ -1999,6 +2003,7 @@ def main():
                 raise
         final_report(pg)
         _final_consistency_check(pg)
+        master_guard.verify_unchanged(pg, _guard_before, log)
     finally:
         pg.close()
         elapsed = (datetime.now() - start).total_seconds()
