@@ -8,6 +8,7 @@ import { SaveNcToolingDto } from "./dto/save-nc-tooling.dto";
 
 import * as fs from 'fs';
 import { appendDrawingPages } from '../common/drawing-pages';
+import { getSheetLang, machineLabel, ncSheetText, notoFontFaceCss, escHtml, SheetLang } from '../common/setup-sheet-i18n';
 import { execSync } from 'child_process';
 import * as path from 'path';
 import * as chardet from 'chardet';
@@ -1383,6 +1384,7 @@ async generateSetupSheetPdf(
   },
 ): Promise<Buffer> {
   const data = await this.getPrintData(ncProgramId);
+  const lang: SheetLang = await getSheetLang(this.prisma);   // 言語は画面設定(system_settings.default_language)と共通
 
   // Puppeteer 動的インポート
   const puppeteer = (await import('puppeteer')).default;
@@ -1401,7 +1403,7 @@ async generateSetupSheetPdf(
     // 図は段取シート本文に縮小埋め込み(最大3枚)していたが、全ての図を段取シートの後に
     // 1図1ページで続けて印刷する方式に変更(PDF生成後に appendDrawingPages で追加)
     const drawingBase64s: string[] = [];
-    const html = this.buildSetupSheetHtml(data, { ...options, drawingBase64s });
+    const html = this.buildSetupSheetHtml(data, { ...options, drawingBase64s, lang });
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
     const pdfUint8 = await page.pdf({
@@ -1465,6 +1467,12 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   const includeClamp    = opts.include_clamp    !== false;
   const includeDrawings = opts.include_drawings === true;
   const drawingBase64s: string[] = opts.drawingBase64s ?? [];
+  const lang: SheetLang = opts.lang === 'vi' ? 'vi' : 'ja';
+  const L = (k: string) => ncSheetText(lang, k);
+  const E = escHtml;
+  // ベトナム語のときだけ Noto Sans(ベトナム語の字形あり・日本語なし)を先頭に置く。日本語の字形は従来どおりIPAゴシックにフォールバック
+  const NF  = lang === 'vi' ? '"SheetNotoSans", ' : '';
+  const NFC = lang === 'vi' ? notoFontFaceCss() : '';
 
   const now    = new Date();
   const fmtNow = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -1477,18 +1485,18 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   // No = 旧システムのTNo(t3_Tool.No → nc_tools.t_number)。並びは sort_order(旧T_id昇順で採番済み)。
   const toolRows = (includeTools && data.tools && data.tools.length > 0) ? data.tools.map((t: any, i: number) => `
     <tr style="page-break-inside:avoid;">
-      <td class="c">${t.tNumber || (i + 1)}</td>
-      <td>${t.processType ?? ''}</td>
-      <td class="shape">${t.chipModel ?? ''}</td>
-      <td class="holder">${t.holderModel ?? ''}</td>
-      <td class="c">${t.noseR ?? ''}</td>
-      <td>${t.note ?? ''}</td>
-    </tr>`).join('') : '<tr><td colspan="6" class="c" style="color:#aaa;font-size:10.5pt;padding:5px;">加工データなし</td></tr>';
+      <td class="c">${E(t.tNumber || (i + 1))}</td>
+      <td>${E(t.processType)}</td>
+      <td class="shape">${E(t.chipModel)}</td>
+      <td class="holder">${E(t.holderModel)}</td>
+      <td class="c">${E(t.noseR)}</td>
+      <td>${E(t.note)}</td>
+    </tr>`).join('') : `<tr><td colspan="6" class="c" style="color:#aaa;font-size:10.5pt;padding:5px;">${L('noTools')}</td></tr>`;
 
   const drawingsHtml = (includeDrawings && drawingBase64s.length > 0)
-    ? `<div style="margin-top:8px;page-break-inside:avoid;"><div class="sh">段取図</div>
+    ? `<div style="margin-top:8px;page-break-inside:avoid;"><div class="sh">${L('drawings')}</div>
        <div style="display:flex;flex-wrap:wrap;gap:8px;">
-         ${drawingBase64s.map((src: string, i: number) => `<img src="${src}" alt="段取図${i+1}" style="max-width:49%;height:auto;border:1px solid #ccc;" />`).join('')}
+         ${drawingBase64s.map((src: string, i: number) => `<img src="${src}" alt="${L('drawingN')}${i+1}" style="max-width:49%;height:auto;border:1px solid #ccc;" />`).join('')}
        </div></div>` : '';
 
   // 旧Accessフォーム(r_NC_Lathe内ラベル32「ﾀｲﾑ」)の実物確認により、
@@ -1502,10 +1510,11 @@ private buildSetupSheetHtml(data: any, opts: any): string {
     ? (() => { const t = machM * 60 + machS; return `${Math.floor(t/3600)}h${Math.floor((t%3600)/60)}m${t%60}s`; })() : '—';
 
   return `<!DOCTYPE html>
-<html lang="ja">
+<html lang="${lang}">
 <head>
 <meta charset="UTF-8"/>
 <style>
+  ${NFC}
   * { box-sizing: border-box; margin: 0; padding: 0; }
   /* [バグ修正] Google Fonts(外部ネットワーク)への@importに依存していたため、
      .14(internal)のようにインターネットアクセスが制限された環境でPuppeteerの
@@ -1514,7 +1523,7 @@ private buildSetupSheetHtml(data: any, opts: any): string {
      選ばれ、「フォントが中国語のように見える」問題も併発していた。
      MC側(pdf-lib+fontkit)と同じ、サーバにインストール済みのIPAゴシックを
      第一候補にしたローカルフォントスタックへ変更し、外部依存を排除する。 */
-  body { font-family: "IPAGothic", "IPAPGothic", "Noto Sans CJK JP", "Noto Sans JP", sans-serif; font-size: 11pt; color: #000; background: #fff; padding: 0; }
+  body { font-family: ${NF}"IPAGothic", "IPAPGothic", "Noto Sans CJK JP", "Noto Sans JP", sans-serif; font-size: 11pt; color: #000; background: #fff; padding: 0; }
   h1.title { font-size: 16pt; font-weight: 700; margin-bottom: 4px; }
   .id-row { font-size: 10pt; color: #444; margin-bottom: 6px; }
   table.info { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
@@ -1537,15 +1546,15 @@ private buildSetupSheetHtml(data: any, opts: any): string {
                    border: 1px solid #888; font-size: 10.5pt; text-align: left; }
   /* 加工リストは全列(No/加工/ノーズR/備考も)を「0」に点の入らないIPA Pゴシックで印字する */
   table.tools td { border: 1px solid #ccc; padding: 3px 6px; font-size: 10.5pt; vertical-align: top;
-                   font-family: "IPAPGothic", "IPAGothic", "Noto Sans CJK JP", sans-serif; }
+                   font-family: ${NF}"IPAPGothic", "IPAGothic", "Noto Sans CJK JP", sans-serif; }
   table.tools tr:nth-child(even) td { background: #f5f5f5; }
   .c { text-align: center; }
   .mono { font-family: 'Courier New', monospace; }
   /* 加工リストの形状(◇△□)とホルダー。従来の 'Courier New', monospace はサーバで等幅の代替フォントになり、
      記号が小さく「0」に点が入って見えていた。日本語フォント(IPA)で記号を大きく・字間を広げて印字する。 */
-  table.tools td.shape { font-family: "IPAGothic", "IPAPGothic", "Noto Sans CJK JP", sans-serif;
+  table.tools td.shape { font-family: ${NF}"IPAGothic", "IPAPGothic", "Noto Sans CJK JP", sans-serif;
                          font-size: 14pt; letter-spacing: 0.3em; line-height: 1.1; white-space: nowrap; vertical-align: middle; }
-  table.tools td.holder { font-family: "IPAPGothic", "IPAGothic", "Noto Sans CJK JP", sans-serif;
+  table.tools td.holder { font-family: ${NF}"IPAPGothic", "IPAGothic", "Noto Sans CJK JP", sans-serif;
                           font-size: 11pt; letter-spacing: 0.03em; }
   .foot { margin-top: 8px; padding-top: 4px; border-top: 1px solid #ccc;
           display: flex; justify-content: space-between; font-size: 9pt; color: #666; }
@@ -1559,17 +1568,17 @@ private buildSetupSheetHtml(data: any, opts: any): string {
 </head>
 <body>
   ${(opts.is_preview === true || opts.force_watermark === true) ? `
-  <div class="watermark w1">プレビュー</div>
-  <div class="watermark w2">プレビュー</div>
-  <div class="watermark w3">プレビュー</div>` : ''}
+  <div class="watermark w1">${L('preview')}</div>
+  <div class="watermark w2">${L('preview')}</div>
+  <div class="watermark w3">${L('preview')}</div>` : ''}
   <!-- タイトル行 -->
   <table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
     <tr>
       <td style="vertical-align:bottom;">
-        <h1 class="title">NC段取シート${opts.purpose === 'reference' ? '<span style="display:inline-block;margin-left:12px;padding:1px 8px;border:1.5px solid #000;font-size:13pt;vertical-align:middle;">参考資料</span>' : ''}</h1>
+        <h1 class="title">${L('title')}${opts.purpose === 'reference' ? `<span style="display:inline-block;margin-left:12px;padding:1px 8px;border:1.5px solid #000;font-size:13pt;vertical-align:middle;">${L('reference')}</span>` : ''}</h1>
       </td>
       <td style="text-align:right;vertical-align:bottom;font-size:8pt;color:#555;">
-        出力日時: ${fmtNow}
+        ${L('outputAt')}: ${fmtNow}
       </td>
     </tr>
   </table>
@@ -1580,74 +1589,74 @@ private buildSetupSheetHtml(data: any, opts: any): string {
        なく、旧K_id対応のmachiningIdを使う。 -->
   <div class="id-row">
     NC_id <strong>${data.legacyNcId ?? data.id}</strong>
-    &nbsp;&nbsp;部品id <strong>${data.part?.partId ?? '—'}</strong>
-    &nbsp;&nbsp;加工id <strong>${data.machiningId ?? '—'}</strong>
+    &nbsp;&nbsp;${L('partId')} <strong>${E(data.part?.partId ?? '—')}</strong>
+    &nbsp;&nbsp;${L('machiningId')} <strong>${E(data.machiningId ?? '—')}</strong>
   </div>
 
   <!-- 部品情報テーブル -->
   <table class="info">
     <tr>
-      <td class="lbl">納入先</td>
-      <td colspan="3">${data.part?.clientName ?? ''}</td>
+      <td class="lbl">${L('client')}</td>
+      <td colspan="3">${E(data.part?.clientName)}</td>
     </tr>
     <tr>
-      <td class="lbl">図面番号</td>
-      <td>${data.part?.drawingNo ?? ''}</td>
-      <td class="lbl" style="width:70px;">名　称</td>
-      <td>${data.part?.name ?? ''}</td>
+      <td class="lbl">${L('drawingNo')}</td>
+      <td>${E(data.part?.drawingNo)}</td>
+      <td class="lbl" style="width:70px;">${L('name')}</td>
+      <td>${E(data.part?.name)}</td>
     </tr>
     <tr>
-      <td class="lbl">主機種型式</td>
-      <td colspan="3">${data.part?.mainModel ?? ''}</td>
+      <td class="lbl">${L('mainModel')}</td>
+      <td colspan="3">${E(data.part?.mainModel)}</td>
     </tr>
     <tr>
-      <td class="lbl">Ｌ</td>
-      <td style="width:60px;"><strong>${data.processL ?? ''}</strong></td>
-      <td class="lbl">機　械</td>
-      <td>${data.machine ? (data.machine.machineName && String(data.machine.machineName).replace(/[\s\u3000]+/g, '') !== String(data.machine.machineCode).replace(/[\s\u3000]+/g, '') ? `${data.machine.machineCode} &lt;${data.machine.machineName}&gt;` : data.machine.machineCode) : ''}</td>
+      <td class="lbl">${L('processL')}</td>
+      <td style="width:60px;"><strong>${E(data.processL)}</strong></td>
+      <td class="lbl">${L('machine')}</td>
+      <td>${data.machine ? E(machineLabel(data.machine)) : ''}</td>
     </tr>
     <tr>
-      <td class="lbl">タ イ ム</td>
+      <td class="lbl">${L('time')}</td>
       <td><strong>${machTimeStr}</strong></td>
-      <td class="lbl">承認ステ</td>
-      <td>${data.status === 'APPROVED' ? '承認済' : data.status === 'CHANGING' ? '変更中' : data.status === 'PENDING_APPROVAL' ? '未承認' : '新規'}</td>
+      <td class="lbl">${L('status')}</td>
+      <td>${data.status === 'APPROVED' ? L('stApproved') : data.status === 'CHANGING' ? L('stChanging') : data.status === 'PENDING_APPROVAL' ? L('stPending') : L('stNew')}</td>
     </tr>
     <tr>
-      <td class="lbl">ﾌｧｲﾙ名</td>
-      <td>${data.fileName ?? ''}</td>
-      <td class="lbl">ｏﾅﾝﾊﾞｰ</td>
-      <td><strong>${data.oNumber ?? ''}</strong></td>
+      <td class="lbl">${L('fileName')}</td>
+      <td>${E(data.fileName)}</td>
+      <td class="lbl">${L('oNumber')}</td>
+      <td><strong>${E(data.oNumber)}</strong></td>
     </tr>
     <tr>
-      <td class="lbl">フォルダ名</td>
-      <td colspan="3">${data.folderName ?? ''}</td>
+      <td class="lbl">${L('folderName')}</td>
+      <td colspan="3">${E(data.folderName)}</td>
     </tr>
     <tr>
-      <td class="lbl">掴　代</td>
-      <td colspan="3">${data.clampAllowance ? `${data.clampAllowance} mm` : ''}</td>
+      <td class="lbl">${L('clampAllow')}</td>
+      <td colspan="3">${data.clampAllowance ? `${E(data.clampAllowance)} mm` : ''}</td>
     </tr>
   </table>
 
   ${includeClamp && data.clampNote ? `
   <!-- 備考 -->
   <div style="margin-bottom:4px;">
-    <div class="sh" style="margin-bottom:0;">備　考</div>
-    <div class="備考box">${(data.clampNote ?? '').replace(/\n/g, '<br/>')}</div>
+    <div class="sh" style="margin-bottom:0;">${L('note')}</div>
+    <div class="備考box">${E(data.clampNote ?? '').replace(/\r?\n/g, '<br/>')}</div>
   </div>` : ''}
 
 
   ${includeTools ? `
   <!-- 加工リスト -->
-  <div class="sh">加工リスト</div>
+  <div class="sh">${L('toolList')}</div>
   <table class="tools">
     <thead>
       <tr>
         <th class="c" style="width:28px;">No</th>
-        <th style="width:90px;">加　工</th>
-        <th style="width:96px;">形　状</th>
-        <th>ホルダー</th>
-        <th class="c" style="width:75px;white-space:nowrap;">ノーズR</th>
-        <th>備　考</th>
+        <th style="width:90px;">${L('colProcess')}</th>
+        <th style="width:96px;">${L('colShape')}</th>
+        <th>${L('colHolder')}</th>
+        <th class="c" style="width:75px;white-space:nowrap;">${L('colNoseR')}</th>
+        <th>${L('colNote')}</th>
       </tr>
     </thead>
     <tbody>${toolRows}</tbody>
@@ -1657,10 +1666,10 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   <table class="sign">
     <tr>
       <td class="lbl">Ver</td>
-      <td style="width:80px;">${data.version ?? ''}</td>
-      <td class="lbl">承認者</td>
-      <td>${data.approver?.name ?? ''}</td>
-      <td class="lbl">承認日</td>
+      <td style="width:80px;">${E(data.version)}</td>
+      <td class="lbl">${L('approver')}</td>
+      <td>${E(data.approver?.name)}</td>
+      <td class="lbl">${L('approvedAt')}</td>
       <td>${fmtDate(data.approvedAt)}</td>
     </tr>
   </table>
@@ -1669,19 +1678,19 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   <!-- 段取担当 / 量産担当 -->
   <table class="work">
     <tr>
-      <td class="lbl">段取担当</td>
+      <td class="lbl">${L('setupOperator')}</td>
       <td style="min-width:100px;">&nbsp;</td>
-      <td class="lbl">量産担当</td>
+      <td class="lbl">${L('prodOperator')}</td>
       <td style="min-width:100px;">&nbsp;</td>
-      <td class="lbl">個　数</td>
+      <td class="lbl">${L('qty')}</td>
       <td>&nbsp;</td>
     </tr>
     <tr>
-      <td class="lbl">段取時間</td>
+      <td class="lbl">${L('setupTime')}</td>
       <td><span style="color:#aaa;font-size:8pt;">&nbsp;&nbsp;&nbsp;&nbsp;h&nbsp;&nbsp;&nbsp;&nbsp;m</span></td>
-      <td class="lbl">量産時間</td>
+      <td class="lbl">${L('prodTime')}</td>
       <td><span style="color:#aaa;font-size:8pt;">&nbsp;&nbsp;&nbsp;&nbsp;h&nbsp;&nbsp;&nbsp;&nbsp;m</span></td>
-      <td class="lbl">入　力</td>
+      <td class="lbl">${L('input')}</td>
       <td>&nbsp;</td>
     </tr>
   </table>
@@ -1689,21 +1698,21 @@ private buildSetupSheetHtml(data: any, opts: any): string {
   <!-- 変更届 -->
   <table class="work" style="margin-bottom:4px;">
     <tr>
-      <td class="lbl" style="width:60px;">変更届</td>
+      <td class="lbl" style="width:60px;">${L('changeNotice')}</td>
       <td>
-        シート&nbsp;□&nbsp;&nbsp;
-        プログラム&nbsp;□&nbsp;&nbsp;
-        図&nbsp;□&nbsp;&nbsp;
-        写真&nbsp;□
+        ${L('chgSheet')}&nbsp;□&nbsp;&nbsp;
+        ${L('chgProgram')}&nbsp;□&nbsp;&nbsp;
+        ${L('chgDrawing')}&nbsp;□&nbsp;&nbsp;
+        ${L('chgPhoto')}&nbsp;□
       </td>
     </tr>
     <tr>
-      <td class="lbl">内　容</td>
+      <td class="lbl">${L('content')}</td>
       <td>&nbsp;</td>
     </tr>
     <tr>
-      <td class="lbl">掴　代</td>
-      <td><span style="margin-right:30px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; mm</span>フォルダ名&nbsp;&nbsp;&nbsp;${data.folderName ?? ''}</td>
+      <td class="lbl">${L('clampAllow')}</td>
+      <td><span style="margin-right:30px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; mm</span>${L('folderName')}&nbsp;&nbsp;&nbsp;${E(data.folderName)}</td>
     </tr>
   </table>`}
 
@@ -1711,8 +1720,8 @@ private buildSetupSheetHtml(data: any, opts: any): string {
 
   <!-- フッター -->
   <div class="foot">
-    <span>NC旋盤プログラム管理システム MachCore</span>
-    <span>図面番号: ${data.part?.drawingNo ?? ''} | 部品ID: ${data.part?.partId ?? ''} | NC_id: ${data.legacyNcId ?? data.id}</span>
+    <span>${L('footerSystem')}</span>
+    <span>${L('footerDrawing')}: ${E(data.part?.drawingNo)} | ${L('footerPart')}: ${E(data.part?.partId)} | NC_id: ${data.legacyNcId ?? data.id}</span>
   </div>
 </body>
 </html>`;

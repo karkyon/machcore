@@ -14,6 +14,7 @@ import { SaveIndexProgramsDto } from './dto/save-index-programs.dto';
 import { PrintMcDto } from './dto/print-mc.dto';
 import { calcProgramFileName, calcProgramFolderName, normalizeWpdExt } from './program-file-naming.util';
 import { INITIAL_VERSION, bumpVersion } from '../common/version.util';
+import { getSheetLang, embedSheetFont, applyTemplateLabels, machineLabel, sheetText, toolLabels, SheetLang } from '../common/setup-sheet-i18n';
 import { getPrintMode, logPrintOutput, manualPrintResult, MANUAL_PRINT_MESSAGE, PrintMethod } from '../common/print-output.util';
 
 /**
@@ -2257,12 +2258,14 @@ export class McService {
     },
   ): Promise<Buffer> {
     const data = await this.getPrintData(mcId) as any;
+    const lang: SheetLang = await getSheetLang(this.prisma);   // 言語は画面設定(system_settings.default_language)と共通
+    const T = (k: string) => sheetText(lang, k);
 
     // pdf-lib / fontkit
     const { PDFDocument, rgb } = await import('pdf-lib');
     const fontkit = await import('@pdf-lib/fontkit');
     const FONT_PATH = '/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf';
-    const fontBytes = fs.readFileSync(FONT_PATH);
+    void FONT_PATH;
 
     // テンプレートPDFパス（実行インスタンスのcwd基準で相対解決）
     const ASSETS = process.cwd() + '/assets';
@@ -2289,6 +2292,8 @@ export class McService {
     const resolve = (src: string): string => {
       const keys = src.split('.');
       let val: any = data;
+      // 機械は「機械コード <機械名>」(同じなら機械コードのみ)で印字する(画面と同じ規則)
+      if (keys[0] === 'machine' && data?.machine) return machineLabel(data.machine);
       for (const k of keys) { val = val?.[k]; if (val === undefined || val === null) return ''; }
       if (src === 'version') {
         const v = String(val ?? '1.0001');
@@ -2301,7 +2306,7 @@ export class McService {
     //    p1/p2コピー前にembedするためコピー元フォントが引き継がれない
     const finalDoc = await PDFDocument.create();
     finalDoc.registerFontkit(fontkit.default ?? fontkit);
-    const singleFont = await finalDoc.embedFont(fontBytes, { subset: true });
+    const singleFont = await embedSheetFont(finalDoc, lang) as any;
     const kit1 = makePdfTextKit(singleFont);
 
     // P1をfinalDocにコピーしてからそのページに描画
@@ -2309,6 +2314,7 @@ export class McService {
     const [_p1Imported] = await finalDoc.copyPages(p1Doc, [0]);
     finalDoc.addPage(_p1Imported);
     const p1Page = finalDoc.getPage(0);
+    applyTemplateLabels(p1Page, 'template_p1', lang, singleFont);
     const p1H = p1Page.getHeight();
     const font1 = singleFont;
 
@@ -2354,7 +2360,7 @@ export class McService {
         let lines = r.lines;
         if (!r.ok) {
           const n = Math.max(1, Math.floor(maxH / (r.fs * 1.15)));
-          lines = lines.slice(0, Math.max(0, n - 1)).concat(['※備考の全文は「新規段取シート(続き)」に印字']);
+          lines = lines.slice(0, Math.max(0, n - 1)).concat([T('noteOverflowNote')]);
           noteFullText = text;
         }
         lines.forEach((ln: string, i: number) => {
@@ -2372,7 +2378,7 @@ export class McService {
     //   はみ出す、の3点を解消。正しい項目で取得し、欄に収まるよう縮小・折返し、表に入りきらない行は
     //   「新規段取シート(続き)」ページに全件印字する。
     const NEW_TOOL_KEYS   = ['toolNo','toolName','tNumber','hValue','dRegister','dValue','subProgram','note'];
-    const NEW_TOOL_LABELS = ['N','工具','T','H','D','D値','SUB','コメント'];
+    const NEW_TOOL_LABELS = toolLabels(lang);
     const NEW_TOOL_DEF_XS = [40, 71, 168, 207, 247, 286, 332, 378];   // template_p1.pdf の罫線位置から算出
     const NEW_TABLE_RIGHT = 556;
     const newToolVal = (t: any, key: string): string => {
@@ -2403,7 +2409,7 @@ export class McService {
           lines = lines.slice(0, maxN);
           const last = lines[lines.length - 1] ?? '';
           lines[lines.length - 1] = [...last].slice(0, Math.max(0, [...last].length - 1)).join('') + '※';
-          cellOverflow.push(`${t.toolNo || ('行' + rowNo)} ${NEW_TOOL_LABELS[ci]}: ${text}`);
+          cellOverflow.push(`${t.toolNo || (T('row') + rowNo)} ${NEW_TOOL_LABELS[ci]}: ${text}`);
         }
         const step = r.fs * 1.15;
         const center = baseY + 7 * 0.35;                               // 1行時の文字中心
@@ -2453,7 +2459,7 @@ export class McService {
       let y = 0;
       const newPage = () => {
         pg = finalDoc.addPage([A4W, A4H]);
-        const title = kit1.safe(`新規段取シート(続き)　部品ID ${data.part?.partId ?? ''}　加工ID ${data.machiningId ?? ''}　MCID ${data.legacyMcid ?? ''}　図面番号 ${data.part?.drawingNo ?? ''}`);
+        const title = kit1.safe(`${T('newSheetCont')}　${T('partId')} ${data.part?.partId ?? ''}　${T('machiningId')} ${data.machiningId ?? ''}　MCID ${data.legacyMcid ?? ''}　${T('drawingNo')} ${data.part?.drawingNo ?? ''}`);
         pg.drawText(title, { x: M, y: A4H - 45, size: kit1.fitFs(title, 11, A4W - 2 * M, 6), font: font1, color: rgb(0,0,0) });
         pg.drawLine({ start: { x: M, y: A4H - 52 }, end: { x: A4W - M, y: A4H - 52 }, thickness: 1, color: rgb(0,0,0) });
         y = A4H - 64;
@@ -2469,10 +2475,10 @@ export class McService {
         y -= 16;
       };
       if (contTools.length > 0) {
-        section('ツーリング(続き)');
+        section(T('toolingCont'));
         toolHeader();
         contTools.forEach((t: any, i: number) => {
-          if (y - newToolRowH < BOTTOM) { newPage(); section('ツーリング(続き)'); toolHeader(); }
+          if (y - newToolRowH < BOTTOM) { newPage(); section(T('toolingCont')); toolHeader(); }
           drawNewToolRow(pg, t, y - newToolRowH / 2 - 7 * 0.35, i + 1);
           pg.drawLine({ start: { x: M, y: y - newToolRowH }, end: { x: NEW_TABLE_RIGHT, y: y - newToolRowH }, thickness: 0.4, color: rgb(0.6,0.6,0.6) });
           y -= newToolRowH;
@@ -2482,14 +2488,14 @@ export class McService {
       const printFullText = (title: string, body: string) => {
         section(title);
         for (const ln of kit1.wrap(body, A4W - 2 * M - 6, 8)) {
-          if (y - 11 < BOTTOM) { newPage(); section(`${title}(続き)`); }
+          if (y - 11 < BOTTOM) { newPage(); section(`${title}${T('cont')}`); }
           if (ln) pg.drawText(ln, { x: M + 4, y: y - 9, size: 8, font: font1, color: rgb(0,0,0) });
           y -= 11;
         }
         y -= 8;
       };
-      if (noteFullText) printFullText('備考(全文)', noteFullText);
-      if (cellOverflow.length > 0) printFullText('欄に入りきらない項目(全文)', cellOverflow.join('\n'));
+      if (noteFullText) printFullText(T('noteFull'), noteFullText);
+      if (cellOverflow.length > 0) printFullText(T('overflowFull'), cellOverflow.join('\n'));
     }
 
     // P2をfinalDocにコピーしてからそのページに描画
@@ -2497,6 +2503,7 @@ export class McService {
     const [_p2Imported] = await finalDoc.copyPages(p2Doc, [0]);
     finalDoc.addPage(_p2Imported);
     const p2Page = finalDoc.getPage(finalDoc.getPageCount() - 1);   // 続きページがある場合も最終ページ
+    applyTemplateLabels(p2Page, 'template_p2', lang, singleFont);
     const p2H = p2Page.getHeight();
     const font2 = singleFont;
 
@@ -2505,12 +2512,12 @@ export class McService {
       if (f.field_key === '__page_no__') {
         p2PageNoPos = { x: Number(f.x), y: Number(f.y), size: Number(f.font_size) || 8 };
         // 発行日時をp2の左下余白に印字
-        const issuedAtNew = new Date().toLocaleString('ja-JP', { timeZone:'Asia/Tokyo',
+        const issuedAtNew = new Date().toLocaleString(lang === 'vi' ? 'vi-VN' : 'ja-JP', { timeZone:'Asia/Tokyo',
           year:'numeric', month:'2-digit', day:'2-digit',
           hour:'2-digit', minute:'2-digit', second:'2-digit' });
         try {
           p2Page.drawRectangle({ x: 29, y: Number(f.y)-1, width: 115, height: 10, color: rgb(1,1,1), borderWidth: 0 });
-          p2Page.drawText(`発行: ${issuedAtNew}`, { x: 30, y: Number(f.y), size: 10.5, font: font2, color: rgb(0.4,0.4,0.4) });
+          p2Page.drawText(`${T('issued')}: ${issuedAtNew}`, { x: 30, y: Number(f.y), size: 10.5, font: font2, color: rgb(0.4,0.4,0.4) });
         } catch(_) {}
         continue;
       }
@@ -2536,7 +2543,7 @@ export class McService {
       finalDoc.getPages().forEach((pg: any, i: number) => {
         const isP2 = i === total - 1;
         const ps = isP2 ? (p2PageNoPos ?? pos) : (i === 0 ? (p1PageNoPos ?? pos) : pos);
-        const txt = (i === 0 || isP2) ? `${i + 1} / ${total}` : `${i + 1} / ${total} ページ`;
+        const txt = (i === 0 || isP2) ? `${i + 1} / ${total}` : `${i + 1} / ${total} ${T('pageSuffix')}`;
         try { pg.drawText(txt, { x: ps.x, y: ps.y, size: ps.size, font: singleFont, color: rgb(0,0,0) }); } catch(_) {}
       });
     }
@@ -2545,10 +2552,10 @@ export class McService {
     //    sharedFont = singleFont（1回だけembedしたフォント）
     const sharedFont = singleFont;
     {
-      const issuedAtStr = new Date().toLocaleString('ja-JP', { timeZone:'Asia/Tokyo',
+      const issuedAtStr = new Date().toLocaleString(lang === 'vi' ? 'vi-VN' : 'ja-JP', { timeZone:'Asia/Tokyo',
         year:'numeric', month:'2-digit', day:'2-digit',
         hour:'2-digit', minute:'2-digit', second:'2-digit' });
-      const dtText = `発行: ${issuedAtStr}`;
+      const dtText = `${T('issued')}: ${issuedAtStr}`;
       const dtSz = 10.5;
       const dtY  = 15;
       const dtX  = 30;
@@ -2582,7 +2589,7 @@ export class McService {
       for (const page of allPages) {
         const { width, height } = page.getSize();
         // 対角方向に「プレビュー」を薄いグレーで複数回描画
-        const wText = 'プレビュー';
+        const wText = T('preview');
         const wSize = 60;
         const wColor = rgb(0.75, 0.75, 0.75);
         const positions = [
@@ -2887,6 +2894,8 @@ export class McService {
     } = {},
   ): Promise<Buffer> {
     const data = await this.getPrintData(mcId) as any;
+    const lang: SheetLang = await getSheetLang(this.prisma);   // 言語は画面設定(system_settings.default_language)と共通
+    const T = (k: string) => sheetText(lang, k);
     const d    = data as any;
     const part    = d.part    ?? {};
     const machine = d.machine ?? {};
@@ -2896,8 +2905,7 @@ export class McService {
         const m = await this.prisma.machine.findUnique({ where: { id: (options as any).machine_id }, select: { machineCode: true, machineName: true } });
         // [No.64] 機械コードと機種名の両方を印字
         // スペース(全角含む)を除いて機械コードと機種名が同じなら機械コードだけ
-        const sp = (s: string) => String(s ?? '').replace(/[\s\u3000]+/g, '');
-        if (m) (options as any)._machineName = m.machineName && sp(m.machineName) !== sp(m.machineCode) ? `${m.machineCode} <${m.machineName}>` : m.machineCode;
+        if (m) (options as any)._machineName = machineLabel(m);
       } catch {}
     }
 
@@ -2986,7 +2994,7 @@ export class McService {
 
     const { PDFDocument: PDFLib, rgb, degrees } = await import('pdf-lib');
     const fontkit = await import('@pdf-lib/fontkit');
-    const fontBytes = fs.readFileSync(FONT_PATH);
+    void FONT_PATH;
 
     // ── DB からフィールド定義を一括取得 ──
     const { Pool } = await import('pg');
@@ -3053,9 +3061,11 @@ export class McService {
         : '';
       if (src === '__option_purpose__')  {
         const p = (options as any).purpose;
-        return p === 'setup' ? '段取' : p === 'reference' ? '参考資料' : p === 'continuous' ? '連続使用' : '';
+        return p === 'setup' ? T('purposeSetup') : p === 'reference' ? T('purposeReference') : p === 'continuous' ? T('purposeContinuous') : '';
       }
       const keys = src.split('.');
+      // 機械は「機械コード <機械名>」(同じなら機械コードのみ)で印字する(画面と同じ規則)
+      if (keys[0] === 'machine' && d.machine) return machineLabel(d.machine);
       let val: any = d;
       for (const k of keys) { val = val?.[k]; if (val == null) return ''; }
       return String(val ?? '');
@@ -3067,13 +3077,14 @@ export class McService {
       if (!fs.existsSync(p)) return null;
       const doc = await PDFLib.load(fs.readFileSync(p));
       doc.registerFontkit(fontkit.default ?? fontkit);
+      (doc as any).__tplName = filename.replace(/\.pdf$/, '');   // 日本語ラベル上書き(ベトナム語)用
       return doc;
     };
 
     // ── 結合用ドキュメント ──
     const finalDoc = await PDFLib.create();
     finalDoc.registerFontkit(fontkit.default ?? fontkit);
-    const finalFont = await finalDoc.embedFont(fontBytes, { subset: true });
+    const finalFont = await embedSheetFont(finalDoc, lang) as any;
     const kit = makePdfTextKit(finalFont);
     let totalPages = 0;
 
@@ -3115,6 +3126,7 @@ export class McService {
       }
       totalPages++;
       curPage  = finalDoc.getPage(finalDoc.getPageCount() - 1);
+      if (tplDoc && (tplDoc as any).__tplName) applyTemplateLabels(curPage, (tplDoc as any).__tplName, lang, finalFont);
       curPageH = curPage.getSize().height;
       curY     = curPageH - SHEET_BODY_TOP;
       return curPage;
@@ -3180,7 +3192,7 @@ export class McService {
     let refBoxStart = REF_BOX_LEFT, refBoxScale = 1;
     if (isReferenceSheet) {
       try {
-        const refText = '参考資料';
+        const refText = T('purposeReference');
         const refSize = 12;
         const refW = finalFont.widthOfTextAtSize(refText, refSize);
         // [No.63] 従来はタイトル右の固定位置(x=126)に描いており、同じ位置に印字するバージョン番号と重なっていた。
@@ -3200,6 +3212,7 @@ export class McService {
           const band = await finalDoc.embedPage(headerTpl.getPage(0), { left: REF_BOX_LEFT - 2, bottom, right: REF_BOX_RIGHT + 2, top });
           curPage.drawRectangle({ x: REF_BOX_LEFT - 2, y: bottom, width: 568 - (REF_BOX_LEFT - 2), height: top - bottom, color: rgb(1,1,1), borderWidth: 0 });
           curPage.drawPage(band, { x: refBoxStart - 2 * refBoxScale, y: bottom, xScale: refBoxScale, yScale: 1 });
+          applyTemplateLabels(curPage, 'repeat_header', lang, finalFont, { xMin: REF_BOX_LEFT - 2, xMax: REF_BOX_RIGHT + 2, topMin: curPageH - top - 1, bottomMax: curPageH - bottom + 1, ox: refBoxStart - 2 * refBoxScale, sx: refBoxScale });
         }
         curPage.drawRectangle({ x: refX - 5, y: refY - 5, width: refW + 10, height: refSize + 9,
                                 borderColor: rgb(0,0,0), borderWidth: 1.2 });
@@ -3317,7 +3330,7 @@ export class McService {
         if (n < Math.min(rest, 2)) { await addNewPage(null); continue; }
         n = Math.min(n, rest);
         const blockH = Math.max((part === 0 && n === rest) ? minH : 0, n * lh + padV * 2);
-        drawFrame(part === 0 ? label : `${label}(続き)`, lines.slice(idx, idx + n), blockH);
+        drawFrame(part === 0 ? label : `${label}${T('cont')}`, lines.slice(idx, idx + n), blockH);
         curY -= blockH;
         idx += n; part++;
         if (idx < lines.length) await addNewPage(null);
@@ -3327,7 +3340,7 @@ export class McService {
 
     // 備考
     await drawNoteBlock(
-      '備考', noteText,
+      T('note'), noteText,
       NOTE_X, NOTE_W, NOTE_FS, NOTE_LBL_W, NOTE_MIN_H, NOTE_LH,
       NOTE_PAD_V, NOTE_PAD_H,
     );
@@ -3344,7 +3357,7 @@ export class McService {
     const CLAMP_MIN_H = clampCfgOpt.min_h   ?? NOTE_MIN_H;
 
     await drawNoteBlock(
-      'クランプ', clampText,
+      T('clamp'), clampText,
       CLAMP_X, CLAMP_W, CLAMP_FS,
       CLAMP_LBL_W, CLAMP_MIN_H, NOTE_LH,
       NOTE_PAD_V, NOTE_PAD_H,
@@ -3387,13 +3400,13 @@ export class McService {
         // [BUGFIX 2026-09] No列(col_n)がO1001等の長い値ですぐ折返し、その行全体が
         // 行高化する不具合。col_n幅を倍(20→40)にし、その分T/H/Dを縮小して吸収。
         { dataKey:'toolNo',    x: getColX('col_n',37),         label:'N',       fs: getColFS('col_n',8),         w: getColW('col_n',40)   },
-        { dataKey:'toolName',  x: getColX('col_tool_name',68), label:'工具',    fs: getColFS('col_tool_name',8), w: getColW('col_tool_name',105) },
+        { dataKey:'toolName',  x: getColX('col_tool_name',68), label:T('tool'),    fs: getColFS('col_tool_name',8), w: getColW('col_tool_name',105) },
         { dataKey:'tNumber',   x: getColX('col_t_no',169.7),   label:'T',       fs: getColFS('col_t_no',8),      w: getColW('col_t_no',20)  },
         { dataKey:'hValue',    x: getColX('col_h_val',223.3),  label:'H',       fs: getColFS('col_h_val',8),     w: getColW('col_h_val',20) },
         { dataKey:'dRegister', x: getColX('col_d_reg',278.4),  label:'D',       fs: getColFS('col_d_reg',8),     w: getColW('col_d_reg',26) },
-        { dataKey:'dValue',    x: getColX('col_d_val',320.3),  label:'D値',     fs: getColFS('col_d_val',8),     w: getColW('col_d_val',30) },
+        { dataKey:'dValue',    x: getColX('col_d_val',320.3),  label:T('dValue'),     fs: getColFS('col_d_val',8),     w: getColW('col_d_val',30) },
         { dataKey:'subPgNo',   x: getColX('col_sub_pg',369.7), label:'SUB',     fs: getColFS('col_sub_pg',8),    w: getColW('col_sub_pg',55) },
-        { dataKey:'note',      x: getColX('col_note',423.9),   label:'コメント', fs: getColFS('col_note',8),     w: getColW('col_note',236) },
+        { dataKey:'note',      x: getColX('col_note',423.9),   label:T('comment'), fs: getColFS('col_note',8),     w: getColW('col_note',236) },
       ];
       const LINE_X_START = T_COLS[0].x;
       // LINE_X_END: 最後のカラムX + そのカラムの幅(note列から取得)
@@ -3634,8 +3647,8 @@ export class McService {
       type IPCol = { dataKey: string; x: number; label: string; fs: number; w: number };
       const IP_COLS: IPCol[] = [
         { dataKey:'axis0', x: getIPCX('col_no',30),     label:'STEP/N', fs: getIPCFS('col_no',8),    w: getIPCW('col_no',80)    },
-        { dataKey:'axis1', x: getIPCX('col_axis1',130), label:'第1軸',  fs: getIPCFS('col_axis1',8), w: getIPCW('col_axis1',190)},
-        { dataKey:'axis2', x: getIPCX('col_axis2',320), label:'第2軸',  fs: getIPCFS('col_axis2',8), w: getIPCW('col_axis2',240)},
+        { dataKey:'axis1', x: getIPCX('col_axis1',130), label:T('axis1'),  fs: getIPCFS('col_axis1',8), w: getIPCW('col_axis1',190)},
+        { dataKey:'axis2', x: getIPCX('col_axis2',320), label:T('axis2'),  fs: getIPCFS('col_axis2',8), w: getIPCW('col_axis2',240)},
       ];
       const IP_LINE_X1 = IP_COLS[0].x;
       const ipLastCol  = IP_COLS[IP_COLS.length - 1];
@@ -3702,6 +3715,7 @@ export class McService {
       // p2Docにembedしない → copyPages後に finalFont で描画
       const [p2pg] = await finalDoc.copyPages(p2Doc, [0]);
       finalDoc.addPage(p2pg);
+      applyTemplateLabels(p2pg, 'template_repeat_p2', lang, finalFont);
       totalPages++;
       const p2FinalPage = finalDoc.getPage(finalDoc.getPageCount() - 1);
       // [No.52] 発行前の確認で選んだ「今回使用機械」と入力した「今回のワーク数」(__option_*)は、項目定義の field_key が
@@ -3744,7 +3758,7 @@ export class McService {
 
     // ── ページ番号 + 発行日時 書き込み ──
     const pnF = fieldsByTpl('repeat_header').find((f:any) => f.field_key === '__page_no__');
-    const issuedAt = new Date().toLocaleString('ja-JP', { timeZone:'Asia/Tokyo',
+    const issuedAt = new Date().toLocaleString(lang === 'vi' ? 'vi-VN' : 'ja-JP', { timeZone:'Asia/Tokyo',
       year:'numeric', month:'2-digit', day:'2-digit',
       hour:'2-digit', minute:'2-digit', second:'2-digit' });
     if (totalPages > 0) {
@@ -3761,7 +3775,7 @@ export class McService {
           pg.drawText(`${pi+1} / ${totalPages}`, { x: pnX, y: pnY, size: pnSz, font: finalFont, color: rgb(0,0,0) });
           // 発行日時
           pg.drawRectangle({ x: dtX-1, y: pnY-1, width: 115, height: dtSz*1.8+2, color: rgb(1,1,1), borderWidth: 0 });
-          pg.drawText(`発行: ${issuedAt}`, { x: dtX, y: pnY, size: dtSz, font: finalFont, color: rgb(0.4,0.4,0.4) });
+          pg.drawText(`${T('issued')}: ${issuedAt}`, { x: dtX, y: pnY, size: dtSz, font: finalFont, color: rgb(0.4,0.4,0.4) });
         } catch(_) {}
       });
     }
@@ -3786,7 +3800,7 @@ export class McService {
         for (const page of finalDoc.getPages()) {
           const { width, height } = page.getSize();
           for (const pos of [{x:width*0.15,y:height*0.25},{x:width*0.35,y:height*0.55},{x:width*0.55,y:height*0.75}]) {
-            page.drawText('プレビュー', { x:pos.x, y:pos.y, size:60, font:finalFont, color:rgb(0.75,0.75,0.75), rotate:degs(35), opacity:0.35 });
+            page.drawText(T('preview'), { x:pos.x, y:pos.y, size:60, font:finalFont, color:rgb(0.75,0.75,0.75), rotate:degs(35), opacity:0.35 });
           }
         }
       } catch(_) {}
